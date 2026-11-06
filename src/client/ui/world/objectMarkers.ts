@@ -1,7 +1,8 @@
 import { CHORE_STATION_KINDS } from '@content/schemas/chore';
 import type { ObjectKind } from '@content/schemas/level';
+import { VERB_MAX_WIDTH_PCT, VERB_STROKE_PX } from '@shared/constants';
 import type { ChoreInstance } from '@sim';
-import type { Scene } from 'three';
+import { type Camera, type Scene, Vector3 } from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { svgElement } from '../svg.ts';
 import {
@@ -10,6 +11,7 @@ import {
   chronoRingOf,
   createChronoRing,
   isChronoArcLit,
+  threatFootprint,
 } from './chronoRing.ts';
 import {
   CHRONO_HIDDEN,
@@ -17,7 +19,8 @@ import {
   createChronoRingElement,
 } from './chronoRingElement.ts';
 import { THREAT_ICON_PATHS } from './threatMarkers.ts';
-import type { VerbMetrics } from './verbMetrics.ts';
+import { clampVerbDropPx, clampVerbShiftPx, fitVerbFontPx } from './verbLayout.ts';
+import { type VerbMetrics, verbTopMinPx } from './verbMetrics.ts';
 
 /** An object's icon is this share of the threat icon (`.pp-object` in `ui.css`): the station's ring hangs from it. */
 const OBJECT_SIZE_SHARE = 0.7;
@@ -35,9 +38,29 @@ export interface ObjectMarkers {
   /**
    * One marker per object that has a glyph, replacing the previous level's. `stationIds` are the object ids
    * of the level's chores (`Sim.chores`, index-aligned with `world.chores`): their markers carry the beat's
-   * chrono-ring and a done look (story 9.4).
+   * chrono-ring and a done look (story 9.4). `stationVerbs` are, per station, the translated verb of each beat
+   * of its chore (« REMUE ! », story 9.5): shown above the marker while that beat is announced.
    */
-  mount(objects: readonly ObjectMarkerSpec[], stationIds?: readonly string[]): void;
+  mount(
+    objects: readonly ObjectMarkerSpec[],
+    stationIds?: readonly string[],
+    stationVerbs?: readonly (readonly string[])[],
+  ): void;
+  /**
+   * Fits the stations' verbs to a layer `layerWidthPx` × `layerHeightPx` (CSS px), like a threat's verb
+   * (`fitVerbFontPx`, `VERB_MAX_WIDTH_PCT`, the « Grands verbes » scale). Runs when the layer is sized and
+   * when the verbs refit; `updateChores` refits them too when the surface changes.
+   */
+  refit(layerWidthPx: number, layerHeightPx: number): void;
+  /**
+   * Once per frame, before the DOM renderer: keeps the verb a station shows inside the layer, like a
+   * threat's (`ThreatMarkers.layout`): shifted sideways off an edge (`--pp-verb-shift-x`) and pulled down
+   * under the HUD's top row (`--pp-verb-offset` below 0). A verb that fits is left as it is, with nothing
+   * written. Allocates nothing; writes the DOM only when a shift changes.
+   */
+  layout(camera: Camera): void;
+  /** The text of the verb a station shows now, or '' when it shows none (the tests'; never read per frame). */
+  stationVerbOf(choreIndex: number): string | null;
   /** Removes the markers of the current level. */
   unmount(): void;
   /**
@@ -89,7 +112,16 @@ export const OBJECT_CLASSES = {
   occupied: 'pp-object-occupied',
   /** A chore's station whose chore is done (story 9.4): dimmed, like a toilet in use, and inert. */
   done: 'pp-object-done',
+  /**
+   * The verb of the announced beat (story 9.5): it wears the threats' verb look (`pp-threat-verb-stack`,
+   * `pp-threat-verb`: the DESIGN verb label, the « Grands verbes » scale) beside this class, which the tests find it by.
+   */
+  verb: 'pp-object-verb',
 } as const;
+
+/** The classes a station's verb wears: the threats' look, and its own name. */
+const VERB_STACK_CLASS = 'pp-threat-verb-stack';
+const VERB_CLASS = `pp-threat-verb ${OBJECT_CLASSES.verb}`;
 
 const CLASS_CALM = OBJECT_CLASSES.root;
 const CLASS_URGENT = `${OBJECT_CLASSES.root} ${OBJECT_CLASSES.urgent}`;
@@ -116,9 +148,32 @@ interface Marker {
   isRingSet: boolean;
   chronoPermille: number;
   isChronoLit: boolean;
+  /** The verb of a station (story 9.5): its holder and text; null for an object with no beats. */
+  readonly verbStack: HTMLElement | null;
+  readonly verb: HTMLElement | null;
+  /** The translated verb of each beat of the chore, in order; empty for an object that is no station. */
+  readonly verbs: readonly string[];
+  /** The font size, in px, each beat's verb is fitted to; 0 until the first `refit`. */
+  verbFontsPx: number[];
+  /** Each beat's verb box as fitted, outline included, in CSS px (what `layout` keeps on screen); 0 until then. */
+  verbWidthsPx: number[];
+  verbHeightsPx: number[];
+  /** The beat whose verb is shown now, or -1 for none. */
+  shownVerb: number;
+  /** The font size as written to the DOM, in px; 0 until a fitted one is written. */
+  writtenFontPx: number;
+  /** The verb stack's sideways shift and vertical offset as written, in whole px (0: the CSS default). */
+  verbShiftXPx: number;
+  verbOffsetPx: number;
 }
 
-function createMarker(spec: ObjectMarkerSpec, path: string, choreIndex: number, doc: Doc): Marker {
+function createMarker(
+  spec: ObjectMarkerSpec,
+  path: string,
+  choreIndex: number,
+  verbs: readonly string[],
+  doc: Doc,
+): Marker {
   const element = doc.createElement('div');
   element.className = OBJECT_CLASSES.root;
   element.setAttribute('data-pp-object', spec.id);
@@ -150,8 +205,22 @@ function createMarker(spec: ObjectMarkerSpec, path: string, choreIndex: number, 
   );
   // The beat's ring of a chore's station (story 9.4), between the halo and the icon like a threat's.
   const chrono = choreIndex >= 0 ? createChronoRingElement(doc) : null;
+  // The verb of the announced beat (story 9.5), above the icon like a threat's, hidden until a beat is announced.
+  let verbStack: HTMLElement | null = null;
+  let verb: HTMLElement | null = null;
+  if (chrono !== null && verbs.length > 0) {
+    verbStack = doc.createElement('div');
+    verbStack.className = VERB_STACK_CLASS;
+    verbStack.hidden = true;
+    verb = doc.createElement('span');
+    verb.className = VERB_CLASS;
+    // DESIGN.md's outline comes from the constant, as the threats' verb does.
+    verb.style.setProperty('-webkit-text-stroke', `${VERB_STROKE_PX * 2}px var(--pp-color-ink)`);
+    verbStack.append(verb);
+  }
   if (chrono === null) element.append(halo, icon);
-  else element.append(halo, chrono.root, icon);
+  else if (verbStack === null) element.append(halo, chrono.root, icon);
+  else element.append(halo, chrono.root, verbStack, icon);
   const object = new CSS2DObject(element);
   object.position.set(spec.xM, spec.yM, spec.zM);
   return {
@@ -165,6 +234,16 @@ function createMarker(spec: ObjectMarkerSpec, path: string, choreIndex: number, 
     isRingSet: false,
     chronoPermille: CHRONO_HIDDEN,
     isChronoLit: false,
+    verbStack,
+    verb,
+    verbs,
+    verbFontsPx: verbs.map(() => 0),
+    verbWidthsPx: verbs.map(() => 0),
+    verbHeightsPx: verbs.map(() => 0),
+    shownVerb: -1,
+    writtenFontPx: 0,
+    verbShiftXPx: 0,
+    verbOffsetPx: 0,
   };
 }
 
@@ -185,6 +264,69 @@ export function createObjectMarkers(
   /** Some marker is a station: its ring's radii hang from the icon's size, which changes with the surface. */
   let hasRings = false;
   let ringSurface = '';
+  let layerWidthPx = 0;
+  let layerHeightPx = 0;
+  /** From a station's centre up to its verb's bottom edge on this surface (`threatFootprint`), in CSS px. */
+  let verbRisePx = 0;
+  /** The empty band between the ring's outer ink and the verb: how far a verb may come down onto it. */
+  let verbSlackPx = 0;
+  /** The highest a verb's top edge may be (`verbTopMinPx`); `-Infinity` until the verbs are fitted. */
+  let verbTopPx = Number.NEGATIVE_INFINITY;
+  /** The one vector `layout` projects with. */
+  const projected = new Vector3();
+
+  /** Writes the font size of the shown verb when it differs from the one written. */
+  const writeVerbFont = (marker: Marker): void => {
+    const fontPx = marker.verbFontsPx[marker.shownVerb] ?? 0;
+    if (marker.verb === null || fontPx <= 0 || fontPx === marker.writtenFontPx) return;
+    marker.writtenFontPx = fontPx;
+    marker.verb.style.fontSize = `${fontPx}px`;
+  };
+
+  /** Fits every beat's verb of every station to the layer, like a threat's (`fitVerbFontPx`). */
+  const fitVerbs = (): void => {
+    if (getMetrics === undefined || layerWidthPx <= 0) return;
+    if (!markers.some((marker) => marker.verb !== null)) return;
+    const typography = getMetrics();
+    const basePx = typography.basePx();
+    const scale = typography.scale();
+    const scaledBasePx = basePx * scale;
+    const maxWidthPx = (layerWidthPx * VERB_MAX_WIDTH_PCT) / 100;
+    const lineHeight = typography.lineHeight();
+    // The verb stands on the station's icon (0.7 of a threat's), above its ring, as a threat's does.
+    const footprint = threatFootprint(typography.threatSizePx() * OBJECT_SIZE_SHARE);
+    verbRisePx = footprint.verbBottomPx;
+    verbSlackPx = footprint.verbBottomPx - footprint.ringOuterPx;
+    verbTopPx = verbTopMinPx(typography);
+    for (const marker of markers) {
+      for (let beat = 0; beat < marker.verbs.length; beat++) {
+        const advancePx = typography.widthPx(
+          (marker.verbs[beat] as string).toUpperCase(),
+          scaledBasePx,
+        );
+        // The outline adds `VERB_STROKE_PX` on each side and does not shrink with the font.
+        const fontPx = fitVerbFontPx(advancePx, basePx, maxWidthPx - 2 * VERB_STROKE_PX, scale);
+        marker.verbFontsPx[beat] = fontPx;
+        marker.verbWidthsPx[beat] = (advancePx * fontPx) / scaledBasePx + 2 * VERB_STROKE_PX;
+        marker.verbHeightsPx[beat] = fontPx * lineHeight + 2 * VERB_STROKE_PX;
+      }
+      // The verb on show keeps its place in the list but its size may have changed.
+      if (marker.shownVerb >= 0) writeVerbFont(marker);
+    }
+  };
+
+  /** Shows the verb of beat `beat` (-1: none) on a station, writing the DOM only on a change. */
+  const showVerb = (marker: Marker, beat: number): void => {
+    if (marker.verbStack === null || marker.verb === null || beat === marker.shownVerb) return;
+    marker.shownVerb = beat;
+    if (beat < 0) {
+      marker.verbStack.hidden = true;
+      return;
+    }
+    marker.verb.textContent = marker.verbs[beat] ?? '';
+    writeVerbFont(marker);
+    marker.verbStack.hidden = false;
+  };
 
   const fitRings = (): void => {
     if (!hasRings || getMetrics === undefined) return;
@@ -217,18 +359,65 @@ export function createObjectMarkers(
   };
 
   return {
-    mount(objects, stationIds = []) {
+    mount(objects, stationIds = [], stationVerbs = []) {
       unmount();
       for (const spec of objects) {
         const path = OBJECT_ICON_PATHS[spec.kind];
         if (path === null) continue;
         const choreIndex = STATION_KINDS.includes(spec.kind) ? stationIds.indexOf(spec.id) : -1;
-        const marker = createMarker(spec, path, choreIndex, doc);
+        const verbs = choreIndex >= 0 ? (stationVerbs[choreIndex] ?? []) : [];
+        const marker = createMarker(spec, path, choreIndex, verbs, doc);
         markers.push(marker);
         scene.add(marker.object);
       }
       hasRings = markers.some((marker) => marker.chrono !== null);
       fitRings();
+      fitVerbs();
+    },
+    refit(nextLayerWidthPx, nextLayerHeightPx) {
+      layerWidthPx = nextLayerWidthPx;
+      layerHeightPx = nextLayerHeightPx;
+      fitVerbs();
+    },
+    layout(camera) {
+      if (layerWidthPx <= 0 || layerHeightPx <= 0) return;
+      let isCameraReady = false;
+      for (const marker of markers) {
+        const stack = marker.verbStack;
+        if (stack === null || marker.shownVerb < 0) continue;
+        if (!isCameraReady) {
+          camera.updateMatrixWorld();
+          isCameraReady = true;
+        }
+        projected.copy(marker.object.position).project(camera);
+        const widthPx = marker.verbWidthsPx[marker.shownVerb] ?? 0;
+        const heightPx = marker.verbHeightsPx[marker.shownVerb] ?? 0;
+        const centerXPx = (projected.x * 0.5 + 0.5) * layerWidthPx;
+        const shiftXPx = clampVerbShiftPx(centerXPx, widthPx, layerWidthPx);
+        const centerYPx = (-projected.y * 0.5 + 0.5) * layerHeightPx;
+        const offsetPx =
+          0 -
+          clampVerbDropPx(
+            centerYPx - verbRisePx - heightPx,
+            heightPx,
+            verbTopPx,
+            verbRisePx,
+            verbSlackPx,
+          );
+        if (shiftXPx !== marker.verbShiftXPx) {
+          marker.verbShiftXPx = shiftXPx;
+          stack.style.setProperty('--pp-verb-shift-x', `${shiftXPx}px`);
+        }
+        if (offsetPx !== marker.verbOffsetPx) {
+          marker.verbOffsetPx = offsetPx;
+          stack.style.setProperty('--pp-verb-offset', `${offsetPx}px`);
+        }
+      }
+    },
+    stationVerbOf(choreIndex) {
+      const marker = markers.find((candidate) => candidate.choreIndex === choreIndex);
+      if (marker === undefined || marker.verb === null) return null;
+      return marker.shownVerb < 0 ? '' : (marker.verbs[marker.shownVerb] ?? '');
     },
     unmount,
     update(isCoffeeUrgent, isToiletUrgent, isToiletOccupied) {
@@ -243,7 +432,12 @@ export function createObjectMarkers(
     },
     updateChores(chores, renderSimMs) {
       if (!hasRings) return false;
-      if (getMetrics !== undefined && getMetrics().surfaceKey() !== ringSurface) fitRings();
+      // A surface change (a resize across `COMPACT_SURFACE_MAX_PX`) resizes the icon, its ring and the
+      // verb's base size: the rings and the verbs are fitted again, as a threat's are.
+      if (getMetrics !== undefined && getMetrics().surfaceKey() !== ringSurface) {
+        fitRings();
+        fitVerbs();
+      }
       let hasLit = false;
       for (const marker of markers) {
         const chrono = marker.chrono;
@@ -274,6 +468,11 @@ export function createObjectMarkers(
         } else {
           marker.isRingSet = false;
         }
+        // The verb of the beat that is announced, and none otherwise (held, paused, done).
+        showVerb(
+          marker,
+          chore.state === 'working' && chore.beatState === 'telegraph' ? chore.beatsDone : -1,
+        );
         if (isLit && !marker.isChronoLit) hasLit = true;
         marker.chronoPermille = permille;
         marker.isChronoLit = isLit;

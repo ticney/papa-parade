@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CARRY,
   COFFEE_TABLE,
+  createTestAbandonableCooking,
   createTestContent,
   createTestGeometry,
   createTestLevel,
@@ -14,6 +15,9 @@ import {
   SILENCE,
   STAIRS,
   stepN,
+  TEST_COOKING,
+  TEST_OBJECTS,
+  TEST_STOVE,
   testMicroSleepBusyMs,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -23,6 +27,7 @@ import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
 import { applyAfterEffect } from './afterEffects.ts';
 import {
+  AFTER_EFFECT_OF_GAG,
   applyGag,
   CATASTROPHE_OF_GAG,
   catastropheProblem,
@@ -44,6 +49,10 @@ async function setup(feel: Feel = content.feel) {
       gauges: FATIGUE_GAUGES,
       carry: CARRY,
       sequences: ['bedtime_duel', 'fake_sleep_duel', 'bomb_drop', 'stealth_exit'],
+      // The pot on the stove (story 9.5) is the threat of an abandoned cooking.
+      objects: [...TEST_OBJECTS, TEST_STOVE],
+      chores: [TEST_COOKING],
+      choreDefs: { cooking: createTestAbandonableCooking() },
     }),
     seed: 1,
   });
@@ -87,6 +96,8 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   // The surprise mischiefs of the silence: mess only, no near miss (story 1.21 D11).
   tissues_everywhere: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
   crayon_scribbles: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
+  // The pot boiling over (story 9.5): a mischief like the silence's, nothing to push.
+  pot_boiled_over: { defId: 'pot_on_stove', eventCount: 0, pushCount: 0 },
   // The cry is the def's `gagCryMs` (story 3.1 D9), not the gag's: nothing else happens (story 4.1).
   arms_wail: { defId: 'arms_cry', eventCount: 0, pushCount: 0 },
   // The retreat is the sequence's (story 4.6): the gag itself does nothing.
@@ -147,6 +158,29 @@ describe('applyGag', () => {
     applyGag(world, ctx, threatOf(defId), gag);
     expect(events).toHaveLength(eventCount);
     expect(impulses).toHaveLength(pushCount);
+  });
+});
+
+describe('pot_boiled_over (story 9.5)', () => {
+  it('is a mess, not a near miss: one mischief for Mama, no event, nothing pushed', async () => {
+    const { world, ctx, events, impulses, threatOf } = await setup();
+    applyGag(world, ctx, threatOf('pot_on_stove'), 'pot_boiled_over');
+    expect(world.mess.mischiefs).toBe(1);
+    expect(world.score.nearMisses).toBe(0);
+    expect(isNearMissGag('pot_boiled_over')).toBe(false);
+    expect(events).toEqual([]);
+    expect(impulses).toEqual([]);
+  });
+
+  it('goes with the mess séquelle and the mess catastrophe, and its def says so', async () => {
+    expect(CATASTROPHE_OF_GAG.pot_boiled_over).toBe('mess');
+    expect(catastropheProblem('pot_on_stove', ['pot_boiled_over'], 'mess')).toBeNull();
+    expect(catastropheProblem('pot_on_stove', ['pot_boiled_over'], 'nearMiss')).toMatch(
+      /whose catastrophe must be "mess"/,
+    );
+    const { threatOf } = await setup();
+    expect(AFTER_EFFECT_OF_GAG.pot_boiled_over).toBe('mess');
+    expect(threatOf('pot_on_stove')).toBeDefined();
   });
 });
 

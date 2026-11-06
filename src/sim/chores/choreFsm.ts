@@ -3,8 +3,9 @@ import type { ChoreInstance, World } from '../world.ts';
 /**
  * The life of a house chore (story 9.4): `untouched` until Papa first works at its station,
  * `working` while he is there, `paused` when he left with beats still to do (the beats done are
- * kept), `done` for good once the last beat was caught. Stories 9.5 and 9.6 read `paused` and its
- * `enteredAt` (« casserole abandonnée plus de 30 s », « lave-vaisselle laissé ouvert »).
+ * kept), `done` for good once the last beat was caught. Story 9.5 reads `paused` and its `enteredAt`:
+ * a cooking left that way for `abandonedThreat.afterMs` telegraphs its pot (`startAbandonedPots`,
+ * « casserole abandonnée plus de 30 s »); story 9.6 reads it for « lave-vaisselle laissé ouvert ».
  */
 export type ChoreState = 'untouched' | 'working' | 'paused' | 'done';
 

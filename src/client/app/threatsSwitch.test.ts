@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestCycleLevel } from '../../../tests/support/cycleSupport.ts';
 import {
   CARRY,
+  createTestAbandonableCooking,
   createTestBombDrop,
   createTestBombDropLay,
   createTestFakeSleep,
@@ -54,6 +55,33 @@ describe('withoutThreats', () => {
     expect(stripped.level.chores).toEqual([{ def: 'cooking', object: 'stove' }]);
     expect(stripped.chores).toEqual(planned.chores);
     expect(stripped.level.waves).toEqual([]);
+  });
+
+  it('keeps the pot of an abandoned chore with its chore: createSim refuses a chore whose pot is not loaded (story 9.5)', () => {
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET])],
+      objects: [...TEST_OBJECTS, TEST_STOVE],
+      chores: [TEST_COOKING],
+      choreDefs: { cooking: createTestAbandonableCooking() },
+    });
+    expect(Object.keys(planned.threats).sort()).toEqual(['outlet', 'pot_on_stove']);
+    const stripped = withoutThreats(planned);
+    expect(Object.keys(stripped.threats)).toEqual(['pot_on_stove']);
+    expect(stripped.level.waves).toEqual([]);
+  });
+
+  it('warns about a pot the level does not load, and keeps the others', () => {
+    const planned = createTestLevel({
+      objects: [...TEST_OBJECTS, TEST_STOVE],
+      chores: [TEST_COOKING],
+      choreDefs: { cooking: createTestAbandonableCooking() },
+    });
+    const lost = { ...planned, threats: {} };
+    expect(Object.keys(withoutThreats(lost).threats)).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledWith(
+      'boot',
+      expect.stringContaining('the abandoned chore def "pot_on_stove" is not loaded'),
+    );
   });
 
   it('adds no chores key to a level that has none: its hash does not move', () => {

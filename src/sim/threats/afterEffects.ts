@@ -9,7 +9,7 @@ import { finishCoffee } from '../papa/coffee.ts';
 import { enterPapaState, isAfterEffectState, isPapaBusy } from '../papa/papaFsm.ts';
 import { tidyProp } from '../papa/tidyProp.ts';
 import { finishToilet } from '../papa/toilet.ts';
-import type { PapaSlice, PropSlice, World } from '../world.ts';
+import type { PapaSlice, PropSlice, ThreatInstance, World } from '../world.ts';
 import type { GagId } from './gags.ts';
 
 // The séquelles of the gags (story 3.15, FR72, GDD mechanic 13). A gag is a one-shot (`applyGag`);
@@ -252,7 +252,13 @@ export function markDebris(
  * `debris` is placed by the table's gag itself (`markDebris`: only it knows which prop it pushed);
  * `none` leaves nothing.
  */
-export function applyAfterEffect(world: World, ctx: StepContext, def: ThreatDef, gag: GagId): void {
+export function applyAfterEffect(
+  world: World,
+  ctx: StepContext,
+  def: ThreatDef,
+  gag: GagId,
+  threat?: ThreatInstance,
+): void {
   const effect = def.afterEffect;
   const now = world.time.sim;
   switch (effect.kind) {
@@ -300,8 +306,10 @@ export function applyAfterEffect(world: World, ctx: StepContext, def: ThreatDef,
       });
       return;
     }
-    case 'mess':
-      world.afterEffects.mischiefMarks.push({ gag, xM: world.baby.xM, zM: world.baby.zM });
+    case 'mess': {
+      // The silence's mess lies where the baby is; a pot's (story 9.5) lies at the stove it boiled over on.
+      const at = def.target === 'station' && threat !== undefined ? threat : world.baby;
+      world.afterEffects.mischiefMarks.push({ gag, xM: at.xM, zM: at.zM });
       ctx.events.push({
         type: 'AfterEffectStarted',
         t: now,
@@ -310,6 +318,7 @@ export function applyAfterEffect(world: World, ctx: StepContext, def: ThreatDef,
         propId: null,
       });
       return;
+    }
     case 'asleep':
       occupyPapa(world, ctx, 'asleep', effect.busyMs);
       return;

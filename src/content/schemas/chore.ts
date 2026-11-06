@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
+import { VERB_KEY_PATTERN } from './threat.ts';
 
 // `content/chores/<id>.json`: one file per house chore (story 9.4, FR76). A chore is played at a
 // station, an object of the level (`level.chores: [{ def, object }]`): Papa works there, each beat
@@ -19,6 +20,12 @@ export type ChoreStationKind = (typeof CHORE_STATION_KINDS)[number];
 
 const ChoreBeatSchema = z
   .strictObject({
+    verbKey: z
+      .string()
+      .regex(VERB_KEY_PATTERN, 'a verbKey is a `verb.<name>` key of strings.fr.json')
+      .describe(
+        'Key of `strings.fr.json` (`verb.` group) of the verb shown at the station while the beat is announced (« REMUE ! », story 9.5).',
+      ),
     telegraphDelayMs: z
       .number()
       .int()
@@ -64,6 +71,23 @@ export const ChoreDefSchema = z
       .refine((points) => Number.isInteger(points * 2), 'a whole or a half point (7.5)')
       .describe(
         'Points of the Maison row of Mama’s note the chore pays once done: whole or half points (7.5), the note counts that way. An unfinished chore pays nothing.',
+      ),
+    abandonedThreat: z
+      .strictObject({
+        def: idSchema(
+          'The threat the abandoned chore turns into: a file of `content/threats/` with `target: "station"`.',
+        ),
+        afterMs: z
+          .number()
+          .int()
+          .positive()
+          .describe(
+            'How long the chore must stay `paused` (Papa away from the station, beats left to do) before the threat starts, in sim ms.',
+          ),
+      })
+      .optional()
+      .describe(
+        'Optional: what a chore left alone becomes (story 9.5: « une cuisson abandonnée plus de 30 s devient la casserole sur le feu »). Absent: leaving the chore costs nothing but the wait.',
       ),
     feedback: ChoreFeedbackSchema,
   })

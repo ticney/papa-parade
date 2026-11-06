@@ -19,6 +19,24 @@ export interface VerbMetrics {
   threatSizePx(): number;
   /** The advance width of `text` (already uppercase) at `fontPx`, in CSS px. */
   widthPx(text: string, fontPx: number): number;
+  /**
+   * The bottom of the HUD's top row (`.pp-hud-row`: `{spacing.hud-inset}` with the safe area, and the
+   * row's `{spacing.touch-target-min}` height), in CSS px from the top of the page, which is the top of the
+   * world layer too (both are `position: fixed; inset: 0`). A verb never starts above it (`verbTopMinPx`,
+   * story 9.5 review). Read when the verbs refit, never per frame. Absent on a double that lays out no
+   * HUD: its verbs are not clamped vertically.
+   */
+  hudBottomPx?(): number;
+}
+
+/**
+ * The highest a verb box's top edge may be in the world layer, in CSS px: the bottom of the HUD's top
+ * row, so that only a verb the row would cut moves (one that clears it, however closely, keeps its
+ * place). `-Infinity` (no clamp) when `metrics` knows no HUD.
+ */
+export function verbTopMinPx(metrics: VerbMetrics): number {
+  if (metrics.hudBottomPx === undefined) return Number.NEGATIVE_INFINITY;
+  return metrics.hudBottomPx();
 }
 
 /** What `createVerbMetrics` reads, so that a test needs neither a DOM nor a canvas. */
@@ -29,6 +47,8 @@ export interface VerbMetricsSource {
   cssVar(name: string): string;
   /** The width of `text` set in the CSS `font` shorthand, or null when it cannot be measured. */
   measure(font: string, text: string): number | null;
+  /** The bottom of the HUD's top row, in CSS px from the top of the page; NaN or absent when there is none. */
+  hudBottomPx?(): number;
 }
 
 function numberOf(raw: string, fallback: number): number {
@@ -41,6 +61,9 @@ const FALLBACK_BASE_PX = 40;
 const FALLBACK_LINE_HEIGHT = 1;
 /** The regular surface's icon size, when `--pp-threat-size` cannot be read. */
 const FALLBACK_THREAT_SIZE_PX = 64;
+/** The HUD's top row (`hudLayer.ts`), as `boot.ts` finds it for the silence and off-screen bubbles. */
+const HUD_ROW_SELECTOR = '.pp-hud-row';
+
 /** A glyph is about this wide, as a multiple of its font size: used only when the canvas cannot measure. */
 const ESTIMATED_GLYPH_EM = 0.6;
 
@@ -82,6 +105,19 @@ export function createVerbMetrics(source: VerbMetricsSource): VerbMetrics {
       }
       return text.length * fontPx * ESTIMATED_GLYPH_EM;
     },
+    hudBottomPx() {
+      const bottomPx = source.hudBottomPx?.() ?? Number.NaN;
+      if (Number.isFinite(bottomPx) && bottomPx >= 0) return bottomPx;
+      if (!warnedTokens.has(HUD_ROW_SELECTOR)) {
+        warnedTokens.add(HUD_ROW_SELECTOR);
+        log.warn(
+          'render',
+          `cannot read the bottom of ${HUD_ROW_SELECTOR}: verbs keep to the layer`,
+        );
+      }
+      // No row to keep clear of: a verb still never starts above the layer.
+      return 0;
+    },
   };
 }
 
@@ -97,6 +133,14 @@ export function createBrowserVerbMetrics(doc: Document = document): VerbMetrics 
       if (context === null) return null;
       context.font = font;
       return context.measureText(text).width;
+    },
+    // The row's computed `top` and `height` (its tokens, the safe area resolved): readable while `#pp-hud`
+    // is hidden too, which a bounding box is not.
+    hudBottomPx() {
+      const row = doc.querySelector(HUD_ROW_SELECTOR);
+      if (row === null) return Number.NaN;
+      const style = getComputedStyle(row);
+      return Number.parseFloat(style.top) + Number.parseFloat(style.height);
     },
   });
 }

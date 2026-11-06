@@ -100,7 +100,9 @@ export function takeBaby(world: World, ctx: StepContext): void {
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') continue;
-    if (ctx.level.threats[i]?.def.target === 'papa') continue;
+    // The cry in the arms is Papa's; the pot on the stove (story 9.5) is no business of the baby's arms.
+    const target = ctx.level.threats[i]?.def.target;
+    if (target === 'papa' || target === 'station') continue;
     cancelThreat(world, ctx, threat, 'carried');
   }
   if (ctx.level.armsCryIndex >= 0) world.carry.armsCryAt = drawArmsCryAt(world, ctx);

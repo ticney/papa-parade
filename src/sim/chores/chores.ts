@@ -2,12 +2,13 @@ import type { ChoreStationKind } from '@content/schemas/chore';
 import type { ObjectKind } from '@content/schemas/level';
 import { asSimMs } from '@shared/time';
 import { instinctWindowModifier } from '../assist/paternalInstinct.ts';
+import { isBabyCarried } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { enterPapaState } from '../papa/papaFsm.ts';
 import { activeDifficulty } from '../timing/difficulty.ts';
 import { effectiveWindow } from '../timing/effectiveWindow.ts';
-import type { ChoreInstance, World } from '../world.ts';
+import type { ChoreInstance, ThreatInstance, World } from '../world.ts';
 import { enterChoreState } from './choreFsm.ts';
 
 /**
@@ -47,6 +48,50 @@ export function isAnyThreatWindowOpen(world: World): boolean {
   const { threats } = world;
   for (let i = 0; i < threats.length; i++) {
     if (threats[i]?.state === 'windowOpen') return true;
+  }
+  return false;
+}
+
+/**
+ * The instance of the pot of the chore at `choreIndex` (story 9.5), or undefined for a chore with no
+ * `abandonedThreat`. Its index is `SimPlannedChore.abandoned.threatIndex`.
+ */
+export function potOf(
+  world: World,
+  ctx: StepContext,
+  choreIndex: number,
+): ThreatInstance | undefined {
+  const abandoned = ctx.level.chores[choreIndex]?.abandoned;
+  return abandoned == null ? undefined : world.threats[abandoned.threatIndex];
+}
+
+/** Whether the chore's own pot is on the fire: telegraphed or its window open (story 9.5 D6). */
+export function isPotActive(world: World, ctx: StepContext, choreIndex: number): boolean {
+  const pot = potOf(world, ctx, choreIndex);
+  return pot !== undefined && (pot.state === 'telegraph' || pot.state === 'windowOpen');
+}
+
+/**
+ * Papa's glide to the threat `threatId` has ended (story 9.5, review): if it was a chore's own pot and
+ * that chore is `paused`, he has lowered the heat at its station, so he goes back to it (`startChore`;
+ * the beat stays held while the pot is still on). Not with the baby in his arms (the station refuses
+ * him, 9.4 D10) nor in a sequence. True when he works there now.
+ */
+export function resumeChoreOfPot(world: World, ctx: StepContext, threatId: number): boolean {
+  if (world.flow.state === 'sequence' || isBabyCarried(world)) return false;
+  const { chores } = ctx.level;
+  for (let i = 0; i < chores.length; i++) {
+    const planned = chores[i] as StepContext['level']['chores'][number];
+    if (planned.abandoned === null || potOf(world, ctx, i)?.id !== threatId) continue;
+    const state = world.chores[i]?.state;
+    if (state === 'working') {
+      // A press from the stove itself: the glide was empty and ended in the step that started it,
+      // before `settleChores` could pause the chore. Papa simply keeps working.
+      enterPapaState(world, ctx, 'chore');
+      return true;
+    }
+    if (state !== 'paused') return false;
+    return startChore(world, ctx, planned.objectId);
   }
   return false;
 }
@@ -94,7 +139,8 @@ export function announceBeat(world: World, ctx: StepContext, choreIndex: number)
 /**
  * Papa arrived at a chore's station (`OBJECT_ACTIONS`): he works there. Returns true when he
  * did, false when the chore is done (he is only standing at the stove, idle). A `paused` chore
- * resumes at the first beat not done. The beat is announced, or `held` when a threat's window is open.
+ * resumes at the first beat not done. The beat is announced, or `held` when a threat's window is open or
+ * the chore's own pot is on the fire (story 9.5).
  */
 export function startChore(world: World, ctx: StepContext, objectId: string): boolean {
   const index = choreIndexOfObject(ctx, objectId);
@@ -103,7 +149,7 @@ export function startChore(world: World, ctx: StepContext, objectId: string): bo
   enterChoreState(world, chore, 'working');
   clearBeat(chore);
   enterPapaState(world, ctx, 'chore');
-  if (isAnyThreatWindowOpen(world)) chore.beatState = 'held';
+  if (isAnyThreatWindowOpen(world) || isPotActive(world, ctx, index)) chore.beatState = 'held';
   else announceBeat(world, ctx, index);
   return true;
 }

@@ -8,7 +8,7 @@ import { type BreathRing, createBreathRing } from './breathRing.ts';
 import type { ChronoRing } from './chronoRing.ts';
 import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
-import { createObjectMarkers, type ObjectMarkerSpec, type ObjectMarkers } from './objectMarkers.ts';
+import { createObjectMarkers, type ObjectMarkers } from './objectMarkers.ts';
 import { createPapaHint, type PapaHint } from './papaHint.ts';
 import { createStealthExitMarker, type StealthExitMarker } from './stealthExitMarker.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
@@ -118,8 +118,11 @@ export interface WorldUi {
    * `PapaHint.update`). `nowAtReal` is the real time of the frame, in ms. Allocation-free.
    */
   updatePapaHint(papa: Readonly<{ xM: number; zM: number }> | null, nowAtReal: number): void;
-  /** Mounts the icons of the level's interactive objects (the coffee machine, the toilet door), replacing the previous level's. */
-  mountObjects(objects: readonly ObjectMarkerSpec[], stationIds?: readonly string[]): void;
+  /**
+   * Mounts the icons of the level's interactive objects (the coffee machine, the toilet door), replacing the previous level's.
+   * `stationVerbs` are the translated verbs of each station's beats (story 9.5).
+   */
+  mountObjects: ObjectMarkers['mount'];
   /** Removes the object icons. */
   unmountObjects(): void;
   /**
@@ -159,7 +162,8 @@ export interface WorldUi {
   refitVerbs(): void;
   /**
    * Places the elements for this frame's camera: first the verb layout (the verbs that would overlap
-   * are offset, the most urgent threat is in front) and the chip beside its verb, then the DOM renderer.
+   * are offset, the most urgent threat is in front; every verb, a station's too, is kept inside the layer
+   * and under the HUD's top row) and the chip beside its verb, then the DOM renderer.
    * Returns at once, without calling the DOM renderer, while nothing in the layer is visible (no tap
    * marker, no threat icon, no object icon, no chip, no combo badge, no papa hint, no activity bubble).
    */
@@ -193,6 +197,7 @@ export function createWorldUi(
     return verbMetrics;
   });
   let layerWidthPx = 0;
+  let layerHeightPx = 0;
   // The stations' rings hang from the icon's size on the current surface (story 9.4): the page's, read lazily.
   const objects = createObjectMarkers(scene, doc, () => {
     verbMetrics ??= createBrowserVerbMetrics();
@@ -277,11 +282,14 @@ export function createWorldUi(
       renderer.setSize(widthPx, heightPx);
       threats.setSize(widthPx, heightPx);
       layerWidthPx = widthPx;
+      layerHeightPx = heightPx;
       papaHint.refit(widthPx);
+      objects.refit(widthPx, heightPx);
     },
     refitVerbs() {
       threats.refit();
       papaHint.refit(layerWidthPx);
+      objects.refit(layerWidthPx, layerHeightPx);
     },
     render(camera) {
       if (
@@ -303,6 +311,7 @@ export function createWorldUi(
       }
       // Before the DOM renderer: the layout writes the offsets and the z-indices it places.
       threats.layout(camera);
+      objects.layout(camera);
       papaHint.layout(camera);
       glyphChip.refresh();
       renderer.render(scene, camera);

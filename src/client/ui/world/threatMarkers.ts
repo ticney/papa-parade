@@ -28,6 +28,7 @@ import {
   createChronoRing,
   hasChronoRing,
   isChronoArcLit,
+  threatFootprint,
 } from './chronoRing.ts';
 import {
   CHRONO_HIDDEN,
@@ -35,13 +36,14 @@ import {
   createChronoRingElement,
 } from './chronoRingElement.ts';
 import {
+  clampVerbDropPx,
   clampVerbShiftPx,
   createVerbStack,
   fitVerbFontPx,
   stackVerbs,
   type VerbStack,
 } from './verbLayout.ts';
-import { createBrowserVerbMetrics, type VerbMetrics } from './verbMetrics.ts';
+import { createBrowserVerbMetrics, type VerbMetrics, verbTopMinPx } from './verbMetrics.ts';
 
 /** An icon floats this far above the top of the body it marks (Papa's cube, the baby's), in metres. */
 const PAPA_MARKER_OFFSET_M = 0.3;
@@ -91,7 +93,8 @@ export interface ThreatMarkerEntry {
   /**
    * The verb's box as laid out, in CSS px, for the glyph chip: written by `ThreatMarkers.setSize`
    * (width and height, with the outline) and `ThreatMarkers.layout` (how far it is pushed up, 0 when
-   * it overlaps nothing). 0 while nothing has been laid out or when there is no verb.
+   * it overlaps nothing, below 0 when it is pulled down under the HUD's top row). 0 while nothing has
+   * been laid out or when there is no verb.
    */
   verbWidthPx: number;
   verbHeightPx: number;
@@ -427,6 +430,8 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   sigh: 'M2.5 8h9.5v2.7L6.7 17.3H12v3H2.5v-2.7l5.3-6.6H2.5z M13.8 3h7.4v2.2l-4 4.8h4v2.4h-7.4v-2.2l4-4.8h-4z',
   // Three dots: the « … » of the suspicious silence (story 1.21).
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
+  // A saucepan with its handle and two wisps of steam: the pot left on the fire (story 9.5).
+  pot: 'M4 11h13v6.5a3.5 3.5 0 0 1-3.5 3.5h-6A3.5 3.5 0 0 1 4 17.5z M17 12.5h3.2a1 1 0 0 1 0 2H17z M8 8.5c-1.2-1.4 1.2-2.4 0-4 M13 8.5c-1.2-1.4 1.2-2.4 0-4',
 };
 /** The chevron: a down-pointing triangle above the verb (12 × 8 view box). */
 const CHEVRON_PATH = 'M1 1h10L6 7z';
@@ -454,7 +459,7 @@ interface Marker {
   isSignalShown: boolean;
   /** The feint has been given and the signal has not come: the glyph is the entry's `feintIcon` (story 4.7). */
   isFeintShown: boolean;
-  /** How far the verb stack is pushed up as drawn, in whole px. */
+  /** How far the verb stack is pushed up as drawn, in whole px (below 0: pulled down under the HUD row). */
   verbOffsetPx: number;
   /** How far the verb stack is shifted sideways as drawn to stay on screen, in whole px. */
   verbShiftXPx: number;
@@ -807,6 +812,14 @@ export function createThreatMarkers(
   let stackSource = new Int32Array(0);
   /** Scratch of `layout`: the sideways shift of each laid-out box, by its index in `stack`. */
   let shiftXs = new Float64Array(0);
+  /** Scratch of `layout`: how far each laid-out box is pulled down under the HUD row before the stacking. */
+  let dropYs = new Float64Array(0);
+  /** From the icon's centre up to the verb's bottom edge on this surface (`threatFootprint`), in CSS px. */
+  let verbRisePx = 0;
+  /** The empty band between the ring's outer ink and the verb: how far a verb may come down onto it. */
+  let verbSlackPx = 0;
+  /** The highest a verb's top edge may be (`verbTopMinPx`); `-Infinity` until the verbs are fitted. */
+  let verbTopPx = Number.NEGATIVE_INFINITY;
   let zStrings: readonly string[] = [];
   /** Some marker of the level has a verb: only then is the page's typography read at all. */
   let hasVerbs = false;
@@ -832,6 +845,7 @@ export function createThreatMarkers(
     stack = createVerbStack(0);
     stackSource = new Int32Array(0);
     shiftXs = new Float64Array(0);
+    dropYs = new Float64Array(0);
     zStrings = [];
     hasVerbs = false;
     hasRings = false;
@@ -854,6 +868,11 @@ export function createThreatMarkers(
     if (layerWidthPx <= 0 || !hasVerbs) return;
     const typography = getMetrics();
     fittedSurface = typography.surfaceKey();
+    // Where a verb's box starts above its icon, and the HUD row it must stay under (story 9.5 review).
+    const footprint = threatFootprint(typography.threatSizePx());
+    verbRisePx = footprint.verbBottomPx;
+    verbSlackPx = footprint.verbBottomPx - footprint.ringOuterPx;
+    verbTopPx = verbTopMinPx(typography);
     const basePx = typography.basePx();
     const scale = typography.scale();
     const scaledBasePx = basePx * scale;
@@ -889,6 +908,7 @@ export function createThreatMarkers(
       stack = createVerbStack(markers.length);
       stackSource = new Int32Array(markers.length);
       shiftXs = new Float64Array(markers.length);
+      dropYs = new Float64Array(markers.length);
       zStrings = Array.from({ length: markers.length + 1 }, (_, rank) => String(rank));
       hasVerbs = markers.some((marker) => marker.verb !== null);
       hasRings = markers.some((marker) => marker.chrono !== null);
@@ -918,7 +938,17 @@ export function createThreatMarkers(
         const shiftXPx = clampVerbShiftPx(iconXPx, entry.verbWidthPx, layerWidthPx);
         shiftXs[count] = shiftXPx;
         stack.centerXPx[count] = iconXPx + shiftXPx;
-        stack.bottomPx[count] = (-projected.y * 0.5 + 0.5) * layerHeightPx;
+        // And below the HUD's top row (story 9.5 review): a verb that would start above it comes down.
+        const iconYPx = (-projected.y * 0.5 + 0.5) * layerHeightPx;
+        const dropYPx = clampVerbDropPx(
+          iconYPx - verbRisePx - entry.verbHeightPx,
+          entry.verbHeightPx,
+          verbTopPx,
+          verbRisePx,
+          verbSlackPx,
+        );
+        dropYs[count] = dropYPx;
+        stack.bottomPx[count] = iconYPx + dropYPx;
         stack.widthPx[count] = entry.verbWidthPx;
         stack.heightPx[count] = entry.verbHeightPx;
         stack.closeAt[count] = marker.closeAt;
@@ -936,7 +966,9 @@ export function createThreatMarkers(
           entry.verbShiftXPx = shiftXPx;
           marker.verbStack.style.setProperty('--pp-verb-shift-x', `${shiftXPx}px`);
         }
-        const offsetPx = stack.offsetPx[k] as number;
+        // The push of the stacking, less the pull-down under the HUD row it started from. A verb the
+        // stacking pushes up past the row stays there: no verb covers another (story 2.2) comes first.
+        const offsetPx = (stack.offsetPx[k] as number) - (dropYs[k] as number);
         if (offsetPx !== marker.verbOffsetPx) {
           marker.verbOffsetPx = offsetPx;
           entry.verbOffsetPx = offsetPx;

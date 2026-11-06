@@ -393,7 +393,10 @@ function checkThreatReferences(
           jsonPath,
           message: `"${gag}" is not a gag of the sim (${GAG_IDS.join(', ')}; a new gag is added to GAG_IDS in src/sim/threats/gags.ts)`,
         });
-      } else if (threat.target === 'hiddenZone' && gag === PAPA_ASLEEP_GAG_ID) {
+      } else if (
+        (threat.target === 'hiddenZone' || threat.target === 'station') &&
+        gag === PAPA_ASLEEP_GAG_ID
+      ) {
         problems.push({
           file,
           jsonPath,
@@ -1068,12 +1071,35 @@ function checkDisruptionRing(
  */
 function checkChoreReferences(
   chores: ReadonlyMap<string, ChoreDef>,
+  threats: ReadonlyMap<string, ThreatDef>,
+  present: ReadonlySet<string>,
   feedback: FeedbackTable | undefined,
   feel: Feel | undefined,
 ): ContentProblem[] {
   const problems: ContentProblem[] = [];
   for (const [id, chore] of chores) {
     const file = `content/${CHORE_DEF_PATTERN.dir}/${id}${CHORE_DEF_PATTERN.suffix}`;
+    // The threat an abandoned chore turns into (story 9.5): a threat file that stands on a station.
+    if (chore.abandonedThreat !== undefined) {
+      const { def } = chore.abandonedThreat;
+      const defFile = `${THREAT_DEF_PATTERN.dir}/${def}${THREAT_DEF_PATTERN.suffix}`;
+      const threat = threats.get(def);
+      if (threat === undefined) {
+        if (!present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['abandonedThreat', 'def']),
+            message: `no threat "${def}" (content/${defFile} does not exist)`,
+          });
+        }
+      } else if (threat.target !== 'station') {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['abandonedThreat', 'def']),
+          message: `the threat "${def}" has target "${threat.target}", but the threat of an abandoned chore must have target "station"`,
+        });
+      }
+    }
     if (feedback !== undefined) {
       for (const [role, cueId] of Object.entries(chore.feedback)) {
         if (!Object.hasOwn(feedback.cues, cueId)) {
@@ -1113,6 +1139,27 @@ function checkChoreReferences(
     // `CHORE_STATION_KINDS` (an unknown kind is refused at `station`), each of them is an `ObjectKind`
     // (proved at compile time in `schemas/level.ts`), and a level's object of a kind the sim has no
     // action for is refused by `checkLevelReferences`.
+  }
+  return problems;
+}
+
+/**
+ * A threat on a chore station is spawned by the chore system only (story 9.5): a `station` threat
+ * file that no chore names as its `abandonedThreat` could never start.
+ */
+function checkStationThreats(families: ParsedFamilies): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const named = new Set<string>();
+  for (const chore of families.chores.values()) {
+    if (chore.abandonedThreat !== undefined) named.add(chore.abandonedThreat.def);
+  }
+  for (const [id, threat] of families.threats) {
+    if (threat.target !== 'station' || named.has(id)) continue;
+    problems.push({
+      file: `content/${THREAT_DEF_PATTERN.dir}/${id}${THREAT_DEF_PATTERN.suffix}`,
+      jsonPath: 'target',
+      message: `the threat "${id}" has target "station", but no chore names it as its abandonedThreat: nothing would spawn it`,
+    });
   }
   return problems;
 }
@@ -1261,6 +1308,13 @@ function checkLevelReferences(
             file,
             jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
             message: `the threat "${entry.def}" has target "baby": only a stealth step spawns it, a wave cannot plan it`,
+          });
+        }
+        if (threatDef?.target === 'station') {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+            message: `the threat "${entry.def}" has target "station": only a chore's abandonedThreat spawns it, a wave cannot plan it`,
           });
         }
         for (const gag of threatDef === undefined ? [] : ThreatGagIds(threatDef)) {
@@ -1655,7 +1709,10 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   problems.push(...checkThreatReferences(families.threats, feedback, feel));
   problems.push(...checkDisruptionReferences(families.disruptions, feedback));
   problems.push(...checkTelegraphClips(families.threats, families.disruptions, feedback));
-  problems.push(...checkChoreReferences(families.chores, feedback, feel));
+  problems.push(
+    ...checkChoreReferences(families.chores, families.threats, present, feedback, feel),
+  );
+  problems.push(...checkStationThreats(families));
   problems.push(...checkLevelReferences(families, present, feel));
   problems.push(...checkLevelChores(families, present, feel));
   problems.push(...checkSequenceReferences(families, present, feedback, feel));

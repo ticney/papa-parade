@@ -141,6 +141,13 @@ export interface SimPlannedChore {
   /** The station's floor point, the anchor of its object. */
   readonly xM: number;
   readonly zM: number;
+  /**
+   * The pot of an abandoned chore (story 9.5), or null for a chore with no `abandonedThreat`:
+   * `threatIndex` is its instance in `SimLevel.threats` and `world.threats` (planned after every
+   * other threat, with `firstWaveIndex` -1), `afterMs` how long the chore must stay `paused` before
+   * the sim telegraphs it.
+   */
+  readonly abandoned: { readonly threatIndex: number; readonly afterMs: number } | null;
 }
 
 /** One special sequence a level can run (story 4.4): its id and its def. */

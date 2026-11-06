@@ -493,7 +493,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
               .filter((def) => def.release !== undefined)
               .map((def) => def.id),
             anchorThreatDefIds: Object.values(levelPlan.threats)
-              .filter((def) => def.target === 'anchor')
+              .filter((def) => def.target === 'anchor' || def.target === 'station')
               .map((def) => def.id),
             laidHeightM: deps.content.feedback.bombDrop.laidHeightM,
             characters: deps.content.feedback.characters,

@@ -1245,6 +1245,8 @@ export async function boot(): Promise<void> {
       worldUi.mountObjects(
         started.sim.objects,
         started.sim.chores.map((chore) => chore.objectId),
+        // The verb of each beat is shown at the station while that beat is announced (story 9.5).
+        started.sim.chores.map((chore) => chore.def.beats.map((beat) => t(beat.verbKey))),
       );
       choreMirror.reset();
       choreBeatCounts = started.sim.chores.map((chore) => chore.def.beats.length);

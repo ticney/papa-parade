@@ -2340,9 +2340,10 @@ body {
   whole px) when verbs of simultaneous threats would overlap. It takes no pointer events (the marker's).
 */
 .pp-threat-verb-stack {
-  /* Pushed up by `threatMarkers.ts` when verbs overlap. */
+  /* Pushed up by `threatMarkers.ts` when verbs overlap; below 0 (pulled down) by it and `objectMarkers.ts`
+     when the verb would start above the HUD's top row (`verbTopMinPx`), and only then. */
   --pp-verb-offset: 0px;
-  /* Shifted sideways by `threatMarkers.ts` when the verb would reach past an edge of the layer. */
+  /* Shifted sideways by `threatMarkers.ts` and `objectMarkers.ts` when the verb would reach past an edge of the layer. */
   --pp-verb-shift-x: 0px;
   position: absolute;
   left: 50%;

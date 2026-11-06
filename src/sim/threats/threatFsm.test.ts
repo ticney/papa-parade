@@ -342,6 +342,7 @@ describe('gags', () => {
       'papa_asleep',
       'tissues_everywhere',
       'crayon_scribbles',
+      'pot_boiled_over',
       'arms_wail',
       'baby_eyes_reopened',
       'baby_sat_up',

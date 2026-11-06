@@ -13,9 +13,10 @@ import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
 /**
  * What made noise: a row of `feel.noise.sources` (typed from the schema, so a new row cannot be
- * forgotten here), or `debug` for the `SetNoise` command (story 3.1).
+ * forgotten here), `gag` for the noise a def makes by itself when it ends in its gag (`gagNoisePct`, story
+ * 9.5; not a feel key: the def owns the amount), or `debug` for the `SetNoise` command (story 3.1).
  */
-export type NoiseSource = keyof Feel['noise']['sources'] | 'debug';
+export type NoiseSource = keyof Feel['noise']['sources'] | 'gag' | 'debug';
 
 /**
  * What moved the catastrophe gauge (story 3.16): the category of a gag (a threat's `catastrophe`

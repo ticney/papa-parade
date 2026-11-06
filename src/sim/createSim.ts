@@ -252,6 +252,10 @@ function simLevelOf(
       def.target !== 'baby',
       `${entry.where}: the threat "${entry.def}" has target "baby": only a stealth step spawns it, a wave cannot plan it`,
     );
+    invariant(
+      def.target !== 'station',
+      `${entry.where}: the threat "${entry.def}" has target "station": only a chore's abandonedThreat spawns it, a wave cannot plan it`,
+    );
     if (def.target === 'hiddenZone') {
       const limitProblem = silenceLimitProblem(
         entry.waveIndex,
@@ -389,7 +393,8 @@ function simLevelOf(
   }
   // The house chores (story 9.4): `level.chores` and `content.chores` are index-aligned; the words
   // are `content:check`'s and the level schema's. Every station object must be named, and once.
-  const chores: SimLevel['chores'][number][] = [];
+  // `abandoned` is filled in below, once every other threat is planned (the pot comes last).
+  const choreBases: Omit<SimLevel['chores'][number], 'abandoned'>[] = [];
   (level.level.chores ?? []).forEach((entry, i) => {
     const where = `level ${level.level.id} › chores[${i}]`;
     const def = level.chores?.[i];
@@ -412,7 +417,7 @@ function simLevelOf(
       `${where}: the chore "${entry.def}" has the station "${def.station}", which the sim has no action for (${OBJECT_ACTION_KINDS.join(', ')})`,
     );
     invariant(
-      chores.every((other) => other.objectId !== entry.object),
+      choreBases.every((other) => other.objectId !== entry.object),
       `${where}: the object "${entry.object}" is already the station of another chore`,
     );
     const anchor = geometry.anchors.find((candidate) => candidate.id === object.anchor);
@@ -420,7 +425,7 @@ function simLevelOf(
       anchor !== undefined,
       `${where}: the object "${entry.object}" is at ${object.anchor}, which ${geometry.id} does not have`,
     );
-    chores.push({
+    choreBases.push({
       def,
       objectId: entry.object,
       xM: anchor.positionM[0],
@@ -430,7 +435,7 @@ function simLevelOf(
   for (const object of level.level.objects) {
     invariant(
       !(CHORE_STATION_OBJECT_KINDS as readonly string[]).includes(object.kind) ||
-        chores.some((chore) => chore.objectId === object.id),
+        choreBases.some((chore) => chore.objectId === object.id),
       `level ${level.level.id}: the ${object.kind} "${object.id}" is a station and no chore names it`,
     );
   }
@@ -534,6 +539,49 @@ function simLevelOf(
       duelThreatIndexes,
       stealthThreatIndexes,
     });
+  });
+  // The pot of an abandoned chore (story 9.5): one instance per chore that names one, pushed after every
+  // other planned threat so that none of their indices moves. It stands at the station's anchor, in no
+  // wave's pool (`firstWaveIndex` -1): only the chore system telegraphs it. The words are `content:check`'s.
+  const chores: SimLevel['chores'][number][] = choreBases.map((base, i) => {
+    const abandonedThreat = base.def.abandonedThreat;
+    if (abandonedThreat === undefined) return { ...base, abandoned: null };
+    const where = `level ${level.level.id} › chores[${i}]`;
+    const def = Object.hasOwn(level.threats, abandonedThreat.def)
+      ? level.threats[abandonedThreat.def]
+      : undefined;
+    invariant(
+      def !== undefined,
+      `${where}: no threat "${abandonedThreat.def}" is loaded for the abandoned chore`,
+    );
+    invariant(
+      def.target === 'station',
+      `${where}: the threat "${abandonedThreat.def}" has target "${def.target}", but the threat of an abandoned chore must have target "station"`,
+    );
+    invariant(
+      def.response === 'parry',
+      `${where}: a threat on a chore station (target "station") is parried: the response of "${abandonedThreat.def}" must be "parry", not "${def.response}"`,
+    );
+    for (const gag of gagIdsOf(def)) {
+      invariant(
+        (GAG_IDS as readonly string[]).includes(gag),
+        `${where}: the threat "${abandonedThreat.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+      );
+      invariant(
+        gag !== PAPA_ASLEEP_GAG_ID,
+        `${where}: "${PAPA_ASLEEP_GAG_ID}" is the micro-sleep's gag: only a threat with target "papa" may end in it`,
+      );
+    }
+    const object = level.level.objects.find((candidate) => candidate.id === base.objectId);
+    invariant(
+      object !== undefined,
+      `${where}: the object "${base.objectId}" is not in the level objects`,
+    );
+    threats.push({ def, anchorId: object.anchor, firstWaveIndex: -1, zone: null });
+    return {
+      ...base,
+      abandoned: { threatIndex: threats.length - 1, afterMs: abandonedThreat.afterMs },
+    };
   });
   const levelFinalRush = level.level.finalRush;
   if (levelFinalRush !== undefined) {
