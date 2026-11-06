@@ -1,6 +1,13 @@
 // The public API of the simulation (`@sim`). Everything else in `src/sim` is internal.
 
 export type { BabyState } from './baby/babyFsm.ts';
+export {
+  CHORE_BEAT_STATES,
+  CHORE_STATES,
+  type ChoreBeatState,
+  type ChoreState,
+} from './chores/choreFsm.ts';
+export { CHORE_STATION_OBJECT_KINDS, choreBeatCloseAt } from './chores/chores.ts';
 export type { SimCommand } from './commands.ts';
 export type { SimObjectSpec } from './context.ts';
 export { type CreateSimOptions, createSim, type Sim } from './createSim.ts';
@@ -94,6 +101,7 @@ export type {
   AfterEffectsSlice,
   BabySlice,
   BeatSlice,
+  ChoreInstance,
   ComboSlice,
   CycleSlice,
   DirectorSlice,

@@ -86,6 +86,14 @@ describe('createBot', () => {
     ['human.missWhileBusyPct', human({ missWhileBusyPct: -1 })],
     ['human.missWhileBusyPct', human({ missWhileBusyPct: 100.5 })],
     ['human.missWhileBusyPct', human({ missWhileBusyPct: Number.NaN })],
+    // The house chores (story 9.4).
+    ['human.backTurnedSdMs', human({ backTurnedSdMs: -1 })],
+    ['human.backTurnedSdMs', human({ backTurnedSdMs: Number.NaN })],
+    ['human.backTurnedSdMs', human({ backTurnedSdMs: 25_000 })],
+    ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: -1 } }],
+    ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: Number.NaN } }],
+    ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: 25_000 } }],
+    ['chores.isEnabled', { chores: { isEnabled: 'yes' as unknown as boolean, quietMinMs: 0 } }],
   ])('refuses %s out of range, naming the key', (key, settings) => {
     const made = createBot('human', botSetup(1, settings));
     expect(made.ok).toBe(false);
@@ -97,6 +105,7 @@ describe('createBot', () => {
       { missWhileBusyPct: 0 },
       { missWhileBusyPct: 100 },
       { reactionSdMs: 0, reactionMinMs: 0 },
+      { backTurnedSdMs: 0 },
     ]) {
       expect(createBot('human', botSetup(1, human(patch))).ok).toBe(true);
     }
@@ -106,6 +115,16 @@ describe('createBot', () => {
         botSetup(1, readError('withoutChronoRing', { offsetMs: -300, sdMs: 2000 })),
       ).ok,
     ).toBe(true);
+  });
+
+  it('accepts the edges of the chore settings: a bot that never does chores, no lull needed', () => {
+    for (const chores of [
+      { isEnabled: false, quietMinMs: 0 },
+      { isEnabled: true, quietMinMs: 0 },
+    ]) {
+      expect(createBot('perfect', botSetup(1, { chores })).ok).toBe(true);
+      expect(createBot('human', botSetup(1, { chores })).ok).toBe(true);
+    }
   });
 
   it.each([-1, 1.5, 2 ** 32, Number.NaN])('refuses the seed %s', (seed) => {

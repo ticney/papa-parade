@@ -4,11 +4,13 @@ import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import { formatContentProblem } from '@content/contentError';
 import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
+import { type ChoreDef, ChoreDefSchema } from '@content/schemas/chore';
 import { type DisruptionDef, DisruptionDefSchema } from '@content/schemas/disruption';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
 import type {
   LevelCarry,
+  LevelChore,
   LevelFinalRush,
   LevelGauges,
   LevelObject,
@@ -148,8 +150,12 @@ export function createTestFeedback(): FeedbackTable {
 export function createTestBots(): BotSettings {
   return {
     tapMs: 80,
+    // Story 9.4: the house chores, at the live starting values. A level with no station never reads
+    // them (no draw, no tap), so they move no existing test; a level with a station gets them.
+    chores: { isEnabled: true, quietMinMs: 1500 },
     // Story 3.14 AC 6: these values reduce the human model to the one of before the story (no
-    // reaction draw, `withChronoRing` at the old jitter, nobody inattentive).
+    // reaction draw, `withChronoRing` at the old jitter, nobody inattentive), except the 9.4 spread of
+    // the aim of a Papa who works at a station, which only a level with a station reads.
     human: {
       reactionMeanMs: 250,
       reactionSdMs: 0,
@@ -161,6 +167,7 @@ export function createTestBots(): BotSettings {
       aimOffsetMs: 0,
       jitterSdMs: 60,
       missWhileBusyPct: 0,
+      backTurnedSdMs: 150,
     },
     random: { actionsPerSec: 2, floorReachM: 3, maxHoldMs: 800 },
   };
@@ -275,6 +282,23 @@ export function createTestPhone(): DisruptionDef {
     'utf8',
   );
   const parsed = parseContentFile(path, text, DisruptionDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
+/**
+ * The cooking (story 9.4), frozen like the phone (`testCooking.chore.json`, same values as
+ * `content/chores/cooking.json`; only its `$schema` path differs), never from the live file.
+ */
+export function createTestCooking(): ChoreDef {
+  const path = 'tests/support/testCooking.chore.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testCooking.chore.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, ChoreDefSchema);
   if (!parsed.ok) {
     throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
   }
@@ -541,6 +565,13 @@ export interface TestLevelOptions {
   gauges?: LevelGauges;
   /** The level lets Papa carry the baby (story 4.1); absent by default, as in most test levels. */
   carry?: LevelCarry;
+  /**
+   * The house chores of the level (story 9.4), each on a station object the test also lists in
+   * `objects` (`TEST_STOVE`); absent by default, so no other test level moves (not even its hash).
+   */
+  chores?: readonly LevelChore[];
+  /** Replaces the frozen def of a chore id (`createTestCooking()` otherwise), for a test that tunes it. */
+  choreDefs?: Readonly<Record<string, ChoreDef>>;
   /** The sequences the level can run (story 4.4), by id; empty by default, so no other test level moves. */
   sequences?: readonly string[];
   /** Replaces the frozen def of a sequence id (`createTestStayAwake()` otherwise), for a test that tunes it. */
@@ -562,6 +593,8 @@ export function createTestLevel({
   objects = [],
   gauges = {},
   carry,
+  chores,
+  choreDefs = {},
   sequences = [],
   sequenceDefs = {},
   finalRush,
@@ -617,6 +650,11 @@ export function createTestLevel({
       disruptions[def.id] = def;
     }
   }
+  const choreContent = chores?.map((entry) => {
+    const def = choreDefs[entry.def] ?? createTestCooking();
+    if (def.id !== entry.def) throw new Error(`no frozen chore "${entry.def}" in tests/support`);
+    return structuredClone(def);
+  });
   const sequenceContent: Record<string, SequenceDef> = {};
   for (const id of sequences) {
     const def = sequenceDefs[id] ?? createTestSequences()[id];
@@ -636,6 +674,7 @@ export function createTestLevel({
         disruptions: wave.disruptions.map((entry) => ({ ...entry })),
       })),
       objects: [...objects],
+      ...(chores === undefined ? {} : { chores: chores.map((entry) => ({ ...entry })) }),
       gauges: structuredClone(gauges),
       ...(carry === undefined ? {} : { carry: structuredClone(carry) }),
       sequences: [...sequences],
@@ -646,6 +685,7 @@ export function createTestLevel({
     threats,
     disruptions,
     sequences: sequenceContent,
+    ...(choreContent === undefined ? {} : { chores: choreContent }),
   };
 }
 
@@ -654,6 +694,15 @@ export const TEST_OBJECTS: readonly LevelObject[] = [
   { id: 'coffee_machine', kind: 'coffee_machine', anchor: 'coffee_machine' },
   { id: 'phone', kind: 'phone', anchor: 'phone' },
 ];
+
+/**
+ * A stove (story 9.4) at the frozen room's `stairs_top` anchor, a floor point Papa reaches: the
+ * station of the frozen cooking (`TestLevelOptions.chores`: `[TEST_COOKING]`, with this in `objects`).
+ */
+export const TEST_STOVE: LevelObject = { id: 'stove', kind: 'stove', anchor: 'stairs_top' };
+
+/** The frozen cooking on `TEST_STOVE`. */
+export const TEST_COOKING: LevelChore = { def: 'cooking', object: 'stove' };
 
 /** The toilet of the live level (story 4.3), at the frozen room's `toilet` anchor: not in `TEST_OBJECTS`, a test adds it. */
 export const TEST_TOILET: LevelObject = { id: 'toilet', kind: 'toilet', anchor: 'toilet' };

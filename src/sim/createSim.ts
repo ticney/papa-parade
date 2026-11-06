@@ -11,6 +11,7 @@ import {
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
+import { CHORE_STATION_OBJECT_KINDS } from './chores/chores.ts';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
 import type {
@@ -18,6 +19,7 @@ import type {
   SimHiddenZone,
   SimLevel,
   SimObjectSpec,
+  SimPlannedChore,
   SimSafeZone,
   SimZoneRect,
   StepContext,
@@ -88,6 +90,8 @@ export interface Sim {
   drainEvents(): readonly SimEvent[];
   /** The level's interactive objects (constant): the client projects them for its touch hit test. */
   readonly objects: readonly SimObjectSpec[];
+  /** The level's house chores (story 9.4), index-aligned with `world.chores`: the client and the bots read the stations. */
+  readonly chores: readonly SimPlannedChore[];
   /** The current world (a different object after `restore`). */
   readonly world: Readonly<World>;
   readonly timeScale: number;
@@ -383,6 +387,53 @@ function simLevelOf(
     );
     disruptions.push({ def, objectId: entry.object, atMs: entry.atMs, waveIndex: entry.waveIndex });
   }
+  // The house chores (story 9.4): `level.chores` and `content.chores` are index-aligned; the words
+  // are `content:check`'s and the level schema's. Every station object must be named, and once.
+  const chores: SimLevel['chores'][number][] = [];
+  (level.level.chores ?? []).forEach((entry, i) => {
+    const where = `level ${level.level.id} › chores[${i}]`;
+    const def = level.chores?.[i];
+    invariant(def !== undefined, `${where}: the chore ${entry.def} is not loaded`);
+    invariant(
+      def.id === entry.def,
+      `${where}: the loaded chore is "${def.id}", not "${entry.def}"`,
+    );
+    const object = level.level.objects.find((candidate) => candidate.id === entry.object);
+    invariant(
+      object !== undefined,
+      `${where}: the object "${entry.object}" is not in the level objects`,
+    );
+    invariant(
+      def.station === object.kind,
+      `${where}: the chore "${entry.def}" is played at a "${def.station}", but the object "${entry.object}" has the kind "${object.kind}"`,
+    );
+    invariant(
+      (OBJECT_ACTION_KINDS as readonly string[]).includes(def.station),
+      `${where}: the chore "${entry.def}" has the station "${def.station}", which the sim has no action for (${OBJECT_ACTION_KINDS.join(', ')})`,
+    );
+    invariant(
+      chores.every((other) => other.objectId !== entry.object),
+      `${where}: the object "${entry.object}" is already the station of another chore`,
+    );
+    const anchor = geometry.anchors.find((candidate) => candidate.id === object.anchor);
+    invariant(
+      anchor !== undefined,
+      `${where}: the object "${entry.object}" is at ${object.anchor}, which ${geometry.id} does not have`,
+    );
+    chores.push({
+      def,
+      objectId: entry.object,
+      xM: anchor.positionM[0],
+      zM: anchor.positionM[2],
+    });
+  });
+  for (const object of level.level.objects) {
+    invariant(
+      !(CHORE_STATION_OBJECT_KINDS as readonly string[]).includes(object.kind) ||
+        chores.some((chore) => chore.objectId === object.id),
+      `level ${level.level.id}: the ${object.kind} "${object.id}" is a station and no chore names it`,
+    );
+  }
   const sequences: SimLevel['sequences'][number][] = [];
   const duelIndexByDef = new Map<string, number>();
   level.level.sequences.forEach((id, i) => {
@@ -551,6 +602,7 @@ function simLevelOf(
     }),
     threats,
     disruptions,
+    chores,
     sequences,
     objects: level.level.objects.map((object, index) => {
       const where = `level ${level.level.id} › objects[${index}]`;
@@ -786,6 +838,17 @@ export async function createSimWithSystems(
       waveIndex: -1,
     });
   });
+  simLevel.chores.forEach(() => {
+    world.chores.push({
+      state: 'untouched',
+      enteredAt: asSimMs(0),
+      beatsDone: 0,
+      beatState: 'none',
+      beatTelegraphAt: asSimMs(0),
+      beatWindowOpenAt: asSimMs(0),
+      responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+    });
+  });
   simLevel.disruptions.forEach(() => {
     world.disruptions.push({
       state: 'pending',
@@ -873,6 +936,7 @@ export async function createSimWithSystems(
       return drained;
     },
     objects: simLevel.objects,
+    chores: simLevel.chores,
     get world() {
       return world;
     },

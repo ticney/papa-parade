@@ -10,7 +10,9 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  TEST_COOKING,
   TEST_OBJECTS,
+  TEST_STOVE,
   testPhoneEntry,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -42,6 +44,24 @@ describe('readThreatsOff', () => {
 });
 
 describe('withoutThreats', () => {
+  it('keeps the house chores of a level: a station is no threat (story 9.4)', () => {
+    const planned = createTestLevel({
+      waves: [testWave([OUTLET])],
+      objects: [...TEST_OBJECTS, TEST_STOVE],
+      chores: [TEST_COOKING],
+    });
+    const stripped = withoutThreats(planned);
+    expect(stripped.level.chores).toEqual([{ def: 'cooking', object: 'stove' }]);
+    expect(stripped.chores).toEqual(planned.chores);
+    expect(stripped.level.waves).toEqual([]);
+  });
+
+  it('adds no chores key to a level that has none: its hash does not move', () => {
+    expect(
+      Object.hasOwn(withoutThreats(createTestLevel({ waves: [testWave([OUTLET])] })), 'chores'),
+    ).toBe(false);
+  });
+
   it('still plays the bedtime cycle: the cycle, its sequences and their threats stay (story 4.10)', () => {
     const planned = createTestCycleLevel();
     const stripped = withoutThreats(planned);

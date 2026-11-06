@@ -61,6 +61,7 @@ export function legacyHuman(
     aimOffsetMs,
     jitterSdMs,
     missWhileBusyPct: 0,
+    backTurnedSdMs: 0,
   };
 }
 
@@ -77,6 +78,7 @@ export function botSetup(
     responses: botResponsesOf(level?.threats ?? createTestThreats()),
     // The defs judged on a release (story 4.8): still `firm` above, told apart here.
     releaseDefIds: releaseDefIdsOf(level?.threats ?? createTestThreats()),
+    choreObjectIds: [],
     safeSpot: null,
     isChronoRingShown: true,
     settings: { ...createTestBots(), ...settings },

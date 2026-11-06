@@ -57,7 +57,10 @@ function setup() {
   const clock = { realToSim: (ms: number) => asSimMs(ms - 1000) };
   const sim = {
     enqueue: (command: SimCommand) => commands.push(command),
+    // The level's stations (story 9.4), index-aligned with `world.chores`: none unless a test sets some.
+    chores: [] as { objectId: string }[],
     world: {
+      chores: [] as { state: string }[],
       time: { sim: asSimMs(777) },
       flow: { state: 'playing' as 'playing' | 'ended' | 'sequence' | 'finalRush' },
       sequence: {
@@ -2128,6 +2131,116 @@ describe('createInputMapper: the toilet (story 4.3)', () => {
       expect(markers).toEqual([]);
       expect(taps).toEqual([]);
     });
+  });
+});
+
+describe('createInputMapper: a chore’s station (story 9.4)', () => {
+  const STOVE = { id: 'stove', kind: 'stove' as const, xM: 1, yM: 1, zM: 0 };
+  const COFFEE_NEAR = {
+    id: 'coffee_machine',
+    kind: 'coffee_machine' as const,
+    xM: 0.5,
+    yM: 1,
+    zM: 0,
+  };
+  const pxOfPoint = (
+    camera: Parameters<typeof Vector3.prototype.project>[0],
+    o: { xM: number; yM: number; zM: number },
+  ) => {
+    const v = new Vector3(o.xM, o.yM, o.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+  /** Papa works at the stove: the world says so, as the sim does. */
+  function working(sim: ReturnType<typeof setup>['sim']): void {
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'working' }] });
+    sim.world.papa.state = 'chore';
+  }
+
+  it('sends TapObject and shows the tap marker where Papa will stand, when he is free', () => {
+    const { mapper, sim, commands, markers, camera, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'untouched' }] });
+    Object.assign(sim.world.baby, { xM: 40, zM: 40, state: 'babble' });
+    const at = pxOfPoint(camera, STOVE);
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'stove' }]);
+    expect(markers).toEqual([[STOVE.xM, STOVE.zM]]);
+  });
+
+  it('is still a TapObject while Papa works there, the beat’s press, but shows no marker and no tap', () => {
+    const { mapper, sim, commands, markers, taps, camera, setObjects } = setup();
+    setObjects([STOVE]);
+    working(sim);
+    Object.assign(sim.world.baby, { xM: 40, zM: 40, state: 'babble' });
+    const at = pxOfPoint(camera, STOVE);
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'stove' }]);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+  });
+
+  it('sends the command but no marker while the baby is carried: the sim refuses it', () => {
+    const { mapper, sim, commands, markers, taps, camera, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried', gazeX: -1, gazeZ: 0 });
+    const at = pxOfPoint(camera, STOVE);
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'stove' }]);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+  });
+
+  it('lets Space put a carried baby down beside the stove: the station is no object in reach then', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+  });
+
+  it('still reaches another object past the stove while the baby is carried', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE, COFFEE_NEAR]);
+    Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'coffee_machine' }]);
+  });
+
+  it('lets Space take a free baby beside a stove whose chore is done: a done station is inert', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'done' }] });
+    // Papa stands at the stove (distance 0 to it), the baby a metre away: the station used to win.
+    Object.assign(sim.world.papa, { xM: STOVE.xM, zM: STOVE.zM });
+    Object.assign(sim.world.baby, { xM: STOVE.xM + 1, zM: STOVE.zM, state: 'babble' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+  });
+
+  it('still lets Space reach a stove whose chore is not done, beside a free baby', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'paused' }] });
+    Object.assign(sim.world.papa, { xM: STOVE.xM, zM: STOVE.zM });
+    Object.assign(sim.world.baby, { xM: STOVE.xM + 1, zM: STOVE.zM, state: 'babble' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'stove' }]);
+  });
+
+  it('sends Space near the stove as the beat’s press when the baby is free', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    working(sim);
+    Object.assign(sim.world.baby, { xM: 40, zM: 40, state: 'babble' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'stove' }]);
   });
 });
 

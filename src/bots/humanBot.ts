@@ -8,6 +8,8 @@ import { createCommandScheduler } from './commandScheduler.ts';
 import { nextGaussian } from './gaussian.ts';
 import {
   centreOf,
+  choreCentreOf,
+  createChoreMemory,
   createCycleDropMemory,
   createCycleMemory,
   createFirmHold,
@@ -16,6 +18,8 @@ import {
   createTidyMemory,
   HAS_CHRONO_RING,
   isPressable,
+  planChore,
+  planChoreBeat,
   planCycleDrop,
   planStealthWalk,
   planTidy,
@@ -65,13 +69,18 @@ const FETCH_RETRY_MS = 1000;
  * In the final rush (story 3.5) it tidies the props that are a mess, nearest first, from a reaction (drawn
  * once, when the door opens) after the door opened (`planTidy`): no aim draw.
  *
+ * **His back turned (story 9.4).** A parry or a Firmness it first sees while Papa works at a chore's station
+ * is aimed at with `backTurnedSdMs × N(0, 1)` more on top of the aim: a spread, so that the cost grows smoothly
+ * with the value (a delay on the reaction floor would only bind past the window's centre and be a cliff).
+ *
  * The order of the draws, which AC 6 of story 3.14 pins on the frozen settings: the attention (only when busy
- * and `missWhileBusyPct` is above 0), then the reaction (only when `reactionSdMs` is above 0), then the aim.
+ * and `missWhileBusyPct` is above 0), then the reaction (only when `reactionSdMs` is above 0), then the aim,
+ * then the back-turned error (only while Papa is in `chore` and `backTurnedSdMs` is above 0).
  */
 export function createHumanBot(setup: BotSetup): Bot {
   const { reactionMeanMs, reactionSdMs, reactionMinMs, readError, aimOffsetMs, jitterSdMs } =
     setup.settings.human;
-  const { missWhileBusyPct } = setup.settings.human;
+  const { missWhileBusyPct, backTurnedSdMs } = setup.settings.human;
   // What the player is shown decides how well it reads the time left on a ring.
   const ringError = setup.isChronoRingShown
     ? readError.withChronoRing
@@ -93,6 +102,8 @@ export function createHumanBot(setup: BotSetup): Bot {
   const cycleDrop = createCycleDropMemory();
   // The prop tapped last in the final rush (story 3.5).
   const tidy = createTidyMemory();
+  // The house chores (story 9.4): when the station was last tapped, and the press planned for its beat.
+  const choreMemory = createChoreMemory();
   // The rush it has drawn its reaction for, and how long it waits (story 3.14: one draw per rush).
   let rush: { finalRushAt: number; waitMs: number } | null = null;
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
@@ -245,8 +256,15 @@ export function createHumanBot(setup: BotSetup): Bot {
           schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
           continue;
         }
+        // His back turned to the baby (story 9.4): a telegraph seen while Papa works at a station is
+        // aimed at with a wider spread (`backTurnedSdMs`). One more draw after the aim, only then: Papa
+        // is in `chore` only in a level with a station, so no other level draws it.
         const reactionMs = drawReactionMs();
-        const aim = aimOf(response, centreOf(threat));
+        const backTurnedErrorMs =
+          world.papa.state === 'chore' && backTurnedSdMs > 0
+            ? backTurnedSdMs * nextGaussian(rng)
+            : 0;
+        const aim = aimOf(response, centreOf(threat)) + backTurnedErrorMs;
         const reacted = threat.enteredAt + reactionMs;
         // `now` is a floor too: a command never goes into the past.
         const pressAt = Math.max(Math.round(Math.max(reacted, aim)), now);
@@ -260,6 +278,22 @@ export function createHumanBot(setup: BotSetup): Bot {
         rush = { finalRushAt, waitMs: drawReactionMs() };
       }
       planTidy(world, setup.responses, out, tidy, rush?.waitMs ?? reactionMeanMs);
+      // The house chores (story 9.4): in a lull, and each beat read off its ring like a parry (one reaction
+      // draw and one aim draw per beat announced, none in a level with no station).
+      if (setup.choreObjectIds.length > 0) {
+        planChore(
+          world,
+          setup.choreObjectIds,
+          setup.settings.chores,
+          !isBusy(world, now),
+          out,
+          choreMemory,
+        );
+        planChoreBeat(world, setup.choreObjectIds, out, choreMemory, (chore) => {
+          const reactedAt = chore.beatTelegraphAt + drawReactionMs();
+          return Math.max(reactedAt, aimOf('parry', choreCentreOf(chore)));
+        });
+      }
     },
   };
 }

@@ -1068,7 +1068,7 @@ Open:
 
 - **The in-frame test ignores the perfect's zoom, lean and turn** (D2, `src/shared/followVisibility.ts`): for about a second a threat near the edge may be cropped without a bubble, or keep its bubble while the lean brings it in. The `human` bot of 9.8 runs the same test.
 - **A triangle (dodge) bubble costs 9 nodes** (D5, `offscreenBubble.test.ts`): no dodge threat exists yet. Three triangle bubbles would bring the big room's peak to 36 + 3 + 3 + 3 × 9 = 69, over the 64: 5.1 brings the first dodge threat and owns the budget then.
-- **No bubble for a chore post** (9.4 decides whether a post out of frame needs one).
+- ~~**No bubble for a chore post** (9.4 decides whether a post out of frame needs one).~~ **Resolved by 9.4 (D13): none.** Beats run only while Papa works at the station, and the camera follows Papa, so the station is in frame whenever a beat matters; a paused station needs no alert.
 - **Today's `salon_kitchen` threats never leave the frame on a landscape phone** (the story's numbers): the bubble shows on 4:3, with 9.5–9.7's kitchen threats, or with a tighter `feel.camera` frame (9.2's question 1).
 - **The HUD budget is 64 now** (Geo, 2026-11-04): the big room's HUD measured 36 nodes before any bubble (39 with the silence ring), so the 40 of UX-DR26 could not hold one bubble. Slimming the HUD (inline SVG gauges and timer) would win the room back if the budget ever matters on a device.
 - **The glyph chip's room is an estimate** (`OFFSCREEN_BUBBLE_CHIP_WIDTH_PX` 96 × 32, D7): the layout keeps the chip off the other bubbles from it, not from the chip's measured box (a key name wider than « Espace » would need it raised).
@@ -1080,3 +1080,26 @@ Open:
 - **`measure` retries every frame while `#pp-hud` is hidden or sizeless** (a `querySelector` and three `getBoundingClientRect`, no log), and a layout change that fires no `resize` (sequence bar, safe area, font load) is not seen. A `ResizeObserver` and a throttle if it shows.
 - **No stickiness in the bubbles' places**: they are assigned by wish each frame, so two crossing wishes swap their bubbles and the cap-3 choice flips when two urgencies cross. Judge it when Geo plays 9.5–9.7 with several off-screen threats.
 - **The chip's room is not pinned when no side is free** (`chipOf` goes toward the centre all the same): the layout's property test skips `side === null`.
+
+## Deferred from: story 9-4-cadre-des-taches-de-la-maison (2026-11-05)
+
+- **Space / A cannot reach a beat while a threat is up**: with a threat in `telegraph`, Space / A auto-targets the threat (EXPERIENCE: « Space near the object, with no threat active »), so a keyboard or pad player cannot land a beat then; a pointer can. Judge it when Geo plays with a pad.
+- **No glyph chip on a station during a beat** (UX-DR11 puts the one chip on the auto-targeted threat).
+- **A paused station shows no progress**: the progress shows only in the activity bubble while Papa works (D11); a pip row on the station is Geo's call (question 4 of the story).
+- **The miss gag is a cue** (D10): `chore_beat_missed` and the catastrophe are the whole gag until 9.5 (smoke) and 9.6 (the broken plate) bring the real ones.
+- **Leaving just before a miss avoids the gag**: a tap on the floor drops an announced beat without judgement (D5); it costs the time to come back and the beat is announced again in full.
+- **The Maison row is rounded to a half, the other rows to a whole point** (`homeRow` in `mamaScore.ts`): the story asked for `7,5 / 15` on the Result screen, which D3 of 1.22 (« every row is a whole number ») did not allow. The total (`scorePoints`) can now end on a half (`87,5`), which `starsForScore` and the Result screen handle; `gameSummary` / `simReport` carry the number as it is. A story that touches the note's rounding should know it.
+- **The activity bubble's pictogram table is keyed by Papa's state**, so `chore` has one pictogram (the saucepan): 9.6's dishwasher has to resolve it by the station Papa works at (the bubble already takes the progress as an argument).
+- **A bot that does chores adds gags and early homecomings to the kitchen's balance**: on 2026-11-06 (30 seeds, `backTurnedSdMs` 150, `quietMinMs` 1500: dev's starting values) `human` finishes the cooking in 28 / 30 games, makes 96 gags against 72 with no back-turned error, and its ends (timer · `mamaWoke` · `mamaHome`) are 15 · 7 · 8 against 14 · 11 · 5; 9.8's 200-game balancing owns the numbers.
+- **`ChoreRefused` is the table's, not the def's**: one cue for every chore (`chore_refused`).
+
+## Deferred from: code review of 9-4-cadre-des-taches-de-la-maison, group 1 sim (2026-11-05)
+
+- **A `TapFloor` then a `TapObject` on the station in the same step**: the tap is judged as a beat press (`runChores` runs before `runPapa`), then `runPapa` walks Papa away. One-step corner (10 ms), the intent (leave and come back) is unknowable.
+- **The bedtime cycle gathers only an `idle` Papa** (`src/sim/sequences/bedtimeCycle.ts:225`): `chore` never ends by itself, so a Papa parked at a station stalls the gather until `nextAt + gatherMaxMs`. Latent (`salon_kitchen` has no cycle); 9.6 / 9.8 decide it when a level combines a cycle and stations.
+- **Two chores `working` at once** if a glide to a second station ends in the step it starts (`startChore` does not pause the previous working chore; `choresProblem` would then refuse the snapshot). Needs a path under about 1.5 cm and there is one station kind today; 9.6 (the dishwasher) makes it reachable.
+
+## Deferred from: code review of 9-4-cadre-des-taches-de-la-maison, group 4 client (2026-11-06)
+
+- **The activity bubble never shows the last beat's fill, and the end of a chore pops it with no cue**: the final catch sets `done` and Papa `idle` in the same step, so the bubble pops out from the previous value (75 % of 4 beats), and `ActivityBubblePopped` is gated on `isPapaBusy` while `chore` is not busy. Geo's feel (question 4 of the story).
+- **A parry pose queued for a threat glide can leak to a station arrival**: a tap on the stove replaces the glide without a `PapaStateChanged{from: 'glide'}`, so `responseChoreography`'s queue is not cleared; `playResponseClip` / `liftBaby` can run at the stove. Cosmetic and rare.

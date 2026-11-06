@@ -60,6 +60,15 @@ function setupProblem(setup: BotSetup): string | null {
   ) {
     return 'human.missWhileBusyPct must be a number in [0, 100]';
   }
+  if (!isDurationInRange(human.backTurnedSdMs, 0)) {
+    return `human.backTurnedSdMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
+  }
+  if (typeof settings.chores.isEnabled !== 'boolean') {
+    return 'chores.isEnabled must be a boolean';
+  }
+  if (!isDurationInRange(settings.chores.quietMinMs, 0)) {
+    return `chores.quietMinMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
+  }
   if (!isFiniteNonNegative(random.actionsPerSec) || random.actionsPerSec > 100) {
     return 'random.actionsPerSec must be a number in [0, 100]';
   }

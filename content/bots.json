@@ -1,6 +1,7 @@
 {
   "$schema": "./_schemas/bots.schema.json",
   "tapMs": 80,
+  "chores": { "isEnabled": true, "quietMinMs": 1500 },
   "human": {
     "reactionMeanMs": 250,
     "reactionSdMs": 50,
@@ -11,7 +12,8 @@
     },
     "aimOffsetMs": 0,
     "jitterSdMs": 60,
-    "missWhileBusyPct": 10
+    "missWhileBusyPct": 10,
+    "backTurnedSdMs": 150
   },
   "random": { "actionsPerSec": 2, "floorReachM": 3, "maxHoldMs": 800 }
 }

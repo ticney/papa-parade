@@ -89,6 +89,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     comboPeakMultiplier: 0,
     instinctTriggers: 0,
     toiletVisits: 0,
+    chores: { beats: { perfect: 0, success: 0, fail: 0 }, completed: 0, homePoints: 0 },
     sequencesStarted: 0,
     sequencesSucceeded: 0,
     sequencesFailed: 0,
@@ -643,6 +644,43 @@ describe('summarizeRuns', () => {
     expect(waveLines).toHaveLength(2);
     expect(JSON.parse(text)).toEqual(report);
     expect(JSON.parse(renderReport(summarizeRuns(INPUT, [])))).toMatchObject({ waves: [] });
+  });
+});
+
+describe('summarizeRuns › chores (story 9.4)', () => {
+  const chores = (
+    perfect: number,
+    success: number,
+    fail: number,
+    completed: number,
+    homePoints: number,
+  ): RunSummary['chores'] => ({ beats: { perfect, success, fail }, completed, homePoints });
+
+  it('is all zero in a level with no station, and for no run at all', () => {
+    const empty = {
+      runsCompleted: 0,
+      beats: { perfect: 0, success: 0, fail: 0 },
+      meanHomePoints: 0,
+      meanBeatsPerRun: 0,
+    };
+    expect(summarizeRuns(INPUT, [run(1, {}), run(2, {})]).chores).toEqual(empty);
+    expect(summarizeRuns(INPUT, []).chores).toEqual(empty);
+  });
+
+  it('counts the runs where a chore was finished, the beats by quality and the means per run', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { chores: chores(4, 0, 0, 1, 7.5) }),
+      run(2, { chores: chores(2, 1, 2, 0, 0) }),
+      run(3, { chores: chores(1, 3, 0, 1, 7.5) }),
+      run(4, {}),
+    ]);
+    expect(report.chores).toEqual({
+      runsCompleted: 2,
+      beats: { perfect: 7, success: 4, fail: 2 },
+      // 15 points over 4 runs, 13 beats judged over 4 runs (3.25, to one decimal).
+      meanHomePoints: 3.75,
+      meanBeatsPerRun: 3.3,
+    });
   });
 });
 
@@ -1302,6 +1340,52 @@ describe('a level that carries the baby (story 4.1)', () => {
       safePutDowns: 1,
       armsCries: 3,
       cancelledThreats: 3,
+    });
+  });
+});
+
+describe('createRunRecorder › chores (story 9.4)', () => {
+  const judged = (quality: 'perfect' | 'success' | 'fail', t = 0): SimEvent => ({
+    type: 'ChoreBeatJudged',
+    t: asSimMs(t),
+    choreIndex: 0,
+    beatIndex: 0,
+    quality,
+    reason: quality === 'fail' ? 'late' : null,
+    offsetMs: quality === 'fail' ? 400 : 0,
+  });
+
+  it('counts the beats judged by quality and the chores completed with their points', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    const recorder = createRunRecorder(sim, 1);
+    for (const quality of ['perfect', 'success', 'fail', 'perfect', 'fail', 'fail'] as const) {
+      recorder.onEvent(judged(quality));
+    }
+    recorder.onEvent({ type: 'ChoreCompleted', t: asSimMs(0), choreIndex: 0, homePoints: 7.5 });
+    recorder.onEvent({ type: 'ChoreCompleted', t: asSimMs(0), choreIndex: 1, homePoints: 2.5 });
+    expect(recorder.finish().chores).toEqual({
+      beats: { perfect: 2, success: 1, fail: 3 },
+      completed: 2,
+      homePoints: 10,
+    });
+  });
+
+  it('counts nothing for a game that never touches a station', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    expect(createRunRecorder(sim, 1).finish().chores).toEqual({
+      beats: { perfect: 0, success: 0, fail: 0 },
+      completed: 0,
+      homePoints: 0,
     });
   });
 });

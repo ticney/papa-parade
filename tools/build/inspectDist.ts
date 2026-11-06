@@ -109,6 +109,8 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'ppChronoJudged',
   // Story 9.3: the off-screen bubbles' mirror (`data-pp-offscreen`), the same way.
   'ppOffscreen',
+  // Story 9.4: the house chores' mirror (`data-pp-chore`), the same way.
+  'ppChore',
 ];
 
 /**

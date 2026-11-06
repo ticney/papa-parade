@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "The chore id; equals the file name."
+    },
+    "station": {
+      "type": "string",
+      "enum": [
+        "stove"
+      ],
+      "description": "Where it is played: it must equal the `kind` of the object the level names."
+    },
+    "windowMs": {
+      "anyOf": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The base response window of a beat, in sim ms. `null`: the base window of the threats (`feel.timing.windowMs`)."
+    },
+    "beats": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "telegraphDelayMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "From the beat being announced to its window opening, in sim ms. Above the base window (`windowMs`, or `feel.timing.windowMs`), so that the ring has time to be read: checked by `content:check`."
+          }
+        },
+        "required": [
+          "telegraphDelayMs"
+        ],
+        "additionalProperties": false,
+        "description": "One beat of the chore: a moment to tap the station at the right time."
+      },
+      "description": "The beats of the chore, in order; each one is caught before the next is announced."
+    },
+    "homePoints": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Points of the Maison row of Mama’s note the chore pays once done: whole or half points (7.5), the note counts that way. An unfinished chore pays nothing."
+    },
+    "feedback": {
+      "type": "object",
+      "properties": {
+        "telegraph": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when a beat is announced."
+        },
+        "success": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when a beat is caught inside its window."
+        },
+        "perfect": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when a beat is caught at the centre of its window."
+        },
+        "miss": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when a beat is missed (the small gag of the chore)."
+        },
+        "completed": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Cue played when the last beat is caught: the chore is done."
+        }
+      },
+      "required": [
+        "telegraph",
+        "success",
+        "perfect",
+        "miss",
+        "completed"
+      ],
+      "additionalProperties": false,
+      "description": "Cues of `feedback.json` › `cues` the client plays for this chore."
+    }
+  },
+  "required": [
+    "id",
+    "station",
+    "windowMs",
+    "beats",
+    "homePoints",
+    "feedback"
+  ],
+  "additionalProperties": false,
+  "description": "A house chore: where it is played, how many beats and how far apart, what it is worth (GDD › Tâches de la maison)."
+}

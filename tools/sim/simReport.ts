@@ -65,6 +65,17 @@ export interface WaveTally {
   isOverLimit: boolean;
 }
 
+/** The house chores of one run (story 9.4): the beats judged by quality (a missed beat is `fail`), the chores finished and the Maison points they paid. */
+export interface ChoreCounts {
+  beats: { perfect: number; success: number; fail: number };
+  completed: number;
+  homePoints: number;
+}
+
+function emptyChoreCounts(): ChoreCounts {
+  return { beats: { perfect: 0, success: 0, fail: 0 }, completed: 0, homePoints: 0 };
+}
+
 /** One sequence over a run or over the runs (story 4.10): started, won, lost. A level end cuts it: neither. */
 export interface SequenceOutcomeCounts {
   started: number;
@@ -134,6 +145,8 @@ export interface RunSummary {
   instinctTriggers: number;
   /** The toilet visits finished (`ToiletFinished`, story 4.3). The bots never go, so 0 for a bot. */
   toiletVisits: number;
+  /** The house chores of the run (story 9.4): the beats by quality, the chores finished and what they paid. */
+  chores: ChoreCounts;
   /** The special sequences started (`SequenceStarted`, story 4.4): 0 unless `--sequence` starts one. */
   sequencesStarted: number;
   /** The sequences won (`SequenceEnded{succeeded}`). */
@@ -317,6 +330,7 @@ export function createRunRecorder(
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
+  const chores: ChoreCounts = emptyChoreCounts();
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
@@ -403,6 +417,11 @@ export function createRunRecorder(
         if (event.safe) safePutDowns++;
       } else if (event.type === 'ToiletFinished') {
         toiletVisits++;
+      } else if (event.type === 'ChoreBeatJudged') {
+        chores.beats[event.quality]++;
+      } else if (event.type === 'ChoreCompleted') {
+        chores.completed++;
+        chores.homePoints += event.homePoints;
       } else if (event.type === 'SequenceStarted') {
         sequencesStarted++;
         outcomesOf(sequenceOutcomes, event.id).started++;
@@ -540,6 +559,7 @@ export function createRunRecorder(
         comboPeakMultiplier,
         instinctTriggers,
         toiletVisits,
+        chores: { ...chores, beats: { ...chores.beats } },
         sequencesStarted,
         sequencesSucceeded,
         sequencesFailed,
@@ -701,6 +721,17 @@ export interface SimReport {
   instinctTriggers: number;
   /** The toilet visits finished, over the runs (story 4.3). */
   toiletVisits: number;
+  /**
+   * The house chores over the runs (story 9.4): the runs where at least one chore was finished, the beats
+   * judged by quality, the mean Maison points the chores paid per run and the mean beats judged per run
+   * (a missed beat is announced again, so a clumsy player has more of them).
+   */
+  chores: {
+    runsCompleted: number;
+    beats: ChoreCounts['beats'];
+    meanHomePoints: number;
+    meanBeatsPerRun: number;
+  };
   /** The special sequences started, won and lost, over the runs (story 4.4). */
   sequencesStarted: number;
   sequencesSucceeded: number;
@@ -842,6 +873,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
+  let choresRunsCompleted = 0;
+  const choreBeats = { perfect: 0, success: 0, fail: 0 };
+  let choreHomePoints = 0;
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
@@ -938,6 +972,11 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboPointsCashed += run.comboPointsCashed;
     comboPeakMultiplier = Math.max(comboPeakMultiplier, run.comboPeakMultiplier);
     toiletVisits += run.toiletVisits;
+    if (run.chores.completed > 0) choresRunsCompleted++;
+    choreBeats.perfect += run.chores.beats.perfect;
+    choreBeats.success += run.chores.beats.success;
+    choreBeats.fail += run.chores.beats.fail;
+    choreHomePoints += run.chores.homePoints;
     sequencesStarted += run.sequencesStarted;
     sequencesSucceeded += run.sequencesSucceeded;
     sequencesFailed += run.sequencesFailed;
@@ -1080,6 +1119,15 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboPeakMultiplier,
     instinctTriggers,
     toiletVisits,
+    chores: {
+      runsCompleted: choresRunsCompleted,
+      beats: choreBeats,
+      meanHomePoints: runs.length === 0 ? 0 : round(choreHomePoints / runs.length, 2),
+      meanBeatsPerRun:
+        runs.length === 0
+          ? 0
+          : round((choreBeats.perfect + choreBeats.success + choreBeats.fail) / runs.length, 1),
+    },
     sequencesStarted,
     sequencesSucceeded,
     sequencesFailed,

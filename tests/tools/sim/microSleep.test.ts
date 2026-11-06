@@ -37,6 +37,7 @@ describe('the micro-sleeps of the live salon_crawler, with the idle bot', () => 
       holdMinMs: content.feel.input.holdMinMs,
       responses: {},
       releaseDefIds: [],
+      choreObjectIds: [],
       isChronoRingShown: true,
       safeSpot: null,
       settings: content.bots,

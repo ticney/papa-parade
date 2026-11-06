@@ -1,6 +1,6 @@
 {
   "untilSimMs": 40000,
-  "worldHash": "14df7759d67bbd",
+  "worldHash": "0b4f294b06c128",
   "eventTypes": [
     "WaveStarted",
     "ThreatTelegraphed",

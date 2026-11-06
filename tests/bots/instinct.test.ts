@@ -48,6 +48,7 @@ async function play(
       holdMinMs: content.feel.input.holdMinMs,
       responses: botResponsesOf(level.threats),
       releaseDefIds: releaseDefIdsOf(level.threats),
+      choreObjectIds: [],
       isChronoRingShown: true,
       safeSpot: null,
       settings: bots,

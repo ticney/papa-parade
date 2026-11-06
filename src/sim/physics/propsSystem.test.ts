@@ -669,9 +669,10 @@ describe('runPhysics (real engine)', () => {
 });
 
 describe('the system order', () => {
-  it('puts runPhysics after runPapa and before nothing yet (the gauges come later)', () => {
+  it('puts runPhysics after runPapa (and settleChores, story 9.4) and before the gauges', () => {
     const names = SYSTEMS.map((system) => system.name);
-    expect(names.indexOf('runPhysics')).toBe(names.indexOf('runPapa') + 1);
+    expect(names.indexOf('settleChores')).toBe(names.indexOf('runPapa') + 1);
+    expect(names.indexOf('runPhysics')).toBe(names.indexOf('settleChores') + 1);
   });
 
   it('skips the physics when the systems do not include it', async () => {

@@ -69,5 +69,7 @@ export function withoutThreats(content: LevelContent): LevelContent {
     disruptions: {},
     // The level's sequences stay: a debug start still works with no wave (story 4.4).
     sequences: content.sequences,
+    // So do its house chores (story 9.4): a station is no threat, and `createSim` refuses one whose def is lost.
+    ...(content.chores === undefined ? {} : { chores: content.chores }),
   };
 }

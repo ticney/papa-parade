@@ -74,11 +74,18 @@ describe('computeMamaScore', () => {
     expect(calm(2 * PLAYED_MS, PLAYED_MS)).toBe(mama.calmMaxPoints);
   });
 
-  it('holds the home row to its maximum, whole (story 9.4 writes it)', () => {
+  it('holds the home row to its maximum, to the nearest half (a chore is worth 7.5, story 9.4)', () => {
     const home = (homePoints: number) =>
       computeMamaScore(tally({ homePoints }), mama, 'timer').homePoints;
     expect(home(0)).toBe(0);
     expect(home(7)).toBe(7);
+    expect(home(7.5)).toBe(7.5);
+    expect(home(7.4)).toBe(7.5);
+    expect(home(7.2)).toBe(7);
+    expect(home(15)).toBe(15);
+    expect(home(mama.homeMaxPoints + 0.4)).toBe(mama.homeMaxPoints);
+    const half = computeMamaScore(tally({ homePoints: 7.5 }), mama, 'timer');
+    expect(rowSum(half)).toBe(half.scorePoints);
     expect(home(mama.homeMaxPoints + 40)).toBe(mama.homeMaxPoints);
     expect(home(-3)).toBe(0);
     const full = computeMamaScore(tally({ homePoints: 999 }), mama, 'timer');
@@ -354,6 +361,47 @@ describe('scoreLevel', () => {
     expect(world.score.successes).toBe(6);
     expect(world.score.calmMs).toBe(800);
     expect(world.score.nearMisses).toBe(1);
+  });
+
+  it('pays the Maison row with the chores that are done, an unfinished one nothing (story 9.4)', () => {
+    const feel = createTestContent().feel;
+    const world = createWorld({
+      seed: 1,
+      feel,
+      papaSpawn: { xM: 0, zM: 0 },
+      babySpawn: { xM: 1, zM: 1 },
+      firstWanderAt: asSimMs(0),
+    });
+    world.time.sim = asSimMs(500);
+    world.score.calmMs = 500;
+    const instance = (state: 'done' | 'paused' | 'working' | 'untouched') => ({
+      state,
+      enteredAt: asSimMs(0),
+      beatsDone: 0,
+      beatState: 'none' as const,
+      beatTelegraphAt: asSimMs(0),
+      beatWindowOpenAt: asSimMs(0),
+      responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+    });
+    const planned = (homePoints: number) => ({ def: { homePoints } });
+    const run = (states: ('done' | 'paused' | 'working' | 'untouched')[], points: number[]) => {
+      world.chores = states.map(instance);
+      const events: SimEvent[] = [];
+      const ctx = {
+        events,
+        feel,
+        level: { chores: points.map(planned) },
+      } as unknown as StepContext;
+      scoreLevel(world, ctx, 'timer');
+      return world.score.final?.homePoints;
+    };
+    expect(run(['done'], [7.5])).toBe(7.5);
+    expect(run(['paused'], [7.5])).toBe(0);
+    expect(run(['working'], [7.5])).toBe(0);
+    expect(run(['untouched', 'done'], [7.5, 5])).toBe(5);
+    expect(run(['done', 'done'], [7.5, 7.5])).toBe(15);
+    // Held to the row's maximum: the sum may not be worth more.
+    expect(run(['done', 'done'], [10, 10])).toBe(mama.homeMaxPoints);
   });
 
   it('passes the reason: mamaWoke takes the penalty off the stars, in the world and in the event', () => {

@@ -4,6 +4,7 @@ import { cloneJson } from '@shared/hash';
 import { createRng, type RngState } from '@shared/rng';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
+import type { ChoreBeatState, ChoreState } from './chores/choreFsm.ts';
 import type { DisruptionState } from './disruptions/disruptionFsm.ts';
 import type { LevelEndReason } from './events.ts';
 import type { FlowState } from './flow/flowFsm.ts';
@@ -34,7 +35,10 @@ export interface PapaSlice {
   dirZ: number;
   /** A direction walk that cannot move at all. */
   isBlocked: boolean;
-  /** The glide towards a threat that was pressed; non-null exactly in `glide`. Choreography only (P3). */
+  /**
+   * The glide towards a threat that was pressed, or towards a chore's station (story 9.4, then
+   * `threatId` is null and `objectId` names the station); non-null exactly in `glide`. Choreography only (P3).
+   */
   glide: PapaGlide | null;
   /**
    * The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19).
@@ -72,9 +76,12 @@ export interface ComboSlice {
   carryTickAt: SimMs | null;
 }
 
-/** Papa's glide to a pressed threat: it ends by `arriveAt` and never decides a judgement. */
+/**
+ * Papa's glide to a pressed threat, or to a chore's station (story 9.4, `threatId` null, `papa.objectId`
+ * set): it ends by `arriveAt` and never decides a judgement.
+ */
 export interface PapaGlide {
-  threatId: number;
+  threatId: number | null;
   toXM: number;
   toZM: number;
   startedAt: SimMs;
@@ -188,6 +195,27 @@ export interface DisruptionInstance {
    * `PHONE_RINGING_EVERY_MS`, never the step it was emitted in (no drift); 0 unless `ringing`.
    */
   nextRingingAt: SimMs;
+}
+
+/**
+ * One house chore of the level (story 9.4): created at `createSim`, one per entry of the level's
+ * `chores`. The def and the station object stay in `ctx.level.chores`, index-aligned with
+ * `world.chores`. `beatsDone` is the progress, kept when Papa leaves; the beat fields describe the
+ * beat being played (`beatState` is `none` outside `working`).
+ */
+export interface ChoreInstance {
+  state: ChoreState;
+  /** Sim time of the last state change; 0 while `untouched`. */
+  enteredAt: SimMs;
+  /** Beats caught so far; the next to play is this one. Equals the beat count exactly when `done`. */
+  beatsDone: number;
+  beatState: ChoreBeatState;
+  /** When the current beat was announced, in sim time; 0 unless `telegraph`. */
+  beatTelegraphAt: SimMs;
+  /** The announcement plus `telegraphDelayMs`; 0 unless `telegraph`. May be off the step grid. */
+  beatWindowOpenAt: SimMs;
+  /** Frozen when the beat is announced (the threats' rule); zeros unless `telegraph`. */
+  responseWindow: EffectiveWindow;
 }
 
 /** A free object (`PROP_*`): its pose mirrors its Rapier body at the end of each step (story 1.15). */
@@ -651,6 +679,8 @@ export interface World {
   director: DirectorSlice;
   /** One per planned disruption, in the level's order (the waves', flattened). */
   disruptions: DisruptionInstance[];
+  /** One per house chore of the level (story 9.4), index-aligned with `ctx.level.chores`; `[]` in a level with no station. */
+  chores: ChoreInstance[];
   flow: FlowSlice;
   gauges: GaugesSlice;
   /** One per prop of the level's geometry, index-aligned with `geometry.props` (their bodies live in Rapier, beside `World`). */
@@ -768,6 +798,7 @@ export function createWorld({
     threats: [],
     director: { waveIndex: -1, nextAt: asSimMs(0) },
     disruptions: [],
+    chores: [],
     flow: { state: 'playing', enteredAt: asSimMs(0), finalRushAt: null, endReason: null },
     gauges: {
       fatigue: fatiguePoints,

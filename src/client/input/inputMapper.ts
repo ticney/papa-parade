@@ -1,4 +1,6 @@
+import { CHORE_STATION_KINDS } from '@content/schemas/chore';
 import type { Feel } from '@content/schemas/feel';
+import type { ObjectKind } from '@content/schemas/level';
 import { GAMEPAD_PRESS_ID, KEYBOARD_PRESS_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type SimMs } from '@shared/time';
@@ -178,6 +180,24 @@ export interface InputMapper {
    * direction walk by a path, and when the path ends the held direction walks again.
    */
   resumeHeld(): void;
+}
+
+/**
+ * The kinds of object that refuse a baby in the arms (the sim's `ToiletRefused` and, from story 9.4,
+ * `ChoreRefused`): a tap on one shows no marker and Space or A skips them, so that the action puts the
+ * baby down instead.
+ */
+const CARRIED_REFUSED_KINDS: readonly ObjectKind[] = ['toilet', ...CHORE_STATION_KINDS];
+
+/** Whether Papa works at this object now (a chore's station, `chore` state): a tap on it is the beat's press, not a walk. */
+function isWorkingAt(active: ActiveLevel, objectId: string): boolean {
+  const { world } = active.sim;
+  if (world.papa.state !== 'chore') return false;
+  const { chores } = active.sim;
+  for (let i = 0; i < chores.length; i++) {
+    if (chores[i]?.objectId === objectId && world.chores[i]?.state === 'working') return true;
+  }
+  return false;
 }
 
 /**
@@ -400,6 +420,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     }
     const objects = deps.getObjects();
     const isCarried = baby.state === 'carried';
+    // A station whose chore is done is inert (story 9.4): it must not shadow a baby beside it.
+    const { chores: stations } = active.sim;
+    const isDoneStation = (id: string): boolean => {
+      for (let i = 0; i < stations.length; i++) {
+        if (stations[i]?.objectId === id) return active.sim.world.chores[i]?.state === 'done';
+      }
+      return false;
+    };
     // A toilet is no object in reach while the baby is carried (story 4.3): the sim refuses the trip,
     // so the action puts him down, and the next press goes in.
     const objectId = pickContextObject(
@@ -407,7 +435,8 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       papa.xM,
       papa.zM,
       contextReachM,
-      isCarried ? 'toilet' : null,
+      isCarried ? CARRIED_REFUSED_KINDS : null,
+      isDoneStation,
     );
     const babyDistSq = (baby.xM - papa.xM) ** 2 + (baby.zM - papa.zM) ** 2;
     const isBabyInReach = babyDistSq <= contextReachM * contextReachM;
@@ -693,8 +722,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
           return;
         }
         // The marker shows where Papa will stand: the object's floor point. Not for a toilet while
-        // he carries the baby (story 4.3): Papa goes nowhere, the sim refuses and the hint says why.
-        if (object !== undefined && !(isCarried && object.kind === 'toilet')) {
+        // he carries the baby (story 4.3), nor for a chore's station (story 9.4): Papa goes nowhere,
+        // the sim refuses and the hint says why. Nor for the station Papa already works at: the tap
+        // is the beat's press and he stays.
+        if (
+          object !== undefined &&
+          !(isCarried && CARRIED_REFUSED_KINDS.includes(object.kind)) &&
+          !isWorkingAt(active, object.id)
+        ) {
           deps.showTapMarker(object.xM, object.zM);
           deps.onTap?.(object.xM, object.zM);
         }

@@ -14,6 +14,13 @@ export type BotResponse = Extract<SimEvent, { type: 'ResponseResolved' }>['respo
 export interface BotOptions {
   /** How long a bot holds a tap, in ms; under `holdMinMs`. */
   tapMs: number;
+  /** The house chores of a level with stations (story 9.4), for `perfect` and `human`. */
+  chores: {
+    /** False: the bots never tap a station. */
+    isEnabled: boolean;
+    /** How long no threat must have been active before a chore is started or resumed, in ms. */
+    quietMinMs: number;
+  };
   human: {
     /** Mean time the human bot needs to react to a sight or a signal, in ms. */
     reactionMeanMs: number;
@@ -32,6 +39,8 @@ export interface BotOptions {
     jitterSdMs: number;
     /** Chance, in %, of never answering a threat first seen while busy elsewhere. */
     missWhileBusyPct: number;
+    /** Extra standard deviation of its aim at a window while Papa works at a chore's station, in ms (story 9.4). */
+    backTurnedSdMs: number;
   };
   random: {
     /** Actions started per second of sim time, on average. */
@@ -63,6 +72,12 @@ export interface BotSetup {
    * built by `safeSpotOf`. Required like `releaseDefIds`: null says the room has none.
    */
   safeSpot: { readonly xM: number; readonly zM: number } | null;
+  /**
+   * The ids of the objects that are chore stations of the level (story 9.4), index-aligned with
+   * `world.chores` (`Sim.chores`). Required like `releaseDefIds`: an empty list says "no station", and a
+   * bot then draws and does nothing for chores.
+   */
+  choreObjectIds: readonly string[];
   /**
    * Whether the player is shown the chrono-ring (story 2.11) on a parry or a Firmness: the human bot times
    * its press with `readError.withChronoRing` if so, `readError.withoutChronoRing` if not. The game always

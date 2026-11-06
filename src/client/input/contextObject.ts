@@ -19,14 +19,18 @@ export function pickContextObject(
   papaXM: number,
   papaZM: number,
   reachM: number,
-  skippedKind: ObjectKind | null = null,
+  skippedKind: ObjectKind | readonly ObjectKind[] | null = null,
+  isSkippedObject: ((id: string) => boolean) | null = null,
 ): string | null {
   const reachSquared = reachM * reachM;
+  const isSkipped = (kind: ObjectKind): boolean =>
+    typeof skippedKind === 'string' ? kind === skippedKind : skippedKind?.includes(kind) === true;
   let bestId: string | null = null;
   let bestSquared = Number.POSITIVE_INFINITY;
   for (let i = 0; i < objects.length; i++) {
     const object = objects[i] as ContextObject;
-    if (object.kind === skippedKind) continue;
+    if (isSkipped(object.kind)) continue;
+    if (isSkippedObject !== null && isSkippedObject(object.id)) continue;
     const dx = object.xM - papaXM;
     const dz = object.zM - papaZM;
     const squared = dx * dx + dz * dz;

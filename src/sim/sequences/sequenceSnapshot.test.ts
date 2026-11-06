@@ -78,9 +78,9 @@ function parryOn(sim: Sim): void {
 }
 
 describe('the sequence slice in a snapshot (story 4.4)', () => {
-  it('is version 31 and carries the slice at rest, before any sequence', async () => {
+  it('is version 32 and carries the slice at rest, before any sequence', async () => {
     const snapshot = roundTrip(await newSim());
-    expect(snapshot.version).toBe(31);
+    expect(snapshot.version).toBe(32);
     expect(snapshot.world.sequence).toEqual({
       id: null,
       lastId: null,
@@ -281,18 +281,18 @@ describe('the sequence slice in a snapshot (story 4.4)', () => {
   it('refuses a version 18 snapshot, which has no sequence slice', async () => {
     const snapshot = roundTrip(await newSim());
     const target = await newSim();
-    expect(() => target.restore({ ...snapshot, version: 18 as 31 })).toThrow(/version 18/);
+    expect(() => target.restore({ ...snapshot, version: 18 as 32 })).toThrow(/version 18/);
   });
 
   it('refuses a version 21 snapshot, which has no beat slice', async () => {
     const snapshot = roundTrip(await newSim());
     const target = await newSim();
-    expect(() => target.restore({ ...snapshot, version: 21 as 31 })).toThrow(/version 21/);
+    expect(() => target.restore({ ...snapshot, version: 21 as 32 })).toThrow(/version 21/);
   });
 
   it('refuses a version 19 snapshot, which has no sequence slice either', async () => {
     const snapshot = roundTrip(await newSim());
     const target = await newSim();
-    expect(() => target.restore({ ...snapshot, version: 19 as 31 })).toThrow(/version 19/);
+    expect(() => target.restore({ ...snapshot, version: 19 as 32 })).toThrow(/version 19/);
   });
 });

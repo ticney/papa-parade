@@ -70,6 +70,17 @@ const resolved = (quality: 'perfect' | 'success' | 'fail', t = NOW): SimEvent =>
     // The fields the gauge does not read are not part of this test's business.
   }) as unknown as SimEvent;
 
+/** A beat of a house chore judged (story 9.4): the catastrophe reads it like a gag or a parry. */
+const choreJudged = (quality: 'perfect' | 'success' | 'fail', t = NOW): SimEvent => ({
+  type: 'ChoreBeatJudged',
+  t: asSimMs(t),
+  choreIndex: 0,
+  beatIndex: 0,
+  quality,
+  reason: quality === 'fail' ? 'late' : null,
+  offsetMs: quality === 'fail' ? 400 : 0,
+});
+
 const changed = (events: SimEvent[]) =>
   events.filter((event) => event.type === 'CatastropheChanged');
 
@@ -257,12 +268,59 @@ describe('runCatastrophe: the decay', () => {
   });
 });
 
+describe('runCatastrophe: the beats of a house chore (story 9.4)', () => {
+  it('raises the gauge by risePct.choreBeat on a missed beat, source choreBeat', () => {
+    const { world, ctx, events } = setup({ pct: 10 });
+    events.push(choreJudged('fail'));
+    runCatastrophe(world, ctx);
+    expect(world.gauges.catastrophePct).toBeCloseTo(
+      10 + catastrophe.risePct.choreBeat - DECAY_PER_STEP,
+      9,
+    );
+    const [rise] = changed(events);
+    expect(rise).toMatchObject({ source: 'choreBeat' });
+    expect((rise as { deltaPct: number }).deltaPct).toBeCloseTo(catastrophe.risePct.choreBeat, 9);
+  });
+
+  it('lowers it by perfectDropPct on a perfect beat, and does nothing for a success', () => {
+    const { world, ctx, events } = setup({ pct: 10 });
+    events.push(choreJudged('success'));
+    runCatastrophe(world, ctx);
+    // Only the decay of the step moved it.
+    expect(world.gauges.catastrophePct).toBeCloseTo(10 - DECAY_PER_STEP, 9);
+    expect(changed(events)).toEqual([]);
+    events.push(choreJudged('perfect'));
+    runCatastrophe(world, ctx);
+    expect(world.gauges.catastrophePct).toBeCloseTo(
+      10 - 2 * DECAY_PER_STEP - catastrophe.perfectDropPct,
+      9,
+    );
+    expect(changed(events)).toMatchObject([{ source: 'perfect' }]);
+  });
+
+  it('applies the drops before the rises in a step, whatever the order of the events', () => {
+    const { world, ctx, events } = setup({ pct: 0 });
+    events.push(choreJudged('fail'), choreJudged('perfect'));
+    runCatastrophe(world, ctx);
+    // A drop from 0 is held at 0, then the rise lands: the perfect cannot eat the miss.
+    expect(world.gauges.catastrophePct).toBeCloseTo(catastrophe.risePct.choreBeat, 9);
+  });
+});
+
 describe('the gauge in the final rush: frozen', () => {
   it('moves for nothing: no gag, no perfect, no decay, no event', () => {
     const { world, ctx, events } = setup({ pct: 60, flow: 'finalRush' });
     events.push(gag(1), gag(2), resolved('perfect'));
     runCatastrophe(world, ctx);
     for (let i = 0; i < 50; i++) runCatastrophe(world, ctx);
+    expect(world.gauges.catastrophePct).toBe(60);
+    expect(changed(events)).toEqual([]);
+  });
+
+  it('freezes it for the beats of a house chore too (story 9.4): a miss costs nothing, a perfect gains nothing', () => {
+    const { world, ctx, events } = setup({ pct: 60, flow: 'finalRush' });
+    events.push(choreJudged('fail'), choreJudged('perfect'));
+    runCatastrophe(world, ctx);
     expect(world.gauges.catastrophePct).toBe(60);
     expect(changed(events)).toEqual([]);
   });

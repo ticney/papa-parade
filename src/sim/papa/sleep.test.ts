@@ -73,6 +73,7 @@ describe('Papa states (story 1.19)', () => {
       'electrified',
       'carryingUp',
       'pickingUp',
+      'chore',
     ]);
     expect(PAPA_STATES_ARE_COMPLETE).toBe(true);
   });

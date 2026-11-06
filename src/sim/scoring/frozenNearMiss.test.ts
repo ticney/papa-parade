@@ -312,7 +312,7 @@ describe('the end snapshot of a frozen world (story 3.6 AC 2)', () => {
     const snapshot = sim.snapshot();
     sim.restore(snapshot);
     expect(hashJson(sim.world)).toBe(hashBefore);
-    // Story 3.6 added no world field; 29 is story 3.12's (`score.successes`, `score.calmMs`).
-    expect(snapshot.version).toBe(31);
+    // Story 3.6 added no world field; the version is the current one (32 since story 9.4).
+    expect(snapshot.version).toBe(32);
   });
 });
