@@ -14,7 +14,9 @@ import {
   SILENCE,
   STAIRS,
   stepN,
+  TEST_COOKING,
   TEST_OBJECTS,
+  TEST_STOVE,
   testPhoneEntry,
   testWave,
 } from '../../tests/support/testContent.ts';
@@ -293,6 +295,62 @@ describe('the level it plans', () => {
     await expect(createSim({ content, geometry, level: twice, seed: 1 })).rejects.toThrow(
       /objects\[1\].*"phone" is listed twice/,
     );
+  });
+
+  describe('the house chores it plans (story 9.4)', () => {
+    const objects = [...TEST_OBJECTS, TEST_STOVE];
+    const planned = createTestLevel({ objects, chores: [TEST_COOKING] });
+    const plan = (patch: Partial<typeof planned>) =>
+      createSim({ content, geometry, level: { ...planned, ...patch }, seed: 1 });
+    const withChores = (chores: typeof planned.level.chores) => ({
+      level: { ...planned.level, chores },
+    });
+
+    it('plans one chore per entry, with its station’s anchor', async () => {
+      const sim = await createSim({ content, geometry, level: planned, seed: 1 });
+      expect(sim.chores).toHaveLength(1);
+      expect(sim.chores[0]).toMatchObject({ objectId: 'stove' });
+      expect(sim.chores[0]?.def.id).toBe('cooking');
+    });
+
+    it('refuses a chore whose def is not loaded', async () => {
+      await expect(plan({ chores: [] })).rejects.toThrow(/chores\[0\].*cooking is not loaded/);
+    });
+
+    it('refuses a loaded def that is not the one the level names', async () => {
+      const other = { ...planned.chores![0]!, id: 'dishes' };
+      await expect(plan({ chores: [other] })).rejects.toThrow(
+        /chores\[0\].*the loaded chore is "dishes", not "cooking"/,
+      );
+    });
+
+    it('refuses a station object the level does not have', async () => {
+      await expect(plan(withChores([{ def: 'cooking', object: 'hob' }]))).rejects.toThrow(
+        /chores\[0\].*the object "hob" is not in the level objects/,
+      );
+    });
+
+    it('refuses an object of another kind than the chore’s station', async () => {
+      await expect(plan(withChores([{ def: 'cooking', object: 'phone' }]))).rejects.toThrow(
+        /played at a "stove", but the object "phone" has the kind "phone"/,
+      );
+    });
+
+    it('refuses an object that is the station of two chores', async () => {
+      await expect(
+        plan({
+          ...withChores([TEST_COOKING, TEST_COOKING]),
+          chores: [planned.chores![0]!, planned.chores![0]!],
+        }),
+      ).rejects.toThrow(/chores\[1\].*the object "stove" is already the station of another chore/);
+    });
+
+    it('refuses a station that no chore names', async () => {
+      const unnamed = createTestLevel({ objects });
+      await expect(createSim({ content, geometry, level: unnamed, seed: 1 })).rejects.toThrow(
+        /the stove "stove" is a station and no chore names it/,
+      );
+    });
   });
 
   it('accepts a level with objects, and hashes them into the journal', async () => {

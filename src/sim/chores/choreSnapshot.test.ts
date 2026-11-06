@@ -199,6 +199,17 @@ describe('the chores in a snapshot', () => {
       expect(() => target.restore(snapshot)).toThrow(expected);
     });
 
+    it('a glide with no threat to an object that is not a chore’s station', async () => {
+      const live = await newSim();
+      live.enqueue({ type: 'TapObject', objectId: 'stove', t: asSimMs(0) });
+      stepUntil(live, 300);
+      const toPhone = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<Sim['snapshot']>;
+      (toPhone.world.papa as { objectId: string | null }).objectId = 'phone';
+      await expect(async () => (await newSim()).restore(toPhone)).rejects.toThrow(
+        /world\.papa\.objectId/,
+      );
+    });
+
     it('a glide to a station with no object, and a threat glide with an object', async () => {
       const live = await newSim();
       live.enqueue({ type: 'TapObject', objectId: 'stove', t: asSimMs(0) });
@@ -214,5 +225,58 @@ describe('the chores in a snapshot', () => {
         /world\.papa\.objectId/,
       );
     });
+  });
+});
+
+describe('the Maison row in a snapshot of an ended level (story 9.4 review)', () => {
+  const newShortSim = (): Promise<Sim> =>
+    createSim({
+      content,
+      geometry,
+      level: createTestLevel({
+        objects: [...TEST_OBJECTS, TEST_STOVE],
+        chores: [TEST_COOKING],
+        durationMs: 40_000,
+      }),
+      seed: 4,
+    });
+
+  /** A cooking finished with four perfect beats, and the level played to its end. */
+  async function endedWithCookingDone(): Promise<Sim> {
+    const sim = await newShortSim();
+    sim.enqueue({ type: 'TapObject', objectId: 'stove', t: asSimMs(0) });
+    stepUntil(sim, 1000);
+    for (let beat = 0; beat < 4; beat++) {
+      const chore = sim.world.chores[0]!;
+      const centre = chore.beatWindowOpenAt + chore.responseWindow.windowMs / 2;
+      sim.enqueue({ type: 'TapObject', objectId: 'stove', t: asSimMs(centre) });
+      stepUntil(sim, centre + 20);
+    }
+    expect(sim.world.chores[0]?.state).toBe('done');
+    while (sim.world.score.final === null) stepUntil(sim, sim.world.time.sim + 1000);
+    return sim;
+  }
+
+  it('restores a note whose Maison row and total end on a half', async () => {
+    const live = await endedWithCookingDone();
+    expect(live.world.score.final?.homePoints).toBe(7.5);
+    expect(Number.isInteger((live.world.score.final?.scorePoints ?? 0) * 2)).toBe(true);
+    const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<Sim['snapshot']>;
+    const copy = await newShortSim();
+    expect(() => copy.restore(snapshot)).not.toThrow();
+    expect(hashJson(copy.world)).toBe(hashJson(live.world));
+  });
+
+  it.each([
+    ['a Maison row that is not a half', 'homePoints', 7.3, /world\.score\.final\.homePoints/],
+    ['a negative Maison row', 'homePoints', -0.5, /world\.score\.final\.homePoints/],
+    ['a total that is not a half', 'scorePoints', 61.3, /world\.score\.final\.scorePoints/],
+    ['a half on another row', 'laughPoints', 1.5, /world\.score\.final\.laughPoints/],
+  ] as const)('still refuses %s', async (_name, key, value, expected) => {
+    const live = await endedWithCookingDone();
+    const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<Sim['snapshot']>;
+    (snapshot.world.score.final as unknown as Record<string, number>)[key] = value;
+    const copy = await newShortSim();
+    expect(() => copy.restore(snapshot)).toThrow(expected);
   });
 });

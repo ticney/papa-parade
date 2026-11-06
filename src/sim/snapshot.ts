@@ -79,6 +79,8 @@ function papaProblem(
   objectIds: readonly string[],
   babyState: unknown,
   hasBladder: boolean,
+  // The objects that are a chore's station: a glide with no threat goes to one of them (story 9.4).
+  stationIds: readonly string[],
 ): string | null {
   if (typeof papa !== 'object' || papa === null) return 'world.papa is missing';
   const slice = papa as Record<string, unknown>;
@@ -172,6 +174,9 @@ function papaProblem(
       return 'world.papa.glide.threatId';
     }
     if ((glide.threatId === null) !== (slice.objectId !== null)) return 'world.papa.objectId';
+    if (glide.threatId === null && !stationIds.includes(slice.objectId as string)) {
+      return 'world.papa.objectId';
+    }
     for (const key of ['toXM', 'toZM', 'startedAt', 'arriveAt', 'speedMps']) {
       if (typeof glide[key] !== 'number' || !Number.isFinite(glide[key])) {
         return `world.papa.glide.${key}`;
@@ -719,8 +724,14 @@ export interface PlannedLevel {
   readonly threats: readonly { readonly def: { readonly id: string } }[];
   /** The planned disruptions: `world.disruptions` is index-aligned with them (story 1.20). */
   readonly disruptions: readonly { readonly def: { readonly ringMaxMs: number } }[];
-  /** The planned house chores: `world.chores` is index-aligned with them, the beat count bounds `beatsDone` (story 9.4). */
-  readonly chores: readonly { readonly def: { readonly beats: readonly unknown[] } }[];
+  /**
+   * The planned house chores: `world.chores` is index-aligned with them, the beat count bounds
+   * `beatsDone`, the station is the only object a glide with no threat may go to (story 9.4).
+   */
+  readonly chores: readonly {
+    readonly def: { readonly beats: readonly unknown[] };
+    readonly objectId: string;
+  }[];
   /** The index in `threats` of the micro-sleep, or -1 when the level has no fatigue. */
   readonly microSleepIndex: number;
   /** The index in `threats` of the cry in the arms, or -1 when the level has none (story 4.1). */
@@ -1269,6 +1280,13 @@ function propsProblem(
 
 const isCount = (value: unknown): boolean => Number.isInteger(value) && (value as number) >= 0;
 
+/** A non-negative number of whole or half points: the Maison row (story 9.4) and the total it feeds. */
+const isHalfCount = (value: unknown): boolean =>
+  typeof value === 'number' && Number.isInteger(value * 2) && value >= 0;
+
+/** The rows of Mama's note that can end on a half: the Maison row and the total (story 9.4). */
+const HALF_POINT_KEYS: readonly string[] = ['homePoints', 'scorePoints'];
+
 const MAMA_SCORE_KEYS = [
   'laughPoints',
   'calmPoints',
@@ -1286,7 +1304,8 @@ function isLevelOver(state: unknown): boolean {
 }
 
 /**
- * Mama's counters are non-negative integers, and the calm time (story 3.12) is whole steps no later
+ * Mama's counters are non-negative integers (her note's rows too, but the Maison row and the total,
+ * which can end on a half since story 9.4), and the calm time (story 3.12) is whole steps no later
  * than the clock (the tracker adds one `STEP_MS` per live step); her note (story 1.22) is `null` while the level plays
  * and a whole `MamaScore` once it has ended (`runFlow` gives it in the ending step), with a score of
  * at most `MAMA_SCORE_MAX_POINTS`, and at most five stars, the lost ones included.
@@ -1311,7 +1330,8 @@ function scoreProblem(score: unknown, now: number, isEnded: boolean): string | n
   const note = final as Record<string, unknown>;
   if (Object.keys(note).length !== MAMA_SCORE_KEYS.length) return 'world.score.final';
   for (const key of MAMA_SCORE_KEYS) {
-    if (!isCount(note[key])) return `world.score.final.${key}`;
+    const isValid = HALF_POINT_KEYS.includes(key) ? isHalfCount(note[key]) : isCount(note[key]);
+    if (!isValid) return `world.score.final.${key}`;
   }
   if ((note.scorePoints as number) > MAMA_SCORE_MAX_POINTS) return 'world.score.final.scorePoints';
   if ((note.stars as number) > STAR_COUNT_MAX) return 'world.score.final.stars';
@@ -1494,6 +1514,7 @@ function worldProblem(world: unknown, planned: PlannedLevel, initialFeel: Feel):
       papaTargetIds(planned, (flow as { state?: unknown } | null)?.state, props, papa),
       (baby as { state?: unknown } | null)?.state,
       planned.hasBladder,
+      planned.chores.map((chore) => chore.objectId),
     ) ??
     babyProblem(baby, papa, threats as readonly ThreatInstance[], clock.sim as number) ??
     carryProblem(carry, baby, planned.hasCarry, planned.armsCryIndex >= 0) ??

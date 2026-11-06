@@ -71,6 +71,23 @@ function catchBeat(
 }
 
 /**
+ * System: the chores that Papa left in this step (story 9.4, review). `runChores` runs before
+ * `runPapa`, so a command that moves Papa (a tap on the floor, a press that makes him glide, the baby
+ * taken) leaves him out of `chore` after it ran: this one, right after `runPapa`, pauses the chore in
+ * the same step, so that `working` ⇔ `papa.state === 'chore'` holds at the end of every step (the
+ * snapshot's rule) and the client never sees a beat of a chore Papa has left. The other writers of
+ * Papa's state (a séquelle, a sequence) run before `runChores`, which pauses them itself.
+ */
+export function settleChores(world: World): void {
+  const { chores } = world;
+  if (chores.length === 0 || world.papa.state === 'chore') return;
+  for (let i = 0; i < chores.length; i++) {
+    const chore = chores[i] as ChoreInstance;
+    if (chore.state === 'working') pauseChore(world, chore);
+  }
+}
+
+/**
  * System: the house chores (story 9.4), after the threats and before Papa. For the chore Papa works
  * at (at most one), in order:
  *
@@ -78,13 +95,14 @@ function catchBeat(
  *    taken: whatever moved him, `runPapa` of the previous step or a helper), so the chore is `paused`
  *    with its progress and the announced beat is dropped. A Papa still in `chore` with the baby in
  *    his arms or a sequence under way is set `idle`, then the same.
- * 2. The hold (D7): while a threat's window is open the beat is `held`, withdrawn without a
- *    judgement.
- * 3. The beat's press (D6): the `TapObject`s on the station this step are taken out of the step's
+ * 2. The beat's press (D6): the `TapObject`s on the station this step are taken out of the step's
  *    commands (`runPapa` must not walk Papa to a stove he works at, nor to one he has just finished);
  *    the first one is judged by `judgePress` on its own `t`, the others are dropped. `perfect` and
  *    `success` catch the beat; `late`, and `early` under `earlyPress: "fail"`, miss it; an `early` under
- *    `guard` is ignored. At most one beat is judged per step.
+ *    `guard` is ignored. At most one beat is judged per step. A press stamped before the beat was
+ *    announced is dropped unjudged. The taps are judged first, against the beat as it stood.
+ * 3. The hold (D7): while a threat's window is open the beat is `held`, withdrawn without a
+ *    judgement (after the taps of the step, so that a tap made inside the window still counts).
  * 4. The silence: no tap by `closeAt + lagMs` is a `late` miss.
  * 5. A beat that is not announced is, unless a threat's window is open: the next one after a catch, the
  *    same one after a miss or a hold.
@@ -109,11 +127,8 @@ export function runChores(world: World, ctx: StepContext): void {
       continue;
     }
 
-    if (isHeld) {
-      clearBeat(chore);
-      chore.beatState = 'held';
-    }
-
+    // The taps are judged against the beat as it stood when they were made, so before the hold below
+    // withdraws it: a tap made inside the window is not lost because a threat's window opens this step.
     let isJudged = false;
     for (let j = 0; j < ctx.commands.length; j++) {
       const command = ctx.commands[j];
@@ -121,6 +136,9 @@ export function runChores(world: World, ctx: StepContext): void {
       ctx.commands.splice(j, 1);
       j--;
       if (isJudged || chore.beatState !== 'telegraph') continue;
+      // A press stamped before the beat was announced (input lag, a tap made while Papa glided) cannot
+      // be an answer to it: it is neither a catch nor an `early` miss.
+      if (command.t < chore.beatTelegraphAt) continue;
       const judgement = judgePress(command.t, chore.beatWindowOpenAt, chore.responseWindow);
       if (judgement.quality === 'early') {
         // `guard`: the player pressed too soon and only a new press in the window counts.
@@ -135,6 +153,11 @@ export function runChores(world: World, ctx: StepContext): void {
         catchBeat(world, ctx, i, judgement.quality, judgement.offsetMs);
         isJudged = true;
       }
+    }
+
+    if (isHeld && chore.state === 'working') {
+      clearBeat(chore);
+      chore.beatState = 'held';
     }
 
     if (

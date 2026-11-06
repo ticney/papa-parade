@@ -26,6 +26,7 @@ describe('system order', () => {
       'runThreats',
       'runChores',
       'runPapa',
+      'settleChores',
       'runPhysics',
       'runGauges',
       'runInstinct',

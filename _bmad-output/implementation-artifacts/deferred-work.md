@@ -1093,3 +1093,9 @@ Open:
 - **A bot that does chores adds near-misses and wakes to the kitchen's balance**: `human` finished the cooking in 30 / 30 games on 2026-11-05 (`backTurnedReactionMs` 400, `quietMinMs` 1500: dev's starting values) and Mama woke in 11 of them against 5 before; 9.8's 200-game balancing owns the numbers.
 - **`ChoreRefused` is the table's, not the def's**: one cue for every chore (`chore_refused`).
 
+
+## Deferred from: code review of 9-4-cadre-des-taches-de-la-maison, group 1 sim (2026-11-05)
+
+- **A `TapFloor` then a `TapObject` on the station in the same step**: the tap is judged as a beat press (`runChores` runs before `runPapa`), then `runPapa` walks Papa away. One-step corner (10 ms), the intent (leave and come back) is unknowable.
+- **The bedtime cycle gathers only an `idle` Papa** (`src/sim/sequences/bedtimeCycle.ts:225`): `chore` never ends by itself, so a Papa parked at a station stalls the gather until `nextAt + gatherMaxMs`. Latent (`salon_kitchen` has no cycle); 9.6 / 9.8 decide it when a level combines a cycle and stations.
+- **Two chores `working` at once** if a glide to a second station ends in the step it starts (`startChore` does not pause the previous working chore; `choresProblem` would then refuse the snapshot). Needs a path under about 1.5 cm and there is one station kind today; 9.6 (the dishwasher) makes it reachable.

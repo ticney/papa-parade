@@ -35,7 +35,10 @@ export interface PapaSlice {
   dirZ: number;
   /** A direction walk that cannot move at all. */
   isBlocked: boolean;
-  /** The glide towards a threat that was pressed; non-null exactly in `glide`. Choreography only (P3). */
+  /**
+   * The glide towards a threat that was pressed, or towards a chore's station (story 9.4, then
+   * `threatId` is null and `objectId` names the station); non-null exactly in `glide`. Choreography only (P3).
+   */
   glide: PapaGlide | null;
   /**
    * The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19).

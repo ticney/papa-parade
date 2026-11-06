@@ -34,17 +34,6 @@ export function choreIndexOfObject(ctx: StepContext, objectId: string): number {
 }
 
 /**
- * Whether a `TapObject` on this object is the press of a beat: Papa works at that station (he is in
- * `chore` and its chore is `working`). `runChores` takes those taps before `runPapa` and removes
- * them from the step's commands, so that a tap that finishes the chore does not walk Papa to it.
- */
-export function isChoreBeatTap(world: World, ctx: StepContext, objectId: string): boolean {
-  if (world.papa.state !== 'chore') return false;
-  const index = choreIndexOfObject(ctx, objectId);
-  return index >= 0 && world.chores[index]?.state === 'working';
-}
-
-/**
  * When the beat's window closes for good, in sim time: its opening, its length and the tolerance. A
  * tap after it (plus `world.input.lagMs`, which the sim waits before concluding that nobody tapped)
  * is a miss. The client and the bots read the end of the beat from this.

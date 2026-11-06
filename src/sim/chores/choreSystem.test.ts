@@ -4,8 +4,11 @@ import {
   CARRY,
   COFFEE_TABLE,
   createTestContent,
+  createTestCooking,
   createTestGeometry,
   createTestLevel,
+  FATIGUE_GAUGES,
+  NOISE_GAUGES,
   OUTLET,
   TEST_COOKING,
   TEST_OBJECTS,
@@ -268,6 +271,32 @@ describe('judging a beat (AC 4)', () => {
     expect(only(events, 'ChoreBeatJudged')[0]).toMatchObject({ quality: 'perfect', offsetMs: 0 });
   });
 
+  it('drops a tap stamped before the beat was announced: neither a catch nor an early miss', async () => {
+    const { sim } = await atFirstBeat();
+    const announcedAt = sim.world.chores[0]!.beatTelegraphAt;
+    const windowOpenAt = sim.world.chores[0]!.beatWindowOpenAt;
+    // Made while Papa still glided, reaches the sim after the beat was announced.
+    tell(sim, { type: 'TapObject', objectId: 'stove' }, announcedAt - 5);
+    const events = stepEvents(sim, 2);
+    expect(only(events, 'ChoreBeatJudged')).toEqual([]);
+    expect(only(events, 'CatastropheChanged')).toEqual([]);
+    expect(sim.world.chores[0]).toMatchObject({
+      beatsDone: 0,
+      beatState: 'telegraph',
+      beatTelegraphAt: announcedAt,
+      beatWindowOpenAt: windowOpenAt,
+    });
+    // The tap is gone, not queued for later: Papa does not walk to the stove he works at either.
+    expect(sim.world.papa.state).toBe('chore');
+  });
+
+  it('judges a tap stamped at the very instant of the announcement', async () => {
+    const { sim } = await atFirstBeat();
+    const announcedAt = sim.world.chores[0]!.beatTelegraphAt;
+    const events = tapStoveAt(sim, announcedAt);
+    expect(only(events, 'ChoreBeatJudged')).toMatchObject([{ quality: 'fail', reason: 'early' }]);
+  });
+
   it('judges at most one beat per step: two taps in the same step catch one beat, not two', async () => {
     const { sim, centre } = await atFirstBeat();
     tell(sim, { type: 'TapObject', objectId: 'stove' }, centre);
@@ -322,6 +351,62 @@ describe('judging a beat (AC 4)', () => {
   });
 });
 
+describe('the beat’s window is frozen at its announcement (AC 4)', () => {
+  const tiered = async (tier: 'assistance' | 'normal' | 'experienced') => {
+    const sim = await newSim();
+    tell(sim, { type: 'SetDifficultyTier', tier });
+    startCooking(sim);
+    return sim;
+  };
+
+  it.each([
+    ['assistance', 1.5],
+    ['normal', 1],
+    ['experienced', 0.75],
+  ] as const)('opens a %s beat with the tier’s window (x%s)', async (tier, multiplier) => {
+    const sim = await tiered(tier);
+    expect(sim.world.chores[0]!.responseWindow.windowMs).toBeCloseTo(windowMs * multiplier, 9);
+  });
+
+  it('uses the chore’s own windowMs instead of the feel’s when it has one', async () => {
+    const sim = await createSim({
+      content,
+      geometry,
+      level: createTestLevel({
+        objects: [...TEST_OBJECTS, TEST_STOVE],
+        chores: [TEST_COOKING],
+        choreDefs: { cooking: { ...createTestCooking(), windowMs: 500 } },
+      }),
+      seed: 1,
+    });
+    startCooking(sim);
+    expect(sim.world.chores[0]!.responseWindow.windowMs).toBe(500);
+  });
+
+  it('keeps the window it announced when the tier or the feel change afterwards', async () => {
+    const sim = await tiered('normal');
+    const frozen = { ...sim.world.chores[0]!.responseWindow };
+    tell(sim, { type: 'SetDifficultyTier', tier: 'assistance' });
+    tell(sim, { type: 'SetFeel', patch: { timing: { windowMs: windowMs * 2 } } });
+    stepEvents(sim, 5);
+    expect(sim.world.chores[0]!.beatState).toBe('telegraph');
+    expect(sim.world.chores[0]!.responseWindow).toEqual(frozen);
+    // Judged by the frozen window: a tap 5 ms after it closed is late (it would be a success if the
+    // window had widened with the new tier and feel).
+    const closeAt = sim.world.chores[0]!.beatWindowOpenAt + frozen.windowMs + frozen.toleranceMs;
+    const events = tapStoveAt(sim, closeAt + 5);
+    expect(only(events, 'ChoreBeatJudged')).toMatchObject([{ quality: 'fail', reason: 'late' }]);
+  });
+
+  it('announces the next beat with the tier of that moment', async () => {
+    const sim = await tiered('normal');
+    tell(sim, { type: 'SetDifficultyTier', tier: 'experienced' });
+    stepEvents(sim, 1);
+    tapStoveAt(sim, centreOf(sim));
+    expect(sim.world.chores[0]!.responseWindow.windowMs).toBeCloseTo(windowMs * 0.75, 9);
+  });
+});
+
 describe('leaving and resuming (AC 6)', () => {
   async function afterOneBeat() {
     const sim = await newSim();
@@ -361,6 +446,97 @@ describe('leaving and resuming (AC 6)', () => {
     // The baby is far: Papa walks to him, which leaves the stove.
     expect(sim.world.papa.state).not.toBe('chore');
     expect(sim.world.chores[0]?.state).toBe('paused');
+  });
+
+  it.each([
+    ['a tap on the floor', { type: 'TapFloor', xM: 0, zM: 0 }],
+    ['a move', { type: 'Move', dirX: 1, dirZ: 0 }],
+    ['a tap on another object', { type: 'TapObject', objectId: 'phone' }],
+  ] as const)(
+    '%s pauses the chore in the very step Papa leaves, so that a snapshot of that step restores',
+    async (_label, cmd) => {
+      const sim = await afterOneBeat();
+      tell(sim, cmd);
+      stepEvents(sim, 1);
+      expect(sim.world.papa.state).not.toBe('chore');
+      expect(sim.world.chores[0]).toMatchObject({
+        state: 'paused',
+        beatsDone: 1,
+        beatState: 'none',
+      });
+      const snapshot = JSON.parse(JSON.stringify(sim.snapshot())) as ReturnType<Sim['snapshot']>;
+      expect(() => sim.restore(snapshot)).not.toThrow();
+      expect(sim.world.chores[0]?.state).toBe('paused');
+    },
+  );
+
+  it('is paused in the step a press on a threat makes Papa glide away, and that step restores', async () => {
+    const sim = await newSim({ waves: [testWave([OUTLET], { fromMs: 500_000 })] });
+    startCooking(sim);
+    const threatId = sim.world.threats[0]!.id;
+    tell(sim, { type: 'ForceThreat', threatId });
+    stepEvents(sim, 2);
+    const { windowOpenAt, responseWindow } = sim.world.threats[0]!;
+    const pressAt = windowOpenAt + (responseWindow?.windowMs ?? 0) / 2;
+    tell(sim, { type: 'PressThreat', threatId }, pressAt);
+    while (sim.world.papa.state === 'chore') stepEvents(sim, 1);
+    expect(sim.world.chores[0]?.state).toBe('paused');
+    const snapshot = JSON.parse(JSON.stringify(sim.snapshot())) as ReturnType<Sim['snapshot']>;
+    expect(() => sim.restore(snapshot)).not.toThrow();
+  });
+
+  it('is paused by taking the baby when he is within reach: Papa does not move, he is set idle', async () => {
+    const sim = await newSim({ carry: true });
+    startCooking(sim);
+    const { baby, papa } = sim.world;
+    // The baby crawls up to the stove (set from outside, the test's own arrangement).
+    baby.xM = papa.xM;
+    baby.zM = papa.zM;
+    const [xM, zM] = [papa.xM, papa.zM];
+    tell(sim, { type: 'TapBaby' });
+    const events = stepEvents(sim, 1);
+    expect(sim.world.baby.state).toBe('carried');
+    expect(sim.world.papa.state).toBe('idle');
+    expect([sim.world.papa.xM, sim.world.papa.zM]).toEqual([xM, zM]);
+    expect(sim.world.chores[0]).toMatchObject({ state: 'paused', beatState: 'none' });
+    expect(only(events, 'ChoreBeatJudged')).toEqual([]);
+    const snapshot = JSON.parse(JSON.stringify(sim.snapshot())) as ReturnType<Sim['snapshot']>;
+    expect(() => sim.restore(snapshot)).not.toThrow();
+  });
+
+  it('is paused by a séquelle that occupies Papa: the gag of an unanswered threat', async () => {
+    const sim = await newSim({ waves: [testWave([OUTLET], { fromMs: 500_000 })] });
+    startCooking(sim);
+    tell(sim, { type: 'ForceThreat', threatId: sim.world.threats[0]!.id });
+    const events = runUntilEvent(sim, 'GagTriggered', 10_000);
+    expect(only(events, 'GagTriggered')).toHaveLength(1);
+    expect(sim.world.papa.state).toBe('electrified');
+    expect(sim.world.chores[0]).toMatchObject({ state: 'paused', beatState: 'none' });
+    expect(only(events, 'ChoreBeatJudged')).toEqual([]);
+  });
+
+  it('is paused when a special sequence starts: Papa is set idle where he stands', async () => {
+    const sim = await createSim({
+      content,
+      geometry,
+      level: createTestLevel({
+        gauges: { ...FATIGUE_GAUGES, ...NOISE_GAUGES },
+        carry: CARRY,
+        objects: [...TEST_OBJECTS, TEST_STOVE],
+        chores: [TEST_COOKING],
+        sequences: ['stay_awake'],
+      }),
+      seed: 1,
+    });
+    startCooking(sim);
+    expect(sim.world.papa.state).toBe('chore');
+    tell(sim, { type: 'StartSequence', sequenceId: 'stay_awake' });
+    stepEvents(sim, 2);
+    expect(sim.world.flow.state).toBe('sequence');
+    expect(sim.world.papa.state).toBe('idle');
+    expect(sim.world.chores[0]).toMatchObject({ state: 'paused', beatState: 'none' });
+    const snapshot = JSON.parse(JSON.stringify(sim.snapshot())) as ReturnType<Sim['snapshot']>;
+    expect(() => sim.restore(snapshot)).not.toThrow();
   });
 
   it('is paused by a press on a threat, which is never refused', async () => {
@@ -436,16 +612,51 @@ describe('a threat’s window holds the beat (AC 7)', () => {
 
   it('starts held when Papa arrives while a window is open', async () => {
     const sim = await newSim({ waves });
-    tell(sim, { type: 'TapObject', objectId: 'stove' });
     const threatId = sim.world.threats[0]!.id;
     tell(sim, { type: 'ForceThreat', threatId });
-    // Step until the threat's window is open, then until Papa has arrived.
+    // The threat's window opens 1500 ms after it is forced and Papa glides for about 600 ms: tapping
+    // the stove 900 ms in lands him at the stove just as the window opens.
+    stepEvents(sim, 90);
+    tell(sim, { type: 'TapObject', objectId: 'stove' });
     const events: SimEvent[] = [];
     while (sim.world.papa.state !== 'chore') events.push(...stepEvents(sim, 1));
-    if (sim.world.threats[0]!.state === 'windowOpen') {
-      expect(sim.world.chores[0]?.beatState).toBe('held');
-      expect(only(events, 'ChoreBeatTelegraphed')).toEqual([]);
-    }
+    // The precondition of the test, asserted rather than assumed.
+    expect(sim.world.threats[0]!.state).toBe('windowOpen');
+    expect(sim.world.chores[0]).toMatchObject({
+      state: 'working',
+      beatState: 'held',
+      beatTelegraphAt: 0,
+      beatWindowOpenAt: 0,
+    });
+    expect(only(events, 'ChoreBeatTelegraphed')).toEqual([]);
+    // After the window the beat is announced, in full.
+    const after: SimEvent[] = [];
+    while (sim.world.chores[0]!.beatState === 'held') after.push(...stepEvents(sim, 1));
+    expect(only(after, 'ChoreBeatTelegraphed')[0]).toMatchObject({ beatIndex: 0 });
+  });
+
+  it('judges a tap made inside the beat’s window even when a threat’s window opens in the step it is applied', async () => {
+    const sim = await newSim({ waves });
+    startCooking(sim);
+    const announcedAt = sim.world.chores[0]!.beatTelegraphAt;
+    const centre = centreOf(sim);
+    const threatId = sim.world.threats[0]!.id;
+    // Forced 650 ms after the announcement, the threat's window opens at announcement + 2160, a step
+    // after the beat's window centre (announcement + 2150).
+    while (sim.world.time.sim < announcedAt + 650) stepEvents(sim, 1);
+    tell(sim, { type: 'ForceThreat', threatId });
+    stepEvents(sim, 1);
+    const openAt = sim.world.threats[0]!.windowOpenAt;
+    expect(openAt).toBe(centre + 10);
+    // The tap is stamped at the centre but only applied in the step that opens the threat's window.
+    while (sim.world.time.sim < openAt - 10) stepEvents(sim, 1);
+    tell(sim, { type: 'TapObject', objectId: 'stove' }, centre);
+    const events = stepEvents(sim, 1);
+    expect(sim.world.threats[0]!.state).toBe('windowOpen');
+    expect(only(events, 'ChoreBeatJudged')).toMatchObject([
+      { quality: 'perfect', beatIndex: 0, offsetMs: 0 },
+    ]);
+    expect(sim.world.chores[0]).toMatchObject({ beatsDone: 1, beatState: 'held' });
   });
 
   it('ignores a tap on the station while the beat is held', async () => {
@@ -520,16 +731,23 @@ describe('finishing a chore (AC 8)', () => {
     expect(only(events, 'LevelScored')[0]?.homePoints).toBe(0);
   });
 
-  it('judges nothing once the level has ended, mid-beat', async () => {
+  it('judges nothing once the level has ended, mid-beat, whatever is tapped afterwards', async () => {
     const sim = await newSim({ durationMs: 6_000 });
     startCooking(sim);
     const events: SimEvent[] = [];
     while (only(events, 'LevelEnded').length === 0) events.push(...stepEvents(sim, 1));
-    // The beat under way when the level ended is never judged, whatever the clock does after.
-    const judgedBefore = only(events, 'ChoreBeatJudged').length;
-    events.push(...stepEvents(sim, 500));
-    expect(only(events, 'ChoreBeatJudged')).toHaveLength(judgedBefore);
-    expect(only(events, 'ChoreCompleted')).toEqual([]);
+    const judgedAtEnd = only(events, 'ChoreBeatJudged').length;
+    const { beatsDone } = sim.world.chores[0]!;
+    // Taps on the stove, at the centre of the beat that was under way and after it: all ignored.
+    const centre = centreOf(sim);
+    for (const t of [centre, centre + 500, sim.world.time.sim]) {
+      tell(sim, { type: 'TapObject', objectId: 'stove' }, t);
+    }
+    const after = stepEvents(sim, 500);
+    expect(only(after, 'ChoreBeatJudged')).toEqual([]);
+    expect(only(after, 'ChoreCompleted')).toEqual([]);
+    expect(only(events, 'ChoreBeatJudged')).toHaveLength(judgedAtEnd);
+    expect(sim.world.chores[0]!.beatsDone).toBe(beatsDone);
     expect(only(events, 'LevelScored')[0]?.homePoints).toBe(0);
   });
 

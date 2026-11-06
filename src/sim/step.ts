@@ -1,6 +1,6 @@
 import { runInstinct } from './assist/paternalInstinct.ts';
 import { runBaby } from './baby/babySystem.ts';
-import { runChores } from './chores/choreSystem.ts';
+import { runChores, settleChores } from './chores/choreSystem.ts';
 import { applyCommands } from './commandQueue.ts';
 import type { StepContext, System } from './context.ts';
 import { runDirector } from './director/directorSystem.ts';
@@ -20,12 +20,14 @@ import type { World } from './world.ts';
  * Fixed order of the systems of one step (architecture, project-context):
  *
  *   applyCommands, advanceTime, runSequence, runDirector, runDisruptions, runBaby, runThreats,
- *   runChores, runPapa, runPhysics, runGauges, runInstinct, runScoring, runFlow
+ *   runChores, runPapa, settleChores, runPhysics, runGauges, runInstinct, runScoring, runFlow
  *
  * `runChores` (story 9.4) comes after the threats, whose windows it gives way to (a chore's beat is
  * held while a threat's window is open), and before Papa, whose step it takes the taps on a station
- * from: a chore is judged on its own commands, and Papa's state of the previous step says whether he
- * is working.
+ * from: a chore is judged on its own commands, and Papa's state says whether he is working.
+ * `settleChores` comes right after Papa: a chore he left in this step (a tap elsewhere, the baby
+ * taken) is paused in the same step, so that no step ends with a working chore and a Papa who is not
+ * in `chore`.
  *
  * All of them exist. `runGauges` is the fatigue since story 1.19, the noise since 3.1 and the need
  * since 4.3. `runInstinct` (story 2.9) is Fatherly Instinct: it reads the misses `gagThreat` wrote
@@ -57,6 +59,7 @@ export const SYSTEMS: readonly System[] = [
   runThreats,
   runChores,
   runPapa,
+  settleChores,
   runPhysics,
   runGauges,
   runInstinct,

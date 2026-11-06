@@ -49,23 +49,29 @@ describe('the glide to a station', () => {
   it('goes by the threats’ duration rule: min(glideMaxMs, length / walkSpeedMps), at least walking pace', async () => {
     const sim = await newSim();
     tap(sim, 'stove');
-    const events = stepEvents(sim, 3);
+    const events: SimEvent[] = [];
+    while (sim.world.papa.state !== 'glide') events.push(...stepEvents(sim, 1));
     const started = events.find((event) => event.type === 'PapaGlideStarted');
     if (started?.type !== 'PapaGlideStarted') throw new Error('no glide started');
     expect(started.threatId).toBeNull();
-    const glide = sim.world.papa.glide;
+    const { papa } = sim.world;
+    const glide = papa.glide;
     expect(glide).toMatchObject({ threatId: null, toXM: started.toXM, toZM: started.toZM });
     const durationMs = (glide?.arriveAt ?? 0) - (glide?.startedAt ?? 0);
-    expect(durationMs).toBeLessThanOrEqual(glideMaxMs);
+    // The route Papa is about to glide along, from where he stands to the station.
+    let lengthM = 0;
+    let [fromX, fromZ] = [papa.xM, papa.zM];
+    for (let i = 0; i < papa.path.length; i += 2) {
+      const [toX, toZ] = [papa.path[i] as number, papa.path[i + 1] as number];
+      lengthM += Math.hypot(toX - fromX, toZ - fromZ);
+      [fromX, fromZ] = [toX, toZ];
+    }
+    expect(lengthM).toBeGreaterThan(0);
+    // The threats' rule: as long as walking the route takes, but never longer than `glideMaxMs`.
+    expect(durationMs).toBeCloseTo(Math.min(glideMaxMs, (lengthM / walkSpeedMps) * MS_PER_S), -1);
     // Never slower than he walks.
     expect(glide?.speedMps).toBeGreaterThanOrEqual(walkSpeedMps - 1e-9);
-    expect(durationMs * (glide?.speedMps ?? 0)).toBeCloseTo(
-      (durationMs * (glide?.speedMps ?? 0)) / 1,
-      6,
-    );
-    expect(sim.world.papa.state).toBe('glide');
-    expect(sim.world.papa.objectId).toBe('stove');
-    expect(MS_PER_S).toBe(1000);
+    expect(papa.objectId).toBe('stove');
   });
 
   it('is cancelled by a tap on the floor: Papa walks there, the object is forgotten, nothing starts', async () => {
@@ -102,7 +108,10 @@ describe('the glide to a station', () => {
     const pressAt = (windowOpenAt ?? 0) + (responseWindow?.windowMs ?? 0) / 2;
     sim.enqueue({ type: 'PressThreat', threatId, t: asSimMs(pressAt) });
     sim.enqueue({ type: 'Release', t: asSimMs(pressAt + 20) });
-    while (sim.world.time.sim < pressAt + 30) stepEvents(sim, 1);
+    // The press is applied; Papa glides to the threat (the glide lasts well over one step).
+    while (sim.world.papa.glide?.threatId !== threatId && sim.world.time.sim < pressAt + 200) {
+      stepEvents(sim, 1);
+    }
     expect(sim.world.papa.glide?.threatId).toBe(threatId);
     expect(sim.world.papa.objectId).toBeNull();
     stepEvents(sim, 100);
