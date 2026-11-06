@@ -60,6 +60,31 @@ async function play(
 const typed = <T extends SimEvent['type']>(events: readonly SimEvent[], type: T) =>
   events.filter((event): event is Extract<SimEvent, { type: T }> => event.type === type);
 
+/**
+ * When a threat is active, as the bots see it: from its telegraph to its answer, its gag or its
+ * cancellation (the events alone; the same threat may end by more than one of them).
+ */
+function threatsActivity(events: readonly SimEvent[]) {
+  // Strictly before `t`: the bot decides a step before the sim handles its tap, and cannot see that step.
+  const activeAt = (t: number): { isActive: boolean; lastEndMs: number } => {
+    const open = new Set<number>();
+    let lastEndMs = 0;
+    for (const event of events) {
+      if (event.t >= t) break;
+      if (event.type === 'ThreatTelegraphed') open.add(event.threatId);
+      else if (
+        event.type === 'ResponseResolved' ||
+        event.type === 'GagTriggered' ||
+        event.type === 'ThreatCancelled'
+      ) {
+        if (open.delete(event.threatId)) lastEndMs = event.t;
+      }
+    }
+    return { isActive: open.size > 0, lastEndMs };
+  };
+  return { activeAt };
+}
+
 describe('the perfect bot does the chores', () => {
   it.each(SEEDS)('finishes the cooking and fails no threat (seed %i)', async (seed) => {
     const { sim, events } = await play('perfect', seed);
@@ -93,21 +118,52 @@ describe('the perfect bot does the chores', () => {
     sim.dispose();
   });
 
-  it('draws nothing and taps nothing in a level with no station', async () => {
+  it('taps nothing in a level with no station', async () => {
     const { sim, events } = await play('perfect', 1, {}, false);
     expect(typed(events, 'ObjectTapped')).toEqual([]);
     expect(sim.world.chores).toEqual([]);
     sim.dispose();
   });
 
-  it('waits for a lull: no tap on the stove within quietMinMs of an active threat', async () => {
+  it('waits for a lull: every tap on the stove follows the last active threat by quietMinMs', async () => {
+    const quietMinMs = 3000;
     const { sim, events } = await play('perfect', 2, {
-      chores: { isEnabled: true, quietMinMs: 6000 },
+      chores: { isEnabled: true, quietMinMs },
     });
-    // With a long quiet, the first tap comes late (nothing before the first lull of 6 s).
-    const first = typed(events, 'ObjectTapped').find((event) => event.objectId === 'stove');
-    expect(first === undefined || first.t >= 6000).toBe(true);
+    const taps = typed(events, 'ObjectTapped').filter((event) => event.objectId === 'stove');
+    expect(taps.length).toBeGreaterThan(0);
+    const { activeAt } = threatsActivity(events);
+    for (const tap of taps) {
+      const { isActive, lastEndMs } = activeAt(tap.t);
+      expect(isActive, `a threat was active at ${tap.t}`).toBe(false);
+      // Two steps of slack: the bot decides a step before the sim handles its tap.
+      expect(tap.t - lastEndMs, `the lull before the tap at ${tap.t}`).toBeGreaterThanOrEqual(
+        quietMinMs - 20,
+      );
+    }
     sim.dispose();
+  });
+
+  it('never starts a chore in the middle of a threat, even with no lull asked for (quietMinMs 0)', async () => {
+    const { planChore, createChoreMemory } = await import('@bots/threatTiming');
+    const worldWith = (threatState: string) =>
+      ({
+        time: { sim: 20_000 },
+        flow: { state: 'playing' },
+        papa: { state: 'idle' },
+        baby: { state: 'wander' },
+        threats: [{ state: threatState }],
+        chores: [{ state: 'untouched' }],
+      }) as unknown as Parameters<typeof planChore>[0];
+    const settings = { isEnabled: true, quietMinMs: 0 };
+    for (const state of ['hidden', 'telegraph', 'windowOpen']) {
+      const out: Parameters<typeof planChore>[4] = [];
+      planChore(worldWith(state), ['stove'], settings, true, out, createChoreMemory());
+      expect(out, `a ${state} threat`).toEqual([]);
+    }
+    const out: Parameters<typeof planChore>[4] = [];
+    planChore(worldWith('idle'), ['stove'], settings, true, out, createChoreMemory());
+    expect(out).toMatchObject([{ type: 'TapObject', objectId: 'stove' }]);
   });
 });
 
@@ -123,7 +179,7 @@ describe('the human bot does the chores', () => {
     },
   };
 
-  it('finishes it in some games and misses some beats in others, never both ways at once', async () => {
+  it('finishes the cooking in some games and misses beats in others (a clumsy read of the ring)', async () => {
     let completed = 0;
     let misses = 0;
     for (const seed of SEEDS) {
@@ -158,6 +214,22 @@ describe('the human bot does the chores', () => {
     expect(await failedThreats(human(400))).toBeGreaterThan(exact);
   });
 
+  it('draws nothing for the chores in a level with no station: its game does not depend on their settings', async () => {
+    const hashWith = async (settings: Partial<BotOptions>) => {
+      const { sim, events } = await play('human', 1, settings, false);
+      expect(typed(events, 'ObjectTapped')).toEqual([]);
+      const hash = hashJson(sim.world);
+      sim.dispose();
+      return hash;
+    };
+    const plain = await hashWith({});
+    const other = await hashWith({
+      chores: { isEnabled: false, quietMinMs: 0 },
+      human: { ...createTestBots().human, backTurnedSdMs: 900 },
+    });
+    expect(other).toBe(plain);
+  });
+
   it('draws the spread only while Papa is at a station: with the chores off it changes nothing', async () => {
     const withSpread = async (backTurnedSdMs: number) => {
       const settings: Partial<BotOptions> = {
@@ -174,19 +246,72 @@ describe('the human bot does the chores', () => {
 });
 
 describe('a game with chores replays to the same state', () => {
-  it('replays the journal of a perfect game and ends in the same world', async () => {
-    const { sim } = await play('perfect', 3);
-    const replayed = await replayJournal({
-      content: createTestContent(),
-      geometry: createTestGeometry(),
-      level: choreLevel(),
-      journal: sim.journal(),
-      untilSimMs: sim.world.time.sim,
-      strictInvariants: true,
-    });
-    if (!replayed.ok) throw new Error(replayed.error.message);
-    expect(hashJson(replayed.value.sim.world)).toBe(hashJson(sim.world));
-    replayed.value.sim.dispose();
-    sim.dispose();
+  it.each([
+    ['perfect', 3, undefined],
+    ['human', 2, undefined],
+    ['human', 5, 'clumsy'],
+  ] as const)(
+    'replays the journal of a %s game (seed %i, %s) and ends in the same world',
+    async (botId, seed, mode) => {
+      const clumsyRing: Partial<BotOptions> = {
+        human: {
+          ...legacyHuman({ reactionMs: 250, jitterSdMs: 60 }),
+          readError: {
+            withChronoRing: { offsetMs: 0, sdMs: 400 },
+            withoutChronoRing: { offsetMs: 0, sdMs: 400 },
+          },
+        },
+      };
+      const { sim, events } = await play(botId, seed, mode === 'clumsy' ? clumsyRing : {});
+      // The game is a real one: the stove was tapped, beats were judged, and a threat took Papa away at
+      // least once (the chore was paused and resumed), so the replay has something to get wrong.
+      const journal = sim.journal();
+      expect(
+        journal.entries.some(
+          (entry) => entry.command.type === 'TapObject' && entry.command.objectId === 'stove',
+        ),
+      ).toBe(true);
+      expect(typed(events, 'ChoreBeatJudged').length).toBeGreaterThan(0);
+      expect(typed(events, 'PapaGlideStarted').some((event) => event.threatId !== null)).toBe(true);
+      const replayed = await replayJournal({
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level: choreLevel(),
+        journal,
+        untilSimMs: sim.world.time.sim,
+        strictInvariants: true,
+      });
+      if (!replayed.ok) throw new Error(replayed.error.message);
+      expect(hashJson(replayed.value.sim.world)).toBe(hashJson(sim.world));
+      replayed.value.sim.dispose();
+      sim.dispose();
+    },
+  );
+});
+
+describe('the final rush with a chore under way (story 9.4 review)', () => {
+  it('tidies from a Papa who works at the station: he leaves the chore for the props', async () => {
+    const { planTidy, createTidyMemory } = await import('@bots/threatTiming');
+    const out: Parameters<typeof planTidy>[2] = [];
+    const memory = createTidyMemory();
+    const world = {
+      time: { sim: 12_000 },
+      flow: { state: 'finalRush', finalRushAt: 10_000 },
+      papa: { state: 'chore', xM: 0, zM: 0 },
+      threats: [],
+      props: [{ id: 'cup', isMess: true, xM: 1, zM: 1 }],
+    } as unknown as Parameters<typeof planTidy>[0];
+    planTidy(world, {}, out, memory, 0);
+    expect(out).toMatchObject([{ type: 'TapObject', objectId: 'cup' }]);
+    // A walking Papa is still left alone.
+    out.length = 0;
+    planTidy(
+      { ...world, time: { sim: 14_000 }, papa: { state: 'walkPath', xM: 0, zM: 0 } } as never,
+      {},
+      out,
+      createTidyMemory(),
+      0,
+    );
+    expect(out).toEqual([]);
   });
 });

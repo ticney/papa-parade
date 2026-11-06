@@ -103,7 +103,7 @@ export function createHumanBot(setup: BotSetup): Bot {
   // The prop tapped last in the final rush (story 3.5).
   const tidy = createTidyMemory();
   // The house chores (story 9.4): when the station was last tapped, and the press planned for its beat.
-  const chores = createChoreMemory();
+  const choreMemory = createChoreMemory();
   // The rush it has drawn its reaction for, and how long it waits (story 3.14: one draw per rush).
   let rush: { finalRushAt: number; waitMs: number } | null = null;
   // The tap that finds the baby, planned for one silence only: it is dropped if that silence ends first.
@@ -287,9 +287,9 @@ export function createHumanBot(setup: BotSetup): Bot {
           setup.settings.chores,
           !isBusy(world, now),
           out,
-          chores,
+          choreMemory,
         );
-        planChoreBeat(world, setup.choreObjectIds, out, chores, (chore) => {
+        planChoreBeat(world, setup.choreObjectIds, out, choreMemory, (chore) => {
           const reactedAt = chore.beatTelegraphAt + drawReactionMs();
           return Math.max(reactedAt, aimOf('parry', choreCentreOf(chore)));
         });

@@ -52,7 +52,7 @@ export function createPerfectBot(setup: BotSetup): Bot {
   // The prop tapped last in the final rush (story 3.5).
   const tidy = createTidyMemory();
   // The house chores (story 9.4): when the station was last tapped, and the press planned for its beat.
-  const chores = createChoreMemory();
+  const choreMemory = createChoreMemory();
   // The beat tapped last: `nextBeatAt` is unique per beat, so one tap per beat whatever the step.
   let lastBeatAt: number | null = null;
   return {
@@ -107,8 +107,8 @@ export function createPerfectBot(setup: BotSetup): Bot {
       planTidy(world, setup.responses, out, tidy, 0);
       // The house chores (story 9.4): started in a lull, each beat tapped at the centre of its window.
       const isFree = !firmHold.isHolding && scheduler.size === 0;
-      planChore(world, setup.choreObjectIds, setup.settings.chores, isFree, out, chores);
-      planChoreBeat(world, setup.choreObjectIds, out, chores, choreCentreOf);
+      planChore(world, setup.choreObjectIds, setup.settings.chores, isFree, out, choreMemory);
+      planChoreBeat(world, setup.choreObjectIds, out, choreMemory, choreCentreOf);
     },
   };
 }

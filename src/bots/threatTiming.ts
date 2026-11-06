@@ -348,7 +348,9 @@ export function planTidy(
   const now = world.time.sim;
   if (now < finalRushAt + waitMs) return;
   const { papa } = world;
-  if (papa.state !== 'idle' || isAnswerUp(world.threats, responses)) return;
+  // Papa at a station (story 9.4) tidies too: a tap on a prop is a moving command, which pauses his chore.
+  if ((papa.state !== 'idle' && papa.state !== 'chore') || isAnswerUp(world.threats, responses))
+    return;
   let nearestId: string | null = null;
   let nearestSq = Number.POSITIVE_INFINITY;
   for (let i = 0; i < world.props.length; i++) {
@@ -414,7 +416,8 @@ export function planChore(
   if (isAnyThreatActive(world)) memory.lastThreatActiveAt = now;
   if (!isFree || world.flow.state !== 'playing' || world.papa.state !== 'idle') return;
   if (world.baby.state === 'carried') return;
-  if (now - memory.lastThreatActiveAt < chores.quietMinMs) return;
+  // Never in the middle of a threat, whatever the lull asked for (a `quietMinMs` of 0 included).
+  if (isAnyThreatActive(world) || now - memory.lastThreatActiveAt < chores.quietMinMs) return;
   if (memory.sentAt !== null && now - memory.sentAt < CHORE_RETRY_MS) return;
   for (let i = 0; i < world.chores.length; i++) {
     if ((world.chores[i] as Readonly<World['chores'][number]>).state === 'done') continue;
