@@ -680,11 +680,23 @@ describe('the bubble of a chore (story 9.4, D11)', () => {
     expect(bubble.progressPct).toBe(75);
   });
 
-  it('never drains a chore whose progress is not given: it reads as an empty ring, not a negative one', () => {
+  it('never drains a chore whose progress is not given: it reads as an empty ring, whatever the clock', () => {
     const { bubble } = build();
-    bubble.update(papaIn('chore', 1000, 0), 1500, false, 0);
-    expect(bubble.progressPct).toBeGreaterThanOrEqual(0);
-    expect(bubble.progressPct).toBeLessThanOrEqual(100);
+    // A `busyUntil` a drain would run to, and a clock halfway there: a drain would read about 50.
+    bubble.update(papaIn('chore', 1000, 3000), 2000, false, 0);
+    expect(bubble.progressPct).toBe(0);
+    bubble.update(papaIn('chore', 1000, 3000), 2900, false, 16);
+    expect(bubble.progressPct).toBe(0);
+  });
+
+  it('fills 0, 25, 50, 75 then 100 % for the beats of a four-beat chore', () => {
+    const { bubble } = build();
+    const shown: number[] = [];
+    for (const done of [0, 1, 2, 3, 4]) {
+      bubble.update(papaIn('chore', 1000, 0), 1000, false, done * 16, (done / 4) * 100);
+      shown.push(bubble.progressPct);
+    }
+    expect(shown).toEqual([0, 25, 50, 75, 100]);
   });
 
   it('pops out when Papa leaves the station, and a busy state keeps draining as before', () => {
@@ -696,9 +708,181 @@ describe('the bubble of a chore (story 9.4, D11)', () => {
     expect(bubble.progressPct).toBe(50);
   });
 
-  it('is never shaken by a refused tap: a chore refuses none (a press on a threat gets through)', () => {
+  it('restarts the shake on a second refused tap: the class comes off and goes on again, with a new end', () => {
+    const { bubble, body } = build();
+    bubble.update(papaIn('drink'), 1500, false, 0);
+    bubble.shake(1000);
+    const seen: string[] = [];
+    const { add, remove } = body.classList;
+    body.classList.add = (name: string) => {
+      seen.push(`add ${name}`);
+      add(name);
+    };
+    body.classList.remove = (...names: string[]) => {
+      seen.push(`remove ${names.join(',')}`);
+      remove(...names);
+    };
+    bubble.shake(1100);
+    expect(seen).toEqual([
+      `remove ${ACTIVITY_BUBBLE_CLASSES.refused},${ACTIVITY_BUBBLE_CLASSES.thick}`,
+      `add ${ACTIVITY_BUBBLE_CLASSES.refused}`,
+    ]);
+    // The first shake's end (1150) no longer clears it: it runs to 1250.
+    bubble.update(papaIn('drink'), 1500, false, 1200);
+    expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.refused)).toBe(true);
+    bubble.update(papaIn('drink'), 1500, false, 1250);
+    expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.refused)).toBe(false);
+  });
+
+  it('shakes nothing while no bubble shows', () => {
+    const { bubble, body } = build();
+    bubble.shake(1000);
+    expect(bubble.isShaking).toBe(false);
+    expect(body.classes.size).toBe(0);
+  });
+
+  it('does not shake while it pops out', () => {
+    const { bubble, body } = build();
+    bubble.update(papaIn('drink'), 1500, false, 0);
+    bubble.update(papaIn('idle', DRINK_END, 0), DRINK_END, false, 16);
+    bubble.shake(32);
+    expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.refused)).toBe(false);
+  });
+
+  it('under reduced motion thickens the border instead (a class, no animation), for the same time', () => {
+    const { bubble, body, popEl } = build(true);
+    bubble.update(papaIn('drink'), 1500, false, 0);
+    bubble.shake(1000);
+    expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.thick)).toBe(true);
+    expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.refused)).toBe(false);
+    expect(popEl.animations).toHaveLength(0);
+    bubble.update(papaIn('drink'), 1500, false, 1000 + ACTIVITY_BUBBLE_REFUSED_SHAKE_MS);
+    expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.thick)).toBe(false);
+  });
+
+  it('a shake is forgotten with the bubble', () => {
+    const { bubble, body } = build();
+    bubble.update(papaIn('drink'), 1500, false, 0);
+    bubble.shake(1000);
+    bubble.hide();
+    expect(body.classes.has(ACTIVITY_BUBBLE_CLASSES.refused)).toBe(false);
+    expect(bubble.isShaking).toBe(false);
+  });
+});
+
+describe('the layout: the bubble, the combo badge and a threat on Papa never overlap', () => {
+  // The CSS gives the badge its offsets from these metrics (`applyActivityBubbleMetrics`), and a threat icon is
+  // centred on Papa with its chrono-ring reaching `CHRONO_RING_REACH_PX` beyond its edge.
+  const BADGE_HALF = COMBO_BADGE_HALF_WIDTH_PX;
+  const overlap = (a: [number, number], b: [number, number]): boolean => a[0] < b[1] && b[0] < a[1];
+
+  it.each([
+    ['compact', ACTIVITY_BUBBLE_COMPACT_PX, THREAT_ICON_COMPACT_PX],
+    ['regular', ACTIVITY_BUBBLE_REGULAR_PX, THREAT_ICON_REGULAR_PX],
+  ] as const)('on the %s surface', (surface, sizePx, threatSizePx) => {
+    const metrics = ACTIVITY_METRICS[surface];
+    expect(metrics).toEqual(activityMetricsFor(sizePx, threatSizePx));
+    expect(metrics.sizePx).toBe(sizePx);
+    // The bubble and its ring, the badge beside it.
+    const bubble: [number, number] = [-metrics.reachPx, metrics.reachPx];
+    const badge: [number, number] = [
+      metrics.besideBadgePx - BADGE_HALF,
+      metrics.besideBadgePx + BADGE_HALF,
+    ];
+    expect(overlap(bubble, badge)).toBe(false);
+    expect(badge[0] - bubble[1]).toBeGreaterThan(0);
+    // A threat on Papa: its icon and chrono-ring in the centre, the bubble to its left, the badge to its right.
+    const threatReachPx = threatSizePx / 2 + CHRONO_RING_REACH_PX;
+    const threat: [number, number] = [-threatReachPx, threatReachPx];
+    const aside: [number, number] = [
+      -metrics.asideBubblePx - metrics.reachPx,
+      -metrics.asideBubblePx + metrics.reachPx,
+    ];
+    const badgeRight: [number, number] = [
+      metrics.asideBadgePx - BADGE_HALF,
+      metrics.asideBadgePx + BADGE_HALF,
+    ];
+    expect(overlap(aside, threat)).toBe(false);
+    expect(overlap(badgeRight, threat)).toBe(false);
+    expect(overlap(aside, badgeRight)).toBe(false);
+  });
+
+  it('writes the metrics of both surfaces to the root, for ui.css to pick by surface', () => {
+    const vars = new Map<string, string>();
+    applyActivityBubbleMetrics({
+      style: { setProperty: (name: string, value: string) => vars.set(name, value) },
+    } as unknown as { readonly style: CSSStyleDeclaration });
+    expect(vars.get('--pp-activity-size-compact')).toBe(`${ACTIVITY_BUBBLE_COMPACT_PX}px`);
+    expect(vars.get('--pp-activity-size-regular')).toBe(`${ACTIVITY_BUBBLE_REGULAR_PX}px`);
+    for (const surface of ['compact', 'regular'] as const) {
+      const metrics = ACTIVITY_METRICS[surface];
+      expect(vars.get(`--pp-activity-reach-${surface}`)).toBe(`${metrics.reachPx}px`);
+      expect(vars.get(`--pp-activity-beside-offset-${surface}`)).toBe(`${metrics.besideBadgePx}px`);
+      expect(vars.get(`--pp-activity-aside-offset-${surface}`)).toBe(`${metrics.asideBubblePx}px`);
+      expect(vars.get(`--pp-activity-badge-aside-offset-${surface}`)).toBe(
+        `${metrics.asideBadgePx}px`,
+      );
+    }
+  });
+});
+
+describe('the bubble of a chore (story 9.4, D11)', () => {
+  it('shows the saucepan while Papa works at a station, though he is not busy', () => {
+    const { bubble, outer } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 25);
+    expect(bubble.isActive).toBe(true);
+    expect(bubble.pictogram).toBe('pan');
+    expect(outer.classes.has('pp-activity-bubble--pan')).toBe(true);
+  });
+
+  it('fills its ring with the chore’s progress instead of draining to busyUntil', () => {
+    const { bubble } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 0);
+    expect(bubble.progressPct).toBe(0);
+    bubble.update(papaIn('chore', 1000, 0), 2000, false, 16, 25);
+    expect(bubble.progressPct).toBe(25);
+    bubble.update(papaIn('chore', 1000, 0), 90_000, false, 32, 75);
+    expect(bubble.progressPct).toBe(75);
+    // The sim time does not move it: only the progress does.
+    bubble.update(papaIn('chore', 1000, 0), 120_000, false, 48, 75);
+    expect(bubble.progressPct).toBe(75);
+  });
+
+  it('never drains a chore whose progress is not given: it reads as an empty ring, whatever the clock', () => {
+    const { bubble } = build();
+    // A `busyUntil` a drain would run to, and a clock halfway there: a drain would read about 50.
+    bubble.update(papaIn('chore', 1000, 3000), 2000, false, 0);
+    expect(bubble.progressPct).toBe(0);
+    bubble.update(papaIn('chore', 1000, 3000), 2900, false, 16);
+    expect(bubble.progressPct).toBe(0);
+  });
+
+  it('fills 0, 25, 50, 75 then 100 % for the beats of a four-beat chore', () => {
+    const { bubble } = build();
+    const shown: number[] = [];
+    for (const done of [0, 1, 2, 3, 4]) {
+      bubble.update(papaIn('chore', 1000, 0), 1000, false, done * 16, (done / 4) * 100);
+      shown.push(bubble.progressPct);
+    }
+    expect(shown).toEqual([0, 25, 50, 75, 100]);
+  });
+
+  it('pops out when Papa leaves the station, and a busy state keeps draining as before', () => {
+    const { bubble } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 50);
+    bubble.update(papaIn('walkPath'), 1100, false, 16, -1);
+    expect(bubble.isActive).toBe(false);
+    bubble.update(papaIn('drink', 1000, 2000), 1500, false, 32, 50);
+    expect(bubble.progressPct).toBe(50);
+  });
+
+  it('is not shaken by a refused tap in a chore: the sim refuses none, and the bubble shakes on `TapRefused` only', () => {
     const { bubble } = build();
     bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 50);
     expect(bubble.isShaking).toBe(false);
+    // Nothing in a chore calls `shake` (a press on a threat gets through); here it is called anyway, as a
+    // client bug would, and the chore's bubble does shake: the guarantee is that no event calls it.
+    bubble.shake(1100);
+    expect(bubble.isShaking).toBe(true);
   });
 });

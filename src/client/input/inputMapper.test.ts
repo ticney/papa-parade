@@ -57,7 +57,10 @@ function setup() {
   const clock = { realToSim: (ms: number) => asSimMs(ms - 1000) };
   const sim = {
     enqueue: (command: SimCommand) => commands.push(command),
+    // The level's stations (story 9.4), index-aligned with `world.chores`: none unless a test sets some.
+    chores: [] as { objectId: string }[],
     world: {
+      chores: [] as { state: string }[],
       time: { sim: asSimMs(777) },
       flow: { state: 'playing' as 'playing' | 'ended' | 'sequence' | 'finalRush' },
       sequence: {
@@ -2206,6 +2209,29 @@ describe('createInputMapper: a chore’s station (story 9.4)', () => {
     Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
     mapper.handleAction('down', 1500, 'keyboard');
     expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'coffee_machine' }]);
+  });
+
+  it('lets Space take a free baby beside a stove whose chore is done: a done station is inert', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'done' }] });
+    // Papa stands at the stove (distance 0 to it), the baby a metre away: the station used to win.
+    Object.assign(sim.world.papa, { xM: STOVE.xM, zM: STOVE.zM });
+    Object.assign(sim.world.baby, { xM: STOVE.xM + 1, zM: STOVE.zM, state: 'babble' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+  });
+
+  it('still lets Space reach a stove whose chore is not done, beside a free baby', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'paused' }] });
+    Object.assign(sim.world.papa, { xM: STOVE.xM, zM: STOVE.zM });
+    Object.assign(sim.world.baby, { xM: STOVE.xM + 1, zM: STOVE.zM, state: 'babble' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'stove' }]);
   });
 
   it('sends Space near the stove as the beat’s press when the baby is free', () => {

@@ -113,6 +113,13 @@ export async function ppPagePoint(
 export const ppCueLog = (page: Page): Promise<ReturnType<PPTestApi['cueLog']>> =>
   page.evaluate(() => window.__PP__?.cueLog() ?? []);
 
+/**
+ * The house chores of the level as `data-pp-chore` mirrors them (story 9.4): `<index>:<state>:<beatsDone>/<beatCount>:<beatState>`
+ * joined by `;`, `''` when the level has none; null when the page is not a mirrored build (or not in a level).
+ */
+export const ppChore = (page: Page): Promise<string | null> =>
+  page.evaluate(() => document.documentElement.getAttribute('data-pp-chore'));
+
 /** One off-screen bubble as `data-pp-offscreen` mirrors it (story 9.3): its threat, edge, centre (page px) and chevron angle. */
 export interface OffscreenBubbleMirror {
   threatId: number;

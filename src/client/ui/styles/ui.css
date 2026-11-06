@@ -1749,8 +1749,9 @@ body {
    The activity bubble (DESIGN.md › activity-bubble, story 2.12): a paper disc with an ink border and a
    pictogram in ink, above a busy Papa at the combo badge's height, its tail pointing down to him. The
    hold-ring's visual around it (a paper band over the ring-track, a 2 px ink outline) drains to
-   `busyUntil`: `--pp-activity-progress` is the whole percent that is paper, from 12 o'clock clockwise, so
-   the edge moves counter-clockwise as it falls. `activityBubble.ts` writes it from the sim time as drawn:
+   `busyUntil`, or, for a chore (story 9.4), fills with its progress (beats done over beats):
+   `--pp-activity-progress` is the whole percent that is paper, from 12 o'clock clockwise, so the edge
+   moves counter-clockwise as it falls and clockwise as it fills. `activityBubble.ts` writes it from the sim time as drawn:
    there is no transition or animation on it. Every size comes from `constants.ts`: the root properties per
    surface are written once by `applyActivityBubbleMetrics`, the widths inline on the bubble, over the 0px
    placeholders here. The outer box is placed by the CSS2DRenderer (it writes `transform`, so the aside step
@@ -2535,7 +2536,8 @@ body {
   opacity: 0.6;
 }
 
-/* A chore's station once its chore is done (story 9.4): dimmed like a toilet in use, and inert. */
+/* A chore's station once its chore is done (story 9.4): dimmed like a toilet in use. A tap on it walks Papa there
+   and starts nothing; Space and A skip it, so it never shadows a baby beside it. */
 .pp-object-done .pp-object-icon {
   background: var(--pp-color-ink-soft);
   opacity: 0.6;

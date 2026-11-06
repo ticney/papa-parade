@@ -2,7 +2,8 @@ import { CHORE_BEAT_STATES, CHORE_STATES, type ChoreInstance } from '@sim';
 
 /**
  * The debug mirror `data-pp-chore` (story 9.4, AC 14): the level's chores, by index,
- * `<index>:<state>:<beatsDone>/<beatCount>:<beatState>` joined by `;`, empty when the level has none.
+ * `<index>:<state>:<beatsDone>/<beatCount>:<beatState>` joined by `;`, empty when the level has none (`boot.ts`
+ * writes the empty text itself at the start of such a level: `update` is only called for a level with chores).
  * `update` is called every frame and returns the new text only when it changed (a chore's state, its
  * beats done or its beat's state), so the caller writes the DOM on change and the frame allocates nothing
  * while nothing happens. Mirrored builds only: a test reads it instead of polling the world.

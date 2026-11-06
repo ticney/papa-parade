@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
-import { shot, typesOf } from './support/duel.ts';
+import { cueIds, shot, typesOf } from './support/duel.ts';
 import { collectProblems, html, OWN_WARNINGS, THREATS_OFF, waitFrames } from './support/game.ts';
+import { STRINGS } from './support/strings.ts';
 import {
   ppAdvance,
+  ppChore,
   ppFreeze,
   ppLoadLevel,
   ppPagePoint,
@@ -15,18 +18,29 @@ import {
 // The house chores (story 9.4): the cooking on the stove of the kitchen, played with real taps on
 // its marker. A frozen level is stepped through the test API; the chore's state is read through the
 // mirror `data-pp-chore` (`<index>:<state>:<beatsDone>/<beatCount>:<beatState>`) and the events.
-// Every timing is read from the world (the window frozen at the announcement), never typed here.
+// Every timing is read from the world (the window frozen at the announcement), the places from the
+// level's own files (its geometry's `stove` anchor, its duration), the rise from the feel: none is typed.
 
 const LEVEL = 'salon_kitchen';
 const SEED = 42;
-const MIRROR = 'data-pp-chore';
 const STOVE = '[data-pp-object="stove"]';
-/** The stove's anchor in the big room (its icon point), at the far end from Papa's spawn. */
-const STOVE_AT = [-5.15, 0.92, -3.125] as const;
-/** A walkable point at the kitchen end, near the stove: the follow camera then frames it. */
-const KITCHEN_END = [-5.5, -1.5] as const;
+const HINT = '.pp-papa-hint';
+const geometry = JSON.parse(readFileSync(`content/levels/${LEVEL}.geometry.json`, 'utf8')) as {
+  anchors: { id: string; positionM: [number, number, number] }[];
+};
+const stoveAnchor = geometry.anchors.find((anchor) => anchor.id === 'stove');
+if (stoveAnchor === undefined) throw new Error(`${LEVEL} has no stove anchor`);
+/** The stove's anchor (its icon point), at the far end from Papa's spawn. */
+const STOVE_AT = stoveAnchor.positionM;
+/** A walkable point at the kitchen end, a step from the stove: the follow camera then frames it. */
+const KITCHEN_END = [STOVE_AT[0] - 0.35, STOVE_AT[2] + 1.625] as const;
+/** Another walkable point, a metre further along the room: where Papa goes to leave the stove. */
+const AWAY_FROM_STOVE = [KITCHEN_END[0] + 1, KITCHEN_END[1] + 0.5] as const;
+const levelDurationMs = (
+  JSON.parse(readFileSync(`content/levels/${LEVEL}.json`, 'utf8')) as { durationMs: number }
+).durationMs;
 
-const chore = (page: Page): Promise<string | null> => html(page).getAttribute(MIRROR);
+const chore = ppChore;
 
 /** Loads the kitchen frozen; `threats` keeps its waves (a test about a threat), else none disturbs the beat. */
 async function open(page: Page, { threats = false }: { threats?: boolean } = {}): Promise<void> {
@@ -134,8 +148,10 @@ test.describe('the house chores', () => {
     // The station's ring is shown, and the bubble of the chore above Papa.
     await expect(page.locator(`${STOVE} .pp-chrono-ring`)).toBeVisible();
     await expect(page.locator('.pp-activity-bubble--pan')).toBeVisible();
-    // Space in a chore is not a refused tap: the bubble never shakes.
+    // A chore refuses no tap, so the bubble never shakes; and the announcement was cued.
+    expect(await typesOf(page, 'TapRefused')).toHaveLength(0);
     await expect(page.locator('.pp-activity-body--refused')).toHaveCount(0);
+    expect(await cueIds(page)).toContain('chore_beat_cued');
     await shot(page, testInfo, 'chore-announced.png');
     expect(problems).toEqual([]);
   });
@@ -153,6 +169,8 @@ test.describe('the house chores', () => {
     await advanceUntil(page, (world) => world.time.sim >= opensAt + 20, 1000);
     await waitFrames(page, 3);
     await shot(page, testInfo, 'chore-arc-lit.png');
+    // The arc lighting vibrates once, as a threat's does at its window.
+    expect(await cueIds(page)).toContain('chrono_arc_lit');
     await catchBeat(page);
     const judged = (await typesOf(page, 'ChoreBeatJudged')) as unknown as {
       quality: string;
@@ -169,7 +187,10 @@ test.describe('the house chores', () => {
     expect(lowered.find((event) => event.source === 'perfect')?.deltaPct).toBeLessThan(0);
     // Papa did not move for the tap: it was the beat's press.
     expect((await ppWorld(page)).papa.state).toBe('chore');
+    // The log is cumulative: the one `ObjectTapped` is the tap that started the cooking. The beat's press
+    // is taken by the chore system, which judges it, and emits none.
     expect(await typesOf(page, 'ObjectTapped')).toHaveLength(1);
+    expect(await cueIds(page)).toContain('chore_beat_perfect');
     expect(problems).toEqual([]);
   });
 
@@ -199,7 +220,13 @@ test.describe('the house chores', () => {
       source: string;
       deltaPct: number;
     }[];
-    expect(rises.find((event) => event.source === 'choreBeat')?.deltaPct).toBeCloseTo(10, 6);
+    const { feel } = await ppWorld(page);
+    const multiplier = feel.difficulty.normal.catastropheMultiplier;
+    expect(rises.find((event) => event.source === 'choreBeat')?.deltaPct).toBeCloseTo(
+      feel.catastrophe.risePct.choreBeat * multiplier,
+      6,
+    );
+    expect(await cueIds(page)).toContain('chore_beat_missed');
     expect((await ppWorld(page)).gauges.catastrophePct).toBeGreaterThan(before);
     const announced = (await typesOf(page, 'ChoreBeatTelegraphed')) as unknown as {
       beatIndex: number;
@@ -217,7 +244,7 @@ test.describe('the house chores', () => {
     await walkToKitchen(page);
     await startCooking(page);
     await catchBeat(page);
-    await ppSend(page, { type: 'TapFloor', xM: -4.5, zM: -1 });
+    await ppSend(page, { type: 'TapFloor', xM: AWAY_FROM_STOVE[0], zM: AWAY_FROM_STOVE[1] });
     await ppAdvance(page, 3);
     await waitFrames(page, 3);
     expect(await chore(page)).toBe('0:paused:1/4:none');
@@ -265,10 +292,16 @@ test.describe('the house chores', () => {
     expect(await typesOf(page, 'TapRefused')).toHaveLength(0);
     await waitFrames(page, 3);
     expect(await chore(page)).toBe('0:paused:0/4:none');
+    // The threat's window is over (answered): nothing holds the beat any more.
+    const answered = (await ppWorld(page)).threats.find((threat) => threat.id === outlet.id);
+    expect(answered?.state).not.toBe('windowOpen');
     // Back at the stove after the window: the beat is announced again, in full.
     await tapStove(page);
     await advanceUntil(page, (world) => world.papa.state === 'chore', 600);
+    await waitFrames(page, 3);
     expect(await chore(page)).toBe('0:working:0/4:telegraph');
+    const back = (await ppWorld(page)).chores[0];
+    expect((back?.beatWindowOpenAt ?? 0) - (back?.beatTelegraphAt ?? 0)).toBeGreaterThan(0);
     expect(problems).toEqual([]);
   });
 
@@ -289,12 +322,18 @@ test.describe('the house chores', () => {
     }[];
     expect(completed).toHaveLength(1);
     expect(completed[0]?.homePoints).toBe(7.5);
+    expect(await cueIds(page)).toContain('chore_completed');
     // Done: dimmed, inert, Papa idle at the station.
     await expect(page.locator(`${STOVE}.pp-object-done`)).toHaveCount(1);
     expect((await ppWorld(page)).papa.state).toBe('idle');
     await expect(page.locator(`${STOVE} .pp-chrono-ring`)).toBeHidden();
     // The level ends on its timer; the note holds the chore's points.
-    for (let i = 0; i < 40 && (await html(page).getAttribute('data-pp-app')) === 'level'; i++) {
+    // The cap is the level's own length (500 ms a step), plus a margin for the frozen end and the photo.
+    for (
+      let i = 0;
+      i < levelDurationMs / 500 + 20 && (await html(page).getAttribute('data-pp-app')) === 'level';
+      i++
+    ) {
       await ppAdvance(page, 500);
     }
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result');
@@ -326,6 +365,10 @@ test.describe('the house chores', () => {
     const refused = (await typesOf(page, 'ChoreRefused')) as unknown as { reason: string }[];
     expect(refused).toHaveLength(1);
     expect(refused[0]?.reason).toBe('carrying');
+    // Visible and audible: the cue played, and the hint says why above Papa.
+    expect(await cueIds(page)).toContain('chore_refused');
+    await expect(page.locator(HINT)).toBeVisible();
+    await expect(page.locator(HINT)).toHaveText(STRINGS['verb.put_down_first'] as string);
     const after = (await ppWorld(page)).papa;
     expect(after.state).toBe('idle');
     expect(Math.hypot(after.xM - before.xM, after.zM - before.zM)).toBeLessThan(0.01);
@@ -333,7 +376,9 @@ test.describe('the house chores', () => {
     expect(problems).toEqual([]);
   });
 
-  test('a level without stations has no chore mirror and no station marker', async ({ page }) => {
+  test('a level without stations has an empty chore mirror and no station marker', async ({
+    page,
+  }) => {
     const problems = collectProblems(page, { allowedErrors: OWN_WARNINGS });
     await page.goto(`/${THREATS_OFF}&level=salon_crawler`);
     await waitForTestApi(page);
@@ -341,7 +386,7 @@ test.describe('the house chores', () => {
     await ppLoadLevel(page, 'salon_crawler', SEED);
     await ppAdvance(page, 5);
     await waitFrames(page, 3);
-    expect(await chore(page)).toBeNull();
+    expect(await chore(page)).toBe('');
     await expect(page.locator(STOVE)).toHaveCount(0);
     expect((await ppWorld(page)).chores).toEqual([]);
     expect(problems).toEqual([]);

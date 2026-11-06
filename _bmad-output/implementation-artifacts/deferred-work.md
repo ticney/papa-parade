@@ -1099,3 +1099,8 @@ Open:
 - **A `TapFloor` then a `TapObject` on the station in the same step**: the tap is judged as a beat press (`runChores` runs before `runPapa`), then `runPapa` walks Papa away. One-step corner (10 ms), the intent (leave and come back) is unknowable.
 - **The bedtime cycle gathers only an `idle` Papa** (`src/sim/sequences/bedtimeCycle.ts:225`): `chore` never ends by itself, so a Papa parked at a station stalls the gather until `nextAt + gatherMaxMs`. Latent (`salon_kitchen` has no cycle); 9.6 / 9.8 decide it when a level combines a cycle and stations.
 - **Two chores `working` at once** if a glide to a second station ends in the step it starts (`startChore` does not pause the previous working chore; `choresProblem` would then refuse the snapshot). Needs a path under about 1.5 cm and there is one station kind today; 9.6 (the dishwasher) makes it reachable.
+
+## Deferred from: code review of 9-4-cadre-des-taches-de-la-maison, group 4 client (2026-11-06)
+
+- **The activity bubble never shows the last beat's fill, and the end of a chore pops it with no cue**: the final catch sets `done` and Papa `idle` in the same step, so the bubble pops out from the previous value (75 % of 4 beats), and `ActivityBubblePopped` is gated on `isPapaBusy` while `chore` is not busy. Geo's feel (question 4 of the story).
+- **A parry pose queued for a threat glide can leak to a station arrival**: a tap on the stove replaces the glide without a `PapaStateChanged{from: 'glide'}`, so `responseChoreography`'s queue is not cleared; `playResponseClip` / `liftBaby` can run at the stove. Cosmetic and rare.

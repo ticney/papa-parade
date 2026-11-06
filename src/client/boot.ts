@@ -295,6 +295,8 @@ export async function boot(): Promise<void> {
   });
   // The mirror `data-pp-chore` (story 9.4): written on change, in mirrored builds only.
   const choreMirror = createChoreMirror();
+  // The beats of each chore of the level in play, fixed at its start: the mirror reads them each frame.
+  let choreBeatCounts: readonly number[] = [];
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
     if (aspect !== null && room !== null) {
@@ -1245,6 +1247,9 @@ export async function boot(): Promise<void> {
         started.sim.chores.map((chore) => chore.objectId),
       );
       choreMirror.reset();
+      choreBeatCounts = started.sim.chores.map((chore) => chore.def.beats.length);
+      // A level with no chore says so (empty), as `ppOffscreen` does: absent would mean « not mirrored ».
+      if (isMirrored && choreBeatCounts.length === 0) mirror('ppChore', '');
       worldUi.mountTidy(started.sim.world.props.length);
       // The full duration at once, so a restart never shows the last level's `0:00`.
       hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
@@ -1463,10 +1468,7 @@ export async function boot(): Promise<void> {
           director.handle('ChronoArcLit', null);
         }
         if (isMirrored) {
-          const choreText = choreMirror.update(
-            world.chores,
-            levelSession.active?.sim.chores.map((chore) => chore.def.beats.length) ?? [],
-          );
+          const choreText = choreMirror.update(world.chores, choreBeatCounts);
           if (choreText !== null) mirror('ppChore', choreText);
         }
       }
@@ -1703,8 +1705,8 @@ export async function boot(): Promise<void> {
       // A tap on a threat that a busy Papa refused: the bubble shakes (story 2.12). The cue plays in
       // `playSimEventFeedback`.
       if (event.type === 'TapRefused') worldUi.shakeActivity(performance.now());
-      // A refused toilet says why above Papa, for `holdMs` of real time (story 4.3).
-      if (event.type === 'ToiletRefused') {
+      // A refused toilet or station says why above Papa, for `holdMs` of real time (stories 4.3, 9.4).
+      if (event.type === 'ToiletRefused' || event.type === 'ChoreRefused') {
         worldUi.papaHint.show(feedbackTable.papaHint.holdMs, performance.now());
       }
       // It has said its piece once the baby is down or Papa is in.

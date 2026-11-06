@@ -420,6 +420,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     }
     const objects = deps.getObjects();
     const isCarried = baby.state === 'carried';
+    // A station whose chore is done is inert (story 9.4): it must not shadow a baby beside it.
+    const { chores: stations } = active.sim;
+    const isDoneStation = (id: string): boolean => {
+      for (let i = 0; i < stations.length; i++) {
+        if (stations[i]?.objectId === id) return active.sim.world.chores[i]?.state === 'done';
+      }
+      return false;
+    };
     // A toilet is no object in reach while the baby is carried (story 4.3): the sim refuses the trip,
     // so the action puts him down, and the next press goes in.
     const objectId = pickContextObject(
@@ -428,6 +436,7 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       papa.zM,
       contextReachM,
       isCarried ? CARRIED_REFUSED_KINDS : null,
+      isDoneStation,
     );
     const babyDistSq = (baby.xM - papa.xM) ** 2 + (baby.zM - papa.zM) ** 2;
     const isBabyInReach = babyDistSq <= contextReachM * contextReachM;

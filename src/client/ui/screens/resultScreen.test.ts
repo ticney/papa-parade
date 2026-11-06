@@ -361,14 +361,20 @@ describe('createResultScreen', () => {
     const { clock, root } = build({
       score: { ...SCORE, homePoints: 7.5, scorePoints: SCORE.scorePoints - SCORE.homePoints + 7.5 },
     });
-    const seen = new Set<string>();
+    const maison = new Set<string>();
+    const others = new Set<string>();
     for (let step = 0; step <= ROWS_END_MS; step += 16) {
       clock.advance(16);
       root.find('pp-score-value').forEach((node, row) => {
-        if (row !== 2) seen.add(node.textContent ?? '');
+        (row === 2 ? maison : others).add(node.textContent ?? '');
       });
     }
-    for (const text of seen) expect(text, text).toMatch(/^\d+$/);
+    // The other rows were whole points before the story and stay so.
+    for (const text of others) expect(text, text).toMatch(/^\d+$/);
+    // The Maison row passes through halves (a decimal comma) on its way to 7,5, and ends on it.
+    expect([...maison].some((text) => text.includes(','))).toBe(true);
+    for (const text of maison) expect(text, text).toMatch(/^\d+(,5)?$/);
+    expect(root.find('pp-score-value')[2]?.textContent).toBe('7,5');
   });
 
   it('stamps the earned stars starsDelayMs after the rows, starIntervalMs apart, the last one marked', () => {

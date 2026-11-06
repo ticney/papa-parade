@@ -416,9 +416,11 @@ export function createActivityBubble(
           play(SQUASH_KEYFRAMES, ACTIVITY_BUBBLE_SQUASH_MS, 'none');
         }
       }
+      // A chore has no `busyUntil` to drain to: its ring fills with the progress, and reads empty when the
+      // caller gives none.
       const pct =
-        papa.state === 'chore' && choreProgressPct >= 0
-          ? Math.min(100, Math.floor(choreProgressPct))
+        papa.state === 'chore'
+          ? Math.min(100, Math.max(0, Math.floor(choreProgressPct)))
           : Math.min(
               100,
               Math.floor(chronoDrainPermille(papa.enteredAt, papa.busyUntil, renderSimMs) / 10),
