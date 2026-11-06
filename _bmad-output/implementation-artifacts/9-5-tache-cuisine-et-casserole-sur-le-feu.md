@@ -1,6 +1,10 @@
+---
+baseline_commit: 715ccfdbdd98df3b70d962ee9c9fd65146888b65
+---
+
 # Story 9.5: Tâche « cuisine » et casserole sur le feu
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -42,49 +46,49 @@ so that I earn Maison points without letting the pot burn.
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Pre-flight** (all ACs)
-  - [ ] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev` and `e2e` in `(unset VITE_DEBUG_ALLOWED; …)`.
-  - [ ] `git log --oneline -3` shows `03e7630` (9.4 merged) at least; if `main` has moved, `git merge main` first.
-  - [ ] Baseline: `npm run sim -- --bot perfect --level salon_kitchen --runs 30 --out <scratchpad>/before-perfect.json`, same for `human`; keep the numbers (9.4's last ones: `perfect` mean 87.2, 0 gags, cooking 30 / 30; `human` 77.9, 96 gags, ends 15 · 7 · 8, cooking 28 / 30).
-- [ ] **T1. Content: verbs, smoke, the pot** (AC 1, 2, 3, 4)
-  - [ ] `src/content/schemas/chore.ts`: beat `verbKey` (required; reuse the threats' `VERB_KEY_PATTERN`: export it from `threat.ts` or move it beside `SNAKE_ID_PATTERN`), `abandonedThreat` (optional strict object `{ def, afterMs }`), `.describe()` on each.
-  - [ ] `src/content/schemas/threat.ts`: `THREAT_TARGETS` + `station`; `AnchoredThreatDefSchema.target` enum + `station` (describe it); refine « a `station` threat is parried »; `THREAT_ICONS` + `pot`; `gagNoisePct` in `baseShape` beside `gagCryMs`.
-  - [ ] `content/threats/pot_on_stove.json` (AC 3); `content/chores/cooking.json` (verbs, `feedback.miss: "chore_puree_stuck"`, `abandonedThreat`); `content/strings.fr.json` (four verbs); `content/feedback.json`: `chore_puree_stuck`, `tel_pot_on_stove` (`soundWave` on `threat`, pulses like `tel_outlet`, haptic `light`), `gag_pot_boiled_over` (`soundWave` on `threat`, haptic `heavy`, `fx: "gag"`); existing clips only, every cue with `audio` has `visual` and `haptic`.
-  - [ ] `src/content/loadLevelContent.ts`: load each chore's `abandonedThreat.def` last (a missing one is a problem on `chores[i].def`'s file, the chore file's `abandonedThreat.def` path).
-  - [ ] `tools/content/contentChecks.ts`: beat `verbKey` strings; `abandonedThreat.def` exists, `target: "station"`; a `station` threat in a wave is refused; a `station` threat file no chore names is refused (or warned, as unused files are treated today: check `families`); gag pairing for `pot_boiled_over` (existing `afterEffectProblem` / `catastropheProblem`).
-  - [ ] `tests/support/testCooking.chore.json` (9.4's frozen fixture): add the verbs (required now); keep it **without** `abandonedThreat` unless a test asks for one (a second fixture or a `createTestLevel` option for the pot), so that 9.4's chore tests keep their worlds.
-  - [ ] `npm run content:schemas` (commit `chore.schema.json`, `threat.schema.json`), `npm run content:check` green. Tests: `tests/content/choreSchema.test.ts` (verbKey required and pattern, `abandonedThreat` shape), a threat-schema test (`station` + non-parry refused, `gagNoisePct` bounds), `checkContent.test.ts` refusals (missing verb string, pot def unknown / wrong target, station threat in a wave).
-- [ ] **T2. Sim: the station target and the boil-over** (AC 3, 6, 7)
-  - [ ] `threats/gags.ts`: `pot_boiled_over` in `GAG_IDS`, its consequence (`addMischief`), `AFTER_EFFECT_OF_GAG.pot_boiled_over = 'mess'`, `CATASTROPHE_OF_GAG.pot_boiled_over = 'mess'`; not in `NEAR_MISS_GAGS`.
-  - [ ] `threats/afterEffects.ts` (`case 'mess'`, l.303): the mark at the threat's point for a `station` def, at the baby's point otherwise (unchanged: the goldens must not move). The function needs the threat (or its point): pass it from `gagThreat`.
-  - [ ] `threats/threatFsm.ts › gagThreat` (l.283): `if (def.gagNoisePct !== undefined) addNoise(world, ctx, def.gagNoisePct, 'gag')` beside `gagCryMs`; `events.ts`: `NoiseSource = keyof Feel['noise']['sources'] | 'debug' | 'gag'`; `tools/sim/simReport.ts › NOISE_SOURCES` adds `gag`.
-  - [ ] Exclude `station` where `papa` / `baby` are excluded: `baby/babySystem.ts › lockOnThreat` (l.66), `director/directorSystem.ts › forceThreat` (l.188), `baby/carry.ts › takeBaby` (l.103: the pot is not cancelled), `createSim.ts` (a wave cannot plan it, l.248-254). Leave `frozenNearMiss.ts` (anchor only) and `pressThreat` (a station threat glides like an anchor one) as they are. Grep `target ===` / `target !==` in `src/sim`, `src/client`, `src/bots`, `tools/` once more and decide each.
-  - [ ] `snapshot.ts`: a `station` threat stands at its anchor's point and is never in a wave's pool (`waveIndex` -1); version unchanged unless a `World` field was added (AC 12).
-  - [ ] Tests: `gags.test.ts` (the new gag: mischief +1, pairing), `afterEffects.test.ts` (mark at the pot), a `gagNoisePct` test (noise with and without a noise gauge), `babySystem` / `carry` / `directorSystem` cases for the exclusions.
-- [ ] **T3. Sim: the abandoned cooking** (AC 4, 5, 8; D2–D6)
-  - [ ] `context.ts` / `createSim.ts`: `SimPlannedChore.abandoned`; plan the pot instances after every other threat, at the station object's anchor; invariants with the wording `content:check` uses.
-  - [ ] `chores/chores.ts`: `potOf(world, ctx, choreIndex)` (or similar) and `isPotActive`; `chores/choreSystem.ts`: after the loop of `runChores`, a pass for each `paused` chore with an `abandoned` (AC 5's conditions; Papa gliding to the station: `papa.state === 'glide' && papa.glide?.threatId === null && papa.objectId === objectId`), telegraphing with `fairWindowOpenAt` (`director/fairness.ts`, a pure helper) and `isJudgeableBeforeEnd` (`threats/judgeable.ts`) for the postponed window; the hold extended to the chore's own active pot (AC 8). `runChores` still returns at once with no chore, and draws nothing from `world.rng` (`telegraphThreat` draws only for `wait` defs).
-  - [ ] Update the header comments (`choreFsm.ts` names 9.5's reading of `paused`; `runChores`' numbered list; `step.ts`'s paragraph if the order's reasons change — the order itself does not).
-  - [ ] Tests (`choreSystem.test.ts` or `abandonedChore.test.ts`, a pot fixture): no pot for `untouched`, `working`, `done`; exactly at `enteredAt + afterMs` (not one step before); not while Papa is busy, glides to the station, in a sequence, in the final rush, nor when it could not be judged before the end; postponed by fairness when another window is near; re-armed `afterMs` after the pot is idle again (resolved, gagged, cancelled by a sequence); not cancelled by taking the baby; the beat held while the pot is active; the boil-over end to end (`GagTriggered`, mischief, `NoiseChanged{gag}`, `CatastropheChanged{mess}`); a snapshot round-trip with a pot telegraphed; a replay of a game with a pot ends in the same `hashJson(world)`. `src/sim` coverage ≥ 90 %.
-- [ ] **T4. Bots and report** (AC 9)
-  - [ ] Check that `perfect` and `human` press a `station` threat like any other (no target filter in `src/bots`); `planChore` already waits for no active threat (the pot counts).
-  - [ ] `tools/sim/runSim.ts` / `simReport.ts`: `chores.abandoned { telegraphed, resolved, boiledOver }` per run and summed; `tools/sim/simArgs.ts › SIM_HELP`; `CLAUDE.md`'s `npm run sim` row. `tests/tools/sim/simReport.test.ts` aggregation case.
-  - [ ] `tests/tools/sim/choresLive.test.ts` (9.4's live test): `perfect` × 30 still cooking 30 / 30, 0 gag (pots included), no wake, no `mamaHome`; add a `human` case that sees at least one pot telegraphed over its seeds (or a synthetic level that forces an abandonment) so the wiring is proven. `humanBotRegression.test.ts` unchanged and green.
-  - [ ] After: re-run T0's two reports and write both numbers in the Debug Log (before / after).
-- [ ] **T5. Client** (AC 1, 2, 3, 6, 7)
-  - [ ] `objectMarkers.ts`: the station's beat verb (mount takes, per station, the translated verb of each beat; `updateChores` writes the text and shows / hides it on change; the verb fitted like `threatMarkers`' with `verbLayout.ts` / `verbMetrics.ts`; allocation-free per frame). `objectMarkers.chores.test.ts` cases.
-  - [ ] `threatMarkers.ts › THREAT_ICON_PATHS.pot`; `levelSession.ts:495` `anchorThreatDefIds` includes `station` defs (the danger tint at the stove).
-  - [ ] `render/gags.ts › GAG_PRESENTATIONS.pot_boiled_over` (e.g. `{ ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'laugh' }`); `render/vfx/mischiefDecals.ts › createDecalGeometry` and `materialOf`: a purée splat (a pale yellow blob, one mesh) for `pot_boiled_over`. Tests beside them.
-  - [ ] `feedback/choreFeedback.ts`: header comment (the miss is the def's gag now); a `feedbackDirector.test.ts` case: a cue with `fx` and a `soundWave` on `object` bursts its particles at the object (AC 2; the code already does it).
-  - [ ] `app/threatsSwitch.ts`: keep each chore's pot def (comment and test).
-- [ ] **T6. Browser** (AC 11, 13)
-  - [ ] The spec of AC 11 (model `tests/e2e/chores.spec.ts`: `openFrozen`, `ppAdvance`, `ppSend`, `ppPagePoint`, `ppChore`, `collectProblems`, `cueIds` / `ppCueLog`); read the stove's point, the delays and the rises from the content, never typed in.
-  - [ ] Run in the background: `npm run e2e -- tests/e2e/chores.spec.ts tests/e2e/<new spec> tests/e2e/salonKitchen.spec.ts tests/e2e/offscreenBubble.spec.ts tests/e2e/chronoRing.spec.ts tests/e2e/catastrophe*.spec.ts tests/e2e/feedback.spec.ts tests/e2e/testApi.spec.ts --project=chromium` (adjust to `ls tests/e2e`).
-  - [ ] Screenshots (AC 13) with a throwaway spec, then delete it.
-- [ ] **T7. Docs**
-  - [ ] `_bmad-output/project-context.md`: « House chores » paragraph (beat verbs, the miss's smoke, `abandonedThreat`, the pot as a `station` threat, its rule, the hold by its own pot, the boil-over); the threat targets sentence (`station`); `gagNoisePct` beside `gagCryMs`; `NoiseSource` `gag`; the `chores` report section.
-  - [ ] `deferred-work.md`: a 9.5 section (Dev Notes › Deferred items); mark 9.4's « The miss gag is a cue » resolved for the cooking (9.6 still owes the plate).
-  - [ ] The GDD, the architecture and the UX docs are not edited; the variance (D1) goes in the Completion Notes.
+- [x] **T0. Pre-flight** (all ACs)
+  - [x] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev` and `e2e` in `(unset VITE_DEBUG_ALLOWED; …)`.
+  - [x] `git log --oneline -3` shows `03e7630` (9.4 merged) at least; if `main` has moved, `git merge main` first.
+  - [x] Baseline: `npm run sim -- --bot perfect --level salon_kitchen --runs 30 --out <scratchpad>/before-perfect.json`, same for `human`; keep the numbers (9.4's last ones: `perfect` mean 87.2, 0 gags, cooking 30 / 30; `human` 77.9, 96 gags, ends 15 · 7 · 8, cooking 28 / 30).
+- [x] **T1. Content: verbs, smoke, the pot** (AC 1, 2, 3, 4)
+  - [x] `src/content/schemas/chore.ts`: beat `verbKey` (required; reuse the threats' `VERB_KEY_PATTERN`: export it from `threat.ts` or move it beside `SNAKE_ID_PATTERN`), `abandonedThreat` (optional strict object `{ def, afterMs }`), `.describe()` on each.
+  - [x] `src/content/schemas/threat.ts`: `THREAT_TARGETS` + `station`; `AnchoredThreatDefSchema.target` enum + `station` (describe it); refine « a `station` threat is parried »; `THREAT_ICONS` + `pot`; `gagNoisePct` in `baseShape` beside `gagCryMs`.
+  - [x] `content/threats/pot_on_stove.json` (AC 3); `content/chores/cooking.json` (verbs, `feedback.miss: "chore_puree_stuck"`, `abandonedThreat`); `content/strings.fr.json` (four verbs); `content/feedback.json`: `chore_puree_stuck`, `tel_pot_on_stove` (`soundWave` on `threat`, pulses like `tel_outlet`, haptic `light`), `gag_pot_boiled_over` (`soundWave` on `threat`, haptic `heavy`, `fx: "gag"`); existing clips only, every cue with `audio` has `visual` and `haptic`.
+  - [x] `src/content/loadLevelContent.ts`: load each chore's `abandonedThreat.def` last (a missing one is a problem on `chores[i].def`'s file, the chore file's `abandonedThreat.def` path).
+  - [x] `tools/content/contentChecks.ts`: beat `verbKey` strings; `abandonedThreat.def` exists, `target: "station"`; a `station` threat in a wave is refused; a `station` threat file no chore names is refused (or warned, as unused files are treated today: check `families`); gag pairing for `pot_boiled_over` (existing `afterEffectProblem` / `catastropheProblem`).
+  - [x] `tests/support/testCooking.chore.json` (9.4's frozen fixture): add the verbs (required now); keep it **without** `abandonedThreat` unless a test asks for one (a second fixture or a `createTestLevel` option for the pot), so that 9.4's chore tests keep their worlds.
+  - [x] `npm run content:schemas` (commit `chore.schema.json`, `threat.schema.json`), `npm run content:check` green. Tests: `tests/content/choreSchema.test.ts` (verbKey required and pattern, `abandonedThreat` shape), a threat-schema test (`station` + non-parry refused, `gagNoisePct` bounds), `checkContent.test.ts` refusals (missing verb string, pot def unknown / wrong target, station threat in a wave).
+- [x] **T2. Sim: the station target and the boil-over** (AC 3, 6, 7)
+  - [x] `threats/gags.ts`: `pot_boiled_over` in `GAG_IDS`, its consequence (`addMischief`), `AFTER_EFFECT_OF_GAG.pot_boiled_over = 'mess'`, `CATASTROPHE_OF_GAG.pot_boiled_over = 'mess'`; not in `NEAR_MISS_GAGS`.
+  - [x] `threats/afterEffects.ts` (`case 'mess'`, l.303): the mark at the threat's point for a `station` def, at the baby's point otherwise (unchanged: the goldens must not move). The function needs the threat (or its point): pass it from `gagThreat`.
+  - [x] `threats/threatFsm.ts › gagThreat` (l.283): `if (def.gagNoisePct !== undefined) addNoise(world, ctx, def.gagNoisePct, 'gag')` beside `gagCryMs`; `events.ts`: `NoiseSource = keyof Feel['noise']['sources'] | 'debug' | 'gag'`; `tools/sim/simReport.ts › NOISE_SOURCES` adds `gag`.
+  - [x] Exclude `station` where `papa` / `baby` are excluded: `baby/babySystem.ts › lockOnThreat` (l.66), `director/directorSystem.ts › forceThreat` (l.188), `baby/carry.ts › takeBaby` (l.103: the pot is not cancelled), `createSim.ts` (a wave cannot plan it, l.248-254). Leave `frozenNearMiss.ts` (anchor only) and `pressThreat` (a station threat glides like an anchor one) as they are. Grep `target ===` / `target !==` in `src/sim`, `src/client`, `src/bots`, `tools/` once more and decide each.
+  - [x] `snapshot.ts`: a `station` threat stands at its anchor's point and is never in a wave's pool (`waveIndex` -1); version unchanged unless a `World` field was added (AC 12).
+  - [x] Tests: `gags.test.ts` (the new gag: mischief +1, pairing), `afterEffects.test.ts` (mark at the pot), a `gagNoisePct` test (noise with and without a noise gauge), `babySystem` / `carry` / `directorSystem` cases for the exclusions.
+- [x] **T3. Sim: the abandoned cooking** (AC 4, 5, 8; D2–D6)
+  - [x] `context.ts` / `createSim.ts`: `SimPlannedChore.abandoned`; plan the pot instances after every other threat, at the station object's anchor; invariants with the wording `content:check` uses.
+  - [x] `chores/chores.ts`: `potOf(world, ctx, choreIndex)` (or similar) and `isPotActive`; `chores/choreSystem.ts`: after the loop of `runChores`, a pass for each `paused` chore with an `abandoned` (AC 5's conditions; Papa gliding to the station: `papa.state === 'glide' && papa.glide?.threatId === null && papa.objectId === objectId`), telegraphing with `fairWindowOpenAt` (`director/fairness.ts`, a pure helper) and `isJudgeableBeforeEnd` (`threats/judgeable.ts`) for the postponed window; the hold extended to the chore's own active pot (AC 8). `runChores` still returns at once with no chore, and draws nothing from `world.rng` (`telegraphThreat` draws only for `wait` defs).
+  - [x] Update the header comments (`choreFsm.ts` names 9.5's reading of `paused`; `runChores`' numbered list; `step.ts`'s paragraph if the order's reasons change — the order itself does not).
+  - [x] Tests (`choreSystem.test.ts` or `abandonedChore.test.ts`, a pot fixture): no pot for `untouched`, `working`, `done`; exactly at `enteredAt + afterMs` (not one step before); not while Papa is busy, glides to the station, in a sequence, in the final rush, nor when it could not be judged before the end; postponed by fairness when another window is near; re-armed `afterMs` after the pot is idle again (resolved, gagged, cancelled by a sequence); not cancelled by taking the baby; the beat held while the pot is active; the boil-over end to end (`GagTriggered`, mischief, `NoiseChanged{gag}`, `CatastropheChanged{mess}`); a snapshot round-trip with a pot telegraphed; a replay of a game with a pot ends in the same `hashJson(world)`. `src/sim` coverage ≥ 90 %.
+- [x] **T4. Bots and report** (AC 9)
+  - [x] Check that `perfect` and `human` press a `station` threat like any other (no target filter in `src/bots`); `planChore` already waits for no active threat (the pot counts).
+  - [x] `tools/sim/runSim.ts` / `simReport.ts`: `chores.abandoned { telegraphed, resolved, boiledOver }` per run and summed; `tools/sim/simArgs.ts › SIM_HELP`; `CLAUDE.md`'s `npm run sim` row. `tests/tools/sim/simReport.test.ts` aggregation case.
+  - [x] `tests/tools/sim/choresLive.test.ts` (9.4's live test): `perfect` × 30 still cooking 30 / 30, 0 gag (pots included), no wake, no `mamaHome`; add a `human` case that sees at least one pot telegraphed over its seeds (or a synthetic level that forces an abandonment) so the wiring is proven. `humanBotRegression.test.ts` unchanged and green.
+  - [x] After: re-run T0's two reports and write both numbers in the Debug Log (before / after).
+- [x] **T5. Client** (AC 1, 2, 3, 6, 7)
+  - [x] `objectMarkers.ts`: the station's beat verb (mount takes, per station, the translated verb of each beat; `updateChores` writes the text and shows / hides it on change; the verb fitted like `threatMarkers`' with `verbLayout.ts` / `verbMetrics.ts`; allocation-free per frame). `objectMarkers.chores.test.ts` cases.
+  - [x] `threatMarkers.ts › THREAT_ICON_PATHS.pot`; `levelSession.ts:495` `anchorThreatDefIds` includes `station` defs (the danger tint at the stove).
+  - [x] `render/gags.ts › GAG_PRESENTATIONS.pot_boiled_over` (e.g. `{ ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'laugh' }`); `render/vfx/mischiefDecals.ts › createDecalGeometry` and `materialOf`: a purée splat (a pale yellow blob, one mesh) for `pot_boiled_over`. Tests beside them.
+  - [x] `feedback/choreFeedback.ts`: header comment (the miss is the def's gag now); a `feedbackDirector.test.ts` case: a cue with `fx` and a `soundWave` on `object` bursts its particles at the object (AC 2; the code already does it).
+  - [x] `app/threatsSwitch.ts`: keep each chore's pot def (comment and test).
+- [x] **T6. Browser** (AC 11, 13)
+  - [x] The spec of AC 11 (model `tests/e2e/chores.spec.ts`: `openFrozen`, `ppAdvance`, `ppSend`, `ppPagePoint`, `ppChore`, `collectProblems`, `cueIds` / `ppCueLog`); read the stove's point, the delays and the rises from the content, never typed in.
+  - [x] Run in the background: `npm run e2e -- tests/e2e/chores.spec.ts tests/e2e/<new spec> tests/e2e/salonKitchen.spec.ts tests/e2e/offscreenBubble.spec.ts tests/e2e/chronoRing.spec.ts tests/e2e/catastrophe*.spec.ts tests/e2e/feedback.spec.ts tests/e2e/testApi.spec.ts --project=chromium` (adjust to `ls tests/e2e`).
+  - [x] Screenshots (AC 13) with a throwaway spec, then delete it.
+- [x] **T7. Docs**
+  - [x] `_bmad-output/project-context.md`: « House chores » paragraph (beat verbs, the miss's smoke, `abandonedThreat`, the pot as a `station` threat, its rule, the hold by its own pot, the boil-over); the threat targets sentence (`station`); `gagNoisePct` beside `gagCryMs`; `NoiseSource` `gag`; the `chores` report section.
+  - [x] `deferred-work.md`: a 9.5 section (Dev Notes › Deferred items); mark 9.4's « The miss gag is a cue » resolved for the cooking (9.6 still owes the plate).
+  - [x] The GDD, the architecture and the UX docs are not edited; the variance (D1) goes in the Completion Notes.
 
 ## Dev Notes
 
@@ -195,8 +199,37 @@ No new dependency, no version change: `zod` (pinned) for the schema keys, the pr
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`)
+
 ### Debug Log References
+
+- Baseline (T0, 30 seeds of `salon_kitchen`, 2026-11-06): `perfect` mean score 87.2, 0 gags, cooking 30 / 30, ends 30 timer; `human` 77.9, 96 gags, ends 15 · 7 · 8, cooking 28 / 30.
+- After: identical numbers for both bots (`perfect` 87.2 / 0 gags / 30 of 30; `human` 77.9 / 96 gags / 15 · 7 · 8 / 28 of 30). `chores.abandoned` is `{ telegraphed: 0, resolved: 0, boiledOver: 0 }` for both: **no bot leaves the cooking `paused` for 30 s on the live kitchen, so `human` boils 0 pots over** in 30 seeds. The pot is proven end to end by `tests/tools/sim/choresLive.test.ts` with the live cooking's wait cut to 1 s (`human` ×10: pots telegraphed, resolved and boiled over, the gag count equal to `boiledOver`; `perfect` ×10: 0 boil-overs).
+- `npm run ci:fast` green (9312 tests). Chromium e2e: `cooking.spec.ts` (5) + `chores.spec.ts` + 10 neighbouring specs (90) green. A first run with 7 workers lost pages (« Execution context was destroyed ») in 5 specs, among them an unchanged 9.4 spec that passes alone; `--workers=2` / `--workers=1` reruns were green (load, as CLAUDE.md warns).
+- The `tel_pot_on_stove` cue needed a `tel_*` clip of its own (`checkTelegraphClips`: « each telegraph has a sound of its own », and every existing `tel_*` clip is taken), so the story's « no new audio file » could not hold for the telegraph: a synthesized placeholder `tel_pot_on_stove.m4a` was added to `makePlaceholderAudio.ts`. The gag reuses `gag_coffee_table`, the missed beat `papa_bump`.
 
 ### Completion Notes List
 
+- **Verbs (AC 1).** `ChoreDefSchema` beats have a required `verbKey` (`VERB_KEY_PATTERN` exported from `threat.ts`); four `verb.*` strings; `objectMarkers.ts` shows the verb of the announced beat above the station icon in the threats' verb look, fitted by `fitVerbFontPx` (`ObjectMarkers.refit`, via `worldUi.setSize` / `refitVerbs`), text written only on a beat change; `boot.ts` translates the verbs once at mount.
+- **Smoke (AC 2).** `chore_puree_stuck` replaces `chore_beat_missed` (removed: nothing names it): `papa_bump`, `soundWave` on `object`, `fx: "gag"`; a `feedbackDirector.test.ts` case pins the puff at the object. The `+10 %` `choreBeat` rise is unchanged.
+- **The pot (AC 3–8).** New target `station` (schema refine: a parry; refused in a wave by `createSim` and `content:check`; a `station` file no chore names is refused), `THREAT_ICONS.pot`, `gagNoisePct`, `content/threats/pot_on_stove.json`, `ChoreDefSchema.abandonedThreat`, loader loads it last, `simLevelOf` plans it after every other threat (`SimPlannedChore.abandoned`), `startAbandonedPots` (end of `runChores`) telegraphs it with `fairWindowOpenAt` and `isJudgeableBeforeEnd`, `isPotActive` holds the beat, `lockOnThreat` / `forceThreat` / `takeBaby` skip `station`, gag `pot_boiled_over` (mischief, `mess` séquelle marked at the pot, catastrophe `mess`, `gagNoisePct` through `addNoise(…, 'gag')`; `NoiseSource` gains `gag`), purée decal and gag presentation in the client, `anchorThreatDefIds` includes `station`, `?threats=off` keeps the pot with its chore.
+- **No new `World` field**: the timer reads `max(chore.enteredAt, pot.enteredAt) + afterMs`; snapshot stays 32, goldens untouched and green, `humanBotRegression.test.ts` unchanged and green. Levels without a cooking: no change (the chore keys exist only in chore files).
+- **Variance (D1)**, to write in the review: the architecture puts the pot in `content/disruptions/pot.json`; the GDD's « Parer : baisser le feu » makes it a parried threat, and a disruption here is never parried. The `DISRUPTION_KINDS` comment is fixed. Geo confirmed D1–D4 on 2026-11-06.
+- **Report (AC 9).** `chores.abandoned { telegraphed, resolved, boiledOver }` per run and summed (a pot's telegraph is neither a micro-sleep nor a cry); `--help` and `CLAUDE.md` updated; aggregation and recorder tests.
+- **Tests.** `src/sim/chores/abandonedChore.test.ts` (23: planning, never for untouched / working / done, exactly `afterMs`, busy Papa, gliding back, sequence, final rush, not judgeable, fairness postponement, parry, boil-over with noise and without a gauge, baby never locks, `ForceThreat`, taking the baby, sequence cancel, re-arming, hold by the pot, snapshot round trip), frozen `testPot.threat.json` and `createTestAbandonableCooking` (the default cooking has no pot), catalogue test (`station` defs run the four set per tier through a chore), schema / content-check refusals, client tests (verbs, decal, `threatsSwitch`, director), `tests/e2e/cooking.spec.ts`.
+- **Screenshots** in `9-5-screenshots/` (844 × 390): a verb at the stove, b smoke, c pot telegraphed, d off-screen bubble, e purée splat. Checked by eye: the verbs and the pot's marker show, the purée puddle is drawn on the floor by the stove, the bubble points at the stove. **Seen as defects (deferred-work.md):** at the kitchen end the stove is near the top of the frame, so « REMUE ! » and « BAISSE LE FEU ! » are cut by the top edge under the HUD row (only sideways is clamped); the smoke of the missed beat is not visible in screenshot b (particles are proven alive by `__PP__.fx()`). **Only Geo can judge**: the verbs at the station, the smoke, the pot icon over the stove's own marker, the 30 s, +10 % noise, +20 %.
+- `tel_pot_on_stove` needs the new placeholder clip (see Debug Log). `npm run ci:story` is not run here; the review runs it.
+
 ### File List
+
+Content: `content/threats/pot_on_stove.json` (new), `content/chores/cooking.json`, `content/feedback.json`, `content/strings.fr.json`, `content/_schemas/{chore,threat}.schema.json`, `public/assets/audio/tel_pot_on_stove.m4a` (new).
+Sim: `src/sim/{context,createSim,events,index}.ts`, `src/sim/chores/{chores,choreSystem,choreFsm}.ts`, `src/sim/baby/{babySystem,carry}.ts`, `src/sim/director/directorSystem.ts`, `src/sim/threats/{gags,afterEffects,threatFsm}.ts`.
+Content layer: `src/content/schemas/{chore,threat,disruption}.ts`, `src/content/loadLevelContent.ts`.
+Client: `src/client/boot.ts`, `src/client/app/{levelSession,threatsSwitch}.ts`, `src/client/feedback/choreFeedback.ts`, `src/client/render/gags.ts`, `src/client/render/vfx/mischiefDecals.ts`, `src/client/ui/world/{objectMarkers,threatMarkers,worldUi}.ts`.
+Tools: `tools/content/contentChecks.ts`, `tools/sim/{runSim,simReport,simArgs}.ts`, `tools/audio/makePlaceholderAudio.ts`.
+Tests: `src/sim/chores/abandonedChore.test.ts` (new), `src/sim/createSim.test.ts`, `src/sim/threats/{gags,threatFsm}.test.ts`, `src/client/app/threatsSwitch.test.ts`, `src/client/feedback/feedbackDirector.test.ts`, `src/client/render/vfx/mischiefDecals.test.ts`, `src/client/ui/world/objectMarkers.chores.test.ts`, `tests/content/{checkContent,choreSchema,threatSchema}.test.ts`, `tests/support/{testContent.ts,testCooking.chore.json,testPot.threat.json (new)}`, `tests/threats/threatCatalog.test.ts`, `tests/tools/sim/{choresLive,simReport}.test.ts`, `tests/e2e/{cooking.spec.ts (new),chores.spec.ts}`.
+Docs and artifacts: `CLAUDE.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml,9-5-tache-cuisine-et-casserole-sur-le-feu.md}`, `_bmad-output/implementation-artifacts/9-5-screenshots/*.png` (new).
+
+### Change Log
+
+- 2026-11-06: Story 9.5 implemented: beat verbs, « purée qui attache » smoke, the pot on the stove (`station` threat, `abandonedThreat`, boil-over with noise, mess and catastrophe), report block `chores.abandoned`, docs, screenshots. Status → review.

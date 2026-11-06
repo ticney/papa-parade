@@ -8,7 +8,7 @@ import { type BreathRing, createBreathRing } from './breathRing.ts';
 import type { ChronoRing } from './chronoRing.ts';
 import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
-import { createObjectMarkers, type ObjectMarkerSpec, type ObjectMarkers } from './objectMarkers.ts';
+import { createObjectMarkers, type ObjectMarkers } from './objectMarkers.ts';
 import { createPapaHint, type PapaHint } from './papaHint.ts';
 import { createStealthExitMarker, type StealthExitMarker } from './stealthExitMarker.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
@@ -118,8 +118,11 @@ export interface WorldUi {
    * `PapaHint.update`). `nowAtReal` is the real time of the frame, in ms. Allocation-free.
    */
   updatePapaHint(papa: Readonly<{ xM: number; zM: number }> | null, nowAtReal: number): void;
-  /** Mounts the icons of the level's interactive objects (the coffee machine, the toilet door), replacing the previous level's. */
-  mountObjects(objects: readonly ObjectMarkerSpec[], stationIds?: readonly string[]): void;
+  /**
+   * Mounts the icons of the level's interactive objects (the coffee machine, the toilet door), replacing the previous level's.
+   * `stationVerbs` are the translated verbs of each station's beats (story 9.5).
+   */
+  mountObjects: ObjectMarkers['mount'];
   /** Removes the object icons. */
   unmountObjects(): void;
   /**
@@ -136,6 +139,8 @@ export interface WorldUi {
   updateChores: ObjectMarkers['updateChores'];
   /** What the ring of a chore's station drew in the last `updateChores` (the tests'). */
   choreRingDrawOf: ObjectMarkers['choreRingDrawOf'];
+  /** The verb a chore's station shows now (story 9.5): '' for none, null for an unknown station (the tests'). */
+  stationVerbOf: ObjectMarkers['stationVerbOf'];
   /** Mounts one « RANGE ! » marker per prop of the level (`world.props` order), replacing the previous level's (story 3.5). */
   mountTidy(propCount: number): void;
   /** Removes the tidy markers. */
@@ -267,6 +272,7 @@ export function createWorldUi(
     updateObjects: objects.update,
     updateChores: objects.updateChores,
     choreRingDrawOf: objects.choreRingDrawOf,
+    stationVerbOf: objects.stationVerbOf,
     mountTidy: tidyMarkers.mount,
     unmountTidy: tidyMarkers.unmount,
     updateTidy: tidyMarkers.update,
@@ -278,10 +284,12 @@ export function createWorldUi(
       threats.setSize(widthPx, heightPx);
       layerWidthPx = widthPx;
       papaHint.refit(widthPx);
+      objects.refit(widthPx);
     },
     refitVerbs() {
       threats.refit();
       papaHint.refit(layerWidthPx);
+      objects.refit(layerWidthPx);
     },
     render(camera) {
       if (

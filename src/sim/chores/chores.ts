@@ -7,7 +7,7 @@ import { fatigueWindowModifier } from '../gauges/fatigue.ts';
 import { enterPapaState } from '../papa/papaFsm.ts';
 import { activeDifficulty } from '../timing/difficulty.ts';
 import { effectiveWindow } from '../timing/effectiveWindow.ts';
-import type { ChoreInstance, World } from '../world.ts';
+import type { ChoreInstance, ThreatInstance, World } from '../world.ts';
 import { enterChoreState } from './choreFsm.ts';
 
 /**
@@ -49,6 +49,25 @@ export function isAnyThreatWindowOpen(world: World): boolean {
     if (threats[i]?.state === 'windowOpen') return true;
   }
   return false;
+}
+
+/**
+ * The instance of the pot of the chore at `choreIndex` (story 9.5), or undefined for a chore with no
+ * `abandonedThreat`. Its index is `SimPlannedChore.abandoned.threatIndex`.
+ */
+export function potOf(
+  world: World,
+  ctx: StepContext,
+  choreIndex: number,
+): ThreatInstance | undefined {
+  const abandoned = ctx.level.chores[choreIndex]?.abandoned;
+  return abandoned == null ? undefined : world.threats[abandoned.threatIndex];
+}
+
+/** Whether the chore's own pot is on the fire: telegraphed or its window open (story 9.5 D6). */
+export function isPotActive(world: World, ctx: StepContext, choreIndex: number): boolean {
+  const pot = potOf(world, ctx, choreIndex);
+  return pot !== undefined && (pot.state === 'telegraph' || pot.state === 'windowOpen');
 }
 
 /** The beat is no more: nothing announced, nothing to draw. */
@@ -94,7 +113,8 @@ export function announceBeat(world: World, ctx: StepContext, choreIndex: number)
 /**
  * Papa arrived at a chore's station (`OBJECT_ACTIONS`): he works there. Returns true when he
  * did, false when the chore is done (he is only standing at the stove, idle). A `paused` chore
- * resumes at the first beat not done. The beat is announced, or `held` when a threat's window is open.
+ * resumes at the first beat not done. The beat is announced, or `held` when a threat's window is open or
+ * the chore's own pot is on the fire (story 9.5).
  */
 export function startChore(world: World, ctx: StepContext, objectId: string): boolean {
   const index = choreIndexOfObject(ctx, objectId);
@@ -103,7 +123,7 @@ export function startChore(world: World, ctx: StepContext, objectId: string): bo
   enterChoreState(world, chore, 'working');
   clearBeat(chore);
   enterPapaState(world, ctx, 'chore');
-  if (isAnyThreatWindowOpen(world)) chore.beatState = 'held';
+  if (isAnyThreatWindowOpen(world) || isPotActive(world, ctx, index)) chore.beatState = 'held';
   else announceBeat(world, ctx, index);
   return true;
 }

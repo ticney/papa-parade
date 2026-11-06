@@ -12,9 +12,16 @@ const CONTENT_DIR = fileURLToPath(new URL('../../../content', import.meta.url));
 // Today's mean score of `perfect` on this level without the chores (story 9.4 AC 12).
 const SCORE_WITHOUT_CHORES = 79.7;
 
-async function reportOf(botId: 'perfect' | 'human', runs: number) {
+async function reportOf(botId: 'perfect' | 'human', runs: number, abandonedAfterMs?: number) {
   const loaded = await loadSimLevel(CONTENT_DIR, 'salon_kitchen');
   if (!loaded.ok) throw new Error(loaded.error);
+  if (abandonedAfterMs !== undefined) {
+    // The live cooking, its pot due after a short wait (story 9.5): a bot that leaves the stove for a threat
+    // leaves the cooking `paused`, so the pot comes within a game.
+    const cooking = loaded.value.level.chores?.[0];
+    if (cooking?.abandonedThreat === undefined) throw new Error('the live cooking names no pot');
+    cooking.abandonedThreat.afterMs = abandonedAfterMs;
+  }
   const result = await runSim(
     simArgs({ levelId: 'salon_kitchen', botId, runs, untilSimMs: null }),
     loaded.value,
@@ -34,6 +41,8 @@ describe('the chores of the live salon_kitchen', () => {
     expect(report.endsByReason.mamaWoke).toBe(0);
     expect(report.endsByReason.mamaHome).toBe(0);
     expect(report.meanScore).toBeGreaterThan(SCORE_WITHOUT_CHORES);
+    // Story 9.5: a perfect player never lets the cooking sit, and a pot it met would have been lowered.
+    expect(report.chores.abandoned.boiledOver).toBe(0);
   });
 
   it('has human play the chores too: the stations are wired to its setup', async () => {
@@ -41,5 +50,22 @@ describe('the chores of the live salon_kitchen', () => {
     const beats = report.chores.beats;
     expect(beats.perfect + beats.success + beats.fail).toBeGreaterThan(0);
     expect(report.chores.runsCompleted).toBeGreaterThan(0);
+  });
+
+  it('counts the pots of an abandoned cooking end to end: telegraphed, lowered or boiled over (story 9.5)', async () => {
+    // The wait cut to 1 s so that the 10 games of `human` leave the stove long enough for a pot to come.
+    const report = await reportOf('human', 10, 1000);
+    const { abandoned } = report.chores;
+    expect(abandoned.telegraphed).toBeGreaterThan(0);
+    // Every pot ends lowered or boiled over, but the game may end on one still under way or cancelled.
+    expect(abandoned.resolved + abandoned.boiledOver).toBeLessThanOrEqual(abandoned.telegraphed);
+    expect(abandoned.resolved + abandoned.boiledOver).toBeGreaterThan(0);
+    // The boil-overs are the gags of the pot: the report's own gag count says the same.
+    expect(report.gags.byGag.pot_boiled_over ?? 0).toBe(abandoned.boiledOver);
+  });
+
+  it('has perfect lower every pot an abandoned cooking makes: no boil-over', async () => {
+    const report = await reportOf('perfect', 10, 1000);
+    expect(report.chores.abandoned.boiledOver).toBe(0);
   });
 });

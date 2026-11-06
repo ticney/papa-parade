@@ -74,7 +74,8 @@
             "peek",
             "sweat",
             "open_hand",
-            "sigh"
+            "sigh",
+            "pot"
           ]
         },
         "feint": {
@@ -112,7 +113,8 @@
                 "peek",
                 "sweat",
                 "open_hand",
-                "sigh"
+                "sigh",
+                "pot"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -177,7 +179,8 @@
             "peek",
             "sweat",
             "open_hand",
-            "sigh"
+            "sigh",
+            "pot"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -392,14 +395,21 @@
           "minimum": 1000,
           "maximum": 9007199254740991
         },
+        "gagNoisePct": {
+          "description": "When a miss ends in the gag, the noise gauge rises by this many points at once (story 9.5: the pot boiling over; no effect in a level with no noise gauge). Absent: the gag makes no noise of its own.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        },
         "target": {
           "type": "string",
           "enum": [
             "anchor",
             "papa",
-            "baby"
+            "baby",
+            "station"
           ],
-          "description": "Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), or on the baby (a stealth step spawns it, story 4.9)."
+          "description": "Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), on the baby (a stealth step spawns it, story 4.9), or on a chore station (the chore system spawns it, story 9.5)."
         },
         "gag": {
           "type": "string",
@@ -424,7 +434,7 @@
         "gag"
       ],
       "additionalProperties": false,
-      "description": "A threat that stands on an anchor of the level, on Papa, or on the baby."
+      "description": "A threat that stands on an anchor of the level, on Papa, on the baby, or on a chore station."
     },
     {
       "type": "object",
@@ -499,7 +509,8 @@
             "peek",
             "sweat",
             "open_hand",
-            "sigh"
+            "sigh",
+            "pot"
           ]
         },
         "feint": {
@@ -537,7 +548,8 @@
                 "peek",
                 "sweat",
                 "open_hand",
-                "sigh"
+                "sigh",
+                "pot"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -602,7 +614,8 @@
             "peek",
             "sweat",
             "open_hand",
-            "sigh"
+            "sigh",
+            "pot"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -816,6 +829,12 @@
           "type": "integer",
           "minimum": 1000,
           "maximum": 9007199254740991
+        },
+        "gagNoisePct": {
+          "description": "When a miss ends in the gag, the noise gauge rises by this many points at once (story 9.5: the pot boiling over; no effect in a level with no noise gauge). Absent: the gag makes no noise of its own.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100
         },
         "target": {
           "type": "string",

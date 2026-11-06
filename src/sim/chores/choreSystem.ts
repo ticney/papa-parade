@@ -1,10 +1,20 @@
 import { isBabyCarried } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
-import { enterPapaState } from '../papa/papaFsm.ts';
+import { fairWindowOpenAt } from '../director/fairness.ts';
+import { enterPapaState, isPapaBusy } from '../papa/papaFsm.ts';
+import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
+import { telegraphThreat } from '../threats/threatFsm.ts';
 import { judgePress } from '../timing/judge.ts';
 import type { ChoreInstance, World } from '../world.ts';
 import { enterChoreState } from './choreFsm.ts';
-import { announceBeat, choreBeatCloseAt, clearBeat, isAnyThreatWindowOpen } from './chores.ts';
+import {
+  announceBeat,
+  choreBeatCloseAt,
+  clearBeat,
+  isAnyThreatWindowOpen,
+  isPotActive,
+  potOf,
+} from './chores.ts';
 
 /** The chore stops: its beats done are kept, the announced beat is dropped without a judgement. */
 function pauseChore(world: World, chore: ChoreInstance): void {
@@ -107,6 +117,12 @@ export function settleChores(world: World): void {
  * 5. A beat that is not announced is, unless a threat's window is open: the next one after a catch, the
  *    same one after a miss or a hold.
  *
+ * 6. The pot (story 9.5): a chore that Papa left `paused` for `afterMs` starts its pot
+ *    ({@link startAbandonedPots}), after the loop, so that a chore Papa has just left is seen as paused.
+ *
+ * The hold of rule 3 extends (D6) to the chore's own pot: while it is telegraphed or its window is
+ * open the beat is `held`, so the cooking cannot be finished with the pot still on.
+ *
  * It emits the events and writes `score.perfects` / `successes`; it never calls the catastrophe
  * gauge, which reads `ChoreBeatJudged` (D9). Draws nothing from `world.rng`.
  */
@@ -114,10 +130,11 @@ export function runChores(world: World, ctx: StepContext): void {
   const { chores } = world;
   if (chores.length === 0) return;
   const now = world.time.sim;
-  const isHeld = isAnyThreatWindowOpen(world);
+  const isWindowOpen = isAnyThreatWindowOpen(world);
   for (let i = 0; i < chores.length; i++) {
     const chore = chores[i] as ChoreInstance;
     if (chore.state !== 'working') continue;
+    const isHeld = isWindowOpen || isPotActive(world, ctx, i);
     const { objectId } = ctx.level.chores[i] as StepContext['level']['chores'][number];
     if (world.papa.state === 'chore' && (isBabyCarried(world) || world.flow.state === 'sequence')) {
       enterPapaState(world, ctx, 'idle');
@@ -171,5 +188,44 @@ export function runChores(world: World, ctx: StepContext): void {
     if (chore.state === 'working' && chore.beatState !== 'telegraph' && !isHeld) {
       announceBeat(world, ctx, i);
     }
+  }
+  startAbandonedPots(world, ctx);
+}
+
+/**
+ * A chore left alone becomes a threat (story 9.5): for each `paused` chore that names an
+ * `abandonedThreat`, the pot is telegraphed in the first step where all of this holds: its instance
+ * is `idle`, `afterMs` have passed since the later of the chore being paused and the pot last going
+ * `idle` (D4: no world field, the next pot is due `afterMs` after the last one is over), the flow is
+ * `playing`, Papa is not busy and not on his way to this station, and the pot could still be judged
+ * before the level ends. Its window opens no closer than the fairness spacing to another one (D5,
+ * `fairWindowOpenAt`), the director's rule. Draws nothing from `world.rng`.
+ */
+function startAbandonedPots(world: World, ctx: StepContext): void {
+  if (world.flow.state !== 'playing' || isPapaBusy(world.papa)) return;
+  const { chores, papa } = world;
+  const now = world.time.sim;
+  for (let i = 0; i < chores.length; i++) {
+    const chore = chores[i] as ChoreInstance;
+    const planned = ctx.level.chores[i] as StepContext['level']['chores'][number];
+    const { abandoned } = planned;
+    if (abandoned === null || chore.state !== 'paused') continue;
+    const pot = potOf(world, ctx, i);
+    const potDef = ctx.level.threats[abandoned.threatIndex]?.def;
+    if (pot === undefined || potDef === undefined || pot.state !== 'idle') continue;
+    if (now < Math.max(chore.enteredAt, pot.enteredAt) + abandoned.afterMs) continue;
+    // Papa is already on his way to this stove: he is coming back to the cooking.
+    if (
+      papa.state === 'glide' &&
+      papa.glide?.threatId === null &&
+      papa.objectId === planned.objectId
+    ) {
+      continue;
+    }
+    const delayMs = potDef.telegraphDelayMs ?? ctx.feel.timing.telegraphDelayDefaultMs;
+    const naturalAt = now + delayMs;
+    const postponeMs = fairWindowOpenAt(world, ctx, abandoned.threatIndex, naturalAt) - naturalAt;
+    if (!isJudgeableBeforeEnd(world, ctx, potDef, now + Math.max(0, postponeMs))) continue;
+    telegraphThreat(world, ctx, pot, potDef, -1, Math.max(0, postponeMs));
   }
 }

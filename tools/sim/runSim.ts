@@ -48,6 +48,18 @@ export function sequenceDefIdsOf(level: SimLevel['level']): ReadonlySet<string> 
 }
 
 /**
+ * The threats the level's chores turn into when abandoned (story 9.5, `abandonedThreat`). No wave
+ * plans them, and none is a micro-sleep: the report counts them in `chores.abandoned`.
+ */
+export function abandonedDefIdsOf(level: SimLevel['level']): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const entry of level.chores ?? []) {
+    if (entry.abandonedThreat !== undefined) ids.add(entry.abandonedThreat.def);
+  }
+  return ids;
+}
+
+/**
  * What the fairness check needs of a loaded level (story 3.13): the spacing `S` of its effective
  * feel (the level's `feelOverrides` are already merged in `content.feel`) and the telegraph delay of
  * each def. A `wait` def is left out: its signal adds a random delay no one can read from the def.
@@ -147,6 +159,7 @@ export async function runSim(
         level.level.carry?.armsCryDef ?? null,
         sequenceDefIdsOf(level),
         fairnessSetupOf(content, level),
+        abandonedDefIdsOf(level),
       );
       const player =
         args.sequenceId === null

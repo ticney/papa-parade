@@ -47,6 +47,7 @@ export const THREAT_ICONS = [
   'sweat',
   'open_hand',
   'sigh',
+  'pot',
 ] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
 
@@ -68,7 +69,7 @@ export const THREAT_SHAPE_COLORS: Readonly<Record<ThreatIconShape, ThreatColor>>
 };
 
 /** `^verb\.[a-z0-9_]+$`: a key of the `verb.` group of `strings.fr.json`. */
-const VERB_KEY_PATTERN = /^verb\.[a-z0-9_]+$/;
+export const VERB_KEY_PATTERN = /^verb\.[a-z0-9_]+$/;
 
 /** Only a `dodge` response has a default verb of its own (`verb.dodge`, « ESQUIVE ! »). */
 const hasDefaultVerb = (response: string): boolean => response === 'dodge';
@@ -77,9 +78,10 @@ const hasDefaultVerb = (response: string): boolean => response === 'dodge';
  * Where a threat stands: on a planned anchor of the level (a wave plans it), on Papa himself
  * (the sim spawns it: the micro-sleep of story 1.19, which follows him wherever he walks), or in a
  * hidden zone of the room (the suspicious silence of story 1.21: the baby goes there and goes quiet),
- * or on the baby wherever he lies (story 4.9: a stealth step's alerts, whose marker follows him).
+ * or on the baby wherever he lies (story 4.9: a stealth step's alerts, whose marker follows him),
+ * or on a chore's station (story 9.5: the pot left on the fire; only the chore system spawns it).
  */
-export const THREAT_TARGETS = ['anchor', 'papa', 'hiddenZone', 'baby'] as const;
+export const THREAT_TARGETS = ['anchor', 'papa', 'hiddenZone', 'baby', 'station'] as const;
 export type ThreatTarget = (typeof THREAT_TARGETS)[number];
 
 const FeedbackCuesSchema = z
@@ -294,19 +296,29 @@ const baseShape = {
     .describe(
       'When a miss ends in the gag, the baby cries for this long, in sim ms, at least 1000 (story 3.1: one `BabyCrying` per second, +2 % noise each; a shorter cry would be silent). Absent: the gag does not make him cry.',
     ),
+  gagNoisePct: z
+    .number()
+    .positive()
+    .max(100)
+    .optional()
+    .describe(
+      'When a miss ends in the gag, the noise gauge rises by this many points at once (story 9.5: the pot boiling over; no effect in a level with no noise gauge). Absent: the gag makes no noise of its own.',
+    ),
 };
 
 const AnchoredThreatDefSchema = z
   .strictObject({
     ...baseShape,
     target: z
-      .enum(['anchor', 'papa', 'baby'])
+      .enum(['anchor', 'papa', 'baby', 'station'])
       .describe(
-        'Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), or on the baby (a stealth step spawns it, story 4.9).',
+        'Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), on the baby (a stealth step spawns it, story 4.9), or on a chore station (the chore system spawns it, story 9.5).',
       ),
     gag: idSchema('The gag played on a miss (a `GAG_IDS` entry of the sim).'),
   })
-  .describe('A threat that stands on an anchor of the level, on Papa, or on the baby.');
+  .describe(
+    'A threat that stands on an anchor of the level, on Papa, on the baby, or on a chore station.',
+  );
 
 const HiddenZoneThreatDefSchema = z
   .strictObject({
@@ -525,6 +537,14 @@ export const ThreatDefSchema = z
         code: 'custom',
         path: ['verbKey'],
         message: `a \`null\` verbKey (the default verb of the response) is only for a "dodge" response, not "${def.response}": write the \`verb.\` key`,
+      });
+    }
+    // A pot on the fire (story 9.5) is lowered, never dodged or waited out: it is a parry.
+    if (def.target === 'station' && def.response !== 'parry') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['response'],
+        message: `a threat on a chore station (target "station") is parried: its response must be "parry", not "${def.response}"`,
       });
     }
     // One issue at most per path: a broken pair is reported alone, then the response rule.

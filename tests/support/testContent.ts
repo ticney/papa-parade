@@ -254,6 +254,20 @@ export function createTestCoffeeTableObject(): ThreatDef {
   return readThreatFixture('testCoffeeTableObject.threat.json');
 }
 
+/** The pot left on the fire, frozen like the outlet (`testPot.threat.json`): the threat on a chore's station (story 9.5). */
+export function createTestPot(): ThreatDef {
+  return readThreatFixture('testPot.threat.json');
+}
+
+/**
+ * The frozen cooking that names its pot (story 9.5): `createTestCooking()` plus the `abandonedThreat`,
+ * after the live 30 s. A test passes it as `choreDefs: { cooking: createTestAbandonableCooking() }`; the
+ * default cooking has none, so that 9.4's chore worlds stay as they were.
+ */
+export function createTestAbandonableCooking(afterMs = 30_000): ChoreDef {
+  return { ...createTestCooking(), abandonedThreat: { def: 'pot_on_stove', afterMs } };
+}
+
 /** The micro-sleep, frozen like the outlet (`testMicroSleep.threat.json`): the threat on Papa. */
 export function createTestMicroSleep(): ThreatDef {
   return readThreatFixture('testMicroSleep.threat.json');
@@ -489,7 +503,7 @@ export function createTestRealWake(): ThreatDef {
   return readThreatFixture('testRealWake.threat.json');
 }
 
-/** The twelve frozen threats, by id. */
+/** The thirteen frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -504,6 +518,7 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestBombDropLay(),
     createTestFalseAlarm(),
     createTestRealWake(),
+    createTestPot(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -655,6 +670,15 @@ export function createTestLevel({
     if (def.id !== entry.def) throw new Error(`no frozen chore "${entry.def}" in tests/support`);
     return structuredClone(def);
   });
+  // The threat an abandoned chore turns into (story 9.5) is carried by the level, as `loadLevelContent` does.
+  for (const def of choreContent ?? []) {
+    if (def.abandonedThreat === undefined) continue;
+    const pot = all[def.abandonedThreat.def];
+    if (pot === undefined) {
+      throw new Error(`no frozen threat "${def.abandonedThreat.def}" in tests/support`);
+    }
+    threats[pot.id] = pot;
+  }
   const sequenceContent: Record<string, SequenceDef> = {};
   for (const id of sequences) {
     const def = sequenceDefs[id] ?? createTestSequences()[id];

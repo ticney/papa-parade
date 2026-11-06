@@ -19,7 +19,16 @@ class FakeElement {
   parentNode: unknown = null;
   className = '';
   hidden = false;
-  style: Record<string, string> = {};
+  textContent = '';
+  style: {
+    fontSize?: string;
+    setProperty: (name: string, value: string) => void;
+    [name: string]: string | ((name: string, value: string) => void) | undefined;
+  } = {
+    setProperty: (name: string, value: string): void => {
+      this.style[name] = value;
+    },
+  };
   attributes = new Map<string, string>();
   children: FakeElement[] = [];
   classes = new Set<string>();
@@ -49,7 +58,14 @@ const COFFEE: ObjectMarkerSpec = {
 const METRICS = {
   surfaceKey: () => 'regular',
   threatSizePx: () => 64,
+  basePx: () => 40,
+  scale: () => 1,
+  // Ten px a letter, so that « COUPE LE FEU ! » is wider than the share of a narrow layer.
+  widthPx: (text: string, fontPx: number) => text.length * fontPx * 0.25,
 } as unknown as VerbMetrics;
+
+/** The beats of the cooking: the verbs of its four temps forts, as `t()` gives them. */
+const COOKING_VERBS = ['REMUE !', 'ÉCRASE !', 'REMUE !', 'COUPE LE FEU !'] as const;
 
 function build(hasMetrics = true) {
   const made: FakeElement[] = [];
@@ -67,7 +83,11 @@ function build(hasMetrics = true) {
     made.find((element) => element.attributes.get('data-pp-object') === 'stove');
   const ring = (): FakeElement | undefined =>
     made.find((element) => element.className === 'pp-chrono-ring');
-  return { markers, root, ring };
+  const verb = (): FakeElement | undefined =>
+    made.find((element) => element.className.includes('pp-object-verb'));
+  const verbStack = (): FakeElement | undefined =>
+    made.find((element) => element.className === 'pp-threat-verb-stack');
+  return { markers, root, ring, verb, verbStack };
 }
 
 function chore(changes: Partial<ChoreInstance> = {}): ChoreInstance {
@@ -199,5 +219,95 @@ describe('the station marker of a chore', () => {
     markers.unmount();
     expect(markers.choreRingDrawOf(0)).toBeNull();
     expect(markers.updateChores([announced()], 2000)).toBe(false);
+  });
+});
+
+describe('the verb of the announced beat (story 9.5, AC 1)', () => {
+  const beat = (beatsDone: number): ChoreInstance => ({ ...announced(), beatsDone });
+
+  it('wears the threats’ verb look, hidden until a beat is announced', () => {
+    const { markers, verb, verbStack } = build();
+    markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
+    expect(verb()?.className).toBe(`pp-threat-verb ${OBJECT_CLASSES.verb}`);
+    expect(verbStack()?.hidden).toBe(true);
+    expect(markers.stationVerbOf(0)).toBe('');
+  });
+
+  it.each(COOKING_VERBS.map((text, index) => [index, text] as const))(
+    'shows the verb of beat %i (%s) while that beat is announced',
+    (index, text) => {
+      const { markers, verb, verbStack } = build();
+      markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
+      markers.updateChores([beat(index)], 1000);
+      expect(verbStack()?.hidden).toBe(false);
+      expect(verb()?.textContent).toBe(text);
+      expect(markers.stationVerbOf(0)).toBe(text);
+    },
+  );
+
+  it('shows no verb when no beat is announced: held, paused, done, untouched', () => {
+    const { markers, verbStack } = build();
+    markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
+    markers.updateChores([beat(1)], 1000);
+    expect(verbStack()?.hidden).toBe(false);
+    for (const hidden of [
+      chore({ state: 'working', beatsDone: 1, beatState: 'held' }),
+      chore({ state: 'paused', beatsDone: 1 }),
+      chore({ state: 'done', beatsDone: 4 }),
+      chore({ state: 'untouched' }),
+    ]) {
+      markers.updateChores([beat(1)], 1000);
+      markers.updateChores([hidden], 1100);
+      expect(verbStack()?.hidden, hidden.state).toBe(true);
+      expect(markers.stationVerbOf(0)).toBe('');
+    }
+  });
+
+  it('writes the text only when the beat changes, not every frame', () => {
+    const { markers, verb } = build();
+    markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
+    markers.updateChores([beat(0)], 1000);
+    const element = verb();
+    if (element === undefined) throw new Error('no verb element');
+    let writes = 0;
+    let text = element.textContent;
+    Object.defineProperty(element, 'textContent', {
+      get: () => text,
+      set: (value: string) => {
+        writes++;
+        text = value;
+      },
+    });
+    for (let frame = 0; frame < 20; frame++) markers.updateChores([beat(0)], 1000 + frame * 10);
+    expect(writes).toBe(0);
+    markers.updateChores([beat(1)], 1300);
+    expect(writes).toBe(1);
+    expect(text).toBe('ÉCRASE !');
+  });
+
+  it('fits the verb to the layer like a threat’s: narrower layer, smaller font, never under the floor', () => {
+    const wide = build();
+    wide.markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
+    wide.markers.refit(2000);
+    wide.markers.updateChores([beat(3)], 1000);
+    const wideFont = wide.verb()?.style.fontSize;
+    const narrow = build();
+    narrow.markers.mount([STOVE], ['stove'], [COOKING_VERBS]);
+    narrow.markers.refit(120);
+    narrow.markers.updateChores([beat(3)], 1000);
+    const narrowFont = narrow.verb()?.style.fontSize;
+    expect(wideFont).toBe('40px');
+    expect(Number.parseFloat(narrowFont ?? '0')).toBeLessThan(40);
+    expect(Number.parseFloat(narrowFont ?? '0')).toBeGreaterThan(0);
+  });
+
+  it('has no verb element for a level whose stations carry no verbs, nor for a station of no chore', () => {
+    const { markers, verb } = build();
+    markers.mount([STOVE], ['stove']);
+    expect(verb()).toBeUndefined();
+    expect(markers.stationVerbOf(0)).toBeNull();
+    const other = build();
+    other.markers.mount([STOVE, COFFEE], ['stove'], [COOKING_VERBS]);
+    expect(other.markers.stationVerbOf(1)).toBeNull();
   });
 });

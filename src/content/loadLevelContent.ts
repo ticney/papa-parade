@@ -230,6 +230,17 @@ export async function loadLevelContent(
     }
   }
 
+  // A chore may name the threat it turns into when abandoned (story 9.5): loaded last, after every
+  // other def, so that no existing threat of the level moves; a missing file is reported at the chore.
+  for (const [choreId, choreDef] of Object.entries(choreDefs)) {
+    if (choreDef.abandonedThreat === undefined) continue;
+    await loadThreat(
+      choreDef.abandonedThreat.def,
+      `content/${CHORE_DEF_PATTERN.dir}/${choreId}${CHORE_DEF_PATTERN.suffix}`,
+      formatJsonPath(['abandonedThreat', 'def']),
+    );
+  }
+
   if (problems.length > 0) return err(createContentError(problems));
   const chores =
     level.chores === undefined

@@ -13,6 +13,7 @@ import {
   type LevelEndReason,
   type NoiseSource,
   PAPA_ASLEEP_GAG_ID,
+  POT_BOILED_OVER_GAG_ID,
   type Sim,
   type SimEvent,
 } from '@sim';
@@ -20,8 +21,8 @@ import { createFairnessCheck } from './fairnessCheck.ts';
 import type { HumanComparison } from './humanComparison.ts';
 import type { ChronoRingMode } from './simArgs.ts';
 
-/** Every `NoiseSource` the report counts, in file order, `debug` last (a bot never sends `SetNoise`, so it stays 0). */
-const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'debug'];
+/** Every `NoiseSource` the report counts, in file order, then `gag` (a def's own noise, story 9.5), `debug` last (a bot never sends `SetNoise`, so it stays 0). */
+const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'gag', 'debug'];
 
 /** Every `AfterEffectKind` at 0: the report has all its keys, whether or not a séquelle of that kind began. */
 const emptyAfterEffects = (): Record<AfterEffectKind, number> =>
@@ -70,10 +71,24 @@ export interface ChoreCounts {
   beats: { perfect: number; success: number; fail: number };
   completed: number;
   homePoints: number;
+  /** The pots of abandoned chores (story 9.5): telegraphed, lowered in time (`success` / `perfect`), boiled over. */
+  abandoned: AbandonedCounts;
+}
+
+/** The threat an abandoned chore turns into (story 9.5), over a run or over the runs. */
+export interface AbandonedCounts {
+  telegraphed: number;
+  resolved: number;
+  boiledOver: number;
 }
 
 function emptyChoreCounts(): ChoreCounts {
-  return { beats: { perfect: 0, success: 0, fail: 0 }, completed: 0, homePoints: 0 };
+  return {
+    beats: { perfect: 0, success: 0, fail: 0 },
+    completed: 0,
+    homePoints: 0,
+    abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+  };
 }
 
 /** One sequence over a run or over the runs (story 4.10): started, won, lost. A level end cuts it: neither. */
@@ -291,6 +306,8 @@ export interface FairnessSetup {
  * `armsCryDef` is the level's `carry.armsCryDef` (story 4.1): its telegraphs are cries in the arms,
  * not micro-sleeps (both are threats no wave planned). `sequenceDefs` are the threats the steps of
  * the level's sequences spawn (a duel's, story 4.6; a stealth step's two alerts, story 4.9): a third kind of threat no wave planned, counted as neither.
+ * `abandonedDefs` are the threats the level's chores turn into when abandoned (story 9.5): a fourth kind of
+ * threat no wave planned, counted in `chores.abandoned` and as neither a micro-sleep nor a cry.
  * `fairness` (story 3.13) is what the fairness check needs of the level's effective feel; without it
  * the run reports 0 violations and 0 stretched telegraphs.
  */
@@ -301,6 +318,7 @@ export function createRunRecorder(
   armsCryDef: string | null = null,
   sequenceDefs: ReadonlySet<string> = new Set(),
   fairness: FairnessSetup | null = null,
+  abandonedDefs: ReadonlySet<string> = new Set(),
 ): RunRecorder {
   // Threat ids and defs never change after `createSim`.
   const defIdOf = new Map<number, string>();
@@ -395,6 +413,7 @@ export function createRunRecorder(
         }
       } else if (event.type === 'ThreatTelegraphed' && event.waveIndex < 0) {
         if (armsCryDef !== null && event.kind === armsCryDef) armsCries++;
+        else if (abandonedDefs.has(event.kind)) chores.abandoned.telegraphed++;
         else if (!sequenceDefs.has(event.kind)) microSleeps++;
         systemThreatIds.add(event.threatId);
       } else if (event.type === 'ThreatTelegraphed') {
@@ -492,6 +511,7 @@ export function createRunRecorder(
         const tally = tallyOf(threats, defId);
         tally.responses++;
         tally[event.quality]++;
+        if (abandonedDefs.has(defId) && event.quality !== 'fail') chores.abandoned.resolved++;
         if (event.quality === 'fail' && event.reason !== undefined) {
           tally.failReasons[event.reason]++;
         }
@@ -503,6 +523,7 @@ export function createRunRecorder(
         gags++;
         byGag[event.gag] = countOf(byGag, event.gag) + 1;
         if (event.gag === PAPA_ASLEEP_GAG_ID) asleepGags++;
+        if (event.gag === POT_BOILED_OVER_GAG_ID) chores.abandoned.boiledOver++;
       } else if (event.type === 'NearMiss') {
         nearMisses++;
       } else if (event.type === 'AfterEffectStarted') {
@@ -559,7 +580,7 @@ export function createRunRecorder(
         comboPeakMultiplier,
         instinctTriggers,
         toiletVisits,
-        chores: { ...chores, beats: { ...chores.beats } },
+        chores: { ...chores, beats: { ...chores.beats }, abandoned: { ...chores.abandoned } },
         sequencesStarted,
         sequencesSucceeded,
         sequencesFailed,
@@ -731,6 +752,8 @@ export interface SimReport {
     beats: ChoreCounts['beats'];
     meanHomePoints: number;
     meanBeatsPerRun: number;
+    /** The pots of the abandoned chores over the runs (story 9.5): telegraphed, lowered in time, boiled over. */
+    abandoned: AbandonedCounts;
   };
   /** The special sequences started, won and lost, over the runs (story 4.4). */
   sequencesStarted: number;
@@ -876,6 +899,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let choresRunsCompleted = 0;
   const choreBeats = { perfect: 0, success: 0, fail: 0 };
   let choreHomePoints = 0;
+  const choreAbandoned: AbandonedCounts = { telegraphed: 0, resolved: 0, boiledOver: 0 };
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
@@ -977,6 +1001,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     choreBeats.success += run.chores.beats.success;
     choreBeats.fail += run.chores.beats.fail;
     choreHomePoints += run.chores.homePoints;
+    choreAbandoned.telegraphed += run.chores.abandoned.telegraphed;
+    choreAbandoned.resolved += run.chores.abandoned.resolved;
+    choreAbandoned.boiledOver += run.chores.abandoned.boiledOver;
     sequencesStarted += run.sequencesStarted;
     sequencesSucceeded += run.sequencesSucceeded;
     sequencesFailed += run.sequencesFailed;
@@ -1127,6 +1154,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
         runs.length === 0
           ? 0
           : round((choreBeats.perfect + choreBeats.success + choreBeats.fail) / runs.length, 1),
+      abandoned: choreAbandoned,
     },
     sequencesStarted,
     sequencesSucceeded,

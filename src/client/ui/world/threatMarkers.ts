@@ -427,6 +427,8 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   sigh: 'M2.5 8h9.5v2.7L6.7 17.3H12v3H2.5v-2.7l5.3-6.6H2.5z M13.8 3h7.4v2.2l-4 4.8h4v2.4h-7.4v-2.2l4-4.8h-4z',
   // Three dots: the « … » of the suspicious silence (story 1.21).
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
+  // A saucepan with its handle and two wisps of steam: the pot left on the fire (story 9.5).
+  pot: 'M4 11h13v6.5a3.5 3.5 0 0 1-3.5 3.5h-6A3.5 3.5 0 0 1 4 17.5z M17 12.5h3.2a1 1 0 0 1 0 2H17z M8 8.5c-1.2-1.4 1.2-2.4 0-4 M13 8.5c-1.2-1.4 1.2-2.4 0-4',
 };
 /** The chevron: a down-pointing triangle above the verb (12 × 8 view box). */
 const CHEVRON_PATH = 'M1 1h10L6 7z';

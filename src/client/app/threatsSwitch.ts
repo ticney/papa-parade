@@ -20,7 +20,9 @@ export function readThreatsOff(search: string): boolean {
  * plans a phone either): still a valid `LevelContent` for `createSim`. The
  * duration stays, so the timer still runs and the level still ends. The level's gauges stay, and
  * the micro-sleep def with them (story 1.19: `createSim` refuses a fatigue gauge whose def is not
- * loaded), the cry in the arms of a level that carries (story 4.1) and the threats the duel steps of
+ * loaded), the cry in the arms of a level that carries (story 4.1), the pot each chore turns into when it is
+ * abandoned (story 9.5: `createSim` refuses a chore whose pot def is not loaded; it only ever comes when the
+ * cooking is left alone) and the threats the duel steps of
  * its sequences spawn (story 4.6: the sequences stay, so their defs do), and the two alerts of a stealth step (story 4.9). So a run of more than about 150 s (fatigue crosses its threshold at 140 s) still sees
  * micro-sleeps: the switch is quiet for the short runs the tests make, not for a whole level.
  */
@@ -62,6 +64,10 @@ export function withoutThreats(content: LevelContent): LevelContent {
         keep(step.realWakeDef, 'real wake');
       }
     }
+  }
+  // The pot of an abandoned chore (story 9.5) stays with its chore, like the others.
+  for (const chore of content.chores ?? []) {
+    if (chore.abandonedThreat !== undefined) keep(chore.abandonedThreat.def, 'abandoned chore');
   }
   return {
     level: { ...content.level, waves: [] },

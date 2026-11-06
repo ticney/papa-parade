@@ -32,6 +32,18 @@ describe('content/chores/cooking.json (story 9.4)', () => {
     expect(parsed.value.homePoints).toBe(7.5);
   });
 
+  it('gives each beat its verb, and names the pot of an abandoned cooking (story 9.5)', () => {
+    const parsed = parse(real);
+    if (!parsed.ok) throw new Error('cooking.json does not parse');
+    expect(parsed.value.beats.map((beat) => beat.verbKey)).toEqual([
+      'verb.stir',
+      'verb.mash',
+      'verb.stir',
+      'verb.turn_off_heat',
+    ]);
+    expect(parsed.value.abandonedThreat).toEqual({ def: 'pot_on_stove', afterMs: 30000 });
+  });
+
   it('keeps every number in the JSON, with its unit in its name', () => {
     expect(
       Object.keys(real)
@@ -39,8 +51,12 @@ describe('content/chores/cooking.json (story 9.4)', () => {
         .sort(),
     ).toEqual(['homePoints', 'windowMs']);
     for (const beat of real.beats as Record<string, unknown>[]) {
-      expect(Object.keys(beat)).toEqual(['telegraphDelayMs']);
+      expect(Object.keys(beat)).toEqual(['verbKey', 'telegraphDelayMs']);
     }
+    expect(Object.keys(real.abandonedThreat as Record<string, unknown>)).toEqual([
+      'def',
+      'afterMs',
+    ]);
   });
 
   it('lists the station kinds, each of them an object kind', () => {
@@ -52,15 +68,49 @@ describe('content/chores/cooking.json (story 9.4)', () => {
     expect(pathsOf({ ...real, extra: 1 })).toEqual(['extra']);
     const { homePoints: _homePoints, ...withoutPoints } = real;
     expect(pathsOf(withoutPoints)).toEqual(['homePoints']);
-    expect(pathsOf({ ...real, beats: [{}] })).toEqual(['beats[0].telegraphDelayMs']);
+    expect(pathsOf({ ...real, beats: [{ verbKey: 'verb.stir' }] })).toEqual([
+      'beats[0].telegraphDelayMs',
+    ]);
+  });
+
+  it('refuses a beat with no verb, and a verb that is not a `verb.` key (story 9.5)', () => {
+    expect(pathsOf({ ...real, beats: [{ telegraphDelayMs: 2000 }] })).toEqual(['beats[0].verbKey']);
+    expect(pathsOf({ ...real, beats: [{ verbKey: 'stir', telegraphDelayMs: 2000 }] })).toEqual([
+      'beats[0].verbKey',
+    ]);
+    expect(pathsOf({ ...real, beats: [{ verbKey: 'verb.Stir', telegraphDelayMs: 2000 }] })).toEqual(
+      ['beats[0].verbKey'],
+    );
+  });
+
+  it('keeps `abandonedThreat` optional, strict, with a whole positive wait (story 9.5)', () => {
+    const { abandonedThreat: _abandonedThreat, ...without } = real;
+    expect(parse(without)).toMatchObject({ ok: true });
+    expect(pathsOf({ ...real, abandonedThreat: { def: 'pot_on_stove' } })).toEqual([
+      'abandonedThreat.afterMs',
+    ]);
+    expect(pathsOf({ ...real, abandonedThreat: { afterMs: 30000 } })).toEqual([
+      'abandonedThreat.def',
+    ]);
+    expect(pathsOf({ ...real, abandonedThreat: { def: 'Pot', afterMs: 30000 } })).toEqual([
+      'abandonedThreat.def',
+    ]);
+    for (const afterMs of [0, -1, 1500.5]) {
+      expect(pathsOf({ ...real, abandonedThreat: { def: 'pot_on_stove', afterMs } })).toEqual([
+        'abandonedThreat.afterMs',
+      ]);
+    }
+    expect(
+      pathsOf({ ...real, abandonedThreat: { def: 'pot_on_stove', afterMs: 30000, extra: 1 } }),
+    ).toEqual(['abandonedThreat.extra']);
   });
 
   it('refuses no beat, a fractional or negative delay, negative points and an unknown station', () => {
     expect(pathsOf({ ...real, beats: [] })).toEqual(['beats']);
-    expect(pathsOf({ ...real, beats: [{ telegraphDelayMs: 1500.5 }] })).toEqual([
-      'beats[0].telegraphDelayMs',
-    ]);
-    expect(pathsOf({ ...real, beats: [{ telegraphDelayMs: -1 }] })).toEqual([
+    expect(
+      pathsOf({ ...real, beats: [{ verbKey: 'verb.stir', telegraphDelayMs: 1500.5 }] }),
+    ).toEqual(['beats[0].telegraphDelayMs']);
+    expect(pathsOf({ ...real, beats: [{ verbKey: 'verb.stir', telegraphDelayMs: -1 }] })).toEqual([
       'beats[0].telegraphDelayMs',
     ]);
     expect(pathsOf({ ...real, homePoints: -1 })).toEqual(['homePoints']);

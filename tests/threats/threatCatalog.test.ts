@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { LevelContent } from '@content/contentBundle';
 import { parseContentFile } from '@content/parseContentFile';
+import { type ChoreDef, ChoreDefSchema } from '@content/schemas/chore';
 import { LevelSchema } from '@content/schemas/level';
 import { type SequenceDef, SequenceDefSchema } from '@content/schemas/sequence';
 import {
@@ -32,6 +33,7 @@ import { createTestContent, createTestGeometry } from '../support/testContent.ts
 const THREATS_DIR = fileURLToPath(new URL('../../content/threats/', import.meta.url));
 const LEVELS_DIR = fileURLToPath(new URL('../../content/levels/', import.meta.url));
 const SEQUENCES_DIR = fileURLToPath(new URL('../../content/sequences/', import.meta.url));
+const CHORES_DIR = fileURLToPath(new URL('../../content/chores/', import.meta.url));
 const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));
 
 /**
@@ -43,6 +45,9 @@ const FIXTURE_ANCHORS: Readonly<Record<string, string>> = {
   test_firm: 'door',
   test_wait: 'phone',
 };
+
+/** How long the catalogue's chore must be abandoned before its pot starts, in sim ms (a short wait, the live one is 30 s). */
+const STATION_AFTER_MS = 1000;
 
 /** A release time beyond every case's horizon: the other defs stay idle while one is tested. */
 const CATALOG_OTHERS_FROM_MS = 600_000;
@@ -95,6 +100,12 @@ const duelDefs = new Set<string>();
  * and a real wake (a `parry`), both on `target: "baby"`, which no wave can plan.
  */
 const stealthDefs = new Set<string>();
+/**
+ * The ones a live chore turns into when it is abandoned (story 9.5), on `target: "station"`: no wave plans
+ * them, they come when the chore has been `paused` for the chore's `afterMs`, so they are tested through a
+ * level with the chore (its own, with a short `afterMs`).
+ */
+const stationDefs = new Map<string, ChoreDef>();
 let liveStealthSequence: SequenceDef | undefined;
 for (const name of readdirSync(LEVELS_DIR).sort()) {
   if (!name.endsWith('.json') || name.endsWith('.geometry.json')) continue;
@@ -104,6 +115,14 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
   for (const entry of parsed.value.waves.flatMap((wave) => wave.threats)) {
     if (!anchors.has(entry.def) && frozenAnchorIds.has(entry.anchor)) {
       anchors.set(entry.def, entry.anchor);
+    }
+  }
+  for (const entry of parsed.value.chores ?? []) {
+    const choreText = readFileSync(`${CHORES_DIR}${entry.def}.json`, 'utf8');
+    const chore = parseContentFile(`content/chores/${entry.def}.json`, choreText, ChoreDefSchema);
+    if (!chore.ok) throw new Error(`${entry.def} is invalid: ${JSON.stringify(chore.error)}`);
+    if (chore.value.abandonedThreat !== undefined) {
+      stationDefs.set(chore.value.abandonedThreat.def, chore.value);
     }
   }
   const microSleepDef = parsed.value.gauges.fatigue?.microSleepDef;
@@ -240,7 +259,9 @@ function anchorOf(def: ThreatDef): string {
  * `contentFor` makes it due at once.
  */
 function levelPlanning(tested: ThreatDef): LevelContent {
-  const anchored = defs.filter((def) => def.target !== 'papa' && def.target !== 'baby');
+  const anchored = defs.filter(
+    (def) => def.target !== 'papa' && def.target !== 'baby' && def.target !== 'station',
+  );
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
   if (duelDefs.has(tested.id)) {
     const cry = defs.find((def) => def.id === CARRY_CRY_DEF);
@@ -261,6 +282,32 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       threats: Object.fromEntries([tested, cry].map((def) => [def.id, def])),
       disruptions: {},
       sequences: { catalog_duel: duelSequenceOf(tested) },
+    };
+  }
+  const stationChore = stationDefs.get(tested.id);
+  if (stationChore !== undefined) {
+    // The chore of a live level, the stove at a floor point of the frozen room, a short wait.
+    const chore: ChoreDef = {
+      ...stationChore,
+      abandonedThreat: { def: tested.id, afterMs: STATION_AFTER_MS },
+    };
+    return {
+      level: {
+        id: 'salon_crawler',
+        variant: 'nap' as const,
+        durationMs: CATALOG_OTHERS_FROM_MS,
+        objects: [{ id: 'stove', kind: 'stove' as const, anchor: 'stairs_top' }],
+        chores: [{ def: chore.id, object: 'stove' }],
+        gauges: {},
+        sequences: [],
+        camera: 'fixed',
+        feelOverrides: {},
+        waves: [],
+      },
+      threats: { [tested.id]: tested },
+      disruptions: {},
+      sequences: {},
+      chores: [chore],
     };
   }
   if (stealthDefs.has(tested.id)) {
@@ -475,6 +522,18 @@ async function telegraphed(
     const events = [...sim.drainEvents()];
     expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
     sim.world.sequence.stealth.nextAlertAt = asSimMs(CATALOG_OTHERS_FROM_MS);
+  } else if (stationDefs.has(def.id)) {
+    // Story 9.5: Papa starts the chore, leaves it, and the pot comes when the wait is over.
+    sim.enqueue({ type: 'TapObject', t: asSimMs(sim.world.time.sim), objectId: 'stove' });
+    for (let i = 0; i < 1000 && sim.world.chores[0]?.state !== 'working'; i++) sim.step();
+    expect(sim.world.chores[0]?.state).toBe('working');
+    sim.enqueue({ type: 'TapFloor', t: asSimMs(sim.world.time.sim), xM: 0, zM: 0 });
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 1000 && !events.some((e) => e.type === 'ThreatTelegraphed'); i++) {
+      sim.step();
+      events.push(...sim.drainEvents());
+    }
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
   } else if (armsCryDefs.has(def.id)) {
     // Papa takes the baby (he is in reach); the cry in the arms is telegraphed at the next step.
     sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) });
@@ -536,7 +595,9 @@ describe('the threat catalogue', () => {
           ? spawnedOnPapa.has(id)
           : target === 'baby'
             ? stealthDefs.has(id)
-            : anchors.has(id);
+            : target === 'station'
+              ? stationDefs.has(id)
+              : anchors.has(id);
       expect(planned, `"${id}" is planned by no level`).toBe(true);
     },
   );

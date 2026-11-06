@@ -226,7 +226,7 @@ test.describe('the house chores', () => {
       feel.catastrophe.risePct.choreBeat * multiplier,
       6,
     );
-    expect(await cueIds(page)).toContain('chore_beat_missed');
+    expect(await cueIds(page)).toContain('chore_puree_stuck');
     expect((await ppWorld(page)).gauges.catastrophePct).toBeGreaterThan(before);
     const announced = (await typesOf(page, 'ChoreBeatTelegraphed')) as unknown as {
       beatIndex: number;

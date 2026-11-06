@@ -401,3 +401,63 @@ describe('catastrophe (story 3.16)', () => {
     expect(mutated(['catastrophe', 35]).ok).toBe(false);
   });
 });
+
+describe('content/threats/pot_on_stove.json (story 9.5)', () => {
+  const FILE_POT = 'content/threats/pot_on_stove.json';
+  const pot = JSON.parse(
+    readFileSync(new URL('../../content/threats/pot_on_stove.json', import.meta.url), 'utf8'),
+  ) as Record<string, unknown>;
+  const parsePot = (value: unknown) =>
+    parseContentFile(FILE_POT, JSON.stringify(value), ThreatDefSchema);
+  const withPot = (...changes: [key: string, value: unknown][]) => {
+    const copy = { ...pot };
+    for (const [key, value] of changes) {
+      if (value === undefined) delete copy[key];
+      else copy[key] = value;
+    }
+    return parsePot(copy);
+  };
+  const failed = (result: ReturnType<typeof parsePot>): string[] =>
+    result.ok ? [] : result.error.map((problem) => problem.jsonPath);
+
+  it('parses as a parry on a chore station, with a noise of its own', () => {
+    const parsed = parsePot(pot);
+    expect(parsed).toMatchObject({ ok: true });
+    if (!parsed.ok) return;
+    expect(parsed.value).toMatchObject({
+      id: 'pot_on_stove',
+      target: 'station',
+      response: 'parry',
+      icon: 'pot',
+      verbKey: 'verb.lower_heat',
+      catastrophe: 'mess',
+      afterEffect: { kind: 'mess' },
+    });
+    expect(parsed.value.gagNoisePct).toBeGreaterThan(0);
+  });
+
+  it('refuses a station threat that is not a parry: only a pot to lower is a station threat', () => {
+    expect(failed(withPot(['response', 'firm'], ['holdUntilMs', 1500]))).toEqual(['response']);
+    expect(failed(withPot(['response', 'nothing'], ['nothingMs', 1000]))).toEqual(['response']);
+    expect(failed(withPot(['response', 'parry']))).toEqual([]);
+  });
+
+  it.each([
+    ['zero', 0],
+    ['negative', -5],
+    ['above a whole gauge', 100.5],
+    ['a string', '10'],
+  ])('refuses a gagNoisePct that is %s', (_name, value) => {
+    expect(failed(withPot(['gagNoisePct', value]))).toEqual(['gagNoisePct']);
+  });
+
+  it('accepts a gagNoisePct up to a whole gauge, and none at all (the gag makes no noise)', () => {
+    expect(withPot(['gagNoisePct', 100])).toMatchObject({ ok: true });
+    expect(withPot(['gagNoisePct', 0.5])).toMatchObject({ ok: true });
+    expect(withPot(['gagNoisePct', undefined])).toMatchObject({ ok: true });
+  });
+
+  it('allows gagNoisePct on any threat, like gagCryMs', () => {
+    expect(mutated(['gagNoisePct', 15])).toMatchObject({ ok: true });
+  });
+});
