@@ -7,17 +7,21 @@ import {
   COFFEE_TABLE,
   createTestAbandonableCooking,
   createTestContent,
+  createTestDishwasherOpen,
   createTestGeometry,
   createTestLevel,
   createTestMicroSleep,
+  DISHWASHER_OPEN,
   FATIGUE_GAUGES,
   OUTLET,
   SILENCE,
   STAIRS,
   stepN,
   TEST_COOKING,
+  TEST_DISHWASHER,
   TEST_OBJECTS,
   TEST_STOVE,
+  TEST_UNLOAD_DISHWASHER,
   testMicroSleepBusyMs,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -45,13 +49,14 @@ async function setup(feel: Feel = content.feel) {
     content: { ...content, feel },
     geometry: createTestGeometry(),
     level: createTestLevel({
-      waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])],
+      waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE, DISHWASHER_OPEN])],
       gauges: FATIGUE_GAUGES,
       carry: CARRY,
       sequences: ['bedtime_duel', 'fake_sleep_duel', 'bomb_drop', 'stealth_exit'],
-      // The pot on the stove (story 9.5) is the threat of an abandoned cooking.
-      objects: [...TEST_OBJECTS, TEST_STOVE],
-      chores: [TEST_COOKING],
+      // The pot on the stove (story 9.5) is the threat of an abandoned cooking; the open dishwasher
+      // (story 9.6) is the door of the dishwasher chore.
+      objects: [...TEST_OBJECTS, TEST_STOVE, TEST_DISHWASHER],
+      chores: [TEST_COOKING, TEST_UNLOAD_DISHWASHER],
       choreDefs: { cooking: createTestAbandonableCooking() },
     }),
     seed: 1,
@@ -98,6 +103,8 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   crayon_scribbles: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
   // The pot boiling over (story 9.5): a mischief like the silence's, nothing to push.
   pot_boiled_over: { defId: 'pot_on_stove', eventCount: 0, pushCount: 0 },
+  // The baby in the open dishwasher (story 9.6): a mischief too, nothing to push.
+  baby_in_dishwasher: { defId: 'dishwasher_open', eventCount: 0, pushCount: 0 },
   // The cry is the def's `gagCryMs` (story 3.1 D9), not the gag's: nothing else happens (story 4.1).
   arms_wail: { defId: 'arms_cry', eventCount: 0, pushCount: 0 },
   // The retreat is the sequence's (story 4.6): the gag itself does nothing.
@@ -181,6 +188,41 @@ describe('pot_boiled_over (story 9.5)', () => {
     const { threatOf } = await setup();
     expect(AFTER_EFFECT_OF_GAG.pot_boiled_over).toBe('mess');
     expect(threatOf('pot_on_stove')).toBeDefined();
+  });
+});
+
+describe('baby_in_dishwasher (story 9.6)', () => {
+  it('is a mess, not a near miss: one mischief for Mama, no event, nothing pushed', async () => {
+    const { world, ctx, events, impulses, threatOf } = await setup();
+    applyGag(world, ctx, threatOf('dishwasher_open'), 'baby_in_dishwasher');
+    expect(world.mess.mischiefs).toBe(1);
+    expect(world.score.nearMisses).toBe(0);
+    expect(isNearMissGag('baby_in_dishwasher')).toBe(false);
+    expect(events).toEqual([]);
+    expect(impulses).toEqual([]);
+  });
+
+  it('leaves its mess at the dishwasher, where he gets in, wherever the baby is when it happens', async () => {
+    const { world, ctx, threatOf } = await setup();
+    const door = threatOf('dishwasher_open');
+    // Another threat drew him away before this one's window closed.
+    world.baby.xM = door.xM + 5;
+    world.baby.zM = door.zM + 4;
+    applyAfterEffect(world, ctx, createTestDishwasherOpen(), 'baby_in_dishwasher', door);
+    expect(world.afterEffects.mischiefMarks).toEqual([
+      { gag: 'baby_in_dishwasher', xM: door.xM, zM: door.zM },
+    ]);
+  });
+
+  it('goes with the mess séquelle and the mess catastrophe, and its def says so', async () => {
+    expect(CATASTROPHE_OF_GAG.baby_in_dishwasher).toBe('mess');
+    expect(catastropheProblem('dishwasher_open', ['baby_in_dishwasher'], 'mess')).toBeNull();
+    expect(catastropheProblem('dishwasher_open', ['baby_in_dishwasher'], 'nearMiss')).toMatch(
+      /whose catastrophe must be "mess"/,
+    );
+    const { threatOf } = await setup();
+    expect(AFTER_EFFECT_OF_GAG.baby_in_dishwasher).toBe('mess');
+    expect(threatOf('dishwasher_open')).toBeDefined();
   });
 });
 

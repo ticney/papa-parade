@@ -16,7 +16,10 @@ import { enterChoreState } from './choreFsm.ts';
  * station nobody names with it (the sim imports no runtime from `@content`). A station kind of the
  * content that is not listed here does not compile.
  */
-export const CHORE_STATION_OBJECT_KINDS = ['stove'] as const satisfies readonly ObjectKind[];
+export const CHORE_STATION_OBJECT_KINDS = [
+  'stove',
+  'dishwasher',
+] as const satisfies readonly ObjectKind[];
 
 type UnlistedStationKind = Exclude<ChoreStationKind, (typeof CHORE_STATION_OBJECT_KINDS)[number]>;
 
@@ -24,6 +27,43 @@ type UnlistedStationKind = Exclude<ChoreStationKind, (typeof CHORE_STATION_OBJEC
 export const CHORE_STATION_OBJECT_KINDS_ARE_COMPLETE: [UnlistedStationKind] extends [never]
   ? true
   : UnlistedStationKind = true;
+
+/**
+ * Why a level does not plan a chore's open-door threat the way it must (story 9.6), or null when it
+ * does: the level plans that def in one of its waves **exactly once** (`plannedCount`). `simLevelOf` and
+ * `content:check` both call it, so they refuse it with the same words. Pure.
+ */
+export function openThreatPlanProblem(
+  choreDefId: string,
+  threatDefId: string,
+  plannedCount: number,
+): string | null {
+  if (plannedCount === 1) return null;
+  return `the chore "${choreDefId}" names the open threat "${threatDefId}", which the level must plan in one of its waves exactly once, but plans it ${plannedCount} times`;
+}
+
+/**
+ * Why the wave entry of a chore's open-door threat stands in the wrong place (story 9.6), or null: it is
+ * planned at the anchor of the chore's station, or the door would be a target away from the dishwasher.
+ */
+export function openThreatAnchorProblem(
+  choreDefId: string,
+  threatDefId: string,
+  plannedAnchor: string,
+  stationAnchor: string,
+): string | null {
+  if (plannedAnchor === stationAnchor) return null;
+  return `the threat "${threatDefId}" is the open threat of the chore "${choreDefId}": it must be planned at the anchor of the chore's station ("${stationAnchor}"), not at "${plannedAnchor}"`;
+}
+
+/**
+ * Why a wave plans the open-door threat of a chore that the level does not declare (story 9.6): alone, the
+ * door would be a target of the baby that nothing ever opens or shuts. `content:check` only: the sim sees
+ * the chores of its own level, not the other chore files.
+ */
+export function openThreatOrphanProblem(threatDefId: string, choreDefId: string): string {
+  return `the threat "${threatDefId}" is the open threat of the chore "${choreDefId}", which the level does not declare`;
+}
 
 /** The index, in `world.chores` and `ctx.level.chores`, of the chore whose station is this object, or -1. */
 export function choreIndexOfObject(ctx: StepContext, objectId: string): number {
@@ -72,6 +112,34 @@ export function isPotActive(world: World, ctx: StepContext, choreIndex: number):
 }
 
 /**
+ * The instance of the open-door threat of the chore at `choreIndex` (story 9.6), or undefined for a chore
+ * with no `openThreat`. Its index is `SimPlannedChore.openThreatIndex`.
+ */
+export function openThreatOf(
+  world: World,
+  ctx: StepContext,
+  choreIndex: number,
+): ThreatInstance | undefined {
+  const index = ctx.level.chores[choreIndex]?.openThreatIndex ?? null;
+  return index === null ? undefined : world.threats[index];
+}
+
+/** Whether the baby is heading for the chore's open door: its threat is telegraphed or its window open (story 9.6 AC 9). */
+export function isOpenThreatActive(world: World, ctx: StepContext, choreIndex: number): boolean {
+  const threat = openThreatOf(world, ctx, choreIndex);
+  return threat !== undefined && (threat.state === 'telegraph' || threat.state === 'windowOpen');
+}
+
+/**
+ * Whether a threat of the chore's own holds its beat: the pot on the fire (story 9.5) or the baby on his
+ * way to the open door (story 9.6). The dishwasher cannot be emptied, nor its door closed by the last
+ * beat, with the baby heading for it.
+ */
+export function isChoreThreatActive(world: World, ctx: StepContext, choreIndex: number): boolean {
+  return isPotActive(world, ctx, choreIndex) || isOpenThreatActive(world, ctx, choreIndex);
+}
+
+/**
  * Papa's glide to the threat `threatId` has ended (story 9.5, review): if it was a chore's own pot and
  * that chore is `paused`, he has lowered the heat at its station, so he goes back to it (`startChore`;
  * the beat stays held while the pot is still on). Not with the baby in his arms (the station refuses
@@ -94,6 +162,12 @@ export function resumeChoreOfPot(world: World, ctx: StepContext, threatId: numbe
     return startChore(world, ctx, planned.objectId);
   }
   return false;
+}
+
+/** The chore stops: its beats done are kept, the announced beat is dropped without a judgement. */
+export function pauseChore(world: World, chore: ChoreInstance): void {
+  enterChoreState(world, chore, 'paused');
+  clearBeat(chore);
 }
 
 /** The beat is no more: nothing announced, nothing to draw. */
@@ -140,16 +214,30 @@ export function announceBeat(world: World, ctx: StepContext, choreIndex: number)
  * Papa arrived at a chore's station (`OBJECT_ACTIONS`): he works there. Returns true when he
  * did, false when the chore is done (he is only standing at the stove, idle). A `paused` chore
  * resumes at the first beat not done. The beat is announced, or `held` when a threat's window is open or
- * the chore's own pot is on the fire (story 9.5).
+ * a threat of the chore's own is on (the pot, story 9.5; the baby heading for the open door, story 9.6).
+ *
+ * Any other chore Papa was working at is paused first (story 9.6, 9.4's deferred « two chores `working`
+ * at once »): a glide from one station to the next can end in the step it starts, before `settleChores`
+ * has paused the first. A chore with an `openThreat` opens its door here: Papa opens the dishwasher, or
+ * reopens it to resume.
  */
 export function startChore(world: World, ctx: StepContext, objectId: string): boolean {
   const index = choreIndexOfObject(ctx, objectId);
   const chore = world.chores[index];
   if (chore === undefined || chore.state === 'done') return false;
+  for (let i = 0; i < world.chores.length; i++) {
+    const other = world.chores[i] as ChoreInstance;
+    if (i !== index && other.state === 'working') pauseChore(world, other);
+  }
   enterChoreState(world, chore, 'working');
   clearBeat(chore);
+  const planned = ctx.level.chores[index] as StepContext['level']['chores'][number];
+  if (planned.openThreatIndex !== null) chore.isOpen = true;
   enterPapaState(world, ctx, 'chore');
-  if (isAnyThreatWindowOpen(world) || isPotActive(world, ctx, index)) chore.beatState = 'held';
-  else announceBeat(world, ctx, index);
+  if (isAnyThreatWindowOpen(world) || isChoreThreatActive(world, ctx, index)) {
+    chore.beatState = 'held';
+  } else {
+    announceBeat(world, ctx, index);
+  }
   return true;
 }

@@ -11,6 +11,8 @@ import { simArgs } from '../../support/simSupport.ts';
 const CONTENT_DIR = fileURLToPath(new URL('../../../content', import.meta.url));
 // Today's mean score of `perfect` on this level without the chores (story 9.4 AC 12).
 const SCORE_WITHOUT_CHORES = 79.7;
+// ... and with the cooking alone, as story 9.5 left it (30 seeds, 2026-11-06): the dishwasher must beat it (story 9.6 AC 12).
+const SCORE_WITH_COOKING_ONLY = 87.2;
 
 async function reportOf(botId: 'perfect' | 'human', runs: number, abandonedAfterMs?: number) {
   const loaded = await loadSimLevel(CONTENT_DIR, 'salon_kitchen');
@@ -45,11 +47,44 @@ describe('the chores of the live salon_kitchen', () => {
     expect(report.chores.abandoned.boiledOver).toBe(0);
   });
 
-  it('has human play the chores too: the stations are wired to its setup', async () => {
-    const report = await reportOf('human', 10);
+  it('has perfect empty the dishwasher too, in every one of 30 games: both chores, the whole Maison row, no door left to the baby (story 9.6)', async () => {
+    const loaded = await loadSimLevel(CONTENT_DIR, 'salon_kitchen');
+    if (!loaded.ok) throw new Error(loaded.error);
+    const report = await reportOf('perfect', 30);
+    const { byDef, open } = report.chores;
+    expect(byDef.cooking?.runsCompleted).toBe(30);
+    expect(byDef.unload_dishwasher?.runsCompleted).toBe(30);
+    // The two chores fill the row: 15 of 15, read from the content.
+    expect(report.chores.meanHomePoints).toBe(loaded.value.content.feel.mama.homeMaxPoints);
+    // 0 threat failed, the pots and the open dishwasher included: none of the level's threats has a failure.
+    for (const [defId, tally] of Object.entries(report.threats)) {
+      expect(tally.fail, defId).toBe(0);
+    }
+    expect(report.gags.total).toBe(0);
+    expect(report.endsByReason.mamaWoke).toBe(0);
+    expect(report.endsByReason.mamaHome).toBe(0);
+    expect(report.chores.meanObjectsBroken).toBe(0);
+    expect(byDef.unload_dishwasher?.meanBeatsMissed).toBe(0);
+    // It does meet the open door in these games, and shuts every one it meets.
+    expect(open.telegraphed).toBeGreaterThan(0);
+    expect(open.closed).toBe(open.telegraphed);
+    expect(open.gagged).toBe(0);
+    expect(report.meanScore).toBeGreaterThan(SCORE_WITH_COOKING_ONLY);
+  });
+
+  it('has human play both chores too: some plates broken, the open door met (the stations are wired to its setup)', async () => {
+    const report = await reportOf('human', 30);
+    const { byDef, open } = report.chores;
     const beats = report.chores.beats;
     expect(beats.perfect + beats.success + beats.fail).toBeGreaterThan(0);
-    expect(report.chores.runsCompleted).toBeGreaterThan(0);
+    expect(byDef.cooking?.runsCompleted).toBeGreaterThan(0);
+    expect(byDef.unload_dishwasher?.runsCompleted).toBeGreaterThan(0);
+    // A clumsy read of the ring drops a plate in some games (seeded, so always the same ones)…
+    expect(byDef.unload_dishwasher?.beats.fail).toBeGreaterThan(0);
+    expect(report.chores.meanObjectsBroken).toBeGreaterThan(0);
+    // … and the door is open to the baby while he is away, at least once in thirty games.
+    expect(open.telegraphed).toBeGreaterThan(0);
+    expect(open.closed + open.gagged).toBeLessThanOrEqual(open.telegraphed);
   });
 
   it('counts the pots of an abandoned cooking end to end: telegraphed, lowered or boiled over (story 9.5)', async () => {

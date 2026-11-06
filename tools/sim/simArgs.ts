@@ -106,6 +106,9 @@ The house chores (story 9.4, FR76) add a \`chores\` block, over the runs: \`runs
 \`beats\` (the beats judged, by quality: \`perfect\`, \`success\`, \`fail\` for a missed one), \`meanHomePoints\` (the Maison points the chores
 paid per game), \`meanBeatsPerRun\` and \`abandoned\` (story 9.5: the pots of the chores left alone, \`telegraphed\`, \`resolved\` when
 lowered in time and \`boiledOver\`); all 0 in a level with no station. The bots do chores when \`bots.json\` › \`chores.isEnabled\` is on.
+The dishwasher (story 9.6, FR76 / FR78) adds to \`chores\`: \`byDef\` (for each chore def of the level, \`runsCompleted\`, its \`beats\` by quality and
+\`meanBeatsMissed\` per game), \`meanObjectsBroken\` (the plates the missed beats broke per game, each one a broken object for Mama's Soupir) and
+\`open\` (the open-door threats of the chores: \`telegraphed\`, \`closed\` when shut in time and \`gagged\` when the baby got in).
 The director's fairness (story 3.13, FR75) adds \`fairnessViolations\` (the director-drawn windows that opened closer than
 \`movement.glideMaxMs + director.fairnessMarginMs\` to a window announced before them, inside a found silence's guard, or that were
 drawn while a silence was under way: 0 when the director is right, checked on the events alone), \`stretchedTelegraphs\` (the

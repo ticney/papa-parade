@@ -58,6 +58,8 @@ export interface FxState {
   readonly lightsFactor: number;
   /** How many mischief decals lie on the floor (story 3.15). */
   readonly mischiefDecals: number;
+  /** How many broken plates' shards lie on the floor in front of the stations (story 9.6). */
+  readonly choreShards: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */

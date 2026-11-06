@@ -49,6 +49,12 @@ const FIXTURE_ANCHORS: Readonly<Record<string, string>> = {
 /** How long the catalogue's chore must be abandoned before its pot starts, in sim ms (a short wait, the live one is 30 s). */
 const STATION_AFTER_MS = 1000;
 
+/**
+ * Where the catalogue puts the dishwasher and its open door (story 9.6): a floor point of the frozen room that
+ * no live def uses and no fixture takes (`FIXTURE_ANCHORS`). The live dishwasher's own anchor is not in this room.
+ */
+const DOOR_STATION_ANCHOR = 'baby_spawn';
+
 /** A release time beyond every case's horizon: the other defs stay idle while one is tested. */
 const CATALOG_OTHERS_FROM_MS = 600_000;
 
@@ -106,6 +112,12 @@ const stealthDefs = new Set<string>();
  * level with the chore (its own, with a short `afterMs`).
  */
 const stationDefs = new Map<string, ChoreDef>();
+/**
+ * The ones a live chore names as its open door (`openThreat`, story 9.6), on a normal `anchor` target: a wave plans
+ * them, but the director draws them only while the chore is paused with its door open, so they are tested through
+ * a level with the chore (Papa opens the station and walks away).
+ */
+const doorDefs = new Map<string, ChoreDef>();
 let liveStealthSequence: SequenceDef | undefined;
 for (const name of readdirSync(LEVELS_DIR).sort()) {
   if (!name.endsWith('.json') || name.endsWith('.geometry.json')) continue;
@@ -124,6 +136,7 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
     if (chore.value.abandonedThreat !== undefined) {
       stationDefs.set(chore.value.abandonedThreat.def, chore.value);
     }
+    if (chore.value.openThreat !== undefined) doorDefs.set(chore.value.openThreat, chore.value);
   }
   const microSleepDef = parsed.value.gauges.fatigue?.microSleepDef;
   if (microSleepDef !== undefined) spawnedOnPapa.add(microSleepDef);
@@ -260,7 +273,11 @@ function anchorOf(def: ThreatDef): string {
  */
 function levelPlanning(tested: ThreatDef): LevelContent {
   const anchored = defs.filter(
-    (def) => def.target !== 'papa' && def.target !== 'baby' && def.target !== 'station',
+    (def) =>
+      def.target !== 'papa' &&
+      def.target !== 'baby' &&
+      def.target !== 'station' &&
+      !doorDefs.has(def.id),
   );
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
   if (duelDefs.has(tested.id)) {
@@ -308,6 +325,38 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       disruptions: {},
       sequences: {},
       chores: [chore],
+    };
+  }
+  const doorChore = doorDefs.get(tested.id);
+  if (doorChore !== undefined) {
+    // The chore of a live level, its station at a floor point of the frozen room, the door planned there.
+    return {
+      level: {
+        id: 'salon_crawler',
+        variant: 'nap' as const,
+        durationMs: CATALOG_OTHERS_FROM_MS,
+        objects: [{ id: 'dishwasher', kind: doorChore.station, anchor: DOOR_STATION_ANCHOR }],
+        chores: [{ def: doorChore.id, object: 'dishwasher' }],
+        gauges: {},
+        sequences: [],
+        camera: 'fixed',
+        feelOverrides: {},
+        waves: [
+          {
+            fromMs: 0,
+            maxSimultaneous: 2,
+            gapMinMs: 0,
+            gapMaxMs: 0,
+            lullMs: 0,
+            threats: [{ def: tested.id, anchor: DOOR_STATION_ANCHOR }],
+            disruptions: [],
+          },
+        ],
+      },
+      threats: { [tested.id]: tested },
+      disruptions: {},
+      sequences: {},
+      chores: [doorChore],
     };
   }
   if (stealthDefs.has(tested.id)) {
@@ -534,6 +583,19 @@ async function telegraphed(
       events.push(...sim.drainEvents());
     }
     expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
+  } else if (doorDefs.has(def.id)) {
+    // Story 9.6: Papa opens the dishwasher and walks away; the baby may now choose the open door.
+    sim.enqueue({ type: 'TapObject', t: asSimMs(sim.world.time.sim), objectId: 'dishwasher' });
+    for (let i = 0; i < 1000 && sim.world.chores[0]?.state !== 'working'; i++) sim.step();
+    expect(sim.world.chores[0]?.state).toBe('working');
+    expect(sim.world.chores[0]?.isOpen).toBe(true);
+    sim.enqueue({ type: 'TapFloor', t: asSimMs(sim.world.time.sim), xM: 0, zM: 0 });
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 1000 && !events.some((e) => e.type === 'ThreatTelegraphed'); i++) {
+      sim.step();
+      events.push(...sim.drainEvents());
+    }
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
   } else if (armsCryDefs.has(def.id)) {
     // Papa takes the baby (he is in reach); the cry in the arms is telegraphed at the next step.
     sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) });
@@ -597,7 +659,7 @@ describe('the threat catalogue', () => {
             ? stealthDefs.has(id)
             : target === 'station'
               ? stationDefs.has(id)
-              : anchors.has(id);
+              : anchors.has(id) || doorDefs.has(id);
       expect(planned, `"${id}" is planned by no level`).toBe(true);
     },
   );

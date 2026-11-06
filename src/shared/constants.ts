@@ -219,6 +219,13 @@ export const HUD_BAND_MAX_PCT = 12;
  */
 export const HUD_MAX_DOM_NODES = 64;
 
+/**
+ * The most shard clusters the client draws on the floor in front of a station (story 9.6): one per plate a
+ * missed beat broke, a count. A game that drops more plates than this shows this many; Mama's Soupir counts
+ * them all (it is held to its own maximum anyway).
+ */
+export const CHORE_SHARDS_MAX = 12;
+
 /** A panel pops in within this much real time, in ms (a plain fade under reduced motion). */
 export const PANEL_POP_MAX_MS = 220;
 

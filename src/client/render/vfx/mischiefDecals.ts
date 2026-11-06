@@ -15,7 +15,8 @@ import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
 // `world.afterEffects.mischiefMarks`, drawn until the level ends and, since the photo renders the frozen
 // `World` through the same scene, on the end photo. Provisional art (E7 draws the final one): a handful of
 // paper scraps for the tissues, a crayon scribble for the crayons, a pale puddle of purée with a few
-// splashes around it for the pot that boiled over (story 9.5). One mesh, one draw call, per mark.
+// splashes around it for the pot that boiled over (story 9.5), forks and spoons strewn on the floor for the baby
+// who got into the dishwasher (story 9.6). One mesh, one draw call, per mark.
 
 /** The decals float this far above the floor so that they never fight it for the depth buffer, in metres. */
 export const DECAL_LIFT_M = 0.012;
@@ -42,6 +43,15 @@ const SPLASH_M = 0.07;
 const SPLASH_REACH_M = 0.46;
 /** One crayon colour per mark, in turn. */
 const CRAYON_COLORS = [0xe0573b, 0x3b86e0, 0x43b05c] as const;
+/** The cutlery the baby threw out of the dishwasher (story 9.6): a steel grey that shows on the pale floor. */
+const CUTLERY_COLOR = 0x7f8b97;
+/** A fork or a knife on the floor: its length and width, in metres, and the spoons' bowl (a square's side). */
+const CUTLERY_LENGTH_M = 0.45;
+const CUTLERY_WIDTH_M = 0.07;
+const CUTLERY_BOWL_M = 0.13;
+/** How many pieces lie around the mark, and how far from it (a radius), in metres. */
+const CUTLERY_COUNT = 6;
+const CUTLERY_SCATTER_M = 0.45;
 
 /** A decal that had to move is put this far past the edge of what hid it, in metres. */
 const CLEAR_MARGIN_M = 0.2;
@@ -229,6 +239,21 @@ export function createDecalGeometry(gag: string, index: number): BufferGeometry 
         hash01(index, i + 70) * Math.PI,
       );
     }
+  } else if (gag === 'baby_in_dishwasher') {
+    // Cutlery on the floor (story 9.6): a long thin quad for each piece, with a small bowl at one end, strewn
+    // round the mark at turned angles. The baby sat in the rack; the forks and spoons did not stay in it.
+    for (let i = 0; i < CUTLERY_COUNT; i++) {
+      const angle = hash01(index, i) * Math.PI * 2;
+      const radius = CUTLERY_SCATTER_M * Math.sqrt(hash01(index, i + 10));
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const turn = hash01(index, i + 20) * Math.PI;
+      pushQuad(positions, indices, x, z, CUTLERY_WIDTH_M, CUTLERY_LENGTH_M, turn);
+      // The bowl (a spoon's) or the tines (a fork's): a wider square at the piece's head.
+      const headX = x - Math.sin(turn) * (CUTLERY_LENGTH_M / 2);
+      const headZ = z + Math.cos(turn) * (CUTLERY_LENGTH_M / 2);
+      pushQuad(positions, indices, headX, headZ, CUTLERY_BOWL_M, CUTLERY_BOWL_M, turn);
+    }
   } else {
     for (let i = 0; i < 5; i++) {
       const angle = hash01(index, i) * Math.PI * 2;
@@ -286,7 +311,9 @@ export function createMischiefDecals(
           ? (CRAYON_COLORS[index % CRAYON_COLORS.length] as number)
           : gag === 'pot_boiled_over'
             ? PUREE_COLOR
-            : TISSUE_COLOR,
+            : gag === 'baby_in_dishwasher'
+              ? CUTLERY_COLOR
+              : TISSUE_COLOR,
       ),
     );
   const clear = (): void => {

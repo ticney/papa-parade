@@ -69,6 +69,9 @@ export const GAG_PRESENTATIONS: Readonly<Record<GagId, GagPresentation>> = {
   crayon_scribbles: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'gag_delight' },
   // The pot boils over (story 9.5): the purée on the floor is the decal, the smoke the gag cue's puff.
   pot_boiled_over: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'laugh' },
+  // The baby gets into the open dishwasher (story 9.6): the cutlery on the floor is the decal, the baby is
+  // delighted. The rack he sits in is E7's art (the door node is static).
+  baby_in_dishwasher: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: 'gag_delight' },
   // The wail in Papa's arms (story 4.1): the baby's cry is his own loop, `cryEndsAt` says so.
   arms_wail: { ...NO_STAGE, papaClip: 'gag_hit', babyClip: null },
   // The eyes reopen in the bedtime duel (story 4.6): `babyLidsAfter` opens them, the clip wakes him.

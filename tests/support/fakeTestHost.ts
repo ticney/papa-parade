@@ -33,6 +33,7 @@ const NO_FX_STATE: FxState = {
   dangerTintsShown: 0,
   lightsFactor: 1,
   mischiefDecals: 0,
+  choreShards: 0,
 };
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */

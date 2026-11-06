@@ -1,3 +1,4 @@
+import { CHORE_STATION_KINDS } from '@content/schemas/chore';
 import {
   ACTIVITY_BUBBLE_COMPACT_PX,
   ACTIVITY_BUBBLE_POP_MS,
@@ -25,6 +26,7 @@ import {
   applyActivityBubbleMetrics,
   createActivityBubble,
   pictogramPathOrWarn,
+  STATION_PICTOGRAMS,
 } from './activityBubble.ts';
 import { CHRONO_RING_REACH_PX } from './chronoRing.ts';
 
@@ -174,6 +176,46 @@ describe('the pictogram table', () => {
     const paths = Object.values(ACTIVITY_PICTOGRAM_PATHS);
     expect(paths.every((path) => path.length > 10)).toBe(true);
     expect(new Set(paths).size).toBe(paths.length);
+  });
+});
+
+describe('the pictogram of a station (story 9.6, AC 11)', () => {
+  it('has one for every kind of station, and each one draws an ink path', () => {
+    expect(Object.keys(STATION_PICTOGRAMS).sort()).toEqual([...CHORE_STATION_KINDS].sort());
+    for (const kind of CHORE_STATION_KINDS) {
+      const pictogram = STATION_PICTOGRAMS[kind];
+      expect(ACTIVITY_PICTOGRAM_PATHS[pictogram].length, kind).toBeGreaterThan(0);
+    }
+  });
+
+  it('gives the stove the saucepan and the dishwasher the plate, two pictograms apart', () => {
+    expect(STATION_PICTOGRAMS.stove).toBe('pan');
+    expect(STATION_PICTOGRAMS.dishwasher).toBe('plate');
+    expect(ACTIVITY_PICTOGRAM_PATHS.plate).not.toBe(ACTIVITY_PICTOGRAM_PATHS.pan);
+  });
+
+  it('shows the plate while Papa works at the dishwasher, and the saucepan at the stove', () => {
+    const { bubble, outer, pictogramPath } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 25, 'dishwasher');
+    expect(bubble.pictogram).toBe('plate');
+    expect(outer.classes.has('pp-activity-bubble--plate')).toBe(true);
+    expect(outer.classes.has('pp-activity-bubble--pan')).toBe(false);
+    expect(pictogramPath?.attributes.get('d')).toBe(ACTIVITY_PICTOGRAM_PATHS.plate);
+    // Papa goes from one station to the other without leaving the chore state: the pictogram swaps.
+    bubble.update(papaIn('chore', 1000, 0), 1100, false, 16, 25, 'stove');
+    expect(bubble.pictogram).toBe('pan');
+    expect(outer.classes.has('pp-activity-bubble--pan')).toBe(true);
+    expect(outer.classes.has('pp-activity-bubble--plate')).toBe(false);
+    expect(pictogramPath?.attributes.get('d')).toBe(ACTIVITY_PICTOGRAM_PATHS.pan);
+  });
+
+  it('keeps the default saucepan for a caller that names no station, and ignores a station outside a chore', () => {
+    const { bubble } = build();
+    bubble.update(papaIn('chore', 1000, 0), 1000, false, 0, 25, null);
+    expect(bubble.pictogram).toBe('pan');
+    // The station only decides the pictogram of a chore: a cup is a cup wherever he last worked.
+    bubble.update(papaIn('drink', 1000, 4000), 1500, false, 16, 0, 'dishwasher');
+    expect(bubble.pictogram).toBe('cup');
   });
 });
 

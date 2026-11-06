@@ -432,6 +432,9 @@ export const THREAT_ICON_PATHS: Readonly<Record<ThreatIcon, string>> = {
   dots: 'M6 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M12 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0 M18 12m-2.2 0a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0-4.4 0',
   // A saucepan with its handle and two wisps of steam: the pot left on the fire (story 9.5).
   pot: 'M4 11h13v6.5a3.5 3.5 0 0 1-3.5 3.5h-6A3.5 3.5 0 0 1 4 17.5z M17 12.5h3.2a1 1 0 0 1 0 2H17z M8 8.5c-1.2-1.4 1.2-2.4 0-4 M13 8.5c-1.2-1.4 1.2-2.4 0-4',
+  // The machine and its door folded down, a slot of the rack in it (story 9.6: the open dishwasher; the slot runs
+  // the other way round, so that the nonzero fill leaves it a hole). Provisional, like the others.
+  dishwasher: 'M5 3h14v8H5z M3 21l2-9h14l2 9z M8.5 15.2v1.6h7v-1.6z',
 };
 /** The chevron: a down-pointing triangle above the verb (12 × 8 view box). */
 const CHEVRON_PATH = 'M1 1h10L6 7z';

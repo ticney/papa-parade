@@ -57,6 +57,8 @@ const OBJECT_ACTIONS: Readonly<Record<ObjectKind, ObjectAction>> = {
   // A house chore's station (story 9.4): Papa works there until he leaves, unless the chore is done
   // (then he is only standing at the stove, idle).
   stove: (world, ctx, object) => startChore(world, ctx, object.id),
+  // The second station (story 9.6): the dishwasher is emptied the same way, and Papa opens its door.
+  dishwasher: (world, ctx, object) => startChore(world, ctx, object.id),
 };
 
 /** Every object kind the sim has an action for. */

@@ -12,17 +12,17 @@ import {
   choreBeatCloseAt,
   clearBeat,
   isAnyThreatWindowOpen,
-  isPotActive,
+  isChoreThreatActive,
+  openThreatOf,
+  pauseChore,
   potOf,
 } from './chores.ts';
 
-/** The chore stops: its beats done are kept, the announced beat is dropped without a judgement. */
-function pauseChore(world: World, chore: ChoreInstance): void {
-  enterChoreState(world, chore, 'paused');
-  clearBeat(chore);
-}
-
-/** A missed beat (story 9.4): it does not advance, the same beat is announced again at the end of the step. */
+/**
+ * A missed beat (story 9.4): it does not advance, the same beat is announced again at the end of the
+ * step. It is counted (`beatsMissed`, story 9.6): a def with `missBrokenObjects` breaks that many objects
+ * for each one.
+ */
 function missBeat(
   world: World,
   ctx: StepContext,
@@ -40,6 +40,7 @@ function missBeat(
     reason,
     offsetMs,
   });
+  chore.beatsMissed += 1;
   clearBeat(chore);
 }
 
@@ -71,6 +72,8 @@ function catchBeat(
   clearBeat(chore);
   if (chore.beatsDone < def.beats.length) return;
   enterChoreState(world, chore, 'done');
+  // Papa closes the emptied dishwasher (story 9.6): a done chore is no target of the baby.
+  chore.isOpen = false;
   ctx.events.push({
     type: 'ChoreCompleted',
     t: world.time.sim,
@@ -120,8 +123,13 @@ export function settleChores(world: World): void {
  * 6. The pot (story 9.5): a chore that Papa left `paused` for `afterMs` starts its pot
  *    ({@link startAbandonedPots}), after the loop, so that a chore Papa has just left is seen as paused.
  *
- * The hold of rule 3 extends (D6) to the chore's own pot: while it is telegraphed or its window is
- * open the beat is `held`, so the cooking cannot be finished with the pot still on.
+ * The hold of rule 3 extends (D6) to the chore's own threats: while its pot (story 9.5) or the baby's
+ * open-door threat (story 9.6) is telegraphed or its window is open, the beat is `held`, so the cooking
+ * cannot be finished with the pot still on, nor the dishwasher emptied with the baby heading for it.
+ *
+ * The door (story 9.6): before everything else, for every chore whatever its state, a chore whose
+ * open-door threat was caught in this step (`resolved`, entered now: only a perfect or a success gets
+ * there) has its door shut: `isOpen` false. A gag, a cancellation and a cooldown leave it as it is.
  *
  * It emits the events and writes `score.perfects` / `successes`; it never calls the catastrophe
  * gauge, which reads `ChoreBeatJudged` (D9). Draws nothing from `world.rng`.
@@ -133,8 +141,12 @@ export function runChores(world: World, ctx: StepContext): void {
   const isWindowOpen = isAnyThreatWindowOpen(world);
   for (let i = 0; i < chores.length; i++) {
     const chore = chores[i] as ChoreInstance;
+    // The open dishwasher caught in this step shuts its door, even when Papa is not working there: the
+    // chore is usually `paused` by then (the press made him glide away).
+    const openThreat = openThreatOf(world, ctx, i);
+    if (openThreat?.state === 'resolved' && openThreat.enteredAt === now) chore.isOpen = false;
     if (chore.state !== 'working') continue;
-    const isHeld = isWindowOpen || isPotActive(world, ctx, i);
+    const isHeld = isWindowOpen || isChoreThreatActive(world, ctx, i);
     const { objectId } = ctx.level.chores[i] as StepContext['level']['chores'][number];
     if (world.papa.state === 'chore' && (isBabyCarried(world) || world.flow.state === 'sequence')) {
       enterPapaState(world, ctx, 'idle');

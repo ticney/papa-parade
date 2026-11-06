@@ -495,6 +495,11 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
             anchorThreatDefIds: Object.values(levelPlan.threats)
               .filter((def) => def.target === 'anchor' || def.target === 'station')
               .map((def) => def.id),
+            choreStations: sim.chores.map((chore) => ({
+              xM: chore.xM,
+              zM: chore.zM,
+              missBrokenObjects: chore.def.missBrokenObjects ?? 0,
+            })),
             laidHeightM: deps.content.feedback.bombDrop.laidHeightM,
             characters: deps.content.feedback.characters,
             door: deps.content.feedback.door,

@@ -69,6 +69,15 @@ export function withoutThreats(content: LevelContent): LevelContent {
   for (const chore of content.chores ?? []) {
     if (chore.abandonedThreat !== undefined) keep(chore.abandonedThreat.def, 'abandoned chore');
   }
+  // The open door of a chore (story 9.6) cannot stay the way the pot does: it is a wave threat (the director
+  // draws it, `createSim` refuses a chore whose door no wave plans) and the waves are emptied. A quiet room has
+  // no baby heading for the open dishwasher either, so the chores lose their `openThreat` instead: the
+  // dishwasher is emptied as before, its door never a target and never read (`isOpen` stays false).
+  const chores = content.chores?.map((chore) => {
+    if (chore.openThreat === undefined) return chore;
+    const { openThreat: _openThreat, ...withoutDoor } = chore;
+    return withoutDoor;
+  });
   return {
     level: { ...content.level, waves: [] },
     threats: { ...microSleep, ...armsCry, ...duelThreats },
@@ -76,6 +85,6 @@ export function withoutThreats(content: LevelContent): LevelContent {
     // The level's sequences stay: a debug start still works with no wave (story 4.4).
     sequences: content.sequences,
     // So do its house chores (story 9.4): a station is no threat, and `createSim` refuses one whose def is lost.
-    ...(content.chores === undefined ? {} : { chores: content.chores }),
+    ...(chores === undefined ? {} : { chores }),
   };
 }

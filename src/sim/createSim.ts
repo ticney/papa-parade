@@ -11,7 +11,11 @@ import {
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
-import { CHORE_STATION_OBJECT_KINDS } from './chores/chores.ts';
+import {
+  CHORE_STATION_OBJECT_KINDS,
+  openThreatAnchorProblem,
+  openThreatPlanProblem,
+} from './chores/chores.ts';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
 import type {
@@ -275,7 +279,14 @@ function simLevelOf(
       first === index,
       `${entry.where}: the anchor "${entry.anchor}" is already planned by ${(planned[first] as { where: string }).where}`,
     );
-    return { def, anchorId: entry.anchor, firstWaveIndex: entry.waveIndex, zone };
+    return {
+      def,
+      anchorId: entry.anchor,
+      firstWaveIndex: entry.waveIndex,
+      zone,
+      // Filled in below, once the chores that name an open-door threat are known (story 9.6).
+      openChoreIndex: -1,
+    };
   });
   if (microSleepDef !== undefined) {
     const where = `level ${level.level.id} › gauges.fatigue.microSleepDef`;
@@ -297,7 +308,13 @@ function simLevelOf(
         `${where}: the threat "${microSleepDef}" has the gag "${gag}", but a micro-sleep must have the gag "${PAPA_ASLEEP_GAG_ID}"`,
       );
     }
-    threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1, zone: null });
+    threats.push({
+      def,
+      anchorId: PAPA_TARGET_ANCHOR_ID,
+      firstWaveIndex: -1,
+      zone: null,
+      openChoreIndex: -1,
+    });
   }
   const microSleepIndex = microSleepDef === undefined ? -1 : threats.length - 1;
   // The cry in the arms (story 4.1) is pushed after the micro-sleep, which keeps its own index.
@@ -353,7 +370,13 @@ function simLevelOf(
         `${where}: the threat "${armsCryDef}" has the gag "${PAPA_ASLEEP_GAG_ID}", which is the micro-sleep's alone`,
       );
     }
-    threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1, zone: null });
+    threats.push({
+      def,
+      anchorId: PAPA_TARGET_ANCHOR_ID,
+      firstWaveIndex: -1,
+      zone: null,
+      openChoreIndex: -1,
+    });
   }
   // Captured here: the duel threats pushed below come after the cry and must not move its index.
   const armsCryIndex = armsCryDef === undefined ? -1 : threats.length - 1;
@@ -394,7 +417,7 @@ function simLevelOf(
   // The house chores (story 9.4): `level.chores` and `content.chores` are index-aligned; the words
   // are `content:check`'s and the level schema's. Every station object must be named, and once.
   // `abandoned` is filled in below, once every other threat is planned (the pot comes last).
-  const choreBases: Omit<SimLevel['chores'][number], 'abandoned'>[] = [];
+  const choreBases: Omit<SimLevel['chores'][number], 'abandoned' | 'openThreatIndex'>[] = [];
   (level.level.chores ?? []).forEach((entry, i) => {
     const where = `level ${level.level.id} › chores[${i}]`;
     const def = level.chores?.[i];
@@ -497,6 +520,7 @@ function simLevelOf(
         anchorId: PAPA_TARGET_ANCHOR_ID,
         firstWaveIndex: -1,
         zone: null,
+        openChoreIndex: -1,
       });
       duelIndexByDef.set(step.threatDef, threats.length - 1);
       return threats.length - 1;
@@ -517,6 +541,7 @@ function simLevelOf(
         anchorId: BABY_TARGET_ANCHOR_ID,
         firstWaveIndex: -1,
         zone: null,
+        openChoreIndex: -1,
       });
       duelIndexByDef.set(defId, threats.length - 1);
       return threats.length - 1;
@@ -540,13 +565,56 @@ function simLevelOf(
       stealthThreatIndexes,
     });
   });
+  // The open door of a chore (story 9.6): the threat its `openThreat` names is one of the wave threats
+  // planned above, exactly once, at the anchor of the chore's station. It is told which chore it is the
+  // door of (`openChoreIndex`), which the director reads. The words are `content:check`'s (the
+  // « with no chore of that def » refusal is its alone: the sim sees the chores of its own level only).
+  const openThreatIndexOf = (
+    base: Omit<SimLevel['chores'][number], 'abandoned' | 'openThreatIndex'>,
+    choreIndex: number,
+    where: string,
+  ): number | null => {
+    const openThreat = base.def.openThreat;
+    if (openThreat === undefined) return null;
+    const plannedIndexes: number[] = [];
+    planned.forEach((entry, k) => {
+      if (entry.def === openThreat) plannedIndexes.push(k);
+    });
+    const planProblem = openThreatPlanProblem(base.def.id, openThreat, plannedIndexes.length);
+    invariant(planProblem === null, `${where}: ${planProblem}`);
+    const k = plannedIndexes[0] as number;
+    const def = threats[k]?.def as ThreatDef;
+    invariant(
+      def.target === 'anchor',
+      `${where}: the threat "${openThreat}" has target "${def.target}", but the open threat of a chore must have target "anchor"`,
+    );
+    const object = level.level.objects.find((candidate) => candidate.id === base.objectId);
+    invariant(
+      object !== undefined,
+      `${where}: the object "${base.objectId}" is not in the level objects`,
+    );
+    const anchorProblem = openThreatAnchorProblem(
+      base.def.id,
+      openThreat,
+      (planned[k] as { anchor: string }).anchor,
+      object.anchor,
+    );
+    invariant(anchorProblem === null, `${where}: ${anchorProblem}`);
+    invariant(
+      (threats[k] as SimLevel['threats'][number]).openChoreIndex === -1,
+      `${where}: the threat "${openThreat}" is already the open threat of another chore`,
+    );
+    threats[k] = { ...(threats[k] as SimLevel['threats'][number]), openChoreIndex: choreIndex };
+    return k;
+  };
   // The pot of an abandoned chore (story 9.5): one instance per chore that names one, pushed after every
   // other planned threat so that none of their indices moves. It stands at the station's anchor, in no
   // wave's pool (`firstWaveIndex` -1): only the chore system telegraphs it. The words are `content:check`'s.
   const chores: SimLevel['chores'][number][] = choreBases.map((base, i) => {
-    const abandonedThreat = base.def.abandonedThreat;
-    if (abandonedThreat === undefined) return { ...base, abandoned: null };
     const where = `level ${level.level.id} › chores[${i}]`;
+    const openThreatIndex = openThreatIndexOf(base, i, where);
+    const abandonedThreat = base.def.abandonedThreat;
+    if (abandonedThreat === undefined) return { ...base, abandoned: null, openThreatIndex };
     const def = Object.hasOwn(level.threats, abandonedThreat.def)
       ? level.threats[abandonedThreat.def]
       : undefined;
@@ -577,10 +645,17 @@ function simLevelOf(
       object !== undefined,
       `${where}: the object "${base.objectId}" is not in the level objects`,
     );
-    threats.push({ def, anchorId: object.anchor, firstWaveIndex: -1, zone: null });
+    threats.push({
+      def,
+      anchorId: object.anchor,
+      firstWaveIndex: -1,
+      zone: null,
+      openChoreIndex: -1,
+    });
     return {
       ...base,
       abandoned: { threatIndex: threats.length - 1, afterMs: abandonedThreat.afterMs },
+      openThreatIndex,
     };
   });
   const levelFinalRush = level.level.finalRush;
@@ -895,6 +970,8 @@ export async function createSimWithSystems(
       beatTelegraphAt: asSimMs(0),
       beatWindowOpenAt: asSimMs(0),
       responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+      beatsMissed: 0,
+      isOpen: false,
     });
   });
   simLevel.disruptions.forEach(() => {

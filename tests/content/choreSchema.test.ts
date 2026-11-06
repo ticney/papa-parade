@@ -60,8 +60,37 @@ describe('content/chores/cooking.json (story 9.4)', () => {
   });
 
   it('lists the station kinds, each of them an object kind', () => {
-    expect([...CHORE_STATION_KINDS]).toEqual(['stove']);
+    expect([...CHORE_STATION_KINDS]).toEqual(['stove', 'dishwasher']);
     for (const kind of CHORE_STATION_KINDS) expect(OBJECT_KINDS).toContain(kind);
+  });
+
+  it('keeps the dishwasher keys out of the cooking (story 9.6: absent, no default)', () => {
+    for (const key of ['missBrokenObjects', 'missNoisePct', 'openThreat']) {
+      expect(Object.hasOwn(real, key), key).toBe(false);
+    }
+  });
+
+  it('keeps `missBrokenObjects` optional, a whole number of at least 1 (story 9.6)', () => {
+    expect(parse({ ...real, missBrokenObjects: 1 })).toMatchObject({ ok: true });
+    expect(parse({ ...real, missBrokenObjects: 3 })).toMatchObject({ ok: true });
+    for (const value of [0, -1, 1.5]) {
+      expect(pathsOf({ ...real, missBrokenObjects: value })).toEqual(['missBrokenObjects']);
+    }
+  });
+
+  it('keeps `missNoisePct` optional, above 0 and at most 100 (story 9.6)', () => {
+    expect(parse({ ...real, missNoisePct: 10 })).toMatchObject({ ok: true });
+    expect(parse({ ...real, missNoisePct: 100 })).toMatchObject({ ok: true });
+    expect(parse({ ...real, missNoisePct: 0.5 })).toMatchObject({ ok: true });
+    for (const value of [0, -5, 100.1]) {
+      expect(pathsOf({ ...real, missNoisePct: value })).toEqual(['missNoisePct']);
+    }
+  });
+
+  it('keeps `openThreat` optional, a lower_snake_case threat id (story 9.6)', () => {
+    expect(parse({ ...real, openThreat: 'dishwasher_open' })).toMatchObject({ ok: true });
+    expect(pathsOf({ ...real, openThreat: 'Dishwasher' })).toEqual(['openThreat']);
+    expect(pathsOf({ ...real, openThreat: 3 })).toEqual(['openThreat']);
   });
 
   it('refuses an unknown key, a missing key and a beat with no delay', () => {
@@ -138,13 +167,22 @@ describe('the level key `chores` (story 9.4)', () => {
   const parseLevel = (value: unknown) =>
     parseContentFile('content/levels/salon_kitchen.json', JSON.stringify(value), LevelSchema);
 
-  it('is declared by the kitchen alone, on its stove, and absent from the other levels', () => {
-    expect(kitchen.chores).toEqual([{ def: 'cooking', object: 'stove' }]);
-    expect(
-      (kitchen.objects as { id: string; kind: string; anchor: string }[]).find(
-        (object) => object.id === 'stove',
-      ),
-    ).toEqual({ id: 'stove', kind: 'stove', anchor: 'stove' });
+  it('is declared by the kitchen alone, on its stove and its dishwasher, and absent from the other levels', () => {
+    expect(kitchen.chores).toEqual([
+      { def: 'cooking', object: 'stove' },
+      { def: 'unload_dishwasher', object: 'dishwasher' },
+    ]);
+    const objects = kitchen.objects as { id: string; kind: string; anchor: string }[];
+    expect(objects.find((object) => object.id === 'stove')).toEqual({
+      id: 'stove',
+      kind: 'stove',
+      anchor: 'stove',
+    });
+    expect(objects.find((object) => object.id === 'dishwasher')).toEqual({
+      id: 'dishwasher',
+      kind: 'dishwasher',
+      anchor: 'dishwasher',
+    });
     for (const id of ['salon_crawler', 'chambre_night']) {
       expect(Object.hasOwn(read(`content/levels/${id}.json`), 'chores'), id).toBe(false);
     }
@@ -154,7 +192,9 @@ describe('the level key `chores` (story 9.4)', () => {
     const { chores: _chores, objects, ...rest } = kitchen;
     const parsed = parseLevel({
       ...rest,
-      objects: (objects as { kind: string }[]).filter((object) => object.kind !== 'stove'),
+      objects: (objects as { kind: string }[]).filter(
+        (object) => !CHORE_STATION_KINDS.some((kind) => kind === object.kind),
+      ),
     });
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(Object.hasOwn(parsed.value, 'chores')).toBe(false);
@@ -162,14 +202,16 @@ describe('the level key `chores` (story 9.4)', () => {
 
   const messagesOf = (result: ReturnType<typeof parseLevel>): string[] =>
     result.ok ? [] : result.error.map((problem) => `${problem.jsonPath}: ${problem.message}`);
-  const withoutStove = (extra: Record<string, unknown> = {}) => ({
+  const withoutStations = (extra: Record<string, unknown> = {}) => ({
     ...kitchen,
-    objects: (kitchen.objects as { kind: string }[]).filter((object) => object.kind !== 'stove'),
+    objects: (kitchen.objects as { kind: string }[]).filter(
+      (object) => !CHORE_STATION_KINDS.some((kind) => kind === object.kind),
+    ),
     ...extra,
   });
 
   it('refuses an empty list: only that rule fires, since the level has no station left', () => {
-    expect(messagesOf(parseLevel(withoutStove({ chores: [] })))).toEqual([
+    expect(messagesOf(parseLevel(withoutStations({ chores: [] })))).toEqual([
       'chores: Too small: expected array to have >=1 items',
     ]);
   });
@@ -179,11 +221,12 @@ describe('the level key `chores` (story 9.4)', () => {
       ...kitchen,
       chores: [
         { def: 'cooking', object: 'stove' },
+        { def: 'unload_dishwasher', object: 'dishwasher' },
         { def: 'cooking', object: 'nowhere' },
       ],
     });
     expect(messagesOf(missing)).toEqual([
-      'chores[1].object: chores[1]: the object "nowhere" is not in the level objects',
+      'chores[2].object: chores[2]: the object "nowhere" is not in the level objects',
     ]);
   });
 
@@ -192,11 +235,12 @@ describe('the level key `chores` (story 9.4)', () => {
       ...kitchen,
       chores: [
         { def: 'cooking', object: 'stove' },
+        { def: 'unload_dishwasher', object: 'dishwasher' },
         { def: 'cooking', object: 'stove' },
       ],
     });
     expect(messagesOf(twice)).toEqual([
-      'chores[1].object: chores[1]: the object "stove" is already the station of another chore',
+      'chores[2].object: chores[2]: the object "stove" is already the station of another chore',
     ]);
   });
 

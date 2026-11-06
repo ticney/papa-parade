@@ -72,6 +72,12 @@ export interface ChoreCounts {
   homePoints: number;
   /** The pots of abandoned chores (story 9.5): telegraphed, lowered in time (`success` / `perfect`), boiled over. */
   abandoned: AbandonedCounts;
+  /** Each chore def of the level (story 9.6): whether it was finished in the run (0 or 1) and its beats by quality. */
+  byDef: Record<string, DefChoreCounts>;
+  /** The objects the chores broke (story 9.6): a missed beat of a def with `missBrokenObjects` breaks that many. */
+  objectsBroken: number;
+  /** The open-door threats of the chores (story 9.6): telegraphed, closed in time (`success` / `perfect`), the baby got in (gag). */
+  open: OpenDoorCounts;
 }
 
 /** The threat an abandoned chore turns into (story 9.5), over a run or over the runs. */
@@ -81,12 +87,31 @@ export interface AbandonedCounts {
   boiledOver: number;
 }
 
-function emptyChoreCounts(): ChoreCounts {
+/** One chore def over a run (story 9.6): finished or not, and its beats judged by quality. */
+export interface DefChoreCounts {
+  completed: number;
+  beats: { perfect: number; success: number; fail: number };
+}
+
+/** The open-door threats of the chores (story 9.6), over a run or over the runs. */
+export interface OpenDoorCounts {
+  telegraphed: number;
+  closed: number;
+  gagged: number;
+}
+
+/** The counts of a run that has seen nothing yet; `defIds` are the chore defs the level declares, in order. */
+function emptyChoreCounts(defIds: readonly string[] = []): ChoreCounts {
   return {
     beats: { perfect: 0, success: 0, fail: 0 },
     completed: 0,
     homePoints: 0,
     abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+    byDef: Object.fromEntries(
+      defIds.map((id) => [id, { completed: 0, beats: { perfect: 0, success: 0, fail: 0 } }]),
+    ),
+    objectsBroken: 0,
+    open: { telegraphed: 0, closed: 0, gagged: 0 },
   };
 }
 
@@ -347,7 +372,14 @@ export function createRunRecorder(
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
-  const chores: ChoreCounts = emptyChoreCounts();
+  const chores: ChoreCounts = emptyChoreCounts(sim.chores.map((chore) => chore.def.id));
+  // The threat instances that are the open door of a chore (story 9.6), by id: they never change after `createSim`.
+  const openDoorThreatIds = new Set<number>();
+  for (const chore of sim.chores) {
+    const door =
+      chore.openThreatIndex === null ? undefined : sim.world.threats[chore.openThreatIndex];
+    if (door !== undefined) openDoorThreatIds.add(door.id);
+  }
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
@@ -417,6 +449,7 @@ export function createRunRecorder(
         systemThreatIds.add(event.threatId);
       } else if (event.type === 'ThreatTelegraphed') {
         activeCount++;
+        if (openDoorThreatIds.has(event.threatId)) chores.open.telegraphed++;
         const wave = waveTallies[event.waveIndex];
         if (wave !== undefined) {
           wave.telegraphs++;
@@ -437,9 +470,16 @@ export function createRunRecorder(
         toiletVisits++;
       } else if (event.type === 'ChoreBeatJudged') {
         chores.beats[event.quality]++;
+        const planned = sim.chores[event.choreIndex];
+        const counts = planned === undefined ? undefined : chores.byDef[planned.def.id];
+        if (counts !== undefined) counts.beats[event.quality]++;
+        // A missed beat breaks what the def says it breaks (a plate); the cooking breaks nothing.
+        if (event.quality === 'fail') chores.objectsBroken += planned?.def.missBrokenObjects ?? 0;
       } else if (event.type === 'ChoreCompleted') {
         chores.completed++;
         chores.homePoints += event.homePoints;
+        const counts = chores.byDef[sim.chores[event.choreIndex]?.def.id ?? ''];
+        if (counts !== undefined) counts.completed++;
       } else if (event.type === 'SequenceStarted') {
         sequencesStarted++;
         outcomesOf(sequenceOutcomes, event.id).started++;
@@ -511,6 +551,7 @@ export function createRunRecorder(
         tally.responses++;
         tally[event.quality]++;
         if (abandonedDefs.has(defId) && event.quality !== 'fail') chores.abandoned.resolved++;
+        if (openDoorThreatIds.has(event.threatId) && event.quality !== 'fail') chores.open.closed++;
         if (event.quality === 'fail' && event.reason !== undefined) {
           tally.failReasons[event.reason]++;
         }
@@ -524,6 +565,8 @@ export function createRunRecorder(
         if (event.gag === PAPA_ASLEEP_GAG_ID) asleepGags++;
         // Counted by the gagged threat's def, as the telegraphs and the lowerings are, not by the gag id.
         if (abandonedDefs.has(defIdOf.get(event.threatId) ?? '')) chores.abandoned.boiledOver++;
+        // The baby got into the open dishwasher (story 9.6): counted by the threat that gagged, as the pot is.
+        if (openDoorThreatIds.has(event.threatId)) chores.open.gagged++;
       } else if (event.type === 'NearMiss') {
         nearMisses++;
       } else if (event.type === 'AfterEffectStarted') {
@@ -580,7 +623,18 @@ export function createRunRecorder(
         comboPeakMultiplier,
         instinctTriggers,
         toiletVisits,
-        chores: { ...chores, beats: { ...chores.beats }, abandoned: { ...chores.abandoned } },
+        chores: {
+          ...chores,
+          beats: { ...chores.beats },
+          abandoned: { ...chores.abandoned },
+          byDef: Object.fromEntries(
+            Object.entries(chores.byDef).map(([id, counts]) => [
+              id,
+              { completed: counts.completed, beats: { ...counts.beats } },
+            ]),
+          ),
+          open: { ...chores.open },
+        },
         sequencesStarted,
         sequencesSucceeded,
         sequencesFailed,
@@ -754,6 +808,18 @@ export interface SimReport {
     meanBeatsPerRun: number;
     /** The pots of the abandoned chores over the runs (story 9.5): telegraphed, lowered in time, boiled over. */
     abandoned: AbandonedCounts;
+    /**
+     * Each chore def of the level over the runs (story 9.6): the runs where it was finished, its beats by
+     * quality and the mean beats missed per run (each one a gag of the chore: smoke, a broken plate).
+     */
+    byDef: Record<
+      string,
+      { runsCompleted: number; beats: ChoreCounts['beats']; meanBeatsMissed: number }
+    >;
+    /** The mean objects the chores broke per run (story 9.6): the plates, each costing Mama's Soupir. */
+    meanObjectsBroken: number;
+    /** The open-door threats of the chores over the runs (story 9.6): telegraphed, closed in time, gagged. */
+    open: OpenDoorCounts;
   };
   /** The special sequences started, won and lost, over the runs (story 4.4). */
   sequencesStarted: number;
@@ -900,6 +966,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   const choreBeats = { perfect: 0, success: 0, fail: 0 };
   let choreHomePoints = 0;
   const choreAbandoned: AbandonedCounts = { telegraphed: 0, resolved: 0, boiledOver: 0 };
+  const choreByDef: Record<string, { runsCompleted: number; beats: ChoreCounts['beats'] }> = {};
+  let choreObjectsBroken = 0;
+  const choreOpen: OpenDoorCounts = { telegraphed: 0, closed: 0, gagged: 0 };
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
@@ -1004,6 +1073,21 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     choreAbandoned.telegraphed += run.chores.abandoned.telegraphed;
     choreAbandoned.resolved += run.chores.abandoned.resolved;
     choreAbandoned.boiledOver += run.chores.abandoned.boiledOver;
+    for (const [id, counts] of Object.entries(run.chores.byDef)) {
+      let total = choreByDef[id];
+      if (total === undefined) {
+        total = { runsCompleted: 0, beats: { perfect: 0, success: 0, fail: 0 } };
+        choreByDef[id] = total;
+      }
+      if (counts.completed > 0) total.runsCompleted++;
+      total.beats.perfect += counts.beats.perfect;
+      total.beats.success += counts.beats.success;
+      total.beats.fail += counts.beats.fail;
+    }
+    choreObjectsBroken += run.chores.objectsBroken;
+    choreOpen.telegraphed += run.chores.open.telegraphed;
+    choreOpen.closed += run.chores.open.closed;
+    choreOpen.gagged += run.chores.open.gagged;
     sequencesStarted += run.sequencesStarted;
     sequencesSucceeded += run.sequencesSucceeded;
     sequencesFailed += run.sequencesFailed;
@@ -1155,6 +1239,18 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
           ? 0
           : round((choreBeats.perfect + choreBeats.success + choreBeats.fail) / runs.length, 1),
       abandoned: choreAbandoned,
+      byDef: Object.fromEntries(
+        Object.entries(choreByDef).map(([id, total]) => [
+          id,
+          {
+            runsCompleted: total.runsCompleted,
+            beats: total.beats,
+            meanBeatsMissed: runs.length === 0 ? 0 : round(total.beats.fail / runs.length, 2),
+          },
+        ]),
+      ),
+      meanObjectsBroken: runs.length === 0 ? 0 : round(choreObjectsBroken / runs.length, 2),
+      open: choreOpen,
     },
     sequencesStarted,
     sequencesSucceeded,

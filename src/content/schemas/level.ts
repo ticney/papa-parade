@@ -25,9 +25,9 @@ export type GaugeId = (typeof GAUGE_IDS)[number];
 /**
  * What an interactive object is, hence what Papa does on arriving at it: the sim has one action per
  * kind (a `Record<ObjectKind, …>`, so a kind with no action does not compile). The phone's is story 1.20,
- * the toilet's story 4.3.
+ * the toilet's story 4.3, the stove's and the dishwasher's (the two chore stations) stories 9.4 and 9.6.
  */
-export const OBJECT_KINDS = ['coffee_machine', 'phone', 'toilet', 'stove'] as const;
+export const OBJECT_KINDS = ['coffee_machine', 'phone', 'toilet', 'stove', 'dishwasher'] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
 
 // Every chore station is an object kind (story 9.4): a station kind that is not one does not compile.

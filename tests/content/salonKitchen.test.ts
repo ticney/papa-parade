@@ -193,9 +193,13 @@ describe('the live salon_kitchen level (story 9.2)', () => {
     const sim = await createSim({ content, geometry, level, seed: 1, strictInvariants: true });
     try {
       const { papa } = sim.world;
-      // The planned threat Papa can press that stands farthest from his spawn.
+      // The planned threat Papa can press that stands farthest from his spawn. The open dishwasher is a
+      // wave threat the director draws only while its chore is paused and open (story 9.6): `ForceThreat`
+      // ignores it, so it is not the one to force here.
+      const doorDefIds = new Set((level.chores ?? []).map((chore) => chore.openThreat));
       const pressable = sim.world.threats.filter(
-        (threat) => level.threats[threat.defId]?.target === 'anchor',
+        (threat) =>
+          level.threats[threat.defId]?.target === 'anchor' && !doorDefIds.has(threat.defId),
       );
       const farthest = pressable.reduce((best, threat) =>
         Math.hypot(threat.xM - papa.xM, threat.zM - papa.zM) >
@@ -223,6 +227,69 @@ describe('the live salon_kitchen level (story 9.2)', () => {
       while (sim.world.time.sim < glide.arriveAt + STEP_MS) sim.step();
       expect(sim.world.papa.xM).toBeCloseTo(glide.toXM, 6);
       expect(sim.world.papa.zM).toBeCloseTo(glide.toZM, 6);
+    } finally {
+      sim.dispose();
+    }
+  });
+});
+
+describe('the live salon_kitchen dishwasher (story 9.6)', () => {
+  async function loaded() {
+    const result = await loadSimLevel(
+      fileURLToPath(new URL('../../content', import.meta.url)),
+      'salon_kitchen',
+    );
+    if (!result.ok) throw new Error(result.error);
+    return result.value;
+  }
+
+  it('has the dishwasher object at the dishwasher anchor, and both chores in order', async () => {
+    const { level } = await loaded();
+    expect(level.level.objects).toContainEqual({
+      id: 'dishwasher',
+      kind: 'dishwasher',
+      anchor: 'dishwasher',
+    });
+    // The cooking keeps index 0: nothing that reads chores by position moves.
+    expect(level.level.chores).toEqual([
+      { def: 'cooking', object: 'stove' },
+      { def: 'unload_dishwasher', object: 'dishwasher' },
+    ]);
+  });
+
+  it('pays the whole Maison row with the two chores, 7.5 points each', async () => {
+    const { content, level } = await loaded();
+    const points = (level.chores ?? []).map((chore) => chore.homePoints);
+    expect(points).toEqual([7.5, 7.5]);
+    expect(points.reduce((sum, value) => sum + value, 0)).toBe(content.feel.mama.homeMaxPoints);
+  });
+
+  it('plans the open dishwasher once, at the dishwasher anchor, from the first wave', async () => {
+    const { level } = await loaded();
+    const planned = level.level.waves.flatMap((wave, w) =>
+      wave.threats.filter((threat) => threat.def === 'dishwasher_open').map(() => w),
+    );
+    expect(planned).toEqual([0]);
+    expect(level.level.waves[0]?.threats).toContainEqual({
+      def: 'dishwasher_open',
+      anchor: 'dishwasher',
+    });
+    expect(level.chores?.[1]?.openThreat).toBe('dishwasher_open');
+    expect(level.threats.dishwasher_open?.target).toBe('anchor');
+  });
+
+  it('plans the sim: the dishwasher is the second station and its chore knows its door', async () => {
+    const { content, geometry, level } = await loaded();
+    const sim = await createSim({ content, geometry, level, seed: 1, strictInvariants: true });
+    try {
+      expect(sim.chores.map((chore) => chore.objectId)).toEqual(['stove', 'dishwasher']);
+      expect(sim.chores[0]?.openThreatIndex).toBeNull();
+      const doorIndex = sim.chores[1]?.openThreatIndex;
+      expect(doorIndex).not.toBeNull();
+      expect(sim.world.threats[doorIndex as number]?.defId).toBe('dishwasher_open');
+      // The station stands on the anchor the door does (the stations' floor point is the anchor's).
+      const anchor = geometry.anchors.find((candidate) => candidate.id === 'dishwasher');
+      expect(sim.chores[1]).toMatchObject({ xM: anchor?.positionM[0], zM: anchor?.positionM[2] });
     } finally {
       sim.dispose();
     }

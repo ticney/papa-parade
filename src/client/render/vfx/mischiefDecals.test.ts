@@ -107,7 +107,12 @@ describe('visibleDecalPoint', () => {
 
 describe('createDecalGeometry', () => {
   it('lies flat on the floor and is the same every time for the same mark', () => {
-    for (const gag of ['tissues_everywhere', 'crayon_scribbles', 'pot_boiled_over']) {
+    for (const gag of [
+      'tissues_everywhere',
+      'crayon_scribbles',
+      'pot_boiled_over',
+      'baby_in_dishwasher',
+    ]) {
       const a = createDecalGeometry(gag, 3);
       const b = createDecalGeometry(gag, 3);
       const positions = a.getAttribute('position');
@@ -132,7 +137,7 @@ describe('createDecalGeometry', () => {
     for (const geometry of [first, second, crayon]) geometry.dispose();
   });
 
-  it.each(['tissues_everywhere', 'crayon_scribbles', 'pot_boiled_over'])(
+  it.each(['tissues_everywhere', 'crayon_scribbles', 'pot_boiled_over', 'baby_in_dishwasher'])(
     'indexes only vertices it made (%s)',
     (gag) => {
       const geometry = createDecalGeometry(gag, 2);
@@ -153,6 +158,26 @@ describe('createDecalGeometry', () => {
     expect(puree.getAttribute('position').count).not.toBe(tissues.getAttribute('position').count);
     expect(puree.getAttribute('position').count).not.toBe(crayons.getAttribute('position').count);
     for (const geometry of [puree, tissues, crayons]) geometry.dispose();
+  });
+
+  it('draws the cutlery of the open dishwasher as pieces with a head, not the tissues, the crayons or the purée (story 9.6)', () => {
+    const cutlery = createDecalGeometry('baby_in_dishwasher', 0);
+    // Six pieces, each a thin shaft and a wider head: two quads of four corners.
+    expect(cutlery.getAttribute('position').count).toBe(6 * 2 * 4);
+    for (const gag of ['tissues_everywhere', 'crayon_scribbles', 'pot_boiled_over']) {
+      const other = createDecalGeometry(gag, 0);
+      expect(cutlery.getAttribute('position').count, gag).not.toBe(
+        other.getAttribute('position').count,
+      );
+      other.dispose();
+    }
+    // Strewn round the mark, differently from one mark to the next.
+    const second = createDecalGeometry('baby_in_dishwasher', 1);
+    expect(Array.from(second.getAttribute('position').array)).not.toEqual(
+      Array.from(cutlery.getAttribute('position').array),
+    );
+    cutlery.dispose();
+    second.dispose();
   });
 });
 
@@ -202,5 +227,15 @@ describe('createMischiefDecals', () => {
     const { toon, decals } = build();
     decals.sync([mark('tissues_everywhere', -2, 2), mark('tissues_everywhere', 1, 2)], PHOTO);
     expect(toon.size).toBe(1);
+  });
+
+  it('draws the baby’s dishwasher as cutlery in a steel grey of its own, not the tissues’ white (story 9.6)', () => {
+    const { parent, decals, toon } = build();
+    decals.sync([mark('tissues_everywhere', -2, 2), mark('baby_in_dishwasher', -1, 2)], PHOTO);
+    const [tissues, cutlery] = parent.children as Mesh[];
+    expect(cutlery?.name).toBe('mischief_decal_1');
+    expect(cutlery?.material).not.toBe(tissues?.material);
+    expect(toon.size).toBe(2);
+    expect(cutlery?.geometry.getAttribute('position').count).toBe(6 * 2 * 4);
   });
 });

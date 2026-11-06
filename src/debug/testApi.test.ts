@@ -573,6 +573,7 @@ describe('fx (story 2.5)', () => {
       dangerTintsShown: 0,
       lightsFactor: 1,
       mischiefDecals: 0,
+      choreShards: 0,
     };
     const host = createFakeTestHost();
     (host as { fxState: () => typeof state }).fxState = () => state;
@@ -592,6 +593,7 @@ describe('fx (story 2.5)', () => {
       dangerTintsShown: 1,
       lightsFactor: 0.4,
       mischiefDecals: 2,
+      choreShards: 0,
     };
     expect(api.fx()).toEqual(state);
   });

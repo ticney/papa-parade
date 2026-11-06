@@ -382,6 +382,8 @@ describe('scoreLevel', () => {
       beatTelegraphAt: asSimMs(0),
       beatWindowOpenAt: asSimMs(0),
       responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+      beatsMissed: 0,
+      isOpen: false,
     });
     const planned = (homePoints: number) => ({ def: { homePoints } });
     const run = (states: ('done' | 'paused' | 'working' | 'untouched')[], points: number[]) => {
@@ -402,6 +404,60 @@ describe('scoreLevel', () => {
     expect(run(['done', 'done'], [7.5, 7.5])).toBe(15);
     // Held to the row's maximum: the sum may not be worth more.
     expect(run(['done', 'done'], [10, 10])).toBe(mama.homeMaxPoints);
+  });
+
+  it('counts the plates a chore broke in the Soupir, only for a def that breaks objects (story 9.6)', () => {
+    const feel = createTestContent().feel;
+    const world = createWorld({
+      seed: 1,
+      feel,
+      papaSpawn: { xM: 0, zM: 0 },
+      babySpawn: { xM: 1, zM: 1 },
+      firstWanderAt: asSimMs(0),
+    });
+    world.time.sim = asSimMs(500);
+    world.score.calmMs = 500;
+    const instance = (beatsMissed: number) => ({
+      state: 'paused' as const,
+      enteredAt: asSimMs(0),
+      beatsDone: 0,
+      beatState: 'none' as const,
+      beatTelegraphAt: asSimMs(0),
+      beatWindowOpenAt: asSimMs(0),
+      responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+      beatsMissed,
+      isOpen: false,
+    });
+    const sighOf = (
+      beatsMissed: number[],
+      defs: { missBrokenObjects?: number }[],
+      propsBroken = 0,
+    ): number | undefined => {
+      world.chores = beatsMissed.map(instance);
+      world.mess.propsBroken = propsBroken;
+      const ctx = {
+        events: [] as SimEvent[],
+        feel,
+        level: { chores: defs.map((def) => ({ def: { homePoints: 0, ...def } })) },
+      } as unknown as StepContext;
+      scoreLevel(world, ctx, 'timer');
+      return world.score.final?.sighPoints;
+    };
+    const { sighPerBrokenPropPoints } = feel.mama;
+    // One plate per missed beat, each the Soupir of a broken object.
+    expect(sighOf([1], [{ missBrokenObjects: 1 }])).toBe(sighPerBrokenPropPoints);
+    expect(sighOf([2], [{ missBrokenObjects: 1 }])).toBe(2 * sighPerBrokenPropPoints);
+    // A def that breaks two objects per miss: twice the plates.
+    expect(sighOf([1], [{ missBrokenObjects: 2 }])).toBe(2 * sighPerBrokenPropPoints);
+    // A chore whose def breaks nothing (the cooking) costs no Soupir, however many beats it missed.
+    expect(sighOf([5], [{}])).toBe(0);
+    // They add to the objects the physics broke, and to each other across chores.
+    expect(sighOf([1], [{ missBrokenObjects: 1 }], 1)).toBe(2 * sighPerBrokenPropPoints);
+    expect(sighOf([1, 1], [{ missBrokenObjects: 1 }, { missBrokenObjects: 1 }])).toBe(
+      2 * sighPerBrokenPropPoints,
+    );
+    // Held to the row's maximum like every other Soupir.
+    expect(sighOf([99], [{ missBrokenObjects: 1 }])).toBe(feel.mama.sighMaxPoints);
   });
 
   it('passes the reason: mamaWoke takes the penalty off the stars, in the world and in the event', () => {

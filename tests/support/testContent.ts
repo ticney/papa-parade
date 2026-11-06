@@ -268,6 +268,15 @@ export function createTestAbandonableCooking(afterMs = 30_000): ChoreDef {
   return { ...createTestCooking(), abandonedThreat: { def: 'pot_on_stove', afterMs } };
 }
 
+/**
+ * The open dishwasher, frozen like the outlet (`testDishwasherOpen.threat.json`, story 9.6): the threat of
+ * the dishwasher chore's open door, a parry on an anchor that the director may draw only while the chore
+ * is paused with its door open.
+ */
+export function createTestDishwasherOpen(): ThreatDef {
+  return readThreatFixture('testDishwasherOpen.threat.json');
+}
+
 /** The micro-sleep, frozen like the outlet (`testMicroSleep.threat.json`): the threat on Papa. */
 export function createTestMicroSleep(): ThreatDef {
   return readThreatFixture('testMicroSleep.threat.json');
@@ -310,6 +319,24 @@ export function createTestCooking(): ChoreDef {
   const path = 'tests/support/testCooking.chore.json';
   const text = readFileSync(
     fileURLToPath(new URL('./testCooking.chore.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, ChoreDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
+/**
+ * The dishwasher chore (story 9.6), frozen like the cooking (`testDishwasher.chore.json`, same values as
+ * `content/chores/unload_dishwasher.json`; only its `$schema` path differs): four plates to catch, a
+ * missed one breaks an object and makes noise, and it names the open dishwasher's threat.
+ */
+export function createTestUnloadDishwasher(): ChoreDef {
+  const path = 'tests/support/testDishwasher.chore.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testDishwasher.chore.json', import.meta.url)),
     'utf8',
   );
   const parsed = parseContentFile(path, text, ChoreDefSchema);
@@ -503,7 +530,7 @@ export function createTestRealWake(): ThreatDef {
   return readThreatFixture('testRealWake.threat.json');
 }
 
-/** The thirteen frozen threats, by id. */
+/** The fourteen frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -519,6 +546,7 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestFalseAlarm(),
     createTestRealWake(),
     createTestPot(),
+    createTestDishwasherOpen(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -666,7 +694,9 @@ export function createTestLevel({
     }
   }
   const choreContent = chores?.map((entry) => {
-    const def = choreDefs[entry.def] ?? createTestCooking();
+    const def =
+      choreDefs[entry.def] ??
+      (entry.def === 'unload_dishwasher' ? createTestUnloadDishwasher() : createTestCooking());
     if (def.id !== entry.def) throw new Error(`no frozen chore "${entry.def}" in tests/support`);
     return structuredClone(def);
   });
@@ -727,6 +757,25 @@ export const TEST_STOVE: LevelObject = { id: 'stove', kind: 'stove', anchor: 'st
 
 /** The frozen cooking on `TEST_STOVE`. */
 export const TEST_COOKING: LevelChore = { def: 'cooking', object: 'stove' };
+
+/**
+ * A dishwasher (story 9.6) at the frozen room's `door` anchor, a floor point Papa reaches (not the
+ * stove's): the station of the frozen dishwasher chore, and where its open-door threat stands.
+ */
+export const TEST_DISHWASHER: LevelObject = {
+  id: 'dishwasher',
+  kind: 'dishwasher',
+  anchor: 'door',
+};
+
+/** The frozen dishwasher chore on `TEST_DISHWASHER`. */
+export const TEST_UNLOAD_DISHWASHER: LevelChore = {
+  def: 'unload_dishwasher',
+  object: 'dishwasher',
+};
+
+/** The open dishwasher at the station's anchor, as a wave plans it (`TEST_DISHWASHER`). */
+export const DISHWASHER_OPEN: LevelWaveThreat = { def: 'dishwasher_open', anchor: 'door' };
 
 /** The toilet of the live level (story 4.3), at the frozen room's `toilet` anchor: not in `TEST_OBJECTS`, a test adds it. */
 export const TEST_TOILET: LevelObject = { id: 'toilet', kind: 'toilet', anchor: 'toilet' };

@@ -48,6 +48,7 @@ export const THREAT_ICONS = [
   'open_hand',
   'sigh',
   'pot',
+  'dishwasher',
 ] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
 
