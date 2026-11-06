@@ -61,8 +61,9 @@ export const ChoreDefSchema = z
     homePoints: z
       .number()
       .min(0)
+      .refine((points) => Number.isInteger(points * 2), 'a whole or a half point (7.5)')
       .describe(
-        'Points of the Maison row of Mama’s note the chore pays once done, halves allowed (7.5). An unfinished chore pays nothing.',
+        'Points of the Maison row of Mama’s note the chore pays once done: whole or half points (7.5), the note counts that way. An unfinished chore pays nothing.',
       ),
     feedback: ChoreFeedbackSchema,
   })

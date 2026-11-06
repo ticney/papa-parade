@@ -150,9 +150,12 @@ export function createTestFeedback(): FeedbackTable {
 export function createTestBots(): BotSettings {
   return {
     tapMs: 80,
+    // Story 9.4: the house chores, at the live starting values. A level with no station never reads
+    // them (no draw, no tap), so they move no existing test; a level with a station gets them.
     chores: { isEnabled: true, quietMinMs: 1500 },
     // Story 3.14 AC 6: these values reduce the human model to the one of before the story (no
-    // reaction draw, `withChronoRing` at the old jitter, nobody inattentive).
+    // reaction draw, `withChronoRing` at the old jitter, nobody inattentive), except the 9.4 delay of
+    // a Papa who works at a station, which only a level with a station reads.
     human: {
       reactionMeanMs: 250,
       reactionSdMs: 0,

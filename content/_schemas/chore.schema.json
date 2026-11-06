@@ -54,7 +54,7 @@
     "homePoints": {
       "type": "number",
       "minimum": 0,
-      "description": "Points of the Maison row of Mama’s note the chore pays once done, halves allowed (7.5). An unfinished chore pays nothing."
+      "description": "Points of the Maison row of Mama’s note the chore pays once done: whole or half points (7.5), the note counts that way. An unfinished chore pays nothing."
     },
     "feedback": {
       "type": "object",

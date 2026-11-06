@@ -1109,13 +1109,10 @@ function checkChoreReferences(
         }
       });
     }
-    if (!(OBJECT_ACTION_KINDS as readonly string[]).includes(chore.station)) {
-      problems.push({
-        file,
-        jsonPath: 'station',
-        message: `the station "${chore.station}" is a kind the sim has no action for (${OBJECT_ACTION_KINDS.join(', ')})`,
-      });
-    }
+    // A station kind with no sim action cannot reach this point: the schema's enum is
+    // `CHORE_STATION_KINDS` (an unknown kind is refused at `station`), each of them is an `ObjectKind`
+    // (proved at compile time in `schemas/level.ts`), and a level's object of a kind the sim has no
+    // action for is refused by `checkLevelReferences`.
   }
   return problems;
 }
@@ -1161,6 +1158,22 @@ function checkLevelChores(
     });
     if (feel === undefined) continue;
     const merged = mergeFeel(feel, level.feelOverrides, file);
+    // A chore that takes the base window (`windowMs: null`) takes the level's: `checkChoreReferences` read
+    // the base feel only, so the delays are read again against the window the sim will use here.
+    if (merged.ok && merged.value.timing.windowMs !== feel.timing.windowMs) {
+      level.chores.forEach((entry, i) => {
+        const chore = families.chores.get(entry.def);
+        if (chore === undefined || chore.windowMs !== null) return;
+        chore.beats.forEach((beat, b) => {
+          if (beat.telegraphDelayMs > merged.value.timing.windowMs) return;
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['chores', i, 'def']),
+            message: `the chore "${entry.def}" has beats[${b}].telegraphDelayMs (${beat.telegraphDelayMs}) which is not above the window of level ${id} (${merged.value.timing.windowMs} ms, its feelOverrides applied): the ring would have no time to be read`,
+          });
+        });
+      });
+    }
     if (merged.ok && totalPoints > merged.value.mama.homeMaxPoints) {
       problems.push({
         file,

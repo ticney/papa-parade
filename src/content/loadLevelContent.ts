@@ -1,4 +1,5 @@
 import './zodConfig.ts';
+import { invariant } from '@shared/invariant';
 import { err, ok, type Result } from '@shared/result';
 import type { LevelContent } from './contentBundle.ts';
 import { type ContentError, type ContentProblem, createContentError } from './contentError.ts';
@@ -233,9 +234,11 @@ export async function loadLevelContent(
   const chores =
     level.chores === undefined
       ? undefined
-      : level.chores.flatMap((entry) => {
+      : level.chores.map((entry) => {
+          // Index-aligned with `level.chores`: a missing def was a problem above, never dropped here.
           const def = choreDefs[entry.def];
-          return def === undefined ? [] : [def];
+          invariant(def !== undefined, `level ${level.id}: the chore ${entry.def} is not loaded`);
+          return def;
         });
   return ok({
     level,

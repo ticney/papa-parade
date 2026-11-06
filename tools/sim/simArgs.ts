@@ -102,6 +102,9 @@ in the rush), per game and over the runs. A game that ends on \`timer\` in a lev
 The end photo (story 3.6) adds \`frozenNearMisses\` (the baby, not carried, within \`feel.endOfLevel.frozenNearMissReachM\` of
 the stairs when the level ends: one for each, counted in Mama's « Hurlement » and kept apart from \`nearMisses\`), per game and
 over the runs.
+The house chores (story 9.4, FR76) add a \`chores\` block, over the runs: \`runsCompleted\` (the games where a chore was finished),
+\`beats\` (the beats judged, by quality: \`perfect\`, \`success\`, \`fail\` for a missed one), \`meanHomePoints\` (the Maison points the chores
+paid per game) and \`meanBeatsPerRun\`; all 0 in a level with no station. The bots do chores when \`bots.json\` › \`chores.isEnabled\` is on.
 The director's fairness (story 3.13, FR75) adds \`fairnessViolations\` (the director-drawn windows that opened closer than
 \`movement.glideMaxMs + director.fairnessMarginMs\` to a window announced before them, inside a found silence's guard, or that were
 drawn while a silence was under way: 0 when the director is right, checked on the events alone), \`stretchedTelegraphs\` (the

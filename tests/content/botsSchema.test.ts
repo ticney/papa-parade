@@ -61,6 +61,7 @@ describe('content/bots.json', () => {
     expect(mutated('human.readError.extra', 1).ok).toBe(false);
     expect(mutated('human.readError.withChronoRing.extra', 1).ok).toBe(false);
     expect(mutated('random.extra', 1).ok).toBe(false);
+    expect(mutated('chores.extra', 1).ok).toBe(false);
   });
 
   it.each([
@@ -75,6 +76,10 @@ describe('content/bots.json', () => {
     'human.readError.withoutChronoRing.sdMs',
     'human.missWhileBusyPct',
     'human.aimOffsetMs',
+    'human.backTurnedReactionMs',
+    'chores',
+    'chores.isEnabled',
+    'chores.quietMinMs',
     'random.maxHoldMs',
   ])('needs %s', (path) => {
     expect(mutated(path, undefined).ok).toBe(false);
@@ -94,6 +99,13 @@ describe('content/bots.json', () => {
     ['human.missWhileBusyPct', -1],
     ['human.missWhileBusyPct', 100.5],
     ['human.jitterSdMs', -0.5],
+    ['human.backTurnedReactionMs', -1],
+    ['human.backTurnedReactionMs', 25_000],
+    ['chores.quietMinMs', -1],
+    ['chores.quietMinMs', 25_000],
+    ['chores.quietMinMs', 'x'],
+    ['chores.isEnabled', 'yes'],
+    ['chores.isEnabled', 1],
     ['random.actionsPerSec', -1],
     ['random.actionsPerSec', 101],
     ['random.floorReachM', 0],
@@ -115,6 +127,9 @@ describe('content/bots.json', () => {
     ['human.missWhileBusyPct', 100],
     ['human.jitterSdMs', 0],
     ['human.aimOffsetMs', -400],
+    ['human.backTurnedReactionMs', 0],
+    ['chores.quietMinMs', 0],
+    ['chores.isEnabled', false],
     ['random.actionsPerSec', 0],
   ])('accepts %s = %s', (path, value) => {
     expect(mutated(path, value).ok).toBe(true);

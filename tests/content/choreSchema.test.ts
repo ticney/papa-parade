@@ -67,8 +67,19 @@ describe('content/chores/cooking.json (story 9.4)', () => {
     expect(pathsOf({ ...real, station: 'sink' })).toEqual(['station']);
   });
 
-  it('accepts halves of points and a window of its own', () => {
-    expect(parse({ ...real, homePoints: 2.5, windowMs: 400 })).toMatchObject({ ok: true });
+  it.each([7.3, 0.1, 2.25, 7.51])(
+    'refuses %s points: the Maison row counts in halves',
+    (points) => {
+      expect(pathsOf({ ...real, homePoints: points })).toEqual(['homePoints']);
+    },
+  );
+
+  it.each([0, 2.5, 7.5, 15])('accepts %s points: whole or half', (points) => {
+    expect(parse({ ...real, homePoints: points })).toMatchObject({ ok: true });
+  });
+
+  it('accepts a window of its own', () => {
+    expect(parse({ ...real, windowMs: 400 })).toMatchObject({ ok: true });
   });
 });
 
@@ -99,10 +110,34 @@ describe('the level key `chores` (story 9.4)', () => {
     if (parsed.ok) expect(Object.hasOwn(parsed.value, 'chores')).toBe(false);
   });
 
-  it('refuses an empty list, an object that is not in the level and an object named twice', () => {
-    expect(parseLevel({ ...kitchen, chores: [] }).ok).toBe(false);
-    const missing = parseLevel({ ...kitchen, chores: [{ def: 'cooking', object: 'nowhere' }] });
-    expect(missing.ok).toBe(false);
+  const messagesOf = (result: ReturnType<typeof parseLevel>): string[] =>
+    result.ok ? [] : result.error.map((problem) => `${problem.jsonPath}: ${problem.message}`);
+  const withoutStove = (extra: Record<string, unknown> = {}) => ({
+    ...kitchen,
+    objects: (kitchen.objects as { kind: string }[]).filter((object) => object.kind !== 'stove'),
+    ...extra,
+  });
+
+  it('refuses an empty list: only that rule fires, since the level has no station left', () => {
+    expect(messagesOf(parseLevel(withoutStove({ chores: [] })))).toEqual([
+      'chores: Too small: expected array to have >=1 items',
+    ]);
+  });
+
+  it('refuses an object that is not in the level: only that rule fires, the stove is named', () => {
+    const missing = parseLevel({
+      ...kitchen,
+      chores: [
+        { def: 'cooking', object: 'stove' },
+        { def: 'cooking', object: 'nowhere' },
+      ],
+    });
+    expect(messagesOf(missing)).toEqual([
+      'chores[1].object: chores[1]: the object "nowhere" is not in the level objects',
+    ]);
+  });
+
+  it('refuses an object named twice', () => {
     const twice = parseLevel({
       ...kitchen,
       chores: [
@@ -110,12 +145,9 @@ describe('the level key `chores` (story 9.4)', () => {
         { def: 'cooking', object: 'stove' },
       ],
     });
-    expect(twice.ok).toBe(false);
-    if (!twice.ok) {
-      expect(twice.error.map((problem) => problem.message).join('\n')).toMatch(
-        /already the station of another chore/,
-      );
-    }
+    expect(messagesOf(twice)).toEqual([
+      'chores[1].object: chores[1]: the object "stove" is already the station of another chore',
+    ]);
   });
 
   it('refuses a station that no chore names', () => {
