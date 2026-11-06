@@ -14,7 +14,8 @@
     "station": {
       "type": "string",
       "enum": [
-        "stove"
+        "stove",
+        "dishwasher"
       ],
       "description": "Where it is played: it must equal the `kind` of the object the level names."
     },
@@ -83,6 +84,23 @@
         "afterMs"
       ],
       "additionalProperties": false
+    },
+    "missBrokenObjects": {
+      "description": "Optional (story 9.6: « assiette cassée »): how many objects a missed beat breaks. Each one is a broken object for Mama’s Soupir (`feel.mama.sighPerBrokenPropPoints`) and a shard on the floor at the station. Absent: a missed beat breaks nothing.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "missNoisePct": {
+      "description": "Optional (story 9.6): the noise gauge rises by this many points when a beat is missed (a crash; no effect in a level with no noise gauge). Absent: a missed beat makes no noise of its own.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 100
+    },
+    "openThreat": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Optional (story 9.6: « un lave-vaisselle laissé ouvert devient une cible du bébé »): the threat of the open station, a file of `content/threats/` with `target: \"anchor\"`. The level plans it in a wave at the station’s anchor; the director may draw it only while the chore is paused with its door open."
     },
     "feedback": {
       "type": "object",

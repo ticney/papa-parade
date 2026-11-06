@@ -101,11 +101,17 @@ export function computeMamaScore(
  */
 export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {
   const { perfects, successes, nearMisses, comboPoints, calmMs } = world.score;
-  const { propsOnFloor, propsBroken, mischiefs } = world.mess;
+  const { propsOnFloor, mischiefs } = world.mess;
   // The Maison row (story 9.4): what the chores finished by now are worth; an unfinished one pays nothing.
+  // The Soupir's broken objects (story 9.6): the physics' recount (`world.mess.propsBroken`) plus the plates
+  // the chores broke, one `missBrokenObjects` per missed beat, finished or not.
   let homePoints = 0;
+  let propsBroken = world.mess.propsBroken;
   for (let i = 0; i < world.chores.length; i++) {
-    if (world.chores[i]?.state === 'done') homePoints += ctx.level.chores[i]?.def.homePoints ?? 0;
+    const chore = world.chores[i];
+    const def = ctx.level.chores[i]?.def;
+    if (chore?.state === 'done') homePoints += def?.homePoints ?? 0;
+    propsBroken += (chore?.beatsMissed ?? 0) * (def?.missBrokenObjects ?? 0);
   }
   const score = computeMamaScore(
     {

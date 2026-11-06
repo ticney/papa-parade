@@ -48,6 +48,10 @@ import {
   GAG_IDS,
   OBJECT_ACTION_KINDS,
   openSafeCentreCountOf,
+  openThreatAnchorProblem,
+  openThreatOrphanProblem,
+  openThreatPlanProblem,
+  openThreatResponseProblem,
   PAPA_ASLEEP_GAG_ID,
   playableMsOf,
   SIM_EVENT_TYPES,
@@ -1100,6 +1104,36 @@ function checkChoreReferences(
         });
       }
     }
+    // The threat of the open station (story 9.6): a threat file that stands on an anchor.
+    if (chore.openThreat !== undefined) {
+      const def = chore.openThreat;
+      const defFile = `${THREAT_DEF_PATTERN.dir}/${def}${THREAT_DEF_PATTERN.suffix}`;
+      const threat = threats.get(def);
+      if (threat === undefined) {
+        if (!present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['openThreat']),
+            message: `no threat "${def}" (content/${defFile} does not exist)`,
+          });
+        }
+      } else if (threat.target !== 'anchor') {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['openThreat']),
+          message: `the threat "${def}" has target "${threat.target}", but the open threat of a chore must have target "anchor"`,
+        });
+      } else {
+        const responseProblem = openThreatResponseProblem(def, threat.response);
+        if (responseProblem !== null) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['openThreat']),
+            message: responseProblem,
+          });
+        }
+      }
+    }
     if (feedback !== undefined) {
       for (const [role, cueId] of Object.entries(chore.feedback)) {
         if (!Object.hasOwn(feedback.cues, cueId)) {
@@ -1165,6 +1199,78 @@ function checkStationThreats(families: ParsedFamilies): ContentProblem[] {
 }
 
 /**
+ * The open door of the chores a level declares (story 9.6): the level plans each chore's `openThreat` in
+ * one of its waves exactly once, at the anchor of the chore's station; and it plans no such threat for a
+ * chore it does not declare (the door would be a target that nothing ever opens or shuts). The words are
+ * `simLevelOf`'s, which has the first two (it sees the chores of its own level only).
+ */
+function checkOpenThreatPlans(
+  families: ParsedFamilies,
+  level: Level,
+  file: string,
+  problems: ContentProblem[],
+): void {
+  const declared = new Set<string>();
+  // The chore that named each door first: `createSim` refuses a door shared by two declared chores.
+  const doorOwners = new Map<string, string>();
+  level.chores?.forEach((entry, i) => {
+    const chore = families.chores.get(entry.def);
+    declared.add(entry.def);
+    if (chore?.openThreat === undefined) return;
+    const owner = doorOwners.get(chore.openThreat);
+    if (owner === undefined) {
+      doorOwners.set(chore.openThreat, entry.def);
+    } else {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['chores', i, 'def']),
+        message: `the threat "${chore.openThreat}" is already the open threat of another chore ("${owner}"): a door belongs to one chore`,
+      });
+    }
+    const planned: { wave: number; index: number; anchor: string }[] = [];
+    level.waves.forEach((wave, w) => {
+      wave.threats.forEach((threat, t) => {
+        if (threat.def === chore.openThreat)
+          planned.push({ wave: w, index: t, anchor: threat.anchor });
+      });
+    });
+    const planProblem = openThreatPlanProblem(entry.def, chore.openThreat, planned.length);
+    if (planProblem !== null) {
+      problems.push({ file, jsonPath: formatJsonPath(['chores', i, 'def']), message: planProblem });
+    }
+    const station = level.objects.find((candidate) => candidate.id === entry.object);
+    for (const plan of planned) {
+      if (station === undefined) continue;
+      const anchorProblem = openThreatAnchorProblem(
+        entry.def,
+        chore.openThreat,
+        plan.anchor,
+        station.anchor,
+      );
+      if (anchorProblem !== null) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['waves', plan.wave, 'threats', plan.index, 'anchor']),
+          message: anchorProblem,
+        });
+      }
+    }
+  });
+  level.waves.forEach((wave, w) => {
+    wave.threats.forEach((threat, t) => {
+      for (const [choreId, chore] of families.chores) {
+        if (chore.openThreat !== threat.def || declared.has(choreId)) continue;
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['waves', w, 'threats', t, 'def']),
+          message: openThreatOrphanProblem(threat.def, choreId),
+        });
+      }
+    });
+  });
+}
+
+/**
  * The chores a level declares (story 9.4): each def is a file, each object is of the def's station
  * kind, and the points they pay add up to at most the Maison row (`homeMaxPoints`, the level's
  * `feelOverrides` applied). The rules that need no def (an object named twice, a station nobody
@@ -1177,8 +1283,10 @@ function checkLevelChores(
 ): ContentProblem[] {
   const problems: ContentProblem[] = [];
   for (const [id, level] of families.levels) {
-    if (level.chores === undefined) continue;
     const file = `content/${LEVEL_PATTERN.dir}/${id}${LEVEL_PATTERN.suffix}`;
+    // Also for a level with no chores: it must not plan the door of one (story 9.6).
+    checkOpenThreatPlans(families, level, file, problems);
+    if (level.chores === undefined) continue;
     let totalPoints = 0;
     level.chores.forEach((entry, i) => {
       const defFile = `${CHORE_DEF_PATTERN.dir}/${entry.def}${CHORE_DEF_PATTERN.suffix}`;

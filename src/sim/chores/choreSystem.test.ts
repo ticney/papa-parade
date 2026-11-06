@@ -130,6 +130,8 @@ describe('starting a chore (story 9.4, AC 3)', () => {
         beatTelegraphAt: 0,
         beatWindowOpenAt: 0,
         responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+        beatsMissed: 0,
+        isOpen: false,
       },
     ]);
   });

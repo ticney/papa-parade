@@ -24,7 +24,8 @@ function pressThreat(
 ): void {
   if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') return;
   if (threat.press !== null || threat.responseWindow === null) return;
-  const def = (ctx.level.threats[index] as SimLevelEntry).def;
+  const entry = ctx.level.threats[index] as SimLevelEntry;
+  const def = entry.def;
   if (def.response === 'nothing') {
     // Aimed at a threat the player was to leave alone (story 4.9): a gag, whatever `earlyPress` says,
     // up to the end of the stretch, judged on the press's own `t`. Later than that it is nothing:
@@ -64,8 +65,11 @@ function pressThreat(
   if (judgement.quality === 'early') {
     // `guard`: Papa has already set off (the glide is his system's); only a new press in the window counts.
     // A pot on the stove (story 9.5, review) is always `guard`: its marker covers the station's, so a
-    // tap meant to go back to the cooking must not boil it over.
-    if (ctx.feel.input.earlyPress === 'fail' && def.target !== 'station') {
+    // tap meant to go back to the cooking must not boil it over. So is the open door of a chore (story
+    // 9.6, review): its marker sits on the station's anchor, a tap meant to go back to the dishwasher
+    // must not let the baby in.
+    const isOnStationMarker = def.target === 'station' || entry.openChoreIndex !== -1;
+    if (ctx.feel.input.earlyPress === 'fail' && !isOnStationMarker) {
       gagThreat(world, ctx, threat, def, 'early', judgement.offsetMs);
     }
     return;

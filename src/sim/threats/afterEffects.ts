@@ -307,8 +307,10 @@ export function applyAfterEffect(
       return;
     }
     case 'mess': {
-      // The silence's mess lies where the baby is; a pot's (story 9.5) lies at the stove it boiled over on.
-      const at = def.target === 'station' && threat !== undefined ? threat : world.baby;
+      // The silence's mess lies where the baby is (he hid there). Any other lies at its threat: a pot's
+      // (story 9.5) at the stove it boiled over on, the open dishwasher's (story 9.6) at the dishwasher, even when
+      // another threat has drawn the baby away before this one's window closed.
+      const at = def.target !== 'hiddenZone' && threat !== undefined ? threat : world.baby;
       world.afterEffects.mischiefMarks.push({ gag, xM: at.xM, zM: at.zM });
       ctx.events.push({
         type: 'AfterEffectStarted',

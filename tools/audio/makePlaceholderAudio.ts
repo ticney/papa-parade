@@ -2321,6 +2321,54 @@ export function synthTelegraphPot(): Float32Array {
   return out;
 }
 
+const TEL_DISHWASHER_LENGTH_MS = 700;
+/** The door's latch letting go: a low thud at the start, how long it rings and its pitch in Hz. */
+const TEL_DISHWASHER_THUD_HZ = 95;
+const TEL_DISHWASHER_THUD_MS = 130;
+/** The plates in the rack rattling after it: three clinks, each with its start (ms from the clip start) and pitch in Hz. */
+const TEL_DISHWASHER_CLINKS: readonly { atMs: number; hz: number }[] = [
+  { atMs: 210, hz: 1850 },
+  { atMs: 360, hz: 2430 },
+  { atMs: 500, hz: 2970 },
+];
+/** How fast a clink dies away: the larger, the drier. */
+const TEL_DISHWASHER_CLINK_DECAY = 38;
+/** The clinks sit this far under the thud, in percent of its level. */
+const TEL_DISHWASHER_CLINK_GAIN_PCT = 55;
+const TEL_DISHWASHER_RELEASE_MS = 100;
+
+/** A dishwasher door swinging open (cue `tel_dishwasher_open`, story 9.6): a latch thud, then plates rattling in the rack. */
+export function synthTelegraphDishwasherOpen(): Float32Array {
+  const rng = createRng(SEED + 52);
+  const out = new Float32Array(samplesOf(TEL_DISHWASHER_LENGTH_MS));
+  const release = samplesOf(TEL_DISHWASHER_RELEASE_MS);
+  for (let i = 0; i < out.length; i++) {
+    const seconds = i / SAMPLE_RATE_HZ;
+    // The thud: a sine that sags in pitch as it dies, with a click of noise at its very start.
+    const thudProgress = (seconds * 1000) / TEL_DISHWASHER_THUD_MS;
+    const thud =
+      thudProgress < 1
+        ? Math.exp(-thudProgress * 5) *
+          (Math.sin(2 * Math.PI * TEL_DISHWASHER_THUD_HZ * seconds * (1 - 0.3 * thudProgress)) +
+            0.5 * (nextFloat(rng) * 2 - 1) * Math.exp(-thudProgress * 30))
+        : 0;
+    let clinks = 0;
+    for (const clink of TEL_DISHWASHER_CLINKS) {
+      const since = seconds - clink.atMs / 1000;
+      if (since < 0) continue;
+      clinks +=
+        Math.exp(-since * TEL_DISHWASHER_CLINK_DECAY) * Math.sin(2 * Math.PI * clink.hz * since);
+    }
+    out[i] =
+      (thud + (TEL_DISHWASHER_CLINK_GAIN_PCT / 100) * clinks) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Array }[] = [
   { clip: 'baby_babble_loop', synth: synthBabble },
   { clip: 'music_crawler_calm', synth: synthMusic },
@@ -2385,6 +2433,7 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'tel_false_alarm_sigh', synth: synthTelegraphFalseAlarmSigh },
   { clip: 'tel_real_wake', synth: synthTelegraphRealWake },
   { clip: 'tel_pot_on_stove', synth: synthTelegraphPot },
+  { clip: 'tel_dishwasher_open', synth: synthTelegraphDishwasherOpen },
   { clip: 'resp_nothing', synth: synthRespNothing },
   { clip: 'gag_baby_woke_by_touch', synth: synthGagBabyWokeByTouch },
   { clip: 'gag_baby_woke_crying', synth: synthGagBabyWokeCrying },

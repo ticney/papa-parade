@@ -15,12 +15,17 @@ import {
   createTestGeometry,
   createTestLevel,
   createTestResponseWindow,
+  DISHWASHER_OPEN,
   FATIGUE_GAUGES,
   NEED_GAUGES,
   NOISE_GAUGES,
   OUTLET,
+  TEST_COOKING,
+  TEST_DISHWASHER,
   TEST_OBJECTS,
+  TEST_STOVE,
   TEST_TOILET,
+  TEST_UNLOAD_DISHWASHER,
   testPhoneEntry,
   testWave,
 } from '../../support/testContent.ts';
@@ -95,6 +100,9 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
       completed: 0,
       homePoints: 0,
       abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {},
+      objectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
     },
     sequencesStarted: 0,
     sequencesSucceeded: 0,
@@ -666,6 +674,9 @@ describe('summarizeRuns › chores (story 9.4)', () => {
     completed,
     homePoints,
     abandoned,
+    byDef: {},
+    objectsBroken: 0,
+    open: { telegraphed: 0, closed: 0, gagged: 0 },
   });
 
   it('is all zero in a level with no station, and for no run at all', () => {
@@ -675,6 +686,9 @@ describe('summarizeRuns › chores (story 9.4)', () => {
       meanHomePoints: 0,
       meanBeatsPerRun: 0,
       abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {},
+      meanObjectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
     };
     expect(summarizeRuns(INPUT, [run(1, {}), run(2, {})]).chores).toEqual(empty);
     expect(summarizeRuns(INPUT, []).chores).toEqual(empty);
@@ -694,7 +708,96 @@ describe('summarizeRuns › chores (story 9.4)', () => {
       meanHomePoints: 3.75,
       meanBeatsPerRun: 3.3,
       abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {},
+      meanObjectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
     });
+  });
+
+  // Story 9.6: a report per chore def, the plates the chores broke and the open dishwasher's threats.
+  const byDefRun = (
+    cooking: { completed: number; perfect: number; success: number; fail: number },
+    dishwasher: { completed: number; perfect: number; success: number; fail: number },
+    objectsBroken: number,
+    open = { telegraphed: 0, closed: 0, gagged: 0 },
+  ): RunSummary['chores'] => ({
+    ...chores(
+      cooking.perfect + dishwasher.perfect,
+      cooking.success + dishwasher.success,
+      cooking.fail + dishwasher.fail,
+      cooking.completed + dishwasher.completed,
+      7.5 * (cooking.completed + dishwasher.completed),
+    ),
+    byDef: {
+      cooking: {
+        completed: cooking.completed,
+        beats: { perfect: cooking.perfect, success: cooking.success, fail: cooking.fail },
+      },
+      unload_dishwasher: {
+        completed: dishwasher.completed,
+        beats: { perfect: dishwasher.perfect, success: dishwasher.success, fail: dishwasher.fail },
+      },
+    },
+    objectsBroken,
+    open,
+  });
+
+  it('reports each chore def: the runs it was finished in, its beats and its mean beats missed', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        chores: byDefRun(
+          { completed: 1, perfect: 4, success: 0, fail: 0 },
+          { completed: 1, perfect: 3, success: 1, fail: 2 },
+          2,
+        ),
+      }),
+      run(2, {
+        chores: byDefRun(
+          { completed: 1, perfect: 4, success: 0, fail: 1 },
+          { completed: 0, perfect: 1, success: 0, fail: 3 },
+          3,
+        ),
+      }),
+      run(3, {}),
+    ]);
+    expect(report.chores.byDef).toEqual({
+      cooking: {
+        runsCompleted: 2,
+        beats: { perfect: 8, success: 0, fail: 1 },
+        meanBeatsMissed: 0.33,
+      },
+      unload_dishwasher: {
+        runsCompleted: 1,
+        beats: { perfect: 4, success: 1, fail: 5 },
+        meanBeatsMissed: 1.67,
+      },
+    });
+    // The runs that saw nothing of a def still count in the mean: three runs, five plates.
+    expect(report.chores.meanObjectsBroken).toBe(1.67);
+  });
+
+  it('sums the open-door threats over the runs, and means the broken objects over zero runs to 0', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        chores: byDefRun(
+          { completed: 0, perfect: 0, success: 0, fail: 0 },
+          { completed: 0, perfect: 0, success: 0, fail: 0 },
+          0,
+          { telegraphed: 3, closed: 2, gagged: 1 },
+        ),
+      }),
+      run(2, {
+        chores: byDefRun(
+          { completed: 0, perfect: 0, success: 0, fail: 0 },
+          { completed: 0, perfect: 0, success: 0, fail: 0 },
+          0,
+          { telegraphed: 1, closed: 0, gagged: 1 },
+        ),
+      }),
+    ]);
+    expect(report.chores.open).toEqual({ telegraphed: 4, closed: 2, gagged: 2 });
+    expect(summarizeRuns(INPUT, []).chores.meanObjectsBroken).toBe(0);
+    expect(summarizeRuns(INPUT, []).chores.byDef).toEqual({});
   });
 
   it('sums the pots of the abandoned chores over the runs (story 9.5)', () => {
@@ -1396,6 +1499,10 @@ describe('createRunRecorder › chores (story 9.4)', () => {
       completed: 2,
       homePoints: 10,
       abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      // The level has no chore def to put them under, and no door.
+      byDef: {},
+      objectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
     });
   });
 
@@ -1467,6 +1574,113 @@ describe('createRunRecorder › chores (story 9.4)', () => {
       completed: 0,
       homePoints: 0,
       abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {},
+      objectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
     });
+  });
+});
+
+describe('createRunRecorder › the dishwasher (story 9.6)', () => {
+  async function kitchen() {
+    return createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel({
+        waves: [testWave([DISHWASHER_OPEN], { fromMs: 500_000 })],
+        objects: [...TEST_OBJECTS, TEST_STOVE, TEST_DISHWASHER],
+        chores: [TEST_COOKING, TEST_UNLOAD_DISHWASHER],
+      }),
+      seed: 1,
+    });
+  }
+  const judged = (choreIndex: number, quality: 'perfect' | 'success' | 'fail'): SimEvent => ({
+    type: 'ChoreBeatJudged',
+    t: asSimMs(0),
+    choreIndex,
+    beatIndex: 0,
+    quality,
+    reason: quality === 'fail' ? 'late' : null,
+    offsetMs: quality === 'fail' ? 400 : 0,
+  });
+
+  it('lists every chore def of the level from the start, with nothing counted', async () => {
+    const sim = await kitchen();
+    expect(createRunRecorder(sim, 1).finish().chores).toEqual({
+      beats: { perfect: 0, success: 0, fail: 0 },
+      completed: 0,
+      homePoints: 0,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {
+        cooking: { completed: 0, beats: { perfect: 0, success: 0, fail: 0 } },
+        unload_dishwasher: { completed: 0, beats: { perfect: 0, success: 0, fail: 0 } },
+      },
+      objectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
+    });
+  });
+
+  it('counts the beats under their def, and a plate only for a def that breaks them', async () => {
+    const sim = await kitchen();
+    const plates = sim.chores[1]?.def.missBrokenObjects as number;
+    expect(plates).toBeGreaterThan(0);
+    const recorder = createRunRecorder(sim, 1);
+    for (const event of [
+      judged(0, 'perfect'),
+      judged(0, 'fail'),
+      judged(1, 'success'),
+      judged(1, 'fail'),
+      judged(1, 'fail'),
+    ]) {
+      recorder.onEvent(event);
+    }
+    recorder.onEvent({ type: 'ChoreCompleted', t: asSimMs(0), choreIndex: 1, homePoints: 7.5 });
+    const { byDef, objectsBroken, completed } = recorder.finish().chores;
+    expect(byDef.cooking).toEqual({ completed: 0, beats: { perfect: 1, success: 0, fail: 1 } });
+    expect(byDef.unload_dishwasher).toEqual({
+      completed: 1,
+      beats: { perfect: 0, success: 1, fail: 2 },
+    });
+    // Two dishwasher misses, none counted for the cooking's.
+    expect(objectsBroken).toBe(2 * plates);
+    expect(completed).toBe(1);
+  });
+
+  it('counts the open door telegraphed, closed in time and got into, by the threat that stands at it', async () => {
+    const sim = await kitchen();
+    const doorIndex = sim.chores[1]?.openThreatIndex as number;
+    const door = sim.world.threats[doorIndex]!;
+    const recorder = createRunRecorder(sim, 1, [{ maxSimultaneous: 1 }]);
+    const telegraph = (): SimEvent => ({
+      type: 'ThreatTelegraphed',
+      t: asSimMs(0),
+      threatId: door.id,
+      kind: door.defId,
+      anchorId: door.anchorId,
+      waveIndex: 0,
+    });
+    const resolved = (quality: 'perfect' | 'success' | 'fail'): SimEvent => ({
+      type: 'ResponseResolved',
+      t: asSimMs(0),
+      threatId: door.id,
+      response: 'parry',
+      quality,
+      offsetMs: 0,
+      responseWindow: { windowMs: 400, perfectMs: 100, toleranceMs: 50, bufferMs: 50 },
+    });
+    recorder.onEvent(telegraph());
+    recorder.onEvent(resolved('perfect'));
+    recorder.onEvent(telegraph());
+    recorder.onEvent(resolved('success'));
+    recorder.onEvent(telegraph());
+    recorder.onEvent(resolved('fail'));
+    recorder.onEvent({
+      type: 'GagTriggered',
+      t: asSimMs(0),
+      threatId: door.id,
+      gag: 'baby_in_dishwasher',
+      reason: 'late',
+    });
+    expect(recorder.finish().chores.open).toEqual({ telegraphed: 3, closed: 2, gagged: 1 });
   });
 });

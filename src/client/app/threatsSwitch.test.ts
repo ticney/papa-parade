@@ -1,4 +1,5 @@
 import { log } from '@shared/log';
+import { createSim } from '@sim';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestCycleLevel } from '../../../tests/support/cycleSupport.ts';
 import {
@@ -6,14 +7,19 @@ import {
   createTestAbandonableCooking,
   createTestBombDrop,
   createTestBombDropLay,
+  createTestContent,
   createTestFakeSleep,
   createTestFakeSleepDuel,
+  createTestGeometry,
   createTestLevel,
+  DISHWASHER_OPEN,
   FATIGUE_GAUGES,
   OUTLET,
   TEST_COOKING,
+  TEST_DISHWASHER,
   TEST_OBJECTS,
   TEST_STOVE,
+  TEST_UNLOAD_DISHWASHER,
   testPhoneEntry,
   testWave,
 } from '../../../tests/support/testContent.ts';
@@ -82,6 +88,43 @@ describe('withoutThreats', () => {
       'boot',
       expect.stringContaining('the abandoned chore def "pot_on_stove" is not loaded'),
     );
+  });
+
+  it('drops the open door of a chore with the waves: a quiet room has none, and the sim still builds (story 9.6)', async () => {
+    const planned = createTestLevel({
+      waves: [testWave([DISHWASHER_OPEN], { fromMs: 500_000 })],
+      objects: [...TEST_OBJECTS, TEST_DISHWASHER],
+      chores: [TEST_UNLOAD_DISHWASHER],
+    });
+    expect(planned.chores?.[0]?.openThreat).toBe('dishwasher_open');
+    const stripped = withoutThreats(planned);
+    // The chore is the same chore, without its door; the door's def goes with the wave that planned it.
+    expect(stripped.chores?.[0]?.id).toBe('unload_dishwasher');
+    expect(stripped.chores?.[0]).not.toHaveProperty('openThreat');
+    expect(stripped.chores?.[0]?.beats).toEqual(planned.chores?.[0]?.beats);
+    expect(Object.keys(stripped.threats)).toEqual([]);
+    const build = (level: typeof planned) =>
+      createSim({
+        content: createTestContent(),
+        geometry: createTestGeometry(),
+        level,
+        seed: 1,
+      });
+    // Kept, the door would be refused: no wave plans it any more. Dropped, the sim plans a chore with none.
+    await expect(build({ ...planned, level: { ...planned.level, waves: [] } })).rejects.toThrow(
+      /names the open threat "dishwasher_open".*plans it 0 times/,
+    );
+    const sim = await build(stripped);
+    expect(sim.chores[0]?.openThreatIndex).toBeNull();
+    sim.dispose();
+  });
+
+  it('leaves a chore that has no open door as it was: the cooking is the same object', () => {
+    const planned = createTestLevel({
+      objects: [...TEST_OBJECTS, TEST_STOVE],
+      chores: [TEST_COOKING],
+    });
+    expect(withoutThreats(planned).chores?.[0]).toBe(planned.chores?.[0]);
   });
 
   it('adds no chores key to a level that has none: its hash does not move', () => {

@@ -376,14 +376,16 @@ const CHORE_RETRY_MS = 1000;
 export interface ChoreMemory {
   /** The last instant a threat was active (hidden, announced or open): chores wait for a lull after it. */
   lastThreatActiveAt: number;
-  /** When the station was last tapped; null before the first tap. */
+  /** When a station was last tapped; null before the first tap. */
   sentAt: number | null;
+  /** Which chore that tap was for (story 9.6), -1 before the first tap: the walk skips it if it did nothing. */
+  sentIndex: number;
   /** The press planned for the beat in play, keyed by the instant its window opens (unique per announcement). */
   beat: { key: number; atMs: number; isSent: boolean } | null;
 }
 
 export function createChoreMemory(): ChoreMemory {
-  return { lastThreatActiveAt: 0, sentAt: null, beat: null };
+  return { lastThreatActiveAt: 0, sentAt: null, sentIndex: -1, beat: null };
 }
 
 /** A threat is active when it is hidden, announced or open (the director's own definition). */
@@ -398,10 +400,15 @@ function isAnyThreatActive(world: Readonly<World>): boolean {
 /**
  * Starts or resumes a house chore (story 9.4), shared by `perfect` and `human`: Papa idle with the baby
  * on the floor, nothing of the bot's to answer (`isFree`), no threat active for `quietMinMs`, and a
- * chore not done: one `TapObject` on the first such station, stamped `now`, then none for
- * {@link CHORE_RETRY_MS}. It draws nothing and remembers nothing in a level with no station, or when
- * `isEnabled` is false, so the games of a level without one are untouched. `choreObjectIds` is
- * index-aligned with `world.chores`.
+ * chore not done: one `TapObject` on a station, stamped `now`, then none for {@link CHORE_RETRY_MS}.
+ * It draws nothing and remembers nothing in a level with no station, or when `isEnabled` is false, so
+ * the games of a level without one are untouched. `choreObjectIds` is index-aligned with `world.chores`.
+ *
+ * The walk (story 9.6): a `paused` chore is resumed before an `untouched` one is started (a paused
+ * dishwasher is an open door, a paused cooking calls a pot), in index order within each group. A station
+ * whose last tap did not put Papa to work (its chore has not changed state since the tap) is left for the
+ * next one at this try, and comes back at the one after: a station that refuses him cannot block the
+ * others. With no other station left to try it is tapped all the same, as it always was.
  */
 export function planChore(
   world: Readonly<World>,
@@ -419,14 +426,43 @@ export function planChore(
   // Never in the middle of a threat, whatever the lull asked for (a `quietMinMs` of 0 included).
   if (isAnyThreatActive(world) || now - memory.lastThreatActiveAt < chores.quietMinMs) return;
   if (memory.sentAt !== null && now - memory.sentAt < CHORE_RETRY_MS) return;
-  for (let i = 0; i < world.chores.length; i++) {
-    if ((world.chores[i] as Readonly<World['chores'][number]>).state === 'done') continue;
-    const objectId = choreObjectIds[i];
-    if (objectId === undefined) continue;
-    memory.sentAt = now;
-    out.push({ type: 'TapObject', t: asSimMs(now), objectId });
-    return;
+  // The station tapped last time did nothing if its chore has not changed state since the tap.
+  const refused =
+    memory.sentAt !== null && isUnmovedSince(world, memory.sentIndex, memory.sentAt)
+      ? memory.sentIndex
+      : -1;
+  let fallback = -1;
+  for (const wanted of ['paused', 'untouched'] as const) {
+    for (let i = 0; i < world.chores.length; i++) {
+      if ((world.chores[i] as Readonly<World['chores'][number]>).state !== wanted) continue;
+      if (choreObjectIds[i] === undefined) continue;
+      if (i === refused) {
+        fallback = i;
+        continue;
+      }
+      tapChore(i, now, choreObjectIds, out, memory);
+      return;
+    }
   }
+  if (fallback >= 0) tapChore(fallback, now, choreObjectIds, out, memory);
+}
+
+/** Whether the chore at `index` has not changed state since `sentAt`: the tap meant for it started nothing. */
+function isUnmovedSince(world: Readonly<World>, index: number, sentAt: number): boolean {
+  const chore = world.chores[index];
+  return chore !== undefined && chore.state !== 'done' && chore.enteredAt < sentAt;
+}
+
+function tapChore(
+  index: number,
+  now: number,
+  choreObjectIds: readonly string[],
+  out: SimCommand[],
+  memory: ChoreMemory,
+): void {
+  memory.sentAt = now;
+  memory.sentIndex = index;
+  out.push({ type: 'TapObject', t: asSimMs(now), objectId: choreObjectIds[index] as string });
 }
 
 /**

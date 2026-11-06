@@ -23,6 +23,7 @@ import type { RoomSize } from './isoCamera.ts';
 import { addOutlineHulls, createOutlineKit } from './materials/outlineHull.ts';
 import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache, swapToToon } from './materials/toonMaterial.ts';
+import { type ChoreStationSpec, createChoreShards } from './vfx/choreShards.ts';
 import { createDangerTint } from './vfx/dangerTint.ts';
 import { createLiftFx } from './vfx/liftHop.ts';
 import { createMischiefDecals } from './vfx/mischiefDecals.ts';
@@ -57,6 +58,11 @@ export interface SceneBodies {
   layDownDefIds: readonly string[];
   /** The ids of the level's threats aimed at an anchor: only they show the alert tint (story 7.3, D6). */
   anchorThreatDefIds: readonly string[];
+  /**
+   * The level's chore stations (story 9.6), index-aligned with `world.chores`: where each stands and what a
+   * missed beat breaks, for the shards drawn in front of it.
+   */
+  choreStations: readonly ChoreStationSpec[];
   /** The height of the baby's centre once laid on the mattress, in metres (`feedback.json › bombDrop.laidHeightM`). */
   laidHeightM: number;
   /** How the characters move (`feedback.json › characters`). */
@@ -168,6 +174,8 @@ export interface LevelScene {
     lightsFactor: number;
     /** How many mischief decals lie on the floor (story 3.15). */
     mischiefDecals: number;
+    /** How many broken plates' shards lie on the floor in front of the stations (story 9.6). */
+    choreShards: number;
   };
   /** Shows the parts of Papa's look. Nothing in a game sets it until story 3.7 (story 7.2, D2). */
   setPapaLook(look: Readonly<PapaLook>): void;
@@ -376,6 +384,18 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     },
     toon,
   );
+  // The shards of the plates a chore broke (story 9.6): from `world.chores`, on the photo too.
+  const choreShards = createChoreShards(
+    content,
+    {
+      colliders: geometry.colliders,
+      wallHeightM: render.decalWallHeightM,
+      boundsMinM: geometry.boundsMinM,
+      boundsMaxM: geometry.boundsMaxM,
+    },
+    toon,
+    bodies.choreStations,
+  );
 
   // The props: the model's PROP_ nodes are templates, the views are pooled per kind.
   const pools = new Map<string, ViewPool<PropView>>();
@@ -579,6 +599,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         dangerTintsShown: dangerTint.shownCount,
         lightsFactor: Math.min(flashLightsFactor, dimLightsFactor),
         mischiefDecals: decals.count,
+        choreShards: choreShards.plateCount,
       };
     },
     setPapaLook(look) {
@@ -599,6 +620,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       applySquash(babySquash, clockMs, setBabySquash);
       props.sync(world.props, alpha);
       decals.sync(world.afterEffects.mischiefMarks, world.feel.fx.photoCamera);
+      choreShards.sync(world.chores, world.feel.fx.photoCamera);
       // Papa's nap, coffee and call, from the world every frame (stories 1.19, 1.20; diegetic, no overlay).
       papa.setEyelids(eyelidsAmountAt(world, clockMs, bodies.microSleepDefId));
       papa.setAsleep(world.papa.state === 'asleep', clockMs);
@@ -645,6 +667,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       particles.reset();
       gags.reset();
       decals.clear();
+      choreShards.clear();
       dim.reset();
       dimLightsFactor = 1;
       flashLightsFactor = 1;
@@ -665,6 +688,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       baby.dispose();
       props.dispose();
       decals.dispose();
+      choreShards.dispose();
       waves.dispose();
       particles.dispose();
       dangerTint.dispose();

@@ -12,10 +12,10 @@ const idSchema = (description: string) =>
 
 /**
  * The kinds of object a chore can be played at, hence the kinds of station: each one is also an
- * `ObjectKind` (`schemas/level.ts` proves it at compile time). The dishwasher joins the stove in
+ * `ObjectKind` (`schemas/level.ts` proves it at compile time). The dishwasher joined the stove in
  * story 9.6.
  */
-export const CHORE_STATION_KINDS = ['stove'] as const;
+export const CHORE_STATION_KINDS = ['stove', 'dishwasher'] as const;
 export type ChoreStationKind = (typeof CHORE_STATION_KINDS)[number];
 
 const ChoreBeatSchema = z
@@ -89,6 +89,25 @@ export const ChoreDefSchema = z
       .describe(
         'Optional: what a chore left alone becomes (story 9.5: « une cuisson abandonnée plus de 30 s devient la casserole sur le feu »). Absent: leaving the chore costs nothing but the wait.',
       ),
+    missBrokenObjects: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        'Optional (story 9.6: « assiette cassée »): how many objects a missed beat breaks. Each one is a broken object for Mama’s Soupir (`feel.mama.sighPerBrokenPropPoints`) and a shard on the floor at the station. Absent: a missed beat breaks nothing.',
+      ),
+    missNoisePct: z
+      .number()
+      .positive()
+      .max(100)
+      .optional()
+      .describe(
+        'Optional (story 9.6): the noise gauge rises by this many points when a beat is missed (a crash; no effect in a level with no noise gauge). Absent: a missed beat makes no noise of its own.',
+      ),
+    openThreat: idSchema(
+      'Optional (story 9.6: « un lave-vaisselle laissé ouvert devient une cible du bébé »): the threat of the open station, a file of `content/threats/` with `target: "anchor"`. The level plans it in a wave at the station’s anchor; the director may draw it only while the chore is paused with its door open.',
+    ).optional(),
     feedback: ChoreFeedbackSchema,
   })
   .describe(

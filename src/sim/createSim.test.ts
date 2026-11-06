@@ -363,7 +363,7 @@ describe('the level it plans', () => {
   it('refuses a gag the sim does not know', async () => {
     const odd = { ...planning, threats: { outlet: { ...defOf(), gag: 'outlet_hairs' } } };
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles, pot_boiled_over, arms_wail, baby_eyes_reopened, baby_sat_up, baby_woke_on_drop, baby_woke_by_touch, baby_woke_crying\)/,
+      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles, pot_boiled_over, baby_in_dishwasher, arms_wail, baby_eyes_reopened, baby_sat_up, baby_woke_on_drop, baby_woke_by_touch, baby_woke_crying\)/,
     );
   });
 
@@ -726,7 +726,7 @@ describe('the level’s fatigue and objects (story 1.19)', () => {
       objects: [{ id: 'kettle', kind: 'kettle' as never, anchor: 'phone' }],
     });
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /objects\[0\]: the object "kettle" has the kind "kettle", which the sim has no action for \(coffee_machine, phone, toilet, stove\)/,
+      /objects\[0\]: the object "kettle" has the kind "kettle", which the sim has no action for \(coffee_machine, phone, toilet, stove, dishwasher\)/,
     );
   });
 });

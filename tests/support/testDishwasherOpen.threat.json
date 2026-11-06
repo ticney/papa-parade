@@ -1,0 +1,22 @@
+{
+  "$schema": "../../content/_schemas/threat.schema.json",
+  "id": "dishwasher_open",
+  "target": "anchor",
+  "response": "parry",
+  "telegraphDelayMs": 1500,
+  "windowMs": null,
+  "gag": "baby_in_dishwasher",
+  "verbKey": "verb.close_door",
+  "icon": "dishwasher",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_dishwasher_open",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_baby_in_dishwasher"
+  },
+  "catastrophe": "mess",
+  "afterEffect": { "kind": "mess" },
+  "cooldownMs": 6000
+}

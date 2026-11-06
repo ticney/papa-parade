@@ -1,3 +1,4 @@
+import type { ChoreStationKind } from '@content/schemas/chore';
 import type { BeatEntry, ComboSlice, StealthSlice, ThreatInstance, World } from '@sim';
 import type { Camera, Scene } from 'three';
 import { Scene as ThreeScene } from 'three';
@@ -53,6 +54,7 @@ export interface WorldUi {
     threats: readonly Readonly<ThreatInstance>[],
     nowAtReal: number,
     choreProgressPct?: number,
+    choreStation?: ChoreStationKind | null,
   ): void;
   /** A tap on a threat was refused: the bubble shakes (story 2.12). */
   shakeActivity(nowAtReal: number): void;
@@ -241,13 +243,14 @@ export function createWorldUi(
       stealthExitMarker.update(stealth);
     },
     activityBubble,
-    updateActivity(papa, renderSimMs, threatInstances, nowAtReal, choreProgressPct) {
+    updateActivity(papa, renderSimMs, threatInstances, nowAtReal, choreProgressPct, choreStation) {
       activityBubble.update(
         papa,
         renderSimMs,
         isFollowingThreatUp(threatInstances),
         nowAtReal,
         choreProgressPct,
+        choreStation,
       );
     },
     shakeActivity: activityBubble.shake,

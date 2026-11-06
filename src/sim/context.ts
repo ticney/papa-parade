@@ -102,6 +102,12 @@ export interface SimPlannedThreat {
   readonly firstWaveIndex: number;
   /** The box of the hidden zone; non-null exactly for a `hiddenZone` def (story 1.21). */
   readonly zone: SimHiddenZone | null;
+  /**
+   * The index, in `SimLevel.chores` and `world.chores`, of the chore whose open door this threat is
+   * (story 9.6: the chore names it with `openThreat`), or -1 for every other threat. The director draws
+   * such a threat only while its chore is paused with its door open.
+   */
+  readonly openChoreIndex: number;
 }
 
 /** A zone of the room as a floor rectangle (a box of the geometry seen from above). */
@@ -148,6 +154,12 @@ export interface SimPlannedChore {
    * the sim telegraphs it.
    */
   readonly abandoned: { readonly threatIndex: number; readonly afterMs: number } | null;
+  /**
+   * The open-door threat of a chore with an `openThreat` (story 9.6): its instance in `SimLevel.threats`
+   * and `world.threats` (planned by a wave at the station's anchor, so it keeps its place in the pool),
+   * or null for a chore without one.
+   */
+  readonly openThreatIndex: number | null;
 }
 
 /** One special sequence a level can run (story 4.4): its id and its def. */

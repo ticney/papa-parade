@@ -2068,6 +2068,127 @@ describe('checkContent on the house chores (story 9.4)', () => {
     );
   });
 
+  describe('the open door of the dishwasher (story 9.6)', () => {
+    const DISHWASHER = 'content/chores/unload_dishwasher.json';
+    type WaveThreat = { def: string; anchor: string };
+    const wavesOf = (level: Record<string, unknown>) => level.waves as { threats: WaveThreat[] }[];
+
+    it('accepts the live kitchen: the dishwasher chore, its door planned once at the station', async () => {
+      expect(await messages()).toEqual([]);
+    });
+
+    it('refuses an open threat whose file does not exist', async () => {
+      await mutateJson(DISHWASHER, (chore) => {
+        chore.openThreat = 'no_such_door';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /unload_dishwasher\.json openThreat: no threat "no_such_door" \(content\/threats\/no_such_door\.json does not exist\)/,
+      );
+    });
+
+    it('refuses an open threat that is not on an anchor', async () => {
+      await mutateJson(DISHWASHER, (chore) => {
+        chore.openThreat = 'pot_on_stove';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /unload_dishwasher\.json openThreat: the threat "pot_on_stove" has target "station", but the open threat of a chore must have target "anchor"/,
+      );
+    });
+
+    it('refuses an open threat that is not parried', async () => {
+      await mutateJson('content/threats/dishwasher_open.json', (threat) => {
+        threat.response = 'nothing';
+        threat.nothingMs = 1500;
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /unload_dishwasher\.json openThreat: the threat "dishwasher_open" has response "nothing", but the open threat of a chore must have response "parry"/,
+      );
+    });
+
+    it('refuses a door named by two chores the level declares', async () => {
+      await mutateJson('content/chores/cooking.json', (chore) => {
+        chore.openThreat = 'dishwasher_open';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        new RegExp(
+          `${KITCHEN.replace(/[.*+?^${'$'}{}()|[\\]\\\\]/g, '\\\\$&')} chores\\[1\\]\\.def: the threat "dishwasher_open" is already the open threat of another chore \\("cooking"\\)`,
+        ),
+      );
+    });
+
+    it('refuses a level that declares the chore and plans its door in no wave', async () => {
+      await mutateJson(KITCHEN, (level) => {
+        const [first] = wavesOf(level);
+        if (first === undefined) throw new Error('no wave');
+        first.threats = first.threats.filter((threat) => threat.def !== 'dishwasher_open');
+      });
+      expect(await messages()).toEqual([
+        `${KITCHEN} chores[1].def: the chore "unload_dishwasher" names the open threat "dishwasher_open", which the level must plan in one of its waves exactly once, but plans it 0 times`,
+      ]);
+    });
+
+    it('refuses a level that plans the door twice: the count, then the second entry away from its station', async () => {
+      await mutateJson(KITCHEN, (level) => {
+        const second = wavesOf(level)[1];
+        if (second === undefined) throw new Error('no second wave');
+        second.threats.push({ def: 'dishwasher_open', anchor: 'coffee_machine' });
+      });
+      expect(await messages()).toEqual([
+        `${KITCHEN} chores[1].def: the chore "unload_dishwasher" names the open threat "dishwasher_open", which the level must plan in one of its waves exactly once, but plans it 2 times`,
+        `${KITCHEN} waves[1].threats[2].anchor: the threat "dishwasher_open" is the open threat of the chore "unload_dishwasher": it must be planned at the anchor of the chore's station ("dishwasher"), not at "coffee_machine"`,
+      ]);
+    });
+
+    it('refuses a door planned at another anchor than its station, and says which entry', async () => {
+      await mutateJson(KITCHEN, (level) => {
+        const [first] = wavesOf(level);
+        const door = first?.threats.find((threat) => threat.def === 'dishwasher_open');
+        if (door === undefined) throw new Error('no door');
+        door.anchor = 'stove';
+      });
+      expect(await messages()).toEqual([
+        `${KITCHEN} waves[0].threats[2].anchor: the threat "dishwasher_open" is the open threat of the chore "unload_dishwasher": it must be planned at the anchor of the chore's station ("dishwasher"), not at "stove"`,
+      ]);
+    });
+
+    it('refuses a level that plans the door of a chore it does not declare', async () => {
+      await mutateJson('content/levels/salon_crawler.json', (level) => {
+        const [first] = wavesOf(level);
+        first?.threats.push({ def: 'dishwasher_open', anchor: 'door' });
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /salon_crawler\.json waves\[0\]\.threats\[\d+\]\.def: the threat "dishwasher_open" is the open threat of the chore "unload_dishwasher", which the level does not declare/,
+      );
+    });
+
+    it('refuses a door whose gag has the wrong séquelle (the pairing is the existing rule)', async () => {
+      await mutateJson('content/threats/dishwasher_open.json', (threat) => {
+        threat.afterEffect = { kind: 'none' };
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /"baby_in_dishwasher", whose afterEffect\.kind must be "mess"/,
+      );
+    });
+
+    it('refuses a door whose catastrophe does not fit its gag', async () => {
+      await mutateJson('content/threats/dishwasher_open.json', (threat) => {
+        threat.catastrophe = 'nearMiss';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /"baby_in_dishwasher", whose catastrophe must be "mess"/,
+      );
+    });
+
+    it('keeps the points of the two chores within the Maison row', async () => {
+      await mutateJson(DISHWASHER, (chore) => {
+        chore.homePoints = 8;
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /the chores of level salon_kitchen pay 15\.5 points, above the Maison row's 15/,
+      );
+    });
+  });
+
   it('refuses a uiElement cue: a chore cue is played for sim events', async () => {
     await mutateJson(FEEDBACK, (feedback) => {
       const cues = feedback.cues as Record<string, Record<string, unknown>>;
@@ -2087,6 +2208,13 @@ describe('checkContent on the house chores (story 9.4)', () => {
       homePoints: number;
       beats: { telegraphDelayMs: number }[];
     };
+  /** The kitchen's second chore (story 9.6): the two pay the Maison row together. */
+  const liveDishwasherPoints = async () =>
+    (
+      JSON.parse(await readFile(join(root, 'content/chores/unload_dishwasher.json'), 'utf8')) as {
+        homePoints: number;
+      }
+    ).homePoints;
 
   it('refuses a beat whose delay is not above the window (the feel window when windowMs is null)', async () => {
     const { windowMs } = (await liveFeel()).timing;
@@ -2213,8 +2341,9 @@ describe('checkContent on the house chores (story 9.4)', () => {
     await mutateJson(COOKING, (chore) => {
       chore.homePoints = points;
     });
+    const total = points + (await liveDishwasherPoints());
     expect((await messages()).join('\n')).toMatch(
-      new RegExp(`pay ${points} points, above the Maison row's ${homeMaxPoints}`),
+      new RegExp(`pay ${total} points, above the Maison row's ${homeMaxPoints}`),
     );
   });
 
@@ -2232,21 +2361,24 @@ describe('checkContent on the house chores (story 9.4)', () => {
   };
 
   it('holds the points to the Maison row of the level’s overrides: raised, it accepts what the base refuses', async () => {
+    const dishwasherPoints = await liveDishwasherPoints();
     const { mama } = await liveFeel();
     const max = await moveToHome(5)();
+    // The two chores together pay 2.5 more than the base row holds, which the raised row accepts.
     await mutateJson(COOKING, (chore) => {
-      chore.homePoints = mama.homeMaxPoints + 2.5;
+      chore.homePoints = mama.homeMaxPoints + 2.5 - dishwasherPoints;
     });
     expect(max).toBe(mama.homeMaxPoints + 5);
     expect(await checkContent(root)).toEqual([]);
   });
 
   it('holds the points to the Maison row of the level’s overrides: lowered, it refuses what the base accepts', async () => {
-    const { homePoints } = await liveCooking();
-    const max = await moveToHome(-((await liveFeel()).mama.homeMaxPoints - (homePoints - 2.5)))();
-    expect(max).toBe(homePoints - 2.5);
+    const total = (await liveCooking()).homePoints + (await liveDishwasherPoints());
+    // The rows are whole numbers: lowered by 5, the row no longer holds what the two chores pay.
+    const max = await moveToHome(-((await liveFeel()).mama.homeMaxPoints - (total - 5)))();
+    expect(max).toBe(total - 5);
     expect((await messages()).join('\n')).toMatch(
-      new RegExp(`pay ${homePoints} points, above the Maison row's ${max}`),
+      new RegExp(`pay ${total} points, above the Maison row's ${max}`),
     );
   });
 

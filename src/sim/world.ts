@@ -216,6 +216,19 @@ export interface ChoreInstance {
   beatWindowOpenAt: SimMs;
   /** Frozen when the beat is announced (the threats' rule); zeros unless `telegraph`. */
   responseWindow: EffectiveWindow;
+  /**
+   * Beats missed so far (story 9.6), `early` and `late` alike: +1 for every `ChoreBeatJudged{fail}`,
+   * never decreased. A def with `missBrokenObjects` breaks that many objects per miss (Mama's Soupir
+   * counts them, the client draws their shards).
+   */
+  beatsMissed: number;
+  /**
+   * The station's door is open (story 9.6): true only for a def with `openThreat` and only in `working`
+   * or `paused`. `startChore` opens it, the last beat caught closes it, and so does a caught open-door
+   * threat, whatever the chore's state. The director draws the open-door threat only while it is
+   * `paused` and open.
+   */
+  isOpen: boolean;
 }
 
 /** A free object (`PROP_*`): its pose mirrors its Rapier body at the end of each step (story 1.15). */

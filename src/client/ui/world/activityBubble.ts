@@ -1,3 +1,4 @@
+import type { ChoreStationKind } from '@content/schemas/chore';
 import {
   ACTIVITY_BUBBLE_BORDER_PX,
   ACTIVITY_BUBBLE_COMPACT_PX,
@@ -26,8 +27,11 @@ import { CHRONO_RING_REACH_PX, chronoDrainPermille } from './chronoRing.ts';
 import { OBJECT_ICON_PATHS } from './objectMarkers.ts';
 import { THREAT_ICON_PATHS } from './threatMarkers.ts';
 
-/** What the bubble's pictogram draws: a cup, a handset, a door, dizzy stars, a hand, a saucepan (a chore). */
-export type ActivityPictogram = 'cup' | 'handset' | 'door' | 'stars' | 'hand' | 'pan';
+/**
+ * What the bubble's pictogram draws: a cup, a handset, a door, dizzy stars, a hand, a saucepan or a plate (the
+ * two chores, GDD mechanic 15: « casserole, assiette »).
+ */
+export type ActivityPictogram = 'cup' | 'handset' | 'door' | 'stars' | 'hand' | 'pan' | 'plate';
 
 /** A path that may be missing: an empty pictogram is never silent (project rule: every fallback logs a `warn`). */
 export function pictogramPathOrWarn(path: string | null, name: string): string {
@@ -41,7 +45,8 @@ export function pictogramPathOrWarn(path: string | null, name: string): string {
  * so a new state (3.15's after-effects, 9.4's chores) cannot compile without choosing one;
  * `activityBubble.test.ts` checks it against `isPapaBusy`. `chore` (story 9.4) is the one state that is not busy
  * and shows a bubble: Papa works at a station, and the ring fills with the chore's progress instead of draining.
- * Its pictogram is the stove's saucepan; the dishwasher (9.6) will resolve it by station.
+ * Its entry here is the default (the stove's saucepan) for a caller that does not say which station he works
+ * at; the bubble resolves it by the working chore's station through {@link STATION_PICTOGRAMS} (story 9.6).
  */
 export const ACTIVITY_PICTOGRAMS: Readonly<Record<PapaState, ActivityPictogram | null>> = {
   idle: null,
@@ -59,6 +64,16 @@ export const ACTIVITY_PICTOGRAMS: Readonly<Record<PapaState, ActivityPictogram |
 };
 
 /**
+ * The pictogram of each chore station (story 9.6, the 9.4 deferred item « the pictogram table is keyed by Papa's
+ * state »): a bubble above a Papa who works at the stove shows the saucepan, at the dishwasher the plate. Typed
+ * on `ChoreStationKind`, so that a new station kind cannot compile without choosing one.
+ */
+export const STATION_PICTOGRAMS: Readonly<Record<ChoreStationKind, ActivityPictogram>> = {
+  stove: 'pan',
+  dishwasher: 'plate',
+};
+
+/**
  * The single ink path of each pictogram, in a 24 × 24 box, in the style of the icons beside them: the cup
  * and the door are the coffee machine's and the toilet's, the handset and the stars are new. Provisional
  * placeholders (E7 draws the final ones).
@@ -73,6 +88,8 @@ export const ACTIVITY_PICTOGRAM_PATHS: Readonly<Record<ActivityPictogram, string
   hand: THREAT_ICON_PATHS.open_hand,
   // The stove's saucepan (story 9.4): the station's own glyph.
   pan: pictogramPathOrWarn(OBJECT_ICON_PATHS.stove, 'pan'),
+  // The dishwasher's plate (story 9.6): the station's own glyph.
+  plate: pictogramPathOrWarn(OBJECT_ICON_PATHS.dishwasher, 'plate'),
   // Three five-pointed stars: one up, two lower, the dizziness of a nap that was not chosen.
   stars:
     'M12.0 1.9 L13.2 4.9 L16.4 5.1 L13.9 7.1 L14.7 10.2 L12.0 8.5 L9.3 10.2 L10.1 7.1 L7.6 5.1 L10.8 4.9z M5.5 12.3 L6.6 15.0 L9.5 15.2 L7.2 17.1 L8.0 19.9 L5.5 18.3 L3.0 19.9 L3.8 17.1 L1.5 15.2 L4.4 15.0z M18.5 12.3 L19.6 15.0 L22.5 15.2 L20.2 17.1 L21.0 19.9 L18.5 18.3 L16.0 19.9 L16.8 17.1 L14.5 15.2 L17.4 15.0z',
@@ -167,7 +184,9 @@ export interface ActivityBubble {
    * free one, and drains the ring from `enteredAt` to `busyUntil` in **sim time**: a slow-mo slows it, a
    * hitstop and the pause freeze it. `nowAtReal` ends a shake. The DOM is written only on change. In a chore
    * (story 9.4, `choreProgressPct` from 0 to 100, beats done over beats) the ring **fills** with that progress
-   * instead: there is no `busyUntil` to drain to, Papa can leave at any moment.
+   * instead: there is no `busyUntil` to drain to, Papa can leave at any moment. `choreStation` (story 9.6) is
+   * the kind of station he works at; the pictogram follows it (a plate at the dishwasher). Without one a chore
+   * shows the default of {@link ACTIVITY_PICTOGRAMS}.
    */
   update(
     papa: Readonly<ActivityPapa> | null,
@@ -175,6 +194,7 @@ export interface ActivityBubble {
     isAside: boolean,
     nowAtReal: number,
     choreProgressPct?: number,
+    choreStation?: ChoreStationKind | null,
   ): void;
   /** A tap on a threat was refused: shakes the bubble (restarts a running shake), or thickens its border under reduced motion. */
   shake(nowAtReal: number): void;
@@ -372,9 +392,15 @@ export function createActivityBubble(
     get progressPct() {
       return shownPct;
     },
-    update(papa, renderSimMs, isAside, nowAtReal, choreProgressPct = HIDDEN) {
+    update(papa, renderSimMs, isAside, nowAtReal, choreProgressPct = HIDDEN, choreStation = null) {
       if (shakeUntilAtReal !== null && nowAtReal >= shakeUntilAtReal) clearShake();
-      const next = papa === null ? null : (pictograms[papa.state] ?? null);
+      // In a chore the pictogram is the station's, not the state's: the plate at the dishwasher (story 9.6).
+      const next =
+        papa === null
+          ? null
+          : papa.state === 'chore' && choreStation !== null
+            ? STATION_PICTOGRAMS[choreStation]
+            : (pictograms[papa.state] ?? null);
       if (papa !== null && next === null && isPapaBusy(papa) && !isUnknownWarned) {
         isUnknownWarned = true;
         log.warn('render', 'a busy Papa state has no activity pictogram: no bubble is drawn', {

@@ -59,6 +59,7 @@ const NO_REAL_FX = () => ({
   dangerTintsShown: 0,
   lightsFactor: 1,
   mischiefDecals: 0,
+  choreShards: 0,
 });
 
 interface Deferred<T> {
@@ -292,6 +293,7 @@ describe('createLevelSession', () => {
         microSleepDefId: null,
         layDownDefIds: [],
         anchorThreatDefIds: [],
+        choreStations: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
         door: content.feedback.door,
@@ -1246,6 +1248,7 @@ describe('createLevelSession › start options and outcomes', () => {
         microSleepDefId: null,
         layDownDefIds: [],
         anchorThreatDefIds: [],
+        choreStations: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
         door: content.feedback.door,

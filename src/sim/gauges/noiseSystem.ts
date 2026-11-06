@@ -23,7 +23,8 @@ function propIndexOf(world: World, propId: string): number {
  *    `PropImpact` (by impulse, once per `samePropCooldownMs` per prop), `PhoneRinging` and
  *    `BabyCrying` (`perSec` for one period of their contract) and `PapaSnored` (a sequence's failure, story 4.4: `snore.noisePct`), `BreathGasped` and `FloorCreaked` (a stealth step, story 4.9).
  *
- * `DebrisSteppedOn` (story 3.15: `debrisStep.noisePct`).
+ * `DebrisSteppedOn` (story 3.15: `debrisStep.noisePct`), and a missed chore beat (`ChoreBeatJudged{fail}`, story 9.6):
+ * the chore's `missNoisePct` through `addNoise(…, 'gag')`, for a chore whose def has one (the broken plate).
  *
  * It reads events only, never the phone's, the props' or the baby's state (epics, story 3.1 AC 3).
  */
@@ -62,6 +63,9 @@ export function runNoise(world: World, ctx: StepContext): void {
     } else if (event.type === 'BabyCrying') {
       const pct = (sources.babyCrying.perSec * BABY_CRYING_EVERY_MS) / MS_PER_S;
       addNoise(world, ctx, pct, 'babyCrying');
+    } else if (event.type === 'ChoreBeatJudged' && event.quality === 'fail') {
+      const missNoisePct = ctx.level.chores[event.choreIndex]?.def.missNoisePct;
+      if (missNoisePct !== undefined) addNoise(world, ctx, missNoisePct, 'gag');
     }
   }
 }

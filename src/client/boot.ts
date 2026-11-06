@@ -1,6 +1,7 @@
 import { feedbackClips } from '@content/feedbackClips';
 import { loadContent } from '@content/loadContent';
 import { loadLevelContent } from '@content/loadLevelContent';
+import type { ChoreStationKind } from '@content/schemas/chore';
 import type { Feel } from '@content/schemas/feel';
 import { GAUGE_IDS, type GaugeId } from '@content/schemas/level';
 import type { Settings } from '@content/schemas/save';
@@ -142,6 +143,21 @@ function choreProgressPctOf(world: Readonly<World>, chores: Sim['chores'] | unde
     return beatCount > 0 ? (chore.beatsDone / beatCount) * 100 : 0;
   }
   return -1;
+}
+
+/**
+ * The kind of station Papa works at (story 9.6): the activity bubble's pictogram follows it (a saucepan at the
+ * stove, a plate at the dishwasher). Null outside a chore. Allocates nothing.
+ */
+function workingStationOf(
+  world: Readonly<World>,
+  chores: Sim['chores'] | undefined,
+): ChoreStationKind | null {
+  if (world.papa.state !== 'chore' || chores === undefined) return null;
+  for (let i = 0; i < world.chores.length; i++) {
+    if (world.chores[i]?.state === 'working') return chores[i]?.def.station ?? null;
+  }
+  return null;
 }
 
 /** The floor point of the level's `ANCHOR_door`, or null when the geometry has none (story 3.5). */
@@ -1488,6 +1504,7 @@ export async function boot(): Promise<void> {
             world.threats,
             nowAtReal,
             choreProgressPctOf(world, levelSession.active?.sim.chores),
+            workingStationOf(world, levelSession.active?.sim.chores),
           );
         } else {
           worldUi.activityBubble.hide();
@@ -2375,6 +2392,7 @@ export async function boot(): Promise<void> {
           dangerTintsShown: real?.dangerTintsShown ?? 0,
           lightsFactor: real?.lightsFactor ?? 1,
           mischiefDecals: real?.mischiefDecals ?? 0,
+          choreShards: real?.choreShards ?? 0,
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),

@@ -42,6 +42,7 @@ const BODIES = {
   microSleepDefId: null,
   layDownDefIds: [] as string[],
   anchorThreatDefIds: [] as string[],
+  choreStations: [] as { xM: number; zM: number; missBrokenObjects: number }[],
   laidHeightM: 0.3,
   characters: {
     ...createTestFeedback().characters,
@@ -530,6 +531,7 @@ describe('createLevelScene', () => {
       dangerTintsShown: 0,
       lightsFactor: 1,
       mischiefDecals: 0,
+      choreShards: 0,
     });
   });
 

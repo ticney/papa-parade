@@ -615,6 +615,30 @@
       "haptic": "medium",
       "fx": "gag"
     },
+    "chore_plate_broken": {
+      "audio": { "clip": "gag_coffee_table", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "object", "maxRadiusM": 1.0, "durationMs": 450 },
+      "haptic": "medium",
+      "fx": "gag"
+    },
+    "tel_dishwasher_open": {
+      "audio": { "clip": "tel_dishwasher_open", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.65,
+        "durationMs": 350,
+        "pulses": 2,
+        "pulseIntervalMs": 110
+      },
+      "haptic": "light"
+    },
+    "gag_baby_in_dishwasher": {
+      "audio": { "clip": "gag_silence_mischief", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
     "chore_completed": {
       "audio": { "clip": "env_sequence_succeeded", "bus": "sfx", "gainPct": 100 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.2, "durationMs": 500 },

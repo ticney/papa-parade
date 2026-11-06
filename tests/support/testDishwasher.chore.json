@@ -1,0 +1,23 @@
+{
+  "$schema": "../../content/_schemas/chore.schema.json",
+  "id": "unload_dishwasher",
+  "station": "dishwasher",
+  "windowMs": null,
+  "beats": [
+    { "verbKey": "verb.catch", "telegraphDelayMs": 1800 },
+    { "verbKey": "verb.catch", "telegraphDelayMs": 2200 },
+    { "verbKey": "verb.catch", "telegraphDelayMs": 1600 },
+    { "verbKey": "verb.catch", "telegraphDelayMs": 2600 }
+  ],
+  "missBrokenObjects": 1,
+  "missNoisePct": 10,
+  "openThreat": "dishwasher_open",
+  "homePoints": 7.5,
+  "feedback": {
+    "telegraph": "chore_beat_cued",
+    "success": "chore_beat_caught",
+    "perfect": "chore_beat_perfect",
+    "miss": "chore_plate_broken",
+    "completed": "chore_completed"
+  }
+}

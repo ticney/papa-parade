@@ -146,7 +146,8 @@
               "coffee_machine",
               "phone",
               "toilet",
-              "stove"
+              "stove",
+              "dishwasher"
             ],
             "description": "What the object is: it decides what Papa does on arriving at it."
           },

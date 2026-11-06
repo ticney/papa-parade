@@ -87,6 +87,7 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
         dangerTintsShown: 0,
         lightsFactor: 1,
         mischiefDecals: 0,
+        choreShards: 0,
       },
   );
 
@@ -114,11 +115,15 @@ export const ppCueLog = (page: Page): Promise<ReturnType<PPTestApi['cueLog']>> =
   page.evaluate(() => window.__PP__?.cueLog() ?? []);
 
 /**
- * The house chores of the level as `data-pp-chore` mirrors them (story 9.4): `<index>:<state>:<beatsDone>/<beatCount>:<beatState>`
- * joined by `;`, `''` when the level has none; null when the page is not a mirrored build (or not in a level).
+ * One house chore of the level as `data-pp-chore` mirrors it (story 9.4): `<index>:<state>:<beatsDone>/<beatCount>:<beatState>`,
+ * the entry of chore `index` (the first by default; the mirror joins every chore of the level with `;`, and the
+ * kitchen has two since story 9.6). `''` when the level has no such chore; null when the page is not a mirrored
+ * build (or not in a level).
  */
-export const ppChore = (page: Page): Promise<string | null> =>
-  page.evaluate(() => document.documentElement.getAttribute('data-pp-chore'));
+export const ppChore = async (page: Page, index = 0): Promise<string | null> => {
+  const mirror = await page.evaluate(() => document.documentElement.getAttribute('data-pp-chore'));
+  return mirror === null ? null : (mirror.split(';')[index] ?? '');
+};
 
 /** One off-screen bubble as `data-pp-offscreen` mirrors it (story 9.3): its threat, edge, centre (page px) and chevron angle. */
 export interface OffscreenBubbleMirror {

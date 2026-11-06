@@ -75,7 +75,8 @@
             "sweat",
             "open_hand",
             "sigh",
-            "pot"
+            "pot",
+            "dishwasher"
           ]
         },
         "feint": {
@@ -114,7 +115,8 @@
                 "sweat",
                 "open_hand",
                 "sigh",
-                "pot"
+                "pot",
+                "dishwasher"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -180,7 +182,8 @@
             "sweat",
             "open_hand",
             "sigh",
-            "pot"
+            "pot",
+            "dishwasher"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -510,7 +513,8 @@
             "sweat",
             "open_hand",
             "sigh",
-            "pot"
+            "pot",
+            "dishwasher"
           ]
         },
         "feint": {
@@ -549,7 +553,8 @@
                 "sweat",
                 "open_hand",
                 "sigh",
-                "pot"
+                "pot",
+                "dishwasher"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -615,7 +620,8 @@
             "sweat",
             "open_hand",
             "sigh",
-            "pot"
+            "pot",
+            "dishwasher"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },

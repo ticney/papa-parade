@@ -5,9 +5,13 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  DISHWASHER_OPEN,
   TEST_COOKING,
+  TEST_DISHWASHER,
   TEST_OBJECTS,
   TEST_STOVE,
+  TEST_UNLOAD_DISHWASHER,
+  testWave,
 } from '../../../tests/support/testContent.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
@@ -279,4 +283,109 @@ describe('the Maison row in a snapshot of an ended level (story 9.4 review)', ()
     const copy = await newShortSim();
     expect(() => copy.restore(snapshot)).toThrow(expected);
   });
+});
+
+describe('the dishwasher’s plates and door in a snapshot (story 9.6)', () => {
+  // The cooking is chore 0, the dishwasher chore 1; its door is planned late, so that only a test draws it.
+  const newDishSim = (): Promise<Sim> =>
+    createSim({
+      content,
+      geometry,
+      level: createTestLevel({
+        waves: [testWave([DISHWASHER_OPEN], { fromMs: 500_000 })],
+        objects: [...TEST_OBJECTS, TEST_STOVE, TEST_DISHWASHER],
+        chores: [TEST_COOKING, TEST_UNLOAD_DISHWASHER],
+      }),
+      seed: 4,
+    });
+  const DISH = 1;
+
+  /** The dishwasher opened and left, its door forced: the chore paused and open, the threat telegraphed. */
+  async function atOpenDoor() {
+    const live = await newDishSim();
+    live.enqueue({ type: 'TapObject', objectId: 'dishwasher', t: asSimMs(0) });
+    stepUntil(live, 1500);
+    live.enqueue({ type: 'TapFloor', xM: 0, zM: 0, t: asSimMs(live.world.time.sim) });
+    stepUntil(live, live.world.time.sim + 20);
+    const doorIndex = live.chores[DISH]?.openThreatIndex as number;
+    live.enqueue({
+      type: 'ForceThreat',
+      threatId: live.world.threats[doorIndex]!.id,
+      t: asSimMs(live.world.time.sim),
+    });
+    stepUntil(live, live.world.time.sim + 20);
+    expect(live.world.threats[doorIndex]?.state).toBe('telegraph');
+    expect(live.world.chores[DISH]).toMatchObject({ state: 'paused', isOpen: true });
+    const snapshot = JSON.parse(JSON.stringify(live.snapshot())) as ReturnType<Sim['snapshot']>;
+    return { live, snapshot };
+  }
+
+  const choreOf = (snapshot: ReturnType<Sim['snapshot']>, index: number) =>
+    snapshot.world.chores[index] as unknown as Record<string, unknown>;
+
+  it('round-trips the plates missed and the open door: the restored game ends where the live one does', async () => {
+    const { live, snapshot } = await atOpenDoor();
+    const copy = await newDishSim();
+    copy.restore(snapshot);
+    expect(copy.world.chores).toEqual(live.world.chores);
+    stepUntil(live, live.world.time.sim + 4000);
+    stepUntil(copy, copy.world.time.sim + 4000);
+    expect(hashJson(copy.world)).toBe(hashJson(live.world));
+  });
+
+  it.each([
+    ['a negative count of beats missed', -1],
+    ['a fractional count of beats missed', 1.5],
+    ['a count of beats missed that is not a number', '2'],
+  ])('refuses %s', async (_name, value) => {
+    const { snapshot } = await atOpenDoor();
+    choreOf(snapshot, DISH).beatsMissed = value;
+    await expect(restoreInto(snapshot)).rejects.toThrow(/world\.chores\[1\]\.beatsMissed/);
+  });
+
+  it('refuses a missing count of beats missed', async () => {
+    const { snapshot } = await atOpenDoor();
+    delete choreOf(snapshot, DISH).beatsMissed;
+    await expect(restoreInto(snapshot)).rejects.toThrow(/world\.chores\[1\]\.beatsMissed/);
+  });
+
+  it.each([
+    ['a door that is not a boolean', 1, 'yes'],
+    ['a missing door', 1, undefined],
+    ['an open door on the cooking, which has none', 0, true],
+  ])('refuses %s', async (_name, index, value) => {
+    const { snapshot } = await atOpenDoor();
+    const target = choreOf(snapshot, index);
+    if (value === undefined) delete target.isOpen;
+    else target.isOpen = value;
+    await expect(restoreInto(snapshot)).rejects.toThrow(
+      new RegExp(`world\\.chores\\[${index}\\]\\.isOpen`),
+    );
+  });
+
+  it('refuses an open door on a chore that is untouched, and on one that is done', async () => {
+    const { snapshot } = await atOpenDoor();
+    const untouched = structuredClone(snapshot);
+    Object.assign(choreOf(untouched, DISH), { state: 'untouched', enteredAt: 0, beatsDone: 0 });
+    await expect(restoreInto(untouched)).rejects.toThrow(/world\.chores\[1\]\.isOpen/);
+    const done = structuredClone(snapshot);
+    Object.assign(choreOf(done, DISH), { state: 'done', beatsDone: 4 });
+    await expect(restoreInto(done)).rejects.toThrow(/world\.chores\[1\]\.isOpen/);
+  });
+
+  it('refuses a shut chore whose door the baby is heading for', async () => {
+    const { snapshot } = await atOpenDoor();
+    choreOf(snapshot, DISH).isOpen = false;
+    await expect(restoreInto(snapshot)).rejects.toThrow(/world\.chores\[1\]\.isOpen/);
+  });
+
+  it('refuses a snapshot of the version before: its chores have no plates or door', async () => {
+    const { snapshot } = await atOpenDoor();
+    await expect(restoreInto({ ...snapshot, version: 32 as 33 })).rejects.toThrow(/version 32/);
+  });
+
+  /** Restores into a fresh sim; async so that every refusal is read the same way (`rejects`). */
+  async function restoreInto(snapshot: ReturnType<Sim['snapshot']>): Promise<void> {
+    (await newDishSim()).restore(snapshot);
+  }
 });

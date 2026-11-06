@@ -30,6 +30,11 @@ import { isThreatActive } from './waveState.ts';
  * drawn as usual, so the draws do not change). The director reads no Papa state, so an occupation
  * Papa chose or a sequel of a miss moves nothing; a window already frozen never moves.
  *
+ * The open dishwasher (story 9.6) is a threat the baby may choose only while its chore is `paused`
+ * with the door open ({@link isShutDoor}): a gate on the chore, never on Papa (he may be on his way
+ * back, the baby may get there first). It only removes a candidate, as the silence's rules do, so it
+ * draws nothing of its own and a level with no such threat draws exactly as before.
+ *
  * A `hiddenZone` threat (the suspicious silence, story 1.21) is drawn like any other, but is a
  * candidate only while the baby is free, Papa is outside its zone, two places are left in the wave
  * and no other wave threat is active; picking it does not telegraph it: it is hidden until
@@ -135,11 +140,24 @@ function isCandidate(
   }
   // Papa carries the baby (story 4.1): nobody is left to menace, so the director draws nothing.
   if (isBabyCarried(world)) return false;
+  if (isShutDoor(world, ctx, index)) return false;
   if (simultaneousWeightOf(ctx, index) > placesLeft) return false;
   const planned = ctx.level.threats[index];
   if (planned?.def.target !== 'hiddenZone') return !isSilenceUnderway(world);
   if (isWaveThreatActive || !isBabyFree(world)) return false;
   return planned.zone === null || !isInZone(planned.zone, world.papa.xM, world.papa.zM);
+}
+
+/**
+ * Whether the threat at `index` is the open door of a chore (story 9.6) that is not open and waiting: the
+ * baby has nothing to climb into while Papa works at the station, before he has opened it, after it is
+ * emptied, or after a parry has shut it. False for every other threat.
+ */
+function isShutDoor(world: World, ctx: StepContext, index: number): boolean {
+  const choreIndex = ctx.level.threats[index]?.openChoreIndex ?? -1;
+  if (choreIndex < 0) return false;
+  const chore = world.chores[choreIndex];
+  return chore === undefined || chore.state !== 'paused' || !chore.isOpen;
 }
 
 /**
@@ -179,7 +197,8 @@ function startThreat(
 
 /**
  * `ForceThreat` (debug): starts the idle threat `threatId` now. Ignored, with no event, when it is
- * unknown, not idle, on Papa, on the baby or on a chore station, or a silence while the baby is not free, or Papa stands in its zone.
+ * unknown, not idle, on Papa, on the baby or on a chore station, the open door of a chore that is not
+ * open and waiting (story 9.6), or a silence while the baby is not free, or Papa stands in its zone.
  */
 function forceThreat(world: World, ctx: StepContext, threatId: number): void {
   for (let i = 0; i < world.threats.length; i++) {
@@ -191,6 +210,7 @@ function forceThreat(world: World, ctx: StepContext, threatId: number): void {
     if (threat.state !== 'idle' || target === 'papa' || target === 'baby' || target === 'station') {
       return;
     }
+    if (isShutDoor(world, ctx, i)) return;
     if (target === 'hiddenZone') {
       const zone = ctx.level.threats[i]?.zone;
       const isPapaIn =

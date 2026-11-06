@@ -101,6 +101,9 @@ export const OBJECT_ICON_PATHS: Readonly<Record<ObjectKind, string | null>> = {
   toilet: 'M7 3h10v18H7z M13.6 11v2h1.8v-2z',
   // A saucepan on the stove (story 9.4): the pot, its handle and the lid's knob. Provisional, like the others.
   stove: 'M4 9.5h13V17a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z M17 11h4v2.4h-4z M8.5 5.5h4v2.5h-4z',
+  // A plate (story 9.6): its rim and, running the other way round so that the nonzero fill leaves it a hole,
+  // the well. The dishwasher's station, and the activity bubble's plate. Provisional, like the others.
+  dishwasher: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M12 7a5 5 0 1 1 0 10a5 5 0 1 1 0-10z',
 };
 
 /** The classes the CSS styles (`ui.css` owns the look). */
