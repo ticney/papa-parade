@@ -183,7 +183,7 @@ Add a section for 9.6 in `deferred-work.md`:
 
 No new dependency, no version change: `zod` (pinned) for the schema keys, the project's `emitSchemas.ts` for the JSON Schemas, `three@0.186.1` for the existing decal code. No web research was needed: the feature is the project's own sim, content and DOM.
 
-### Questions for Geo (decided provisionally above; the dev follows the decision unless Geo says otherwise)
+### Questions for Geo (all four answered « Oui, garde-les » by Geo, 2026-11-06: the decisions below stand as written)
 
 1. **D4:** a caught « lave-vaisselle ouvert » shuts the door, and the baby cannot go back to it until Papa resumes the chore. Or should the door stay open (a target again after its cooldown, like 9.5's pot that keeps calling)?
 2. **AC 2, AC 3, AC 6 values:** beats at 1.8 / 2.2 / 1.6 / 2.6 s, 7.5 points; a broken plate = −4 Soupir, +10 % noise, +10 % catastrophe; the open-door gag = a mischief (−1.5 Soupir), the mess on the floor, +20 %. Right amounts?
