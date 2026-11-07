@@ -1,6 +1,6 @@
 import type { ContentBundle } from '@content/contentBundle';
 import type { LevelCameraMode } from '@content/schemas/level';
-import type { PapaLook, Sim, SimEvent } from '@sim';
+import type { MamaReactionLine, PapaLook, Sim, SimEvent } from '@sim';
 import type { Group } from 'three';
 import type { SoundedNote } from '../audio/beatScheduler.ts';
 import type { InputDevice } from '../input/inputMapper.ts';
@@ -119,6 +119,11 @@ export interface TestHost {
    * Read-only: the playtest journal credits a response to it (story 3.3).
    */
   lastInputDevice(): InputDevice | null;
+  /**
+   * The lines Mama says on the current Result screen, one per reaction in the order they play (story 3.8):
+   * `null` before the first `LevelScored` and after the next level starts loading. Read-only.
+   */
+  mamaLines(): readonly MamaReactionLine[] | null;
   /**
    * What the debug overlay reads besides `onRenderedFrame` (story 2.1; the loop's timings and the
    * level's geometry come from `levelSession.loopStats` and `levelSession.active.geometry`).

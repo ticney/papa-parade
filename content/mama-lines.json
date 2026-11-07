@@ -1,0 +1,68 @@
+{
+  "$schema": "./_schemas/mamaLines.schema.json",
+  "lines": [
+    { "id": "laugh_any", "reaction": "laugh", "text": "Ha ha ! Tous les deux, alors…" },
+    { "id": "sigh_any", "reaction": "sigh", "text": "Bon… qui range ?" },
+    { "id": "scream_any", "reaction": "scream", "text": "Attention, voyons !" },
+    {
+      "id": "scream_woke",
+      "reaction": "scream",
+      "text": "Qui fait tout ce bruit ?!",
+      "when": { "endReason": "mamaWoke" }
+    },
+    {
+      "id": "scream_home",
+      "reaction": "scream",
+      "text": "Mais qu'est-ce qui s'est passé ici ?!",
+      "when": { "endReason": "mamaHome" }
+    },
+    {
+      "id": "stairs_first",
+      "reaction": "scream",
+      "text": "Pas si près de l'escalier !",
+      "when": { "tag": "stairs_slide", "minPrevious": 0 }
+    },
+    {
+      "id": "stairs_again",
+      "reaction": "scream",
+      "text": "*Encore* l'escalier ?!",
+      "when": { "tag": "stairs_slide", "minPrevious": 1 }
+    },
+    {
+      "id": "outlet_first",
+      "reaction": "laugh",
+      "text": "Joli brushing !",
+      "when": { "tag": "outlet_hair" }
+    },
+    {
+      "id": "outlet_again",
+      "reaction": "laugh",
+      "text": "*Encore* ce brushing ?!",
+      "when": { "tag": "outlet_hair", "minPrevious": 1 }
+    },
+    {
+      "id": "asleep_first",
+      "reaction": "laugh",
+      "text": "Tu dormais debout ?",
+      "when": { "tag": "papa_asleep" }
+    },
+    {
+      "id": "dishwasher_first",
+      "reaction": "sigh",
+      "text": "Le bébé… dans le lave-vaisselle ?",
+      "when": { "tag": "baby_in_dishwasher" }
+    },
+    {
+      "id": "tablecloth_again",
+      "reaction": "sigh",
+      "text": "*Encore* la nappe ?!",
+      "when": { "tag": "dishes_on_floor", "minPrevious": 1 }
+    },
+    {
+      "id": "plant_again",
+      "reaction": "sigh",
+      "text": "*Encore* ma plante ?!",
+      "when": { "tag": "soil_on_rug", "minPrevious": 1 }
+    }
+  ]
+}

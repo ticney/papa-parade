@@ -40,7 +40,24 @@ describe('loadContent', () => {
       expect(result.value.strings['start.tap_to_start']).toBeTypeOf('string');
       expect(result.value.feedback.cues).toBeDefined();
       expect(result.value.bots.tapMs).toBeGreaterThan(0);
+      expect(result.value.mamaLines.lines.map((line) => line.id)).toContain('stairs_again');
     }
+  });
+
+  it("names the file and the JSON path of a broken line of Mama's", async () => {
+    const mamaLines = JSON.parse(readReal('mama-lines.json'));
+    mamaLines.lines[0].text = '*Ha ha !';
+    const problems = await problemsOf({ 'mama-lines.json': JSON.stringify(mamaLines) });
+    expect(problems).toEqual([
+      expect.objectContaining({ file: 'content/mama-lines.json', jsonPath: 'lines[0].text' }),
+    ]);
+  });
+
+  it("reports a file of Mama's lines the source cannot read", async () => {
+    const problems = await problemsOf({ 'mama-lines.json': null });
+    expect(problems).toEqual([
+      expect.objectContaining({ file: 'content/mama-lines.json', jsonPath: '' }),
+    ]);
   });
 
   it('names the file and the JSON path of a broken feedback value', async () => {

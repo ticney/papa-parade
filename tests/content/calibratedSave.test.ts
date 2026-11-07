@@ -9,9 +9,11 @@ import {
 } from '../e2e/support/calibratedSave.ts';
 
 describe('the e2e calibrated save (story 2.7)', () => {
-  it('is a valid v3 save, with offsets of 0, the normal tier and both comfort switches off so that no timing moves', () => {
+  it('is a valid v4 save, with offsets of 0, the normal tier, both comfort switches off and an empty memory so that no timing moves', () => {
     const parsed = SaveSchema.safeParse(JSON.parse(calibratedSaveValue()));
     expect(parsed.success).toBe(true);
+    expect(calibratedSave().version).toBe(4);
+    expect(calibratedSave().mamaMemory).toEqual({ counts: {} });
     expect(calibratedSave().calibration).toMatchObject({ visualOffsetMs: 0, audioOffsetMs: 0 });
     expect(calibratedSave().settings.tier).toBe('normal');
     expect(calibratedSave().settings).toMatchObject({ reducedMotion: false, largeVerbs: false });
@@ -21,6 +23,15 @@ describe('the e2e calibrated save (story 2.7)', () => {
     const save = calibratedSave({}, { reducedMotion: true, largeVerbs: true });
     expect(SaveSchema.safeParse(save).success).toBe(true);
     expect(save.settings).toMatchObject({ reducedMotion: true, largeVerbs: true });
+  });
+
+  it('takes the games of each gag as a third parameter (story 3.8) and stays valid', () => {
+    const save = calibratedSave({}, {}, { stairs_slide: 1 });
+    expect(SaveSchema.safeParse(save).success).toBe(true);
+    expect(save.mamaMemory).toEqual({ counts: { stairs_slide: 1 } });
+    expect(JSON.parse(calibratedSaveValue({}, {}, { outlet_hair: 2 })).mamaMemory).toEqual({
+      counts: { outlet_hair: 2 },
+    });
   });
 
   it('takes a settings override (story 2.8) and stays valid', () => {

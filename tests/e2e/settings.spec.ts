@@ -370,7 +370,7 @@ test.describe('the volumes and the vibrations', () => {
     await expect.poll(async () => (await savedSettings(page)).volumes.voice).toBe(0);
     await expect(html(page)).toHaveAttribute('data-pp-volumes', '100,55,0,100');
     const save = await readSave(page);
-    expect(save?.version).toBe(3);
+    expect(save?.version).toBe(4);
     expect(save?.settings.volumes).toEqual({ music: 100, sfx: 55, voice: 0, ui: 100 });
     expect(save?.calibration).not.toBeNull();
     expect(problems).toEqual([]);
@@ -828,7 +828,7 @@ test.describe('the save on disk', () => {
     await seedStorage(page, SAVE_KEY, JSON.stringify({ version: 1, calibration: v1.calibration }));
     await openGame(page);
     const save = await readSave(page);
-    expect(save?.version).toBe(3);
+    expect(save?.version).toBe(4);
     expect(save?.calibration?.visualOffsetMs).toBe(20);
     expect(save?.settings).toEqual({
       tier: 'normal',
@@ -859,7 +859,7 @@ test.describe('the save on disk', () => {
     );
     await openGame(page);
     const save = await readSave(page);
-    expect(save?.version).toBe(3);
+    expect(save?.version).toBe(4);
     expect(save?.calibration?.visualOffsetMs).toBe(20);
     expect(save?.settings).toEqual({ ...v2Settings, reducedMotion: false, largeVerbs: false });
     expect(await readRaw(page, INVALID_KEY)).toBeNull();
@@ -872,7 +872,7 @@ test.describe('the save on disk', () => {
   }) => {
     const future = JSON.stringify({
       ...JSON.parse(calibratedSaveValue()),
-      version: 4,
+      version: 5,
       tomorrow: true,
     });
     await seedStorage(page, SAVE_KEY, future);

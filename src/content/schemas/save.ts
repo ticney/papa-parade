@@ -5,6 +5,7 @@ import {
   VOLUME_MAX_PCT,
 } from '@shared/constants';
 import { z } from 'zod';
+import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 
 // The single versioned save under the `papa-parade.save` key (story 2.7; architecture › Persistance).
 // It lives in `content` because zod does, and the store that reads it (`client/save/saveStore.ts`)
@@ -66,6 +67,21 @@ export const SettingsSchema = z
   })
   .describe('The settings screen (story 2.8; the two comfort switches come with 2.10).');
 
+export const MamaMemorySchema = z
+  .strictObject({
+    counts: z
+      .record(
+        z.string().regex(SNAKE_ID_PATTERN, 'a tag is a gag id, lower_snake_case'),
+        z.number().int().min(1),
+      )
+      .describe(
+        'Per tag (a gag id), in how many games it happened. A tag that never happened has no key.',
+      ),
+  })
+  .describe(
+    'What Mama remembers of the previous games: games in which each gag happened (story 3.8).',
+  );
+
 export const SaveSchema = z
   .strictObject({
     version: z.literal(SAVE_VERSION).describe('Schema version of the save.'),
@@ -73,14 +89,16 @@ export const SaveSchema = z
       'The latency calibration, or `null` when the player has not been through it.',
     ),
     settings: SettingsSchema,
+    mamaMemory: MamaMemorySchema,
   })
   .describe(
-    'The save of the game (version 3: story 2.10 added `reducedMotion` and `largeVerbs` to `settings`).',
+    'The save of the game (version 4: story 3.8 added `mamaMemory`; version 3 added `reducedMotion` and `largeVerbs` to `settings`, story 2.10).',
   );
 
 export type Save = z.infer<typeof SaveSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type CalibrationResult = z.infer<typeof CalibrationResultSchema>;
+export type MamaMemory = z.infer<typeof MamaMemorySchema>;
 
 /** The settings of a new player: the normal tier, the mix of `feedback.json` as it is, vibrations on, both comfort switches off. */
 export function createDefaultSettings(): Settings {
@@ -98,7 +116,12 @@ export function createDefaultSettings(): Settings {
   };
 }
 
-/** A new player: nothing measured yet, default settings. */
+/** A new player: nothing measured yet, default settings, and Mama remembers nothing. */
 export function createDefaultSave(): Save {
-  return { version: SAVE_VERSION, calibration: null, settings: createDefaultSettings() };
+  return {
+    version: SAVE_VERSION,
+    calibration: null,
+    settings: createDefaultSettings(),
+    mamaMemory: { counts: {} },
+  };
 }

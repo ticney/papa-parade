@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CalibrationResultSchema, createDefaultSave, SaveSchema, SettingsSchema } from './save.ts';
+import {
+  CalibrationResultSchema,
+  createDefaultSave,
+  MamaMemorySchema,
+  SaveSchema,
+  SettingsSchema,
+} from './save.ts';
 
 const CALIBRATION = {
   visualOffsetMs: 0,
@@ -31,9 +37,9 @@ describe('SaveSchema', () => {
     }
   });
 
-  it('gives a new player the normal tier, full volumes, vibrations on and both comfort switches off', () => {
+  it('gives a new player the normal tier, full volumes, vibrations on, both comfort switches off and a Mama who remembers nothing', () => {
     expect(createDefaultSave()).toEqual({
-      version: 3,
+      version: 4,
       calibration: null,
       settings: {
         tier: 'normal',
@@ -42,18 +48,56 @@ describe('SaveSchema', () => {
         reducedMotion: false,
         largeVerbs: false,
       },
+      mamaMemory: { counts: {} },
     });
   });
 
-  it('hands out settings nobody else holds', () => {
+  it('hands out settings and a memory nobody else holds', () => {
     expect(createDefaultSave().settings).not.toBe(createDefaultSave().settings);
+    expect(createDefaultSave().mamaMemory).not.toBe(createDefaultSave().mamaMemory);
+    expect(createDefaultSave().mamaMemory.counts).not.toBe(createDefaultSave().mamaMemory.counts);
   });
 
-  it('refuses a version other than 3, an unknown key and an empty device', () => {
-    expect(SaveSchema.safeParse({ ...createDefaultSave(), version: 2 }).success).toBe(false);
-    expect(SaveSchema.safeParse({ ...createDefaultSave(), version: 4 }).success).toBe(false);
+  it('refuses a version other than 4, an unknown key and an empty device', () => {
+    expect(SaveSchema.safeParse({ ...createDefaultSave(), version: 3 }).success).toBe(false);
+    expect(SaveSchema.safeParse({ ...createDefaultSave(), version: 5 }).success).toBe(false);
     expect(SaveSchema.safeParse({ ...createDefaultSave(), x: 1 }).success).toBe(false);
     expect(CalibrationResultSchema.safeParse({ ...CALIBRATION, device: '' }).success).toBe(false);
+  });
+});
+
+describe('MamaMemorySchema (story 3.8)', () => {
+  const withCounts = (counts: unknown) => ({ ...createDefaultSave(), mamaMemory: { counts } });
+
+  it('accepts counts of whole games per gag id', () => {
+    expect(SaveSchema.safeParse(withCounts({ stairs_slide: 1, outlet_hair: 12 })).success).toBe(
+      true,
+    );
+    expect(MamaMemorySchema.safeParse({ counts: {} }).success).toBe(true);
+  });
+
+  it('refuses a count that is not a whole number of at least 1', () => {
+    for (const count of [0, -1, 1.5, Number.NaN, '2', null]) {
+      expect(SaveSchema.safeParse(withCounts({ stairs_slide: count })).success, String(count)).toBe(
+        false,
+      );
+    }
+  });
+
+  it('refuses a key that is not a snake id', () => {
+    for (const key of ['Stairs', 'stairs-slide', 'stairs slide', '1stairs', '']) {
+      expect(SaveSchema.safeParse(withCounts({ [key]: 1 })).success, key).toBe(false);
+    }
+  });
+
+  it('is strict: no unknown key, and it is not optional', () => {
+    expect(
+      SaveSchema.safeParse({ ...createDefaultSave(), mamaMemory: { counts: {}, last: 'x' } })
+        .success,
+    ).toBe(false);
+    const { mamaMemory: _memory, ...without } = createDefaultSave();
+    expect(SaveSchema.safeParse(without).success).toBe(false);
+    expect(SaveSchema.safeParse({ ...createDefaultSave(), mamaMemory: {} }).success).toBe(false);
   });
 });
 

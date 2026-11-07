@@ -1216,6 +1216,12 @@ body {
   white-space: nowrap;
 }
 
+/* The emphasis of a line (story 3.8): « *Encore* l'escalier ?! » puts « Encore » in italics, in the ink of the
+   rest. Italic is enough: no colour on the bubble's text (the sigh's violet fails contrast, story 3.7). */
+.pp-mum-bubble em {
+  font-style: italic;
+}
+
 .pp-mum-bubble--laugh {
   --pp-mum-accent: var(--pp-color-mama-laugh);
 }

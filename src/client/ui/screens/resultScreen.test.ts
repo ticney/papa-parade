@@ -1,5 +1,10 @@
-import { COUNT_UP_FRAME_MS, JOURNAL_COPY_TIMEOUT_MS, STAR_COUNT_MAX } from '@shared/constants';
-import type { MamaReaction, MamaScore } from '@sim';
+import {
+  COUNT_UP_FRAME_MS,
+  JOURNAL_COPY_TIMEOUT_MS,
+  type MamaReactionId,
+  STAR_COUNT_MAX,
+} from '@shared/constants';
+import type { MamaReactionLine, MamaScore } from '@sim';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestFeedback } from '../../../../tests/support/testContent.ts';
 import {
@@ -15,10 +20,20 @@ type Listener = (event: unknown) => void;
 class FakeElement {
   className = '';
   hidden = false;
-  textContent = '';
   type = '';
   tabIndex = 0;
   children: FakeElement[] = [];
+  private ownText = '';
+  // As in the DOM: the text of an element is its own, or its children's put together, and setting it drops the children.
+  get textContent(): string {
+    return this.children.length > 0
+      ? this.children.map((child) => child.textContent).join('')
+      : this.ownText;
+  }
+  set textContent(value: string) {
+    this.children = [];
+    this.ownText = value;
+  }
   readonly style = { setProperty: (name: string, value: string) => this.styles.set(name, value) };
   styles = new Map<string, string>();
   attributes = new Map<string, string>();
@@ -83,6 +98,11 @@ let focused: FakeElement | null = null;
 const doc = {
   createElement: (tag: string) => new FakeElement(tag),
   createElementNS: (_ns: string, tag: string) => new FakeElement(tag),
+  createTextNode: (text: string) => {
+    const node = new FakeElement('#text');
+    node.textContent = text;
+    return node;
+  },
 };
 
 /** A fake real-time scheduler: the test moves the clock and the due timers run in order. */
@@ -1137,11 +1157,22 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
 
   const HOLD_MS = timings.reactionHoldMs;
   const PHOTO_HOLD_MS = timings.photoHoldMs;
-  const ALL: readonly MamaReaction[] = [
-    { reaction: 'laugh', points: 7 },
-    { reaction: 'sigh', points: 3 },
-    { reaction: 'scream', points: 2.5 },
+  // The lines `chooseMamaLines` picked (story 3.8): the screen shows what it is given; the Scream's is emphasized.
+  const LAUGH_LINE = 'Ha ha ! Tous les deux, alors…';
+  const SIGH_LINE = 'Bon… qui range ?';
+  const SCREAM_LINE = "*Encore* l'escalier ?!";
+  const SCREAM_TEXT = "Encore l'escalier ?!";
+  const ALL: readonly MamaReactionLine[] = [
+    { reaction: 'laugh', points: 7, lineId: 'laugh_any', text: LAUGH_LINE },
+    { reaction: 'sigh', points: 3, lineId: 'sigh_any', text: SIGH_LINE },
+    { reaction: 'scream', points: 2.5, lineId: 'stairs_again', text: SCREAM_LINE },
   ];
+  const lineWith = (reaction: MamaReactionId, points: number, text = 'Une ligne.') => ({
+    reaction,
+    points,
+    lineId: `${reaction}_test`,
+    text,
+  });
   // The strings the chip needs; every other key stays its own name.
   const t = (key: string): string =>
     key === 'result.mama_value_gain'
@@ -1205,15 +1236,54 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
 
   it('shows the line of the reaction in the bubble, with its accent class, and the next one after the hold', () => {
     const { clock, root } = make();
-    expect(lineOf(root)).toBe('result.mama_line_laugh');
+    expect(lineOf(root)).toBe(LAUGH_LINE);
     expect(bubbleOf(root).className).toContain('pp-mum-bubble--laugh');
     clock.advance(HOLD_MS);
-    expect(lineOf(root)).toBe('result.mama_line_sigh');
+    expect(lineOf(root)).toBe(SIGH_LINE);
     expect(bubbleOf(root).className).toContain('pp-mum-bubble--sigh');
     expect(bubbleOf(root).className).not.toContain('pp-mum-bubble--laugh');
     clock.advance(HOLD_MS);
-    expect(lineOf(root)).toBe('result.mama_line_scream');
+    expect(lineOf(root)).toBe(SCREAM_TEXT);
     expect(bubbleOf(root).className).toContain('pp-mum-bubble--scream');
+  });
+
+  describe('the emphasis of a line (story 3.8, AC 9)', () => {
+    const textOf = (root: FakeElement) => root.find('pp-mum-bubble-text')[0] as FakeElement;
+    const emsOf = (root: FakeElement) => textOf(root).children.filter((node) => node.tag === 'em');
+
+    it('puts the *word* in an em and shows no asterisk, so a reader hears the words alone', () => {
+      const { clock, root } = make();
+      clock.advance(HOLD_MS * 2);
+      expect(emsOf(root).map((node) => node.textContent)).toEqual(['Encore']);
+      expect(textOf(root).textContent).toBe(SCREAM_TEXT);
+      expect(textOf(root).textContent).not.toContain('*');
+    });
+
+    it('makes no em for a line without emphasis, and drops the previous one', () => {
+      const { clock, root } = make({
+        reactions: [lineWith('scream', 1, SCREAM_LINE), lineWith('laugh', 0, 'Joli brushing !')],
+      });
+      expect(emsOf(root)).toHaveLength(1);
+      clock.advance(HOLD_MS);
+      expect(emsOf(root)).toHaveLength(0);
+      expect(lineOf(root)).toBe('Joli brushing !');
+    });
+
+    it('keeps the live region: the same bubble and the same text node, filled again', () => {
+      const { clock, root } = make();
+      const bubble = bubbleOf(root);
+      const text = textOf(root);
+      clock.advance(HOLD_MS * 2);
+      expect(bubbleOf(root)).toBe(bubble);
+      expect(textOf(root)).toBe(text);
+      expect(bubble.attributes.get('aria-live')).toBe('polite');
+    });
+
+    it('keeps markup inside a line as text: no element comes of it', () => {
+      const { root } = make({ reactions: [lineWith('laugh', 1, '<b>gras</b> *fort*')] });
+      expect(textOf(root).children.map((node) => node.tag)).toEqual(['#text', 'em']);
+      expect(lineOf(root)).toBe('<b>gras</b> fort');
+    });
   });
 
   it('is the caption of her voice: a polite status that always shows, with her figures hidden from readers', () => {
@@ -1259,12 +1329,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
   });
 
   it('shows no chip for a reaction worth 0, and brings it back for the next one', () => {
-    const { clock, root } = make({
-      reactions: [
-        { reaction: 'laugh', points: 0 },
-        { reaction: 'scream', points: 4 },
-      ],
-    });
+    const { clock, root } = make({ reactions: [lineWith('laugh', 0), lineWith('scream', 4)] });
     expect(chipOf(root).hidden).toBe(true);
     expect(chipOf(root).textContent).toBe('');
     clock.advance(HOLD_MS);
@@ -1272,20 +1337,13 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
     expect(chipOf(root).textContent).toBe('−4');
   });
 
-  it('gives the Scream the line of its end: woken, home early, or the general one', () => {
-    const scream = [{ reaction: 'scream', points: 0 }] as const;
-    expect(lineOf(make({ reactions: scream, endReason: 'mamaWoke' }).root)).toBe(
-      'result.mama_line_scream_woke',
-    );
-    expect(lineOf(make({ reactions: scream, endReason: 'mamaHome' }).root)).toBe(
-      'result.mama_line_scream_home',
-    );
-    expect(lineOf(make({ reactions: scream, endReason: 'timer' }).root)).toBe(
-      'result.mama_line_scream',
-    );
-    expect(lineOf(make({ reactions: scream, endReason: 'cycleDone' }).root)).toBe(
-      'result.mama_line_scream',
-    );
+  it('shows the line it is given whatever the end: choosing it is not the screen’s business any more', () => {
+    for (const endReason of ['mamaWoke', 'mamaHome', 'timer', 'cycleDone'] as const) {
+      const scream = [lineWith('scream', 0, `Ligne pour ${endReason}`)];
+      expect(lineOf(make({ reactions: scream, endReason }).root), endReason).toBe(
+        `Ligne pour ${endReason}`,
+      );
+    }
   });
 
   it('keeps the woken and home-early headers and their cues for the rows, after the reactions', () => {
@@ -1313,7 +1371,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
     expect(phases).toEqual(['mama', 'rows']);
     expect(calls).toEqual(['mama laugh', 'mama sigh', 'mama scream']);
     // She stays on the last one.
-    expect(lineOf(root)).toBe('result.mama_line_scream');
+    expect(lineOf(root)).toBe(SCREAM_TEXT);
   });
 
   it('goes straight from the photo to the reactions with photoHoldMs 0 as well', () => {
@@ -1330,7 +1388,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
     const [figure] = shownOf(root);
     expect(figure?.attributes.get('class')).toContain('pp-mama--scream');
     expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
-    expect(lineOf(root)).toBe('result.mama_line_scream');
+    expect(lineOf(root)).toBe(SCREAM_TEXT);
     expect(mamaOf(root).className).not.toContain('pp-result-mama-waiting');
   });
 
@@ -1354,7 +1412,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
       expect(values()).toEqual(ROW_TOTALS);
       expect(actions.hidden).toBe(false);
       expect(mamaOf(root).className).not.toContain('pp-result-mama-waiting');
-      expect(lineOf(root)).toBe('result.mama_line_scream');
+      expect(lineOf(root)).toBe(SCREAM_TEXT);
       const [figure] = shownOf(root);
       expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
     });
@@ -1369,7 +1427,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
       expect(phases).toEqual(['mama', 'actions']);
       expect(calls).toEqual(['mama laugh', 'mama sigh']);
       expect(actions.hidden).toBe(false);
-      expect(lineOf(root)).toBe('result.mama_line_scream_woke');
+      expect(lineOf(root)).toBe(SCREAM_TEXT);
       expect(chipOf(root).textContent).toBe('−2,5');
       const [figure] = shownOf(root);
       expect(figure?.attributes.get('class')).toContain('pp-mama--scream');
@@ -1394,7 +1452,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
     const { phases, calls, root } = make({ isDone: true });
     expect(phases).toEqual(['actions']);
     expect(calls).toEqual([]);
-    expect(lineOf(root)).toBe('result.mama_line_scream');
+    expect(lineOf(root)).toBe(SCREAM_TEXT);
     expect(chipOf(root).textContent).toBe('−2,5');
     const [figure] = shownOf(root);
     expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
@@ -1420,12 +1478,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
   });
 
   it('builds one figure per kind of reaction, whatever the list', () => {
-    const { root } = make({
-      reactions: [
-        { reaction: 'laugh', points: 1 },
-        { reaction: 'laugh', points: 2 },
-      ],
-    });
+    const { root } = make({ reactions: [lineWith('laugh', 1), lineWith('laugh', 2)] });
     expect(root.find('pp-mama')).toHaveLength(1);
   });
 });

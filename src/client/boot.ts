@@ -4,7 +4,7 @@ import { loadLevelContent } from '@content/loadLevelContent';
 import type { ChoreStationKind } from '@content/schemas/chore';
 import type { Feel } from '@content/schemas/feel';
 import { GAUGE_IDS, type GaugeId } from '@content/schemas/level';
-import type { Settings } from '@content/schemas/save';
+import type { MamaMemory, Settings } from '@content/schemas/save';
 import type { SequenceDef } from '@content/schemas/sequence';
 import { createPlatform } from '@platform/createPlatform';
 import {
@@ -19,15 +19,19 @@ import { log } from '@shared/log';
 import { ok } from '@shared/result';
 import { asRealMs } from '@shared/time';
 import {
+  addRunToMamaMemory,
   type BeatEntry,
   beatTimelineOf,
+  chooseMamaLines,
   isDuelStepRunning,
   isFlowLive,
   isPapaBusy,
   isStealthStepRunning,
   type LevelEndReason,
+  type MamaReactionLine,
   type MamaScore,
   mamaReactionsOf,
+  mamaTagOf,
   type Sim,
   type SimEvent,
   type SimObjectSpec,
@@ -195,6 +199,9 @@ const NO_SCORE: MamaScore = {
   stars: 0,
   lostStars: 0,
 };
+
+/** What `?autoplay` picks Mama's lines from (story 3.8): it ignores the player's save, so Mama remembers nothing. */
+const EMPTY_MAMA_MEMORY: MamaMemory = { counts: {} };
 
 function logSimEvent(event: SimEvent): void {
   if (event.type === 'InvariantViolated') {
@@ -1132,6 +1139,15 @@ export async function boot(): Promise<void> {
   let resultScore: MamaScore | null = null;
   // Why it ended (story 3.2): a woken Mama puts a header on the Result screen. Cleared with the note.
   let resultEndReason: LevelEndReason = 'timer';
+  // What Mama says for each of her reactions (story 3.8): chosen once, at `LevelScored`, with the memory of
+  // the games *before* this one, then recorded. A screen rebuilt after the portrait overlay reuses the same
+  // lines and never counts the game twice. Cleared with the note.
+  let resultMamaLines: readonly MamaReactionLine[] | null = null;
+  // The tags (gag ids) of the level being played: the distinct `gag` of every gag, near miss and frozen
+  // near miss. Cleared when a level starts and when one loads; fed by `onSimEvent`.
+  const runMamaTags = new Set<string>();
+  // The seed of the level being played: it breaks a tie between two lines (`chooseMamaLines`, off `world.rng`).
+  let levelSeed = 0;
   let hasResultStarted = false;
   // The end photo (story 3.6): taken once, at `LevelScored`, null when the capture failed. It lives
   // here and not in the screen because the screen is rebuilt after the portrait overlay: each build
@@ -1199,6 +1215,26 @@ export async function boot(): Promise<void> {
     sim.enqueue({ type: 'SetDifficultyTier', t: sim.world.time.sim, tier });
   };
 
+  // At `LevelScored` (story 3.8, FR36), in this order: choose Mama's lines with the memory of the games
+  // *before* this one (the other way round, every first time would read « Encore »), then add this game to
+  // the memory (fire-and-forget, like `setSettings`: a failure only warns), then the Result screen reads
+  // `resultMamaLines`. `?autoplay` ignores the player's save, as for the lag and the tier: it picks from an
+  // empty memory and records nothing, so a bot never pollutes the player's Mama.
+  const chooseAndRecordMamaLines = (score: MamaScore): void => {
+    const memory = isAutoplaying ? EMPTY_MAMA_MEMORY : saveStore.current().mamaMemory;
+    resultMamaLines = chooseMamaLines({
+      reactions: mamaReactionsOf(score, resultEndReason),
+      endReason: resultEndReason,
+      runTags: runMamaTags,
+      memory,
+      lines: content.value.mamaLines.lines,
+      seed: levelSeed,
+    });
+    if (!isAutoplaying) {
+      void saveStore.recordMamaMemory(addRunToMamaMemory(memory, runMamaTags));
+    }
+  };
+
   // Fills `beatFrame` from the world and the loop: the running `beats` step's timeline and track, or
   // none. The notes lead by `audioOffsetMs − visualOffsetMs` (D1): the inputs keep `visualOffsetMs`
   // alone, in the mapper, so the latency is corrected once.
@@ -1245,6 +1281,8 @@ export async function boot(): Promise<void> {
     onLevelStarted: (started) => {
       sendInputLag(started.sim, false);
       sendDifficultyTier(started.sim);
+      runMamaTags.clear();
+      levelSeed = started.seed;
       currentSequences = started.level.sequences;
       currentBeatTimelines = Object.fromEntries(
         Object.entries(started.level.sequences).map(([id, def]) => [
@@ -1789,12 +1827,15 @@ export async function boot(): Promise<void> {
       // The debug modules last: they see the event after the app has handled it.
       for (let i = 0; i < simEventListeners.length; i++) simEventListeners[i]?.(event);
       if (event.type === 'LevelEnded') resultEndReason = event.reason;
+      const mamaTag = mamaTagOf(event);
+      if (mamaTag !== null) runMamaTags.add(mamaTag);
       // Mama's note ends the level (story 1.22): the loop stops on the frozen room, which stays
       // drawn behind the Result screen; the world stays readable until the next start.
       if (event.type === 'LevelScored') {
         const { type: _type, t: _t, ...score } = event;
         resultScore = score;
         hasResultStarted = false;
+        chooseAndRecordMamaLines(score);
         if (isMirrored) {
           mirror('ppScore', String(score.scorePoints));
           mirror('ppStars', String(score.stars));
@@ -2044,6 +2085,10 @@ export async function boot(): Promise<void> {
         // `LevelScored` stores it before the app enters `result`: this is a bug, not a game.
         log.warn('boot', 'the Result screen has no note to show: showing an empty one');
       }
+      if (resultMamaLines === null) {
+        // Chosen in the same `LevelScored` branch as the note: none means Mama has nothing to say. A bug too.
+        log.warn('boot', 'the Result screen has no line of Mama to show: showing no reaction');
+      }
       const { mama } = levelFeel();
       return createResultScreen({
         t,
@@ -2054,8 +2099,9 @@ export async function boot(): Promise<void> {
         // Rebuilt after the portrait overlay: the stars do not stamp (nor sound) twice.
         isDone: hasResultStarted,
         photo: resultPhoto,
-        // Mama's reactions to the note she gave, between the photo and the rows (story 3.7).
-        reactions: mamaReactionsOf(resultScore ?? NO_SCORE, resultEndReason),
+        // Mama's reactions to the note she gave, each with the line she says, between the photo and the
+        // rows (stories 3.7, 3.8). Chosen once at `LevelScored`; none is a bug, shown as no reaction.
+        reactions: resultMamaLines ?? [],
         // The shutter and the flash, once, when the photo drops in (never on a rebuild, nor with no photo).
         onPhoto: () => director.handle('PhotoTaken', null),
         scheduler: {
@@ -2297,6 +2343,8 @@ export async function boot(): Promise<void> {
     if (to !== 'loading') return;
     resultScore = null;
     resultEndReason = 'timer';
+    resultMamaLines = null;
+    runMamaTags.clear();
     hasResultStarted = false;
     resultPhoto = null;
     // The previous game's note must not be read as the next one's while it loads (`mirrorNewLevel`
@@ -2361,6 +2409,7 @@ export async function boot(): Promise<void> {
         isGameInputBlocked = isBlocked;
       },
       lastInputDevice: () => inputMapper.lastDevice,
+      mamaLines: () => resultMamaLines,
       debugGroup: () => {
         if (currentLevel === null) return null;
         if (debugGroup === null) {

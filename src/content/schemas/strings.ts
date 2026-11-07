@@ -19,7 +19,8 @@ const VOUVOIEMENT = /(?<![\p{L}])(vous|votre|vos)(?![\p{L}])/iu;
  */
 const VERB_SHAPE = /^[\p{Lu}'’ -]+( !|…)$/u;
 
-const StringValueSchema = z
+/** A UI string: non-blank, never names failure, tutoiement. Mama's lines (story 3.8) reuse it, so there is one standard. */
+export const StringValueSchema = z
   .string()
   .min(1, 'a string must not be empty')
   .refine((value) => value === '' || value.trim() !== '', { error: 'a string must not be blank' })

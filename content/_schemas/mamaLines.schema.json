@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path to this JSON Schema: editor autocomplete only, ignored by the loader."
+    },
+    "lines": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Unique id of the line, lower_snake_case."
+          },
+          "reaction": {
+            "type": "string",
+            "enum": [
+              "laugh",
+              "sigh",
+              "scream"
+            ],
+            "description": "Which of her three reactions says it: `laugh`, `sigh` or `scream`."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What she says, in French, tutoiement. `*word*` is shown in italics."
+          },
+          "when": {
+            "description": "Absent: a generic line of its reaction, the fallback when no other line holds.",
+            "type": "object",
+            "properties": {
+              "tag": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "A gag id (`stairs_slide`, `outlet_hair`…) that must have happened in the game she is shown; `content:check` knows the ids."
+              },
+              "minPrevious": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "With `tag`: in how many *previous* games the tag must have happened at least (0 = first time or not, 1 = « encore »)."
+              },
+              "endReason": {
+                "type": "string",
+                "minLength": 1,
+                "description": "How the level ended (`timer`, `mamaWoke`, `cycleDone`, `mamaHome`)."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "reaction",
+          "text"
+        ],
+        "additionalProperties": false,
+        "description": "One line of Mama."
+      },
+      "description": "Every line she can say. The most specific one that holds wins; a seeded draw breaks a tie."
+    }
+  },
+  "required": [
+    "lines"
+  ],
+  "additionalProperties": false,
+  "description": "What Mama says on the Result screen, and when (story 3.8, FR36)."
+}

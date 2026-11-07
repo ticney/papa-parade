@@ -7,6 +7,7 @@ import {
   type ContentFile,
   FEEDBACK_FILE,
   FEEL_FILE,
+  MAMA_LINES_FILE,
   STRINGS_FILE,
 } from './contentFiles.ts';
 import type { ContentSource } from './contentSource.ts';
@@ -37,11 +38,12 @@ async function loadFile<T>(
 export async function loadContent(
   source: ContentSource,
 ): Promise<Result<ContentBundle, ContentError>> {
-  const [feel, feedback, bots, strings] = await Promise.all([
+  const [feel, feedback, bots, strings, mamaLines] = await Promise.all([
     loadFile(source, FEEL_FILE),
     loadFile(source, FEEDBACK_FILE),
     loadFile(source, BOTS_FILE),
     loadFile(source, STRINGS_FILE),
+    loadFile(source, MAMA_LINES_FILE),
   ]);
 
   const problems: ContentProblem[] = [];
@@ -49,6 +51,7 @@ export async function loadContent(
   if (!feedback.ok) problems.push(...feedback.error);
   if (!bots.ok) problems.push(...bots.error);
   if (!strings.ok) problems.push(...strings.error);
+  if (!mamaLines.ok) problems.push(...mamaLines.error);
 
   if (strings.ok) {
     // The strings file itself is exempt: it is the target of the references.
@@ -59,7 +62,7 @@ export async function loadContent(
     problems.push(...checkStringReferences(loaded, strings.value, `content/${STRINGS_FILE.file}`));
   }
 
-  if (problems.length > 0 || !feel.ok || !feedback.ok || !bots.ok || !strings.ok) {
+  if (problems.length > 0 || !feel.ok || !feedback.ok || !bots.ok || !strings.ok || !mamaLines.ok) {
     return err(createContentError(problems));
   }
   return ok({
@@ -67,5 +70,6 @@ export async function loadContent(
     feedback: feedback.value,
     bots: bots.value,
     strings: strings.value,
+    mamaLines: mamaLines.value,
   });
 }

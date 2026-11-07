@@ -12,7 +12,7 @@ import {
 import { cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
-import type { Journal, PapaLook, SimCommand, SimEvent, World } from '@sim';
+import type { Journal, MamaReactionLine, PapaLook, SimCommand, SimEvent, World } from '@sim';
 import { applyFeelPatch, effectiveFeel, type FeelPatch } from './feelPatch.ts';
 import { feedPerfMeter } from './perfFeed.ts';
 import { createPerfMeter, type PerfReport } from './perfMeter.ts';
@@ -92,6 +92,13 @@ export interface PPTestApi {
    * the stamps shown so far. Reduced motion shows as a turn of 0 and an offset of 0.
    */
   fx(): FxState;
+  /**
+   * The lines Mama says on the current Result screen (story 3.8), one per reaction in the order they play,
+   * each with its `lineId` in `content/mama-lines.json` and its `text` (`*word*` is the emphasis the bubble
+   * shows in italics). `null` before the first `LevelScored` and after the next level starts loading; the
+   * lines stay the same on a rebuilt Result screen. Specs assert the bubble against it.
+   */
+  mamaLines(): readonly MamaReactionLine[] | null;
   /**
    * Where the world point `(xM, yM, zM)` (metres) is on the page now, in CSS px: the live game camera,
    * moved by the follow camera and the perfect's move (story 9.2). For a Playwright tap on a level
@@ -310,6 +317,12 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     },
     fx() {
       return host.fxState();
+    },
+
+    mamaLines() {
+      const lines = host.mamaLines();
+      // A copy: the page may keep or change what it reads, never the app's own array.
+      return lines === null ? null : lines.map((line) => ({ ...line }));
     },
 
     pagePoint(xM, yM, zM) {

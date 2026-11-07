@@ -1160,7 +1160,7 @@ Open:
 ## Deferred from: development of story 3.7 (2026-11-07)
 
 - ~~**The home-early header wraps to two lines and the Result panel scrolls** (3.16's « Maman est rentrée plus tôt ! », `ui.css › .pp-result-reason`): at 844 × 390 the panel needs 364 px for 352 and at 750 × 340 it needs 26 px more than it has; 667 × 375 fits and the woken header fits. Found by `mamaReactions.spec.ts`; not caused by 3.7 (the panel is untouched). A fix is a design call: a smaller banner than `{typography.heading}` on short phones, or a wider panel.~~ Fixed in the code review of story 3.7: below 400 px of height the header is drawn at 0.85 × the heading size (`ui.css`), and the `mamaHome` fit specs now hold the panel at 844 × 390, 667 × 375 and 750 × 340.
-- **Mama's four lines and her three clips are placeholders** (story 3.8 picks lines from `mama-lines.json`; a generated voice, as for the babble of 7.7, is possible for the clips). The 2D Mama is provisional too (E7 models her).
+- **Mama's lines and her three clips are placeholders** (a generated voice, as for the babble of 7.7, is possible for the clips). The 2D Mama is provisional too (E7 models her). **The lines part is closed in story 3.8:** the lines are in `content/mama-lines.json` and `chooseMamaLines` picks them (they are placeholders Geo rewrites, as data); the clips and the 2D Mama stay open.
 - **`salon_kitchen`'s end photo shows no look**: the whole big room in one frame leaves Papa a few pixels tall (see L1019). The look is seen in play only.
 - **The `+30 % text` constraint has no mechanism in the app** (the CSS is in px tokens); the bubble and chip were checked at their normal size only.
 - **Not seen on screen**: the purée on the cheek and the shirt inside out from a real gag (the e2e proves them through `state()` and `fx()`), the Result on `chambre_night`, WebKit.
@@ -1168,7 +1168,7 @@ Open:
 
 ## Deferred from: code review of story 3-7-reactions-de-maman-et-degaine-de-papa (2026-11-07)
 
-- The generic Scream line « Pas si près de l'escalier ! » (`result.mama_line_scream`) plays for any near miss, the outlet's included, and for a `timer` end; a placeholder until 3.8 picks lines from `mama-lines.json`.
+- ~~The generic Scream line « Pas si près de l'escalier ! » (`result.mama_line_scream`) plays for any near miss, the outlet's included, and for a `timer` end; a placeholder until 3.8 picks lines from `mama-lines.json`.~~ **Closed in story 3.8:** that line is now `stairs_first` (it needs `stairs_slide` in the game), and a neutral generic Scream, `scream_any` (« Attention, voyons ! »), takes its place.
 - The look is only seen on screen for the outlet's hair (`hairOnEnd`); the purée on the cheek and the shirt inside out are proven through `state()` / `fx()`, the Result on `chambre_night` and WebKit were not captured.
 - Test duplication in 3.7's specs: `lineKeyOf` / `chipOf` in `mamaReactions.spec.ts` copy the product logic, `MAMA_REACTION_EVENTS` is declared in `tests/e2e/support/game.ts` and in `boot.ts`, `LOOK_KEYS` in the spec and in `look.ts`, `mamaScore.test.ts` re-derives `lookParts`, and `mamaWoke.spec.ts` / `result.spec.ts` call `mamaReactionsOf(scored as never, …)`.
 - `combo.spec.ts:338-343` computes the expected Laugh without the look term: right only because that frozen game has no gag; add the term if a gag ever enters it.
@@ -1186,3 +1186,9 @@ Open:
 - 9.4's « The bedtime cycle gathers only an `idle` Papa »: still latent (the big room has no cycle).
 - 9.7's « Two kitchen markers can stack » and « the `papa_mug` level node shares the rig node's name »: kept as they are by Geo (question 4, 2026-11-07), judged on the device; moving an anchor after the freeze is a deliberate geometry change with its own story.
 - **`sim:balance` judges one level and three bots**: `--level chambre_night` would fail its `humanMustFailDefs` (the big room's mischiefs). The targets are the first level's; a second balanced level needs its own block in `content/playtest.json`.
+
+## Deferred from: code review of story 3-8-memoire-de-maman (2026-11-07)
+
+- **The 60-character cap of `mama-lines.json` was never rendered**: the longest live line is 37 characters (`scream_home`), so the fit specs (`mamaReactions.spec.ts` FITS) never come near the cap, and the `[ASSUMPTION]` « fits 750 × 340 » is untested. « Pas si près de l'escalier ! » already wraps with the « ! » alone at 750 × 340 (`text-wrap: balance` on the bubble would fix it). Test a 60-character line at 844 × 390 and 750 × 340 when Geo rewrites the lines.
+- **Save writes are unordered with an async storage backend**: `recordMamaMemory` and `setSettings` each snapshot `save` and call `storage.set` with no queue. Safe with the synchronous `localStorage` port; with a Capacitor port (E8) an older snapshot could land last. Pre-existing for `setSettings`.
+- **The live-content tests of 3.8 run on `salon_crawler` only**: `dishwasher_first`, `tablecloth_again` and `plant_again` are checked by schema and `content:check`, but no test shows their gags can fire in `salon_kitchen`, the first level. A reachability check (the gags a level can produce versus the tags `mama-lines.json` names) would catch a dead line.
