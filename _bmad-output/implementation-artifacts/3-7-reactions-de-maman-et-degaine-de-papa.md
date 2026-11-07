@@ -4,7 +4,7 @@ baseline_commit: af716cba5bc7d323b22b03fadf03cd8e30b604d5
 
 # Story 3.7: Réactions de Maman et dégaine de papa
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -82,6 +82,26 @@ Requirements: FR35 `[V1]` (the end sequence: photo → **Mama's reactions** → 
   - [x] `npm run sim` with the four bots on `salon_crawler` and `salon_kitchen` (and `chambre_night` for `perfect` and `random`), before and after: `meanStars`, `lookParts`, the Laugh mean and `endsByReason.mamaHome` (the look must not change how often Mama comes home: it adds no catastrophe), in the Completion Notes
 - [x] Task 7: Docs (AC: 20)
   - [x] `npm run ci:fast` after each task, plus the touched specs on Chromium
+
+### Review Findings
+
+Code review of 2026-11-07 (Blind Hunter, Edge Case Hunter, Acceptance Auditor). 3 `decision_needed` (resolved by Geo, 2026-11-07), 8 `patch` after resolution, 7 `defer`, 12 dismissed.
+
+- [x] [Review][Patch] (Geo: fix it here, rebuild the full `mamaHome` assertion) AC 15 is only partly met: the home-early end does not fit — « Maman est rentrée plus tôt ! » (3.16) wraps to two lines, so the Result panel scrolls by 26 px at 750 × 340 and 12 px at 844 × 390. The `mamaHome` case of the FITS table in `mamaReactions.spec.ts` was narrowed (750 × 340 only, `isPanelHeld: false`, no `panelScrolls` assertion). Options: (a) fix it in this story (tighten the header or the spacing so it fits one line or the panel fits), (b) keep it deferred (already in `deferred-work.md`) and reword AC 15. [`tests/e2e/mamaReactions.spec.ts` FITS, `ui.css › .pp-result-reason`]
+- [x] [Review][Dismiss] (Geo: keep 5, he tunes it after playing) Failing a gag pays: each look part adds `laughPerLookPartPoints` (5) to the Laugh, and a part only comes from a missed gag. The first miss of `outlet`, `coffee_table_object` or `papa_microsleep` is net-positive in the note (up to +15 of 35 Laugh points); `idle` now gets a non-zero Laugh. This is what D3 asks for (FR37: the look feeds the Laugh), but it is a feel call. Options: (a) keep 5 and let Geo feel it, (b) lower it (data: `content/feel.json`, the two test copies), (c) 0 until Geo plays it. [`content/feel.json:175`, `src/sim/scoring/mamaScore.ts`]
+- [x] [Review][Patch] (Geo: fix without changing the layout — an always-present empty live region and the value in the accessible text; the `aria-modal` sibling issue goes to deferred-work) Accessibility of Mama's bubble: it is the caption of her voice (AC 12), but (1) `.pp-result-left` is a sibling of the `aria-modal` panel, so a screen reader may treat it as inert; (2) the first line is written while `mama.hidden` is true, so the live region appears with its text already in it; (3) the chip (`aria-hidden`) holds the value, which nobody hears. Options: (a) put Mama's block inside the panel / change the modal, (b) keep the DOM and fix (2) and (3) only (an always-present empty region; value in the accessible text), (c) keep and defer to the accessibility pass. [`src/client/ui/screens/resultScreen.ts` L288, L318-367, L536-545]
+- [x] [Review][Patch] Mama's animations outlive or get cut by the hold: `pp-mama-bounce` is 600 ms × 3 = 1800 ms against `reactionHoldMs` 1200 (a non-final laugh is cut mid-bounce, the final one keeps bouncing into the rows). After a natural end she never gets `pp-mama--rest` (the sigh stays slumped, the laugh bounces), unlike a skip or a rebuild. Make the laugh 2 iterations and give the last figure `pp-mama--rest` when the sequence ends; assert the rest class in « stays, at rest, on the last reaction ». [`src/client/ui/styles/ui.css:1313-1326`, `resultScreen.ts` `startReactions`, `resultScreen.test.ts` ~L1321]
+- [x] [Review][Patch] `realFxState().papaLook` returns the live scratch object `drawnLook`: a kept `FxState` changes under the caller. Return a copy. [`src/client/render/levelScene.ts:640`]
+- [x] [Review][Patch] Stale names and comments: five snapshot tests titled « is version 33 » assert 34 (`bombDropSnapshot.test.ts:59`, `afterEffectsSnapshot.test.ts:125`, `fakeSleepSnapshot.test.ts:79`, `sequenceSnapshot.test.ts:81`, `cycleSnapshot.test.ts:61`); `frozenNearMiss.test.ts` comment « 33 since story 9.6 » next to `toBe(34)`; `photo.spec.ts` L183 title omits `mama`; the `createResultScreen` JSDoc and `photo.spec.ts` « nothing sits between the photo and her reaction »; `project-context.md` L62 (« after `photoHoldMs` … the rows start »).
+- [x] [Review][Patch] `tests/content/feelSchema.test.ts` (~L146-155): add `laughPerLookPartPoints` to the « missing or negative `mama.*` field is refused » table.
+- [x] [Review][Patch] `tests/e2e/chambreNight.spec.ts:117` waits for `.pp-result-reason` with the default 5 s: the header now comes after the photo hold plus n × 1200 ms (up to ~4.8 s). Give it the same 15 s as the other specs, and check the other waits on `.pp-result-reason` / `rows` (`photo.spec.ts:381`, `catastrophe.spec.ts`, `mamaWoke.spec.ts`).
+- [x] [Review][Patch] Tests that would pass if the feature were broken: `levelScene.test.ts` « keeps the hair on end after the electrified time, on top of the gag's own » only checks `drawnLook` (assert the hair visibility on `papaView`, and reset `effectsWorld.papa.state` in an `afterEach`); the e2e « a press during the reactions skips the rest » presses ~410 ms after `mama` and fails if the game has a single reaction on a slow machine (wait for `mama`, press right after the grace on a fresh state, or pick a game with several reactions).
+- [x] [Review][Defer] The generic Scream line « Pas si près de l'escalier ! » plays for any near miss (the outlet's too) — deferred, placeholder until 3.8 (`mama-lines.json`)
+- [x] [Review][Defer] The `+30 % text` constraint of AC 15 is untested: the app has no text-scale mechanism — deferred, already in `deferred-work.md`
+- [x] [Review][Defer] The look is only seen on screen for the outlet's hair; mash, shirt, the bedroom's Result and WebKit are proven through `state()` / `fx()` only — deferred, disclosed
+- [x] [Review][Defer] Test duplication: `lineKeyOf` / `chipOf` in `mamaReactions.spec.ts` copy the product logic, `MAMA_REACTION_EVENTS` is in `game.ts` and `boot.ts`, `LOOK_KEYS` in the spec and `look.ts`, `mamaScore.test.ts` re-derives `lookParts`, and two specs cast with `as never` — deferred, low
+- [x] [Review][Defer] `combo.spec.ts:338-343` computes the expected Laugh without the look term; right today only because that game has no gag — deferred
+- [x] [Review][Defer] `sim:balance`: the `human` bot's `mamaHome` on `salon_kitchen` is 12 of 30 (40 %), outside the 10-30 % band, unchanged by this story — deferred, belongs to 9.8
 
 ## Dev Notes
 

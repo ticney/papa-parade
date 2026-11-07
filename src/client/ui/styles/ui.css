@@ -1152,7 +1152,8 @@ body {
 /* Mama's reactions (story 3.7, UX `mum-bubble`, the mockup's `.bubble`): her line in a speech bubble, the value
    she gives or takes off in a chip beside it, and her face under it. With a photo the block sits on the
    polaroid's top-right corner, in front of it, and never reaches past the polaroid's height; with none it
-   takes the left column alone. `hidden` until her first reaction. */
+   takes the left column alone. Invisible (but in the page, so that her live region is heard) until her first
+   reaction. */
 .pp-result-mama {
   display: flex;
   flex-direction: column;
@@ -1160,8 +1161,9 @@ body {
   gap: var(--pp-spacing-1);
 }
 
-.pp-result-mama[hidden] {
-  display: none;
+.pp-result-mama-waiting {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .pp-result-left > .pp-result-mama {
@@ -1202,6 +1204,16 @@ body {
   box-shadow: var(--pp-lift);
   color: var(--pp-color-ink);
   overflow-wrap: break-word;
+}
+
+/* The value for a reader: the chip beside the bubble is a picture of it. */
+.pp-mum-bubble-value {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .pp-mum-bubble--laugh {
@@ -1310,7 +1322,7 @@ body {
    slump for the sigh, a short shake for the scream. A figure at rest (a skipped or rebuilt screen, or the
    reactions over) does not move. */
 .pp-mama--laugh {
-  animation: pp-mama-bounce 600ms ease-in-out 3 both;
+  animation: pp-mama-bounce 600ms ease-in-out 2 both;
 }
 
 .pp-mama--sigh {
@@ -1648,6 +1660,15 @@ body {
 
   .pp-score-card {
     padding-block: var(--pp-spacing-1);
+  }
+}
+
+/* « Maman est rentrée plus tôt ! » (story 3.16) is the longest header: at the heading's size it wraps to two
+   lines in the 360px panel and pushes it into a scroll on a short landscape phone (story 3.7 review). A
+   slightly smaller banner keeps it on one line there; the heading's size stays everywhere else. */
+@media (max-height: 400px) {
+  .pp-result-panel-home .pp-result-reason {
+    font-size: calc(var(--pp-font-heading-size) * 0.85);
   }
 }
 

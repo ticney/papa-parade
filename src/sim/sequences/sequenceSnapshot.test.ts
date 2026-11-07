@@ -78,7 +78,7 @@ function parryOn(sim: Sim): void {
 }
 
 describe('the sequence slice in a snapshot (story 4.4)', () => {
-  it('is version 33 and carries the slice at rest, before any sequence', async () => {
+  it('is version 34 and carries the slice at rest, before any sequence', async () => {
     const snapshot = roundTrip(await newSim());
     expect(snapshot.version).toBe(34);
     expect(snapshot.world.sequence).toEqual({

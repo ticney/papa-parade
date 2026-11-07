@@ -180,7 +180,9 @@ async function waitForActions(page: Page): Promise<void> {
 }
 
 test.describe('the end photo', () => {
-  test('takes one photo, then the sequence goes photo, rows, stars, actions', async ({ page }) => {
+  test('takes one photo, then the sequence goes photo, mama, rows, stars, actions', async ({
+    page,
+  }) => {
     await recordMirrorWrites(page, ['data-pp-result', 'data-pp-photo']);
     const problems = collectProblems(page);
     await openEnd(page);
@@ -359,7 +361,7 @@ test.describe('the end photo', () => {
     await expect(page.locator(PHOTO)).toHaveCount(1);
     await expect(page.locator('.pp-result-reason')).toBeVisible({ timeout: SEQUENCE_TIMEOUT_MS });
     const [shot] = await photoShots(page);
-    // Nothing between the photo and Mama's reaction: no header while the photo stands alone.
+    // No header while the photo stands alone, nor while Mama reacts: it comes with the rows.
     expect(shot?.hasHeader).toBe(false);
     const results = (await mirrorWrites(page)).map(({ value }) => value);
     // The photo, then her reaction, then the rows with the header (story 3.7: nothing sits between the photo and her).

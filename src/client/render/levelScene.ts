@@ -637,7 +637,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         lightsFactor: Math.min(flashLightsFactor, dimLightsFactor),
         mischiefDecals: decals.count,
         choreShards: choreShards.plateCount,
-        papaLook: drawnLook,
+        papaLook: { ...drawnLook },
       };
     },
     setPapaLook(look) {

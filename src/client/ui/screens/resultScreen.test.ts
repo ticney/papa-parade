@@ -1161,6 +1161,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
   const lineOf = (root: FakeElement) =>
     (root.find('pp-mum-bubble-text')[0] as FakeElement).textContent;
   const chipOf = (root: FakeElement) => root.find('pp-mum-chip')[0] as FakeElement;
+  const spokenValueOf = (root: FakeElement) => root.find('pp-mum-bubble-value')[0] as FakeElement;
   const shownOf = (root: FakeElement) => root.find('pp-mama--shown');
   const mamaOf = (root: FakeElement) => root.find('pp-result-mama')[0] as FakeElement;
 
@@ -1191,12 +1192,13 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
     const { clock, phases, calls, root } = withPhoto();
     expect(phases).toEqual(['photo']);
     expect(calls).toEqual(['photo']);
-    // Hers is hidden while the photo stands alone.
-    expect(mamaOf(root).hidden).toBe(true);
+    // Hers is invisible while the photo stands alone, but in the page (her live region is heard from the start).
+    expect(mamaOf(root).className).toContain('pp-result-mama-waiting');
+    expect(mamaOf(root).hidden).toBe(false);
     clock.advance(PHOTO_HOLD_MS);
     expect(phases).toEqual(['photo', 'mama']);
     expect(calls).toEqual(['photo', 'mama laugh']);
-    expect(mamaOf(root).hidden).toBe(false);
+    expect(mamaOf(root).className).not.toContain('pp-result-mama-waiting');
     clock.advance(HOLD_MS * ALL.length);
     expect(phases).toEqual(['photo', 'mama', 'rows']);
   });
@@ -1243,9 +1245,13 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
     const { clock, root } = make();
     expect(chipOf(root).hidden).toBe(false);
     expect(chipOf(root).textContent).toBe('+7');
+    // The same value in the live region, for a reader (the chip is a picture of it).
+    expect(spokenValueOf(root).textContent).toBe('+7');
+    expect(chipOf(root).attributes.get('aria-hidden')).toBe('true');
     expect(chipOf(root).className).toContain('pp-mum-chip--laugh');
     clock.advance(HOLD_MS);
     expect(chipOf(root).textContent).toBe('−3');
+    expect(spokenValueOf(root).textContent).toBe('−3');
     expect(chipOf(root).className).toContain('pp-mum-chip--sigh');
     clock.advance(HOLD_MS);
     expect(chipOf(root).textContent).toBe('−2,5');
@@ -1323,8 +1329,20 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
     clock.advance(20_000);
     const [figure] = shownOf(root);
     expect(figure?.attributes.get('class')).toContain('pp-mama--scream');
+    expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
     expect(lineOf(root)).toBe('result.mama_line_scream');
-    expect(mamaOf(root).hidden).toBe(false);
+    expect(mamaOf(root).className).not.toContain('pp-result-mama-waiting');
+  });
+
+  it('is not at rest while her last reaction is held, and is as soon as the rows start', () => {
+    const { clock, root } = make();
+    clock.advance(HOLD_MS * (ALL.length - 1));
+    const [during] = shownOf(root);
+    expect(during?.attributes.get('class')).toContain('pp-mama--scream');
+    expect(during?.attributes.get('class')).not.toContain('pp-mama--rest');
+    clock.advance(HOLD_MS);
+    const [after] = shownOf(root);
+    expect(after?.attributes.get('class')).toContain('pp-mama--rest');
   });
 
   describe('a press', () => {
@@ -1335,7 +1353,7 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
       expect(calls).toEqual(['photo']);
       expect(values()).toEqual(ROW_TOTALS);
       expect(actions.hidden).toBe(false);
-      expect(mamaOf(root).hidden).toBe(false);
+      expect(mamaOf(root).className).not.toContain('pp-result-mama-waiting');
       expect(lineOf(root)).toBe('result.mama_line_scream');
       const [figure] = shownOf(root);
       expect(figure?.attributes.get('class')).toContain('pp-mama--rest');

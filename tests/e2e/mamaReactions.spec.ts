@@ -267,7 +267,9 @@ test.describe('Mama’s reactions', () => {
     });
     const { reactions, reason } = await expectedReactions(page);
     const cuesBefore = await cueCount(page);
-    await waitForInputGrace(page);
+    // No wait for the grace: the photo's hold already outlasted it, and every extra millisecond is taken
+    // from the first reaction's hold, which a game with a single reaction has no room for.
+    expect(resultScreen.photoHoldMs).toBeGreaterThan(resultScreen.inputGraceMs);
     await page.keyboard.press('Space');
     await expect(html(page)).toHaveAttribute('data-pp-result', 'actions');
     const results = (await mirrorWrites(page)).map(({ value }) => value);
@@ -416,7 +418,9 @@ test.describe('Mama’s reactions', () => {
     { end: 'mamaWoke', width: 844, height: 390, isPanelHeld: true },
     { end: 'mamaWoke', width: 667, height: 375, isPanelHeld: true },
     { end: 'mamaWoke', width: 750, height: 340, isPanelHeld: true },
-    { end: 'mamaHome', width: 750, height: 340, isPanelHeld: false },
+    { end: 'mamaHome', width: 844, height: 390, isPanelHeld: true },
+    { end: 'mamaHome', width: 667, height: 375, isPanelHeld: true },
+    { end: 'mamaHome', width: 750, height: 340, isPanelHeld: true },
   ];
   for (const { end, isPanelHeld, ...viewport } of FITS) {
     for (const hasPhoto of [true, false]) {

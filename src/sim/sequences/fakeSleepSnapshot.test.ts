@@ -76,7 +76,7 @@ function pressCentre(sim: Sim): void {
 }
 
 describe('the feint in a snapshot (story 4.7)', () => {
-  it('is version 33 and carries a clear feint at rest', async () => {
+  it('is version 34 and carries a clear feint at rest', async () => {
     const sim = await started();
     const snapshot = roundTrip(sim);
     expect(snapshot.version).toBe(34);

@@ -1105,9 +1105,11 @@ describe('the characters on the sim clock (story 7.2)', () => {
       scene: { getObjectByName(name: string): Object3D | undefined },
       name: string,
     ) => scene.getObjectByName(name)?.visible;
-    // The world is shared by the file: each test puts the look back.
+    // The world is shared by the file: each test puts the look and Papa's state back.
+    const stateBefore = effectsWorld.papa.state;
     afterEach(() => {
       Object.assign(effectsWorld.papa.look, NONE);
+      effectsWorld.papa.state = stateBefore;
     });
 
     it('draws the parts the world holds, on the next update, and takes them away when it does not', () => {
@@ -1154,14 +1156,30 @@ describe('the characters on the sim clock (story 7.2)', () => {
     });
 
     it('keeps the hair on end after the electrified time, on top of the gag’s own', () => {
-      const { update, realFxState } = build();
+      const { scene, update, realFxState } = build();
+      const hair = scene.getObjectByName('papa_hair') as Object3D;
       effectsWorld.papa.look.hasHairOnEnd = true;
       effectsWorld.papa.state = 'electrified';
       update(fakeWorldAt(0), 0);
+      expect(hair.visible).toBe(true);
       effectsWorld.papa.state = 'idle';
       update(fakeWorldAt(10), 0);
       expect(realFxState().papaLook.hasHairOnEnd).toBe(true);
-      effectsWorld.papa.state = 'idle';
+      // The look holds the hair up on the one mesh once the electrified time is over.
+      expect(hair.visible).toBe(true);
+      Object.assign(effectsWorld.papa.look, NONE);
+      update(fakeWorldAt(20), 0);
+      expect(hair.visible).toBe(false);
+    });
+
+    it('hands out a copy of the look it draws, not the scratch object it reuses', () => {
+      const { update, realFxState } = build();
+      update(fakeWorldAt(0), 0);
+      const kept = realFxState().papaLook;
+      effectsWorld.papa.look.hasMashOnCheek = true;
+      update(fakeWorldAt(10), 0);
+      expect(kept).toEqual(NONE);
+      expect(realFxState().papaLook).not.toBe(kept);
     });
   });
 
