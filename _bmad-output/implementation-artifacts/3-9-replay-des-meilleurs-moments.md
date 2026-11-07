@@ -196,7 +196,7 @@ It builds on:
   - It would also make every journal a tester exported before this story unreplayable (`sim:replay` refuses another `feelHash`).
   - `feedback.json` is client-only and outside the sim's hashes (`contentBundle.ts:15`), and it already holds the Result timings (`resultScreen`) and the photo's frame (`photo`). The 2.5 note says the same of client tuning (`deferred-work.md` L557).
 
-  So: **no golden moves in this story.** If one does, it is a bug. The camera of the replay is there too: unlike the photo's yaw (`feel.fx.photoCamera`, 3.6), it has no angle of its own (AC 9), only a frame size.
+  So: **no golden moves in this story.** If one does, it is a bug. **Geo confirmed it on 2026-11-07** (open point 1). The camera of the replay is there too: unlike the photo's yaw (`feel.fx.photoCamera`, 3.6), it has no angle of its own (AC 9), only a frame size.
 - **D2. The snapshots are the client's.** The architecture says « un snapshot du World et de Rapier toutes les 5 s » without saying who takes them. Taking them in the sim would add state, an option or an event for something no gameplay reads. `levelSession` owns the live sim and its loop, so it takes them in `beforeStep`, where `world.time.sim` is exactly on the step grid. Measured: about 0.3 ms per snapshot, once every 500 steps. If a device profile ever shows a hitch, spreading the `cloneJson` is a later story, not a reason to move them into the sim.
 - **D3. What a moment is.** P7 scores « chaque `SimEvent` ». One threat often emits several in one step (`GagTriggered` and its `NearMiss`, a perfect that is also the last of its wave), so a candidate is a threat at a `t`, and its points add up (a near-miss stair slide that knocked two props is 4). The definitions:
   - « Réponse parfaite » is a threat's `ResponseResolved`. Chore beats are judged in rhythm and come by the dozen in `salon_kitchen` (8 per game measured; rhythm sequences have more): counting them would fill every replay with dishes.
@@ -386,7 +386,7 @@ It follows the layers and aliases. `src/client/endOfLevel/` is where the archite
 
 ### Open points for Geo
 
-1. **D1: the replay's rules live in `feedback.json`, not `feel.json`.** No golden moves, and testers' journals stay replayable. Confirm, or ask for `feel.json` (every golden moves, `feelHash` in every journal).
+1. ~~**D1: the replay's rules live in `feedback.json`, not `feel.json`.** No golden moves, and testers' journals stay replayable. Confirm, or ask for `feel.json` (every golden moves, `feelHash` in every journal).~~ **Confirmed by Geo on 2026-11-07:** the rules go in `feedback.json › replay`; no golden moves.
 2. **D3/D4: a clean game replays three perfects.** With P7's points, a perfect (3) beats a near miss (2) and a messy gag (2), and most games have dozens of perfects. Your disasters rarely make the cut except on `mamaHome`. The points are data: set `nearMiss` to 3 or 4 if you want the gags in.
 3. **D5: on `mamaHome`, the replay is the last gags** (the cascade), whatever the perfects.
 4. **D7: the replay plays the sounds and the puffs, not the vibrations,** and no « PARADE PARFAITE » stamp under the banner.
