@@ -63,6 +63,8 @@ import {
   createBeatScheduler,
   type SoundedNote,
 } from './audio/beatScheduler.ts';
+import { createHighlightReplay } from './endOfLevel/highlightReplay.ts';
+import { createHighlightRecorder, type Highlight } from './endOfLevel/highlights.ts';
 import { takeEndPhoto } from './endOfLevel/photo.ts';
 import { isCatastropheAlertCrossing } from './feedback/catastropheAlert.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
@@ -115,6 +117,7 @@ import {
   type CopyLogOutcome,
   createResultScreen,
   type ResultPhoto,
+  type ResultReplay,
 } from './ui/screens/resultScreen.ts';
 import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
@@ -299,6 +302,8 @@ export async function boot(): Promise<void> {
   const camera = createIsoCamera();
   // The end photo's own camera (story 3.6): the game camera, `cameraFx` and the world UI are not touched.
   const photoCamera = createIsoCamera();
+  // The highlight replay's own camera (story 3.9): the game camera's angle on a tight frame, placed once per moment.
+  const replayCamera = createIsoCamera();
   // The perfect's zoom, pan and turn, around the framing `fitIsoCamera` computes (story 2.5).
   const cameraFx = createCameraFx(camera);
   // The framing under those effects: the whole room, or a frame that follows Papa (story 9.2).
@@ -437,6 +442,7 @@ export async function boot(): Promise<void> {
       | 'ppEndReason'
       | 'ppResult'
       | 'ppPhoto'
+      | 'ppReplayMoment'
       | 'ppCalibration'
       | 'ppCalibrationBeats',
     value: string,
@@ -1153,6 +1159,11 @@ export async function boot(): Promise<void> {
   // here and not in the screen because the screen is rebuilt after the portrait overlay: each build
   // re-parents the same canvas, so the picture and its tilt survive. Cleared when a level loads.
   let resultPhoto: ResultPhoto | null = null;
+  // The best moments of the game (story 3.9, FR38): scored from the live sim events, picked once at
+  // `LevelScored` and kept for a rebuilt screen. Null before the first `LevelScored` and after loading. The
+  // replay's own events never reach the recorder: they go to the replay director only.
+  const highlightRecorder = createHighlightRecorder();
+  let resultHighlights: readonly Highlight[] | null = null;
   /**
    * The end photo (story 3.6, FR35): one `sim.snapshot()` of the frozen world, drawn through the
    * photo camera (`level.update(snapshot.world, 1, now)`: no step runs) and copied to a 2D canvas.
@@ -1282,6 +1293,7 @@ export async function boot(): Promise<void> {
       sendInputLag(started.sim, false);
       sendDifficultyTier(started.sim);
       runMamaTags.clear();
+      highlightRecorder.clear();
       levelSeed = started.seed;
       currentSequences = started.level.sequences;
       currentBeatTimelines = Object.fromEntries(
@@ -1829,6 +1841,7 @@ export async function boot(): Promise<void> {
       if (event.type === 'LevelEnded') resultEndReason = event.reason;
       const mamaTag = mamaTagOf(event);
       if (mamaTag !== null) runMamaTags.add(mamaTag);
+      highlightRecorder.onSimEvent(event);
       // Mama's note ends the level (story 1.22): the loop stops on the frozen room, which stays
       // drawn behind the Result screen; the world stays readable until the next start.
       if (event.type === 'LevelScored') {
@@ -1836,6 +1849,7 @@ export async function boot(): Promise<void> {
         resultScore = score;
         hasResultStarted = false;
         chooseAndRecordMamaLines(score);
+        resultHighlights = highlightRecorder.pick(resultEndReason, feedbackTable.replay);
         if (isMirrored) {
           mirror('ppScore', String(score.scorePoints));
           mirror('ppStars', String(score.stars));
@@ -1854,6 +1868,66 @@ export async function boot(): Promise<void> {
     canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
     waitForForeground: () => waitForForeground(document),
   });
+
+  // The highlight replay (story 3.9). Its director is a second one with the same table and audio: no
+  // vibration, no flash, no stamp (the banner is the replay's), and nothing it plays is counted, so the
+  // live director's counters and its scene gate are as the live game left them (D7).
+  let isReplaying = false;
+  const replayDirector = createFeedbackDirector({
+    table: feedbackTable,
+    audio,
+    haptics: { pulse: () => {} },
+    getScene: () => (isReplaying ? (currentLevel?.fx ?? null) : null),
+    getObjects: () => levelSession.active?.sim.objects ?? NO_SIM_OBJECTS,
+    getDoorPoint: () => doorPointOf(levelSession.active?.geometry),
+    prefersReducedMotion,
+    getFx: () => levelFeel().fx,
+    nowReal: () => performance.now(),
+    stamp: () => false,
+  });
+  const highlightReplay = createHighlightReplay({
+    getLevel: () => currentLevel,
+    renderer,
+    replayCamera,
+    getAspect: () => canvas.clientWidth / Math.max(1, canvas.clientHeight),
+    director: replayDirector,
+    isMotionReduced: prefersReducedMotion,
+    // The end of the game, drawn as `drawStatic` and the photo see it: the frozen live world, the game camera.
+    drawLive: () => {
+      const active = levelSession.active;
+      if (active === null || currentLevel === null) return;
+      currentLevel.update(active.sim.world, 1, asRealMs(performance.now()));
+      renderer.render(currentLevel.scene, camera);
+    },
+    speed: params.speed ?? undefined,
+    onMoment: (index) => {
+      isReplaying = index !== null;
+      if (!isMirrored) return;
+      if (index === null) delete document.documentElement.dataset.ppReplayMoment;
+      else mirror('ppReplayMoment', String(index));
+    },
+  });
+  /** What the Result screen drives (story 3.9): the player over the live session's sim, or none for a game with no moment. */
+  const replayOfResult = (): ResultReplay | null => {
+    const moments = resultHighlights;
+    if (moments === null || moments.length === 0) return null;
+    return {
+      momentCount: moments.length,
+      delayMs: feedbackTable.replay.delayMs,
+      play: (onDone) => {
+        const source = levelSession.replaySource;
+        if (source === null) {
+          log.warn('render', 'no live sim to replay the best moments from');
+          onDone();
+          return;
+        }
+        highlightReplay.play(moments, source, feedbackTable.replay, onDone);
+      },
+      skipMoment: () => highlightReplay.skipMoment(),
+      skipAll: () => highlightReplay.skipAll(),
+      cancel: () => highlightReplay.cancel(),
+    };
+  };
   // An error nobody caught, while a level is loading or running: stop it and offer to start again.
   // From any other state (boot, start, result, oops) it is only logged.
   recoverFromUncaught = () => {
@@ -2102,6 +2176,8 @@ export async function boot(): Promise<void> {
         // Mama's reactions to the note she gave, each with the line she says, between the photo and the
         // rows (stories 3.7, 3.8). Chosen once at `LevelScored`; none is a bug, shown as no reaction.
         reactions: resultMamaLines ?? [],
+        // The best moments, between the stars and the buttons (story 3.9). A rebuilt screen reuses the pick.
+        replay: replayOfResult(),
         // The shutter and the flash, once, when the photo drops in (never on a rebuild, nor with no photo).
         onPhoto: () => director.handle('PhotoTaken', null),
         scheduler: {
@@ -2341,10 +2417,14 @@ export async function boot(): Promise<void> {
   });
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'loading') return;
+    // Before the scene and the sim of the old level are released, if the screen did not do it first.
+    highlightReplay.cancel();
     resultScore = null;
     resultEndReason = 'timer';
     resultMamaLines = null;
     runMamaTags.clear();
+    highlightRecorder.clear();
+    resultHighlights = null;
     hasResultStarted = false;
     resultPhoto = null;
     // The previous game's note must not be read as the next one's while it loads (`mirrorNewLevel`
@@ -2357,6 +2437,7 @@ export async function boot(): Promise<void> {
         'ppEndReason',
         'ppResult',
         'ppPhoto',
+        'ppReplayMoment',
         'ppPropsTidied',
       ] as const) {
         delete document.documentElement.dataset[name];
@@ -2410,6 +2491,7 @@ export async function boot(): Promise<void> {
       },
       lastInputDevice: () => inputMapper.lastDevice,
       mamaLines: () => resultMamaLines,
+      highlights: () => resultHighlights,
       debugGroup: () => {
         if (currentLevel === null) return null;
         if (debugGroup === null) {

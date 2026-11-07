@@ -6,7 +6,8 @@ import { createEmitter } from '@shared/emitter';
 import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
-import { type CreateSimOptions, createSim, replayJournal } from '@sim';
+import { asSimMs } from '@shared/time';
+import { type CreateSimOptions, createSim, replayJournal, type SimEvent } from '@sim';
 import { Group, Scene } from 'three';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
@@ -21,6 +22,7 @@ import {
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
+import type { ReplaySource } from '../endOfLevel/momentSim.ts';
 import type { LevelCameraSetup } from '../render/followRig.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
 import type { LevelFx, LevelScene } from '../render/levelScene.ts';
@@ -1733,5 +1735,145 @@ describe('createLevelSession › the remembered feel replays as a SetFeel at t =
     session.rememberFeel(tuned());
     expect(await session.start()).toBe('started');
     expect(session.active?.feel).toBe(content.feel);
+  });
+});
+
+describe('createLevelSession › the snapshots of the highlight replay (story 3.9)', () => {
+  const snapshotMsOf = (source: ReplaySource | null, atMs: number): number | null =>
+    source?.snapshots.latestAtOrBefore(atMs)?.world.time.sim ?? null;
+
+  it('has no replay source before a level starts, nor after stop()', async () => {
+    const { session } = setup();
+    expect(session.replaySource).toBeNull();
+    await session.start();
+    expect(session.replaySource).not.toBeNull();
+    session.stop();
+    expect(session.replaySource).toBeNull();
+  });
+
+  it('hands over what a moment sim needs: the content the live sim was created with', async () => {
+    const seen: CreateSimOptions[] = [];
+    const { session } = setup({
+      createSim: (options) => {
+        seen.push(options);
+        return createSim(options);
+      },
+    });
+    await session.start({ seed: 77 });
+    const source = session.replaySource;
+    expect(source?.seed).toBe(77);
+    expect(source?.content).toBe(seen[0]?.content);
+    expect(source?.geometry).toBe(seen[0]?.geometry);
+    expect(source?.level).toBe(seen[0]?.level);
+    expect(source?.endedAt).toBeNull();
+  });
+
+  it('uses the sim’s bundle, not the remembered tweaks of ActiveLevel.feel', async () => {
+    const content = createTestContent();
+    const { session } = setup({ content });
+    const tuned = structuredClone(content.feel);
+    tuned.timing.windowMs += 40;
+    await session.start({ feel: tuned });
+    expect(session.active?.feel.timing.windowMs).toBe(content.feel.timing.windowMs + 40);
+    expect(session.replaySource?.content.feel.timing.windowMs).toBe(content.feel.timing.windowMs);
+    // The tweaks are in the journal, as the SetFeel at t = 0.
+    expect(session.replaySource?.journal().entries[0]?.command.type).toBe('SetFeel');
+  });
+
+  it('takes a snapshot at 0, then one every 5 s of sim time', async () => {
+    const { session } = setup();
+    await session.start();
+    // 1001 steps: the hook has run at 0, 10, … 10 000 (10 s).
+    session.advance(1001);
+    const source = session.replaySource;
+    expect(snapshotMsOf(source, 0)).toBe(0);
+    expect(snapshotMsOf(source, 4990)).toBe(0);
+    expect(snapshotMsOf(source, 5000)).toBe(5000);
+    expect(snapshotMsOf(source, 9990)).toBe(5000);
+    expect(snapshotMsOf(source, 10_000)).toBe(10_000);
+    expect(snapshotMsOf(source, 99_000)).toBe(10_000);
+  });
+
+  it('takes none until the sim steps, and never two at the same time', async () => {
+    const { session } = setup();
+    await session.start();
+    const source = session.replaySource;
+    expect(source?.snapshots.latestAtOrBefore(0)).toBeNull();
+    session.advance(1);
+    const first = source?.snapshots.latestAtOrBefore(0);
+    expect(first).not.toBeNull();
+    session.advance(0);
+    expect(source?.snapshots.latestAtOrBefore(0)).toBe(first);
+  });
+
+  it('takes the snapshot before the bot: the hook finds it already there', async () => {
+    const seen: (number | null)[] = [];
+    const { session } = setup({
+      beforeStep: (sim) => {
+        if (sim.world.time.sim % 5000 !== 0) return;
+        seen.push(snapshotMsOf(session.replaySource, sim.world.time.sim));
+      },
+    });
+    await session.start();
+    session.advance(501);
+    expect(seen).toEqual([0, 5000]);
+  });
+
+  it('keeps a command the bot enqueues at T in the tail of the snapshot at T', async () => {
+    const { session } = setup({
+      beforeStep: (sim) => {
+        if (sim.world.time.sim === 5000) {
+          sim.enqueue({ type: 'SetInputLag', lagMs: 30, t: asSimMs(5000) });
+        }
+      },
+    });
+    await session.start();
+    session.advance(600);
+    const source = session.replaySource;
+    expect(snapshotMsOf(source, 5000)).toBe(5000);
+    const tail = source?.journal().entries.filter((entry) => entry.applyAt > 5000) ?? [];
+    expect(tail.map((entry) => entry.command.type)).toEqual(['SetInputLag']);
+    // And the snapshot itself does not hold it.
+    expect(source?.snapshots.latestAtOrBefore(5000)?.world.input.lagMs).not.toBe(30);
+  });
+
+  it('is cleared by the next start()', async () => {
+    const { session } = setup();
+    await session.start();
+    session.advance(600);
+    expect(session.replaySource?.snapshots.latestAtOrBefore(5000)).not.toBeNull();
+    await session.start();
+    expect(session.replaySource?.snapshots.latestAtOrBefore(99_000)).toBeNull();
+  });
+
+  it('stays readable during the result: finish() keeps the sim and its log', async () => {
+    const { session } = setup();
+    await session.start();
+    session.advance(600);
+    session.finish();
+    const source = session.replaySource;
+    expect(snapshotMsOf(source, 6000)).toBe(5000);
+    expect(source?.journal().seed).toBe(session.current.seed);
+  });
+
+  it('records when the level ended, from the LevelEnded the session saw', async () => {
+    const events: SimEvent[] = [];
+    const { session, scheduler } = setup({
+      onSimEvent: (event) => events.push(event),
+      loadLevelContent: async (id) => ok(levelOf(id, createTestLevel({ durationMs: 3000 }))),
+    });
+    await session.start();
+    scheduler.tick(0);
+    scheduler.tick(10_000); // the countdown
+    expect(session.replaySource?.endedAt).toBeNull();
+    // Real-time frames: the loop runs at most MAX_STEPS_PER_FRAME steps each.
+    let nowMs = 10_000;
+    while (!events.some((event) => event.type === 'LevelEnded') && nowMs < 10_000 + 20_000) {
+      nowMs += 100;
+      scheduler.tick(nowMs);
+    }
+    const ended = events.find((event) => event.type === 'LevelEnded');
+    expect(ended).toBeDefined();
+    expect(session.replaySource?.endedAt).toBe(ended?.t);
   });
 });

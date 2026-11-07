@@ -4,7 +4,7 @@ baseline_commit: 501ffee
 
 # Story 3.9: Replay des meilleurs moments
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -167,25 +167,25 @@ It builds on:
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Rules and pure scoring (AC: 4, 5, 6, 7)
-  - [ ] `ReplaySchema` in `src/content/schemas/feedback.ts`, `content/feedback.json › replay`, the test fixture's feedback, `npm run content:schemas`
-  - [ ] `src/client/endOfLevel/highlights.ts` and `highlights.test.ts` (table-driven, see Testing)
-- [ ] Task 2: Snapshots and the moment sim (AC: 1, 2, 3, 8)
-  - [ ] `SNAPSHOT_EVERY_MS`; `snapshotLog.ts` + test; the log in `levelSession` (`beforeStep` order, clear on start / release); `replaySource()`, `endedAt`; `levelSession` tests (fake sim: snapshots at 0, 5000, 10000…, none twice, cleared)
-  - [ ] `momentSim.ts` + test (fake or real sim: window clamps, the snapshot chosen, the tail filter, silent fast-forward, `err` + warn on a refused restore)
-  - [ ] `tests/bots/highlightReplayLive.test.ts` (AC 17)
-- [ ] Task 3: The player (AC: 9, 10)
-  - [ ] `highlightReplay.ts`: the loop per moment, the stop at `untilMs`, `endHoldMs`, the camera focus, the routing (deny list), `resetFx`, the final redraw, `skipMoment` / `skipAll` / `cancel`; a unit test with a fake scheduler, a fake scene and a fake director (no WebGL)
-  - [ ] `replayCamera` and `replayDirector` in boot
-- [ ] Task 4: The Result screen and boot (AC: 11-16)
-  - [ ] `resultScreen.ts`: the phase, the option, the branches, the class, the banner, the two-press skip; `resultScreen.test.ts` (with and without a replay, the skip before and during, rebuild, dispose cancels)
-  - [ ] `ui.css`: `pp-result-screen--replaying`, `pp-replay-banner` and its reduced-motion rule
-  - [ ] boot: the recorder, `resultHighlights`, the player wiring, cancel on loading, the mirror, `__PP__.highlights()` and its plumbing
-- [ ] Task 5: E2E and the specs it moves (AC: 18 and « What must keep working »)
-  - [ ] `tests/e2e/replay.spec.ts`; `waitForResultActions` (`tests/e2e/support/game.ts:908`) passes through a `replay` phase (two presses once `data-pp-result="replay"` shows, after the grace) so that the other specs keep their 15 s budget
-  - [ ] Phase lists and cue counts of the Traps; screenshots; look at them and say what you saw
-- [ ] Task 6: Docs (AC: 19)
-  - [ ] `npm run ci:fast` after each task, plus the touched specs on Chromium
+- [x] Task 1: Rules and pure scoring (AC: 4, 5, 6, 7)
+  - [x] `ReplaySchema` in `src/content/schemas/feedback.ts`, `content/feedback.json › replay`, the test fixture's feedback, `npm run content:schemas`
+  - [x] `src/client/endOfLevel/highlights.ts` and `highlights.test.ts` (table-driven, see Testing)
+- [x] Task 2: Snapshots and the moment sim (AC: 1, 2, 3, 8)
+  - [x] `SNAPSHOT_EVERY_MS`; `snapshotLog.ts` + test; the log in `levelSession` (`beforeStep` order, clear on start / release); `replaySource()`, `endedAt`; `levelSession` tests (fake sim: snapshots at 0, 5000, 10000…, none twice, cleared)
+  - [x] `momentSim.ts` + test (fake or real sim: window clamps, the snapshot chosen, the tail filter, silent fast-forward, `err` + warn on a refused restore)
+  - [x] `tests/bots/highlightReplayLive.test.ts` (AC 17)
+- [x] Task 3: The player (AC: 9, 10)
+  - [x] `highlightReplay.ts`: the loop per moment, the stop at `untilMs`, `endHoldMs`, the camera focus, the routing (deny list), `resetFx`, the final redraw, `skipMoment` / `skipAll` / `cancel`; a unit test with a fake scheduler, a fake scene and a fake director (no WebGL)
+  - [x] `replayCamera` and `replayDirector` in boot
+- [x] Task 4: The Result screen and boot (AC: 11-16)
+  - [x] `resultScreen.ts`: the phase, the option, the branches, the class, the banner, the two-press skip; `resultScreen.test.ts` (with and without a replay, the skip before and during, rebuild, dispose cancels)
+  - [x] `ui.css`: `pp-result-screen--replaying`, `pp-replay-banner` and its reduced-motion rule
+  - [x] boot: the recorder, `resultHighlights`, the player wiring, cancel on loading, the mirror, `__PP__.highlights()` and its plumbing
+- [x] Task 5: E2E and the specs it moves (AC: 18 and « What must keep working »)
+  - [x] `tests/e2e/replay.spec.ts`; `waitForResultActions` (`tests/e2e/support/game.ts:908`) passes through a `replay` phase (two presses once `data-pp-result="replay"` shows, after the grace) so that the other specs keep their 15 s budget
+  - [x] Phase lists and cue counts of the Traps; screenshots; look at them and say what you saw
+- [x] Task 6: Docs (AC: 19)
+  - [x] `npm run ci:fast` after each task, plus the touched specs on Chromium
 
 ## Dev Notes
 
@@ -408,10 +408,38 @@ It follows the layers and aliases. `src/client/endOfLevel/` is where the archite
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (claude-sonnet-5-5), 2026-11-07.
+
 ### Debug Log References
+
+- `npm run ci:fast` green after each task (typecheck, lint with the same 90 warnings as `main`, `content:check`, 455 test files).
+- Chromium e2e (`npm run e2e -- <19 spec files> --project=chromium`, the Result-reaching specs plus `testApi`, `reducedMotion`, `autoplay`, `ui`): 218 passed, 2 skipped (the opt-in screenshots, taken separately). `ci:story` and WebKit were not run (the review's).
+- Scratch: `seedScan.mts` (outside the repo) listed the moments of the `idle` bot on `salon_crawler`, seeds 1 to 12: every game ends on `mamaHome`; seed 1 gives three moments (5710, 11390, 16770).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Rules and scoring (Task 1).** `ReplaySchema` / `ReplaySettings` in `feedback.ts`, `content/feedback.json › replay` (the values of AC 4), the fixtures (`testContent.ts`, `feedbackDirector.test.ts`), `content/_schemas/feedback.schema.json` regenerated. `tests/content/feedbackSchema.test.ts` has a deliberate, commented extension of its unit-suffix rule: `frameWidthM`, `frameDepthM` and four unitless counts or points (`momentCount`, `messyGagMinProps`, `perfect`, `messyGag`, `nearMiss`, `waveLast`). `highlights.ts` + a 36-case table-driven test.
+- **Snapshots and the moment sim (Task 2).** `SNAPSHOT_EVERY_MS`, `snapshotLog.ts`, `momentSim.ts` (`ReplaySource`, `momentWindowOf`, `createMomentSim` with an injectable `createSim`), `levelSession.replaySource` (a getter), the log taken in `beforeStep` before the bot. The log channel is `render` (there is no `replay` channel in `LogChannel`, and adding one was not asked). Headless proof `tests/bots/highlightReplayLive.test.ts`: `salon_kitchen` and `salon_crawler`, `human` and `perfect`, seeds 1, 2, 3 (12 games), plus the `idle` bot on both levels with seed 1, which ends on `mamaHome` (asserted) and whose last gag is the last moment. For every moment the events are compared with `hashJson` twice: a sim restored by hand over `(snapshotTime, untilMs]`, and `createMomentSim` over `(fromMs, untilMs]`.
+- **Player (Task 3).** `highlightReplay.ts` (`isPlaying` added to the contract so boot's director gate needs no second flag source), 21 tests with a fake scheduler, level, renderer and director. The stop is a `beforeStep` that stops the loop when the step about to run is the first to reach `untilMs`; the hold is the player's own frame chain on the same scheduler. `cancel()` also redraws the live world (a rebuilt screen would otherwise show the last replayed frame).
+- **Result screen and boot (Task 4).** `ResultScreenOptions.replay` is `{ momentCount, delayMs, play, skipMoment, skipAll, cancel } | null`: **`delayMs` lives in the replay object** rather than in a separate timings option, so no existing call changes beyond `replay: null`. A press that ends the replay (the second, or the only one with one moment left) shows the buttons at once; the replay ending by itself keeps `actionsDelayMs`. The banner is the last child of the screen, so the panel is still the first child where no polaroid exists (three structure assertions of the existing tests now name the banner).
+- **E2E (Task 5).** `passReplayToActions` in `game.ts` (Space while `replay` shows, never in `actions`) now backs `waitForResultActions` and the local `waitForActions` of `catastrophe`, `mamaMemory`, `mamaWoke`, `mamaReactions`, `photo` and `result`. `replay.spec.ts`: the phase order and the `data-pp-replay-moment` walk use `?autoplay=perfect&seed=1&speed=4` (1.7 min: a game needs stars to have a `stars` phase; an idle game ends on `mamaHome` with 0 stars and goes `rows` → `replay`); the others use the frozen `salon_crawler` idle game, seed 1 (three moments, about 10 s a test).
+- **Looked at** (`3-9-screenshots/`: `moment-0` and `moment-1` at 844 × 390 and 750 × 340, and `actions-after-replay` at both): the « REPLAY » banner is legible, paper fill, ink stroke, inside the frame at both sizes; each moment is framed on its anchor (the stairs, the outlet) with Papa and the baby in it and the right look; the actions sit on the end of the game (the frozen room behind the scrim). Two things to know: the tight frame reaches past the room's walls near an edge (an empty ink background shows there), and the moments of an idle `mamaHome` game are gags, so no perfect's slow-mo was captured. **Not captured:** WebKit, the big salon (`salon_kitchen`), a replay of a clean game with perfects (the autoplay test checks its phases, not its pictures).
+- **Docs (Task 6).** Architecture (Déterminisme L241, source tree, P7), `project-context.md` (« Highlight replay (story 3.9) »), `deferred-work.md` (L29, L51, L266, L1045 closed, L280 left open with the reason). EXPERIENCE already says the cascade (L342).
+- No golden, snapshot version, journal, `createSim` option, command or event moved.
 
 ### File List
+
+- `_bmad-output/implementation-artifacts/3-9-replay-des-meilleurs-moments.md`, `sprint-status.yaml`, `deferred-work.md`, `3-9-screenshots/` (6 PNG)
+- `_bmad-output/planning-artifacts/game-architecture.md`, `_bmad-output/project-context.md`
+- `content/feedback.json`, `content/_schemas/feedback.schema.json`
+- `src/shared/constants.ts`, `src/content/schemas/feedback.ts`
+- `src/client/endOfLevel/{highlights,snapshotLog,momentSim,highlightReplay}.ts` and their `.test.ts` (new)
+- `src/client/app/levelSession.ts`, `levelSession.test.ts`, `testHost.ts`
+- `src/client/boot.ts`, `src/client/ui/screens/resultScreen.ts`, `resultScreen.test.ts`, `src/client/ui/styles/ui.css`
+- `src/client/feedback/feedbackDirector.test.ts`, `src/debug/testApi.ts`, `testApi.test.ts`
+- `tests/bots/highlightReplayLive.test.ts` (new), `tests/content/feedbackSchema.test.ts`, `tests/support/{testContent,fakeTestHost}.ts`
+- `tests/e2e/replay.spec.ts` (new), `tests/e2e/support/{game,testApi}.ts`, `tests/e2e/testApi.spec.ts`, `tests/e2e/{catastrophe,mamaMemory,mamaWoke,mamaReactions,photo,result}.spec.ts`
+
+### Change Log
+
+- 2026-11-07: Story 3.9 implemented: highlight replay (rules in `feedback.json › replay`, client snapshot log, moment sims, replay player and second feedback director, `replay` Result phase with the REPLAY banner and the two-press skip, `__PP__.highlights()`, e2e and headless proof, docs).

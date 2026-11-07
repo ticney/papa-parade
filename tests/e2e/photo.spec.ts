@@ -8,6 +8,7 @@ import {
   liveFeedback,
   mamaCueOf,
   mirrorWrites,
+  passReplayToActions,
   recordMirrorWrites,
   THREATS_OFF,
 } from './support/game.ts';
@@ -174,9 +175,7 @@ const waitForInputGrace = (page: Page): Promise<void> =>
   page.waitForTimeout(resultScreen.inputGraceMs + GRACE_MARGIN_MS);
 
 async function waitForActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page, SEQUENCE_TIMEOUT_MS);
   await waitForInputGrace(page);
 }
 

@@ -1,7 +1,13 @@
 import { mkdirSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { calibratedSave, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
-import { advanceToEnd, appUrl, collectProblems, html } from './support/game.ts';
+import {
+  advanceToEnd,
+  appUrl,
+  collectProblems,
+  html,
+  passReplayToActions,
+} from './support/game.ts';
 import {
   ppAdvance,
   ppEvents,
@@ -63,9 +69,7 @@ async function openGame(page: Page): Promise<void> {
 }
 
 async function waitForActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page, SEQUENCE_TIMEOUT_MS);
 }
 
 const screamOf = async (page: Page) => {

@@ -1095,6 +1095,60 @@ body {
   gap: var(--pp-spacing-4);
 }
 
+/* The highlight replay (story 3.9, UX-DR13/15). While it plays the scrim, the panel, the polaroid and
+   Mama are `visibility: hidden` (focus and layout stay, so the screen comes back as it was) and the
+   canvas shows the replayed moment under the « REPLAY » banner. The screen itself still takes the press
+   that skips. The banner has the epic stamp's look (`pp-type-epic pp-stroked`), sits at the top and stays
+   up for the whole replay; it is not the 900 ms « PARADE PARFAITE » stamp. */
+.pp-result-screen--replaying {
+  background: transparent;
+}
+
+.pp-result-screen--replaying .pp-result-panel,
+.pp-result-screen--replaying .pp-result-left {
+  visibility: hidden;
+}
+
+.pp-replay-banner {
+  position: absolute;
+  top: var(--pp-spacing-screen-margin-top);
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  display: none;
+  width: max-content;
+  max-width: 90%;
+  margin: 0 auto;
+  text-align: center;
+  white-space: nowrap;
+  font-size: min(var(--pp-font-epic-size), 9vw, 18vh);
+  pointer-events: none;
+  animation: pp-replay-banner-in 240ms cubic-bezier(0.2, 0.9, 0.3, 1.2) 1 both;
+}
+
+/* Reduced motion: no scale-in, the banner is just there. Here and not in the shared list below, so the
+   selectors keep ascending specificity. */
+:where(:root[data-pp-motion="reduced"]) .pp-replay-banner {
+  animation: none;
+}
+
+.pp-result-screen--replaying .pp-replay-banner {
+  display: block;
+}
+
+/* One scale-in, then it holds still: it never blinks (3 Hz rule). `transform` and `opacity` only. */
+@keyframes pp-replay-banner-in {
+  from {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* A paper card with the ink outline and the sticker shadow, tilted by a random angle that boot drew
    (`--pp-polaroid-tilt`, within `feedback.json › photo.tiltMaxDeg`) and keeps for a rebuilt screen. */
 .pp-polaroid {

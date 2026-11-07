@@ -325,6 +325,74 @@ const PhotoSchema = z
     'The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it.',
   );
 
+const ReplayPointsSchema = z
+  .strictObject({
+    perfect: z.int().min(0).describe('Points of a perfect response (`ResponseResolved`).'),
+    messyGag: z
+      .int()
+      .min(0)
+      .describe('Points of a gag that made a mess (`messyGagMinProps` props hit or broken).'),
+    nearMiss: z.int().min(0).describe('Points of a near miss (`NearMiss`).'),
+    waveLast: z
+      .int()
+      .min(0)
+      .describe('Points of the last response of a wave, whatever its quality.'),
+  })
+  .describe('What each kind of moment is worth (story 3.9, P7).');
+
+const ReplaySchema = z
+  .strictObject({
+    preRollMs: z
+      .int()
+      .min(0)
+      .describe('Sim ms played before the moment itself, so the build-up is seen (story 3.9).'),
+    postRollMs: z
+      .int()
+      .min(0)
+      .describe('Sim ms played after the moment, so its consequence is seen.'),
+    minSpacingMs: z
+      .int()
+      .min(0)
+      .describe('Sim ms between two retained moments: a closer one is dropped.'),
+    momentCount: z.int().min(1).max(5).describe('Most moments one replay shows.'),
+    points: ReplayPointsSchema,
+    messyGagMinProps: z
+      .int()
+      .min(1)
+      .describe('Distinct props a gag must hit or break to count as a mess (P7: « bazar »).'),
+    messWindowMs: z
+      .int()
+      .positive()
+      .describe('Sim ms after a gag in which a prop hit or broken counts for its mess.'),
+    camera: z
+      .strictObject({
+        frameWidthM: z
+          .number()
+          .positive()
+          .finite()
+          .describe('Width of the replay camera frame, in metres on the floor.'),
+        frameDepthM: z
+          .number()
+          .positive()
+          .finite()
+          .describe('Depth of the replay camera frame, in metres on the floor.'),
+      })
+      .describe(
+        'The replay camera: the game camera’s angle, a tighter frame centred on the moment (story 3.9).',
+      ),
+    delayMs: z
+      .int()
+      .min(0)
+      .describe('Real ms between the last star and the first replayed moment.'),
+    endHoldMs: z
+      .int()
+      .min(0)
+      .describe('Real ms the last frame of a moment stays up, before the next one or the buttons.'),
+  })
+  .describe(
+    'The highlight replay (story 3.9): which moments of the game are replayed, how, and with what pauses. Client only: the sim never reads it and `feel.json` is not touched, so no golden moves.',
+  );
+
 const CalibrationFeedbackSchema = z
   .strictObject({
     beep: AudioCueSchema.describe(
@@ -739,6 +807,7 @@ export const FeedbackTableSchema = z
     characters: CharactersSchema,
     door: DoorSchema,
     photo: PhotoSchema,
+    replay: ReplaySchema,
     render: RenderSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
@@ -770,6 +839,7 @@ export type FeedbackCue = z.infer<typeof CueSchema>;
 export type FeedbackFlash = z.infer<typeof FlashSchema>;
 export type ResultScreenTimings = z.infer<typeof ResultScreenSchema>;
 export type PhotoSettings = z.infer<typeof PhotoSchema>;
+export type ReplaySettings = z.infer<typeof ReplaySchema>;
 export type ComboBadgeTimings = z.infer<typeof ComboBadgeSchema>;
 export type BeatTrack = z.infer<typeof BeatTrackSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];
