@@ -1186,3 +1186,9 @@ Open:
 - 9.4's « The bedtime cycle gathers only an `idle` Papa »: still latent (the big room has no cycle).
 - 9.7's « Two kitchen markers can stack » and « the `papa_mug` level node shares the rig node's name »: kept as they are by Geo (question 4, 2026-11-07), judged on the device; moving an anchor after the freeze is a deliberate geometry change with its own story.
 - **`sim:balance` judges one level and three bots**: `--level chambre_night` would fail its `humanMustFailDefs` (the big room's mischiefs). The targets are the first level's; a second balanced level needs its own block in `content/playtest.json`.
+
+## Deferred from: code review of story 3-8-memoire-de-maman (2026-11-07)
+
+- **The 60-character cap of `mama-lines.json` was never rendered**: the longest live line is 37 characters (`scream_home`), so the fit specs (`mamaReactions.spec.ts` FITS) never come near the cap, and the `[ASSUMPTION]` « fits 750 × 340 » is untested. « Pas si près de l'escalier ! » already wraps with the « ! » alone at 750 × 340 (`text-wrap: balance` on the bubble would fix it). Test a 60-character line at 844 × 390 and 750 × 340 when Geo rewrites the lines.
+- **Save writes are unordered with an async storage backend**: `recordMamaMemory` and `setSettings` each snapshot `save` and call `storage.set` with no queue. Safe with the synchronous `localStorage` port; with a Capacitor port (E8) an older snapshot could land last. Pre-existing for `setSettings`.
+- **The live-content tests of 3.8 run on `salon_crawler` only**: `dishwasher_first`, `tablecloth_again` and `plant_again` are checked by schema and `content:check`, but no test shows their gags can fire in `salon_kitchen`, the first level. A reachability check (the gags a level can produce versus the tags `mama-lines.json` names) would catch a dead line.

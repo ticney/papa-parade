@@ -45,6 +45,8 @@ interface PlayedGame {
   readonly endReason: LevelEndReason;
   readonly score: MamaScore;
   readonly tags: ReadonlySet<string>;
+  /** How many events carried each tag: the tags are a set, the game may have slid more than once. */
+  readonly occurrences: Readonly<Record<string, number>>;
 }
 
 /** One strict headless game: the end reason, Mama's note, and the tags `boot.ts` would collect. */
@@ -67,11 +69,15 @@ async function play(botId: BotId, seed: number): Promise<PlayedGame> {
     const events: SimEvent[] = [];
     playGame(sim, bot.value, level.level.durationMs, (event) => events.push(event));
     const tags = new Set<string>();
+    const occurrences: Record<string, number> = {};
     let endReason: LevelEndReason = 'timer';
     let score: MamaScore | null = null;
     for (const event of events) {
       const tag = mamaTagOf(event);
-      if (tag !== null) tags.add(tag);
+      if (tag !== null) {
+        tags.add(tag);
+        occurrences[tag] = (occurrences[tag] ?? 0) + 1;
+      }
       if (event.type === 'LevelEnded') endReason = event.reason;
       if (event.type === 'LevelScored') {
         const { type: _type, t: _t, ...note } = event;
@@ -79,7 +85,7 @@ async function play(botId: BotId, seed: number): Promise<PlayedGame> {
       }
     }
     if (score === null) throw new Error(`seed ${seed}: the level was never scored`);
-    return { seed, endReason, score, tags };
+    return { seed, endReason, score, tags, occurrences };
   } finally {
     sim.dispose();
   }
@@ -141,7 +147,19 @@ describe('Mama remembers, on the live salon_crawler (story 3.8, FR36)', () => {
   it(
     'counts games, not occurrences: a game with many slides adds 1',
     async () => {
-      const game = await play('idle', 1);
+      // The first seed whose idle game has the stairs threat slide at least twice: the precondition that
+      // makes « adds 1 » mean something (a per-occurrence counter would add 2 or more).
+      let game: PlayedGame | undefined;
+      for (const seed of SEEDS) {
+        const candidate = await play('idle', seed);
+        if ((candidate.occurrences.stairs_slide ?? 0) >= 2) {
+          game = candidate;
+          break;
+        }
+      }
+      if (game === undefined)
+        throw new Error(`no seed of ${SEEDS.join(',')} slides twice on the stairs`);
+      expect(game.occurrences.stairs_slide, `seed ${game.seed}`).toBeGreaterThanOrEqual(2);
       expect(game.tags.has('stairs_slide')).toBe(true);
       expect(chooseThenRecord(game, { counts: {} }).memory.counts.stairs_slide).toBe(1);
       expect(

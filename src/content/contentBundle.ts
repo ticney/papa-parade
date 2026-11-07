@@ -18,8 +18,10 @@ export interface ContentBundle {
   bots: BotSettings;
   strings: Strings;
   /**
-   * Story 3.8. Client-only through `chooseMamaLines` (`@sim`), outside every hash: choosing a line happens
-   * after `LevelScored` and draws nothing from the world.
+   * Story 3.8. Chosen from through `chooseMamaLines` (`@sim`) by the client, and carried by the bundle the
+   * bots and the sim tools load. Outside the sim's hashes (`feelHash`, `levelHash`, the snapshot, the goldens):
+   * choosing a line happens after `LevelScored` and draws nothing from the world. A journal's `contentHash`
+   * covers the whole bundle, so editing a line moves it.
    */
   mamaLines: MamaLines;
 }

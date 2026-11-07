@@ -8,12 +8,18 @@ import { describe, expect, it } from 'vitest';
 
 const FILE = 'content/mama-lines.json';
 
-const parse = (lines: unknown[]) =>
+const parseRaw = (lines: unknown[]) =>
   parseContentFile(FILE, JSON.stringify({ lines }), MAMA_LINES_FILE.schema);
-const messagesOf = (lines: unknown[]): string => {
-  const result = parse(lines);
-  return result.ok ? '' : result.error.map(formatContentProblem).join('\n');
-};
+// A file needs a generic line per reaction: the cases below add one of each, so they test one rule at a time.
+const GENERIC_LINES = MAMA_REACTIONS.map((reaction) => ({
+  id: `generic_${reaction}`,
+  reaction,
+  text: 'Bon…',
+}));
+const parse = (lines: unknown[]) => parseRaw([...GENERIC_LINES, ...lines]);
+const messagesFrom = (result: ReturnType<typeof parseRaw>): string =>
+  result.ok ? '' : result.error.map(formatContentProblem).join('\n');
+const messagesOf = (lines: unknown[]): string => messagesFrom(parse(lines));
 const line = (changes: Record<string, unknown> = {}) => ({
   id: 'laugh_any',
   reaction: 'laugh',
@@ -50,7 +56,24 @@ describe('MamaLinesSchema (story 3.8, AC 6)', () => {
   });
 
   it('needs at least one line', () => {
-    expect(messagesOf([])).toContain('lines');
+    expect(messagesFrom(parseRaw([]))).toContain('lines');
+  });
+
+  it('needs a generic line (no `when`) for each reaction, and names the one that has none', () => {
+    expect(parseRaw(GENERIC_LINES).ok).toBe(true);
+    for (const reaction of MAMA_REACTIONS) {
+      const others = GENERIC_LINES.filter((entry) => entry.reaction !== reaction);
+      const message = messagesFrom(parseRaw(others));
+      expect(message).toContain(`no generic line (without \`when\`) for her ${reaction}`);
+      expect(message).toContain('lines');
+    }
+  });
+
+  it('does not take a line with a `when` for the generic one', () => {
+    const conditional = GENERIC_LINES.map((entry) =>
+      entry.reaction === 'sigh' ? { ...entry, when: { endReason: 'timer' } } : entry,
+    );
+    expect(messagesFrom(parseRaw(conditional))).toContain('for her sigh');
   });
 
   it('refuses an unknown key, at the file and at a line', () => {
@@ -92,6 +115,17 @@ describe('MamaLinesSchema (story 3.8, AC 6)', () => {
       expect(messagesOf([line({ text: '*Encore l’escalier ?!' })])).toContain('pairs');
       expect(messagesOf([line({ text: '*Encore* *l’escalier* ?!' })])).toBe('');
       expect(messagesOf([line({ text: '*Encore* l’*escalier ?!' })])).toContain('pairs');
+    });
+
+    it('refuses an empty emphasis and two emphases stuck together (`**`)', () => {
+      for (const text of ['**', 'Ha **ha !', 'a**b', '*Encore**l’escalier*']) {
+        expect(messagesOf([line({ text })]), text).toContain('`**`');
+      }
+    });
+
+    it('refuses a text that shows nothing besides its asterisks', () => {
+      expect(messagesOf([line({ text: '* *' })])).toContain('besides its asterisks');
+      expect(messagesOf([line({ text: '*  *' })])).toContain('besides its asterisks');
     });
   });
 

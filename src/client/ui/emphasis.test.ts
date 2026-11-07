@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appendEmphasizedText, emphasisSegmentsOf, plainTextOf } from './emphasis.ts';
+import { appendEmphasizedText, emphasisSegmentsOf } from './emphasis.ts';
 
 // The little of the DOM the helper uses; the node environment has none.
 class FakeNode {
@@ -81,14 +81,6 @@ describe('emphasisSegmentsOf (story 3.8, AC 9)', () => {
       { text: ' la ', isEmphasized: false },
       { text: 'nappe', isEmphasized: false },
     ]);
-  });
-});
-
-describe('plainTextOf', () => {
-  it('is the line without its asterisks', () => {
-    expect(plainTextOf("*Encore* l'escalier ?!")).toBe("Encore l'escalier ?!");
-    expect(plainTextOf('Bon… qui range ?')).toBe('Bon… qui range ?');
-    expect(plainTextOf('*Encore la nappe')).toBe('Encore la nappe');
   });
 });
 

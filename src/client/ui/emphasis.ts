@@ -21,13 +21,6 @@ export function emphasisSegmentsOf(text: string): readonly EmphasisSegment[] {
   return segments;
 }
 
-/** The line as a reader hears it: the same words with no asterisk. */
-export function plainTextOf(text: string): string {
-  return emphasisSegmentsOf(text)
-    .map((segment) => segment.text)
-    .join('');
-}
-
 /**
  * Appends `text` to `parent` with its `*word*` as `<em>word</em>`. It builds text nodes and `em`
  * elements, never `innerHTML`: a line is content (`content/mama-lines.json`), and the bubble it goes in

@@ -127,9 +127,10 @@ test.describe('Mama’s memory', () => {
   test('a game counts once however many times the stairs slid in it', async ({ page }) => {
     await openGame(page);
     await playStairsGame(page);
-    // The live waves may or may not slide twice in one game: the count is games, so 1 either way.
-    expect(await stairsSlides(page)).toBeGreaterThanOrEqual(1);
-    await expect.poll(() => counts(page)).toMatchObject({ stairs_slide: 1 });
+    // The precondition that gives « 1 » its meaning: it slid more than once on SEED, and a count of
+    // occurrences would be 2 or more. If a wave change loses it, pick another SEED here.
+    expect(await stairsSlides(page)).toBeGreaterThanOrEqual(2);
+    await expect.poll(async () => (await counts(page))?.stairs_slide).toBe(1);
   });
 
   test('a level left before its end counts nothing (no LevelScored)', async ({ page }) => {

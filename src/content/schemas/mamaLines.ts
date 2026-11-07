@@ -60,6 +60,12 @@ export const MamaLineSchema = z
       .refine((text) => (text.match(/\*/g) ?? []).length % 2 === 0, {
         error: 'every `*` opens or closes an emphasis (`*Encore* l’escalier`): they come in pairs',
       })
+      .refine((text) => !text.includes('**'), {
+        error: 'an emphasis holds a word: `**` is an empty one, or two emphases stuck together',
+      })
+      .refine((text) => text.replaceAll('*', '').trim() !== '', {
+        error: 'a line shows some text besides its asterisks',
+      })
       .describe('What she says, in French, tutoiement. `*word*` is shown in italics.'),
     when: MamaLineWhenSchema.optional().describe(
       'Absent: a generic line of its reaction, the fallback when no other line holds.',
@@ -75,6 +81,19 @@ export const MamaLinesSchema = z
       .describe(
         'Every line she can say. The most specific one that holds wins; a seeded draw breaks a tie.',
       ),
+  })
+  .superRefine((file, ctx) => {
+    // `chooseMamaLines` falls back to a reaction's generic line and throws when it has none: a file that
+    // lacks one must not load (a dev server or a playtest build never runs `content:check`).
+    for (const reaction of MAMA_REACTIONS) {
+      if (!file.lines.some((line) => line.reaction === reaction && line.when === undefined)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['lines'],
+          message: `no generic line (without \`when\`) for her ${reaction}: she would have nothing to say when no other line holds`,
+        });
+      }
+    }
   })
   .describe('What Mama says on the Result screen, and when (story 3.8, FR36).');
 

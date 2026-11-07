@@ -1,6 +1,6 @@
 import { SaveSchema } from '@content/schemas/save';
 import type { StorageError, StoragePort } from '@platform/platform';
-import { SAVE_INVALID_KEY, SAVE_KEY } from '@shared/constants';
+import { SAVE_INVALID_KEY, SAVE_KEY, SAVE_VERSION } from '@shared/constants';
 import { log } from '@shared/log';
 import { err, ok } from '@shared/result';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -513,6 +513,7 @@ describe('the v3 → v4 migration (story 3.8)', () => {
 
   it('is in the table, after the two before it, and the table ends at the current version', () => {
     expect(SAVE_MIGRATIONS.map((migration) => migration.from)).toEqual([1, 2, 3]);
+    expect(SAVE_MIGRATIONS.at(-1)?.from).toBe(SAVE_VERSION - 1);
     expect(step).toBeDefined();
   });
 

@@ -2085,6 +2085,10 @@ export async function boot(): Promise<void> {
         // `LevelScored` stores it before the app enters `result`: this is a bug, not a game.
         log.warn('boot', 'the Result screen has no note to show: showing an empty one');
       }
+      if (resultMamaLines === null) {
+        // Chosen in the same `LevelScored` branch as the note: none means Mama has nothing to say. A bug too.
+        log.warn('boot', 'the Result screen has no line of Mama to show: showing no reaction');
+      }
       const { mama } = levelFeel();
       return createResultScreen({
         t,

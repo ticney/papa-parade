@@ -34,7 +34,6 @@ import type { SequenceDef } from '@content/schemas/sequence';
 import { type ThreatDef, ThreatGagIds } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
 import {
-  MAMA_REACTIONS,
   MS_PER_S,
   PHONE_RINGING_EVERY_MS,
   PHYSICS_BOUNDS_WALL_THICKNESS_M,
@@ -1346,8 +1345,8 @@ function checkLevelChores(
 
 /**
  * The references Mama's lines make (story 3.8, FR36): a `when.tag` is a gag of the sim, a `when.endReason` a
- * level end reason, ids are unique, and each of her reactions has a generic line (no `when`), so
- * `chooseMamaLines` always finds one. The schema checks the text rules.
+ * level end reason and ids are unique. The schema checks the text rules and that each of her reactions has a
+ * generic line (no `when`), so `chooseMamaLines` always finds one.
  */
 function checkMamaLineReferences(mamaLines: MamaLines): ContentProblem[] {
   const problems: ContentProblem[] = [];
@@ -1378,15 +1377,6 @@ function checkMamaLineReferences(mamaLines: MamaLines): ContentProblem[] {
       });
     }
   });
-  for (const reaction of MAMA_REACTIONS) {
-    if (!mamaLines.lines.some((line) => line.reaction === reaction && line.when === undefined)) {
-      problems.push({
-        file,
-        jsonPath: 'lines',
-        message: `no generic line (without \`when\`) for her ${reaction}: she would have nothing to say when no other line holds`,
-      });
-    }
-  }
   return problems;
 }
 
