@@ -27,6 +27,12 @@ export type SimCommand =
    */
   | { type: 'SetNoise'; t: SimMs; pct: number }
   /**
+   * Debug / test command, journaled like `SetNoise`: sets the catastrophe gauge to `pct` (held in
+   * `[0, 100]`) through `addCatastrophe`, source `debug`, last in `runGauges` (so `pct: 100` ends the
+   * level in the same step). Ignored in the final rush, where the gauge is frozen (story 3.16).
+   */
+  | { type: 'SetCatastrophe'; t: SimMs; pct: number }
+  /**
    * Debug / test command, the twin of `SetNoise`: sets the need to `pct` (held in `[0, 100]`)
    * through `addBladder`. Ignored in a level with no need gauge (story 4.3).
    */
@@ -131,6 +137,7 @@ export const COMMAND_TYPES: readonly SimCommand['type'][] = [
   'SetFeel',
   'SetFatigue',
   'SetNoise',
+  'SetCatastrophe',
   'SetBladder',
   'StartDisruption',
   'ForceThreat',
@@ -215,6 +222,11 @@ export function commandProblem(value: unknown): string | null {
   if (command.type === 'SetNoise') {
     if (typeof command.pct !== 'number' || !Number.isFinite(command.pct)) {
       return 'SetNoise: pct must be a finite number';
+    }
+  }
+  if (command.type === 'SetCatastrophe') {
+    if (typeof command.pct !== 'number' || !Number.isFinite(command.pct)) {
+      return 'SetCatastrophe: pct must be a finite number';
     }
   }
   if (command.type === 'SetBladder') {

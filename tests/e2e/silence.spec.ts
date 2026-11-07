@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { STEP_MS } from '../../src/shared/constants.ts';
+import { HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
 import {
   collectProblems,
   hapticPatternOfCue,
@@ -12,6 +12,7 @@ import {
   telegraphDelayMsOf,
   vibrations,
   WALK_BOUND_MS,
+  waitFrames,
 } from './support/game.ts';
 import { ppAdvance, ppEvents, ppFreeze, ppLoadLevel, ppSend, ppWorld } from './support/testApi.ts';
 
@@ -187,6 +188,87 @@ test.describe('the silence starts', () => {
   });
 });
 
+const silenceRing = (page: Page) => page.locator('.pp-silence-ring');
+/** The threat marker rings that are drawn (the silence ring is another element). */
+const markerRings = (page: Page) => page.locator('.pp-chrono-ring:not([hidden])');
+/** `--pp-silence-progress` of the ring beside the bubble, in whole per-mille. */
+const silenceProgress = (page: Page): Promise<number> =>
+  silenceRing(page).evaluate((element) =>
+    Number((element as HTMLElement).style.getPropertyValue('--pp-silence-progress')),
+  );
+
+test.describe('the ring beside the bubble (story 2.11)', () => {
+  test('shows with the bubble and fills over the drawn sim time to findMaxMs, outside the bubble, within the HUD budget', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozen(page);
+    // Not mounted at all while the silence is not on: a hidden ring would cost 3 of the HUD's nodes.
+    await expect(silenceRing(page)).toHaveCount(0);
+    const { started } = await startSilence(page);
+    await waitFrames(page, 2);
+    await expect(bubble(page)).toBeVisible();
+    await expect(silenceRing(page)).toBeVisible();
+    await expect(silenceRing(page)).toHaveCount(1);
+
+    // A sibling of the bubble, not a child: it does not blink with it, and no animation runs on it.
+    expect(
+      await silenceRing(page).evaluate((element) => ({
+        inBubble: element.closest('.pp-silence-bubble') !== null,
+        animation: getComputedStyle(element).animationName,
+      })),
+    ).toEqual({ inBubble: false, animation: 'none' });
+
+    // The HUD budget holds with the bubble and the ring up.
+    const nodes = await page.evaluate(() => document.querySelectorAll('#pp-hud *').length);
+    expect(nodes).toBeLessThanOrEqual(HUD_MAX_DOM_NODES);
+
+    // Fills from the instant the silence started to `findMaxMs` later, in sim time, as drawn: a frozen frame
+    // has alpha 0, so the ring is a step behind the sim (AC 9), to the whole per-mille (a ring drawn at the
+    // sim time instead would be off by `STEP_MS / findMaxMs`).
+    const startedAt = (await ppWorld(page)).silence.startedAt as number;
+    expect(startedAt).toBe(started.t);
+    const drawnPermille = (sim: number): number =>
+      Math.min(1000, Math.max(0, ((sim - STEP_MS - startedAt) / liveSilence.findMaxMs) * 1000));
+    const ROUNDING_PERMILLE = 1;
+    let previous = await silenceProgress(page);
+    for (const share of [0.25, 0.5, 0.75]) {
+      const target = startedAt + share * liveSilence.findMaxMs;
+      const now = (await ppWorld(page)).time.sim;
+      await ppAdvance(page, Math.max(1, Math.round((target - now) / STEP_MS)));
+      await waitFrames(page, 2);
+      const sim = (await ppWorld(page)).time.sim;
+      const progress = await silenceProgress(page);
+      expect(Math.abs(progress - drawnPermille(sim))).toBeLessThanOrEqual(ROUNDING_PERMILLE);
+      expect(progress).toBeGreaterThan(previous);
+      previous = progress;
+    }
+    // Frames with no step leave it as it is (the sim is frozen).
+    await waitFrames(page, 5);
+    expect(await silenceProgress(page)).toBe(previous);
+
+    // The step before the timeout it is a step short of full (the drawn time trails the sim), and it goes with
+    // the bubble at the timeout: it is never shown full, because the silence ends at `findMaxMs` itself.
+    const lastStep = Math.floor(
+      (startedAt + liveSilence.findMaxMs - (await ppWorld(page)).time.sim) / STEP_MS,
+    );
+    await ppAdvance(page, Math.max(0, lastStep - 1));
+    await waitFrames(page, 2);
+    const beforeEnd = await silenceProgress(page);
+    expect(Math.abs(beforeEnd - drawnPermille((await ppWorld(page)).time.sim))).toBeLessThanOrEqual(
+      ROUNDING_PERMILLE,
+    );
+    expect(beforeEnd).toBeGreaterThanOrEqual(
+      1000 - Math.ceil(((3 * STEP_MS) / liveSilence.findMaxMs) * 1000),
+    );
+    await ppAdvance(page, 3);
+    await waitFrames(page, 2);
+    await expect(bubble(page)).toBeHidden();
+    await expect(silenceRing(page)).toHaveCount(0);
+    expect(problems).toEqual([]);
+  });
+});
+
 test.describe('the baby is found', () => {
   test('a tap on the baby ends the silence: music and babble back, the bubble gone, the threat telegraphed and parried in its window', async ({
     page,
@@ -210,6 +292,10 @@ test.describe('the baby is found', () => {
     await expect(html(page)).toHaveAttribute('data-pp-music', 'on');
     await expect(html(page)).toHaveAttribute('data-pp-babble', 'on');
     await expect(bubble(page)).toBeHidden();
+    // The side ring goes with the bubble and the marker's own ring takes over, from its telegraph (story 2.11).
+    await waitFrames(page, 2);
+    await expect(silenceRing(page)).toBeHidden();
+    await expect(markerRings(page)).toHaveCount(1);
 
     // From here it is parried like any other threat: wait for the window, press the marker.
     const instance = await silenceThread(page);

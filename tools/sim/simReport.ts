@@ -1,7 +1,13 @@
 import { NOISE_SOURCE_IDS } from '@content/schemas/feel';
-import { type DifficultyTierId, STAR_COUNT_MAX } from '@shared/constants';
+import {
+  type DifficultyTierId,
+  SILENCE_SIMULTANEOUS_WEIGHT,
+  STAR_COUNT_MAX,
+} from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import {
+  AFTER_EFFECT_KINDS,
+  type AfterEffectKind,
   type BreathGaspReason,
   LEVEL_END_REASONS,
   type LevelEndReason,
@@ -10,9 +16,19 @@ import {
   type Sim,
   type SimEvent,
 } from '@sim';
+import { createFairnessCheck } from './fairnessCheck.ts';
+import type { HumanComparison } from './humanComparison.ts';
+import type { ChronoRingMode } from './simArgs.ts';
 
-/** Every `NoiseSource` the report counts, in file order, `debug` last (a bot never sends `SetNoise`, so it stays 0). */
-const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'debug'];
+/** Every `NoiseSource` the report counts, in file order, then `gag` (a def's own noise, story 9.5), `debug` last (a bot never sends `SetNoise`, so it stays 0). */
+const NOISE_SOURCES: readonly NoiseSource[] = [...NOISE_SOURCE_IDS, 'gag', 'debug'];
+
+/** Every `AfterEffectKind` at 0: the report has all its keys, whether or not a séquelle of that kind began. */
+const emptyAfterEffects = (): Record<AfterEffectKind, number> =>
+  Object.fromEntries(AFTER_EFFECT_KINDS.map((kind) => [kind, 0])) as Record<
+    AfterEffectKind,
+    number
+  >;
 
 const emptyNoiseBySource = (): Record<NoiseSource, number> =>
   Object.fromEntries(NOISE_SOURCES.map((source) => [source, 0])) as Record<NoiseSource, number>;
@@ -43,10 +59,60 @@ export interface ThreatTally {
 export interface WaveTally {
   /** The `ThreatTelegraphed` events the wave's director drew. */
   telegraphs: number;
-  /** The most threats announced or open at once, counted at this wave's telegraphs. */
+  /** The most threats announced or open at once, counted at this wave's telegraphs (a silence counts for two, as the director does). */
   peakSimultaneous: number;
   /** Whether the count ever went above the wave's `maxSimultaneous`. */
   isOverLimit: boolean;
+}
+
+/** The house chores of one run (story 9.4): the beats judged by quality (a missed beat is `fail`), the chores finished and the Maison points they paid. */
+export interface ChoreCounts {
+  beats: { perfect: number; success: number; fail: number };
+  completed: number;
+  homePoints: number;
+  /** The pots of abandoned chores (story 9.5): telegraphed, lowered in time (`success` / `perfect`), boiled over. */
+  abandoned: AbandonedCounts;
+  /** Each chore def of the level (story 9.6): whether it was finished in the run (0 or 1) and its beats by quality. */
+  byDef: Record<string, DefChoreCounts>;
+  /** The objects the chores broke (story 9.6): a missed beat of a def with `missBrokenObjects` breaks that many. */
+  objectsBroken: number;
+  /** The open-door threats of the chores (story 9.6): telegraphed, closed in time (`success` / `perfect`), the baby got in (gag). */
+  open: OpenDoorCounts;
+}
+
+/** The threat an abandoned chore turns into (story 9.5), over a run or over the runs. */
+export interface AbandonedCounts {
+  telegraphed: number;
+  resolved: number;
+  boiledOver: number;
+}
+
+/** One chore def over a run (story 9.6): finished or not, and its beats judged by quality. */
+export interface DefChoreCounts {
+  completed: number;
+  beats: { perfect: number; success: number; fail: number };
+}
+
+/** The open-door threats of the chores (story 9.6), over a run or over the runs. */
+export interface OpenDoorCounts {
+  telegraphed: number;
+  closed: number;
+  gagged: number;
+}
+
+/** The counts of a run that has seen nothing yet; `defIds` are the chore defs the level declares, in order. */
+function emptyChoreCounts(defIds: readonly string[] = []): ChoreCounts {
+  return {
+    beats: { perfect: 0, success: 0, fail: 0 },
+    completed: 0,
+    homePoints: 0,
+    abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+    byDef: Object.fromEntries(
+      defIds.map((id) => [id, { completed: 0, beats: { perfect: 0, success: 0, fail: 0 } }]),
+    ),
+    objectsBroken: 0,
+    open: { telegraphed: 0, closed: 0, gagged: 0 },
+  };
 }
 
 /** One sequence over a run or over the runs (story 4.10): started, won, lost. A level end cuts it: neither. */
@@ -82,6 +148,8 @@ export interface RunSummary {
   coffees: number;
   /** The `papa_asleep` gags: a missed micro-sleep. */
   asleepGags: number;
+  /** The séquelles that began, per kind (`AfterEffectStarted`, story 3.15). */
+  afterEffects: Record<AfterEffectKind, number>;
   /** The phones that started to ring (`PhoneRingStarted`, story 1.20). */
   phoneRings: number;
   /** The phones Papa picked up (`PhoneAnswered`). */
@@ -116,6 +184,8 @@ export interface RunSummary {
   instinctTriggers: number;
   /** The toilet visits finished (`ToiletFinished`, story 4.3). The bots never go, so 0 for a bot. */
   toiletVisits: number;
+  /** The house chores of the run (story 9.4): the beats by quality, the chores finished and what they paid. */
+  chores: ChoreCounts;
   /** The special sequences started (`SequenceStarted`, story 4.4): 0 unless `--sequence` starts one. */
   sequencesStarted: number;
   /** The sequences won (`SequenceEnded{succeeded}`). */
@@ -163,6 +233,16 @@ export interface RunSummary {
   noiseFinalPct: number;
   /** The sum of the positive `NoiseChanged.deltaPct` per source, in %. */
   noiseBySourcePct: Record<NoiseSource, number>;
+  /**
+   * The director-drawn windows that broke the fairness rule (story 3.13, `tools/sim/fairnessCheck.ts`):
+   * opened closer than `glideMaxMs + fairnessMarginMs` to a window announced before them, inside a
+   * found silence's guard, or drawn while a silence was under way. 0 when the director is right.
+   */
+  fairnessViolations: number;
+  /** The director-drawn threats whose window opened later than their telegraph delay: the director waited. */
+  stretchedTelegraphs: number;
+  /** How much later they opened than their telegraph delay, summed, in ms. */
+  stretchSumMs: number;
   commands: number;
   threats: Record<string, ThreatTally>;
   byGag: Record<string, number>;
@@ -174,12 +254,35 @@ export interface RunSummary {
   endReason: LevelEndReason | null;
   /** The sim time of `MamaWoke`, in ms; null if Mama did not wake in this run. */
   mamaWokeAtMs: number | null;
+  /** The sim time of `LevelEnded{mamaHome}`, in ms (story 3.16); null if Mama did not come home early in this run. */
+  mamaHomeAtMs: number | null;
+  /** The highest value the catastrophe gauge reached, in % (story 3.16): the max `catastrophePct` of the run's `CatastropheChanged` (the decay is silent, so the peak is exact); 0 when it never rose. */
+  catastrophePeakPct: number;
   /** Mama's score and stars (`LevelScored`, story 1.22); null for a run cut before the end. */
   scorePoints: number | null;
   stars: number | null;
   /** The stars Mama took off because she woke (`LevelScored.lostStars`); null for a run cut before the end. */
   lostStars: number | null;
+  /** The five rows of Mama's note (`LevelScored`, story 3.12); null for a run cut before the end. */
+  rows: ScoreRows | null;
 }
+
+/** The five rows of Mama's note as the report keeps them: points earned for Rire, Calme, Maison, and what Soupir and Hurlement took off. */
+export interface ScoreRows {
+  laughPoints: number;
+  calmPoints: number;
+  homePoints: number;
+  sighPoints: number;
+  screamPoints: number;
+}
+
+const SCORE_ROW_KEYS = [
+  'laughPoints',
+  'calmPoints',
+  'homePoints',
+  'sighPoints',
+  'screamPoints',
+] as const satisfies readonly (keyof ScoreRows)[];
 
 export interface RunRecorder {
   onEvent(event: SimEvent): void;
@@ -212,6 +315,18 @@ const emptyTally = (): ThreatTally => ({
   offsetCount: 0,
 });
 
+/** What the fairness check reads of the level's effective feel (story 3.13, `createFairnessCheck`). */
+export interface FairnessSetup {
+  /** `movement.glideMaxMs + director.fairnessMarginMs`. */
+  readonly spacingMs: number;
+  /** The telegraph delay of each def, `def.telegraphDelayMs ?? feel.timing.telegraphDelayDefaultMs`. */
+  readonly telegraphDelayMsOf: Readonly<Record<string, number>>;
+  /** The held Firmnesses (story 9.7): `holdUntilMs` of each `firm` def that has one, by def id. */
+  readonly holdUntilMsOf: Readonly<Record<string, number>>;
+  /** `input.holdMinMs`. */
+  readonly holdMinMs: number;
+}
+
 /**
  * Counts the events of one run of `sim` (created for it, before the first step): responses per
  * threat def, gags, threats at once per wave (against the limits `waves` gives, the level's waves),
@@ -219,6 +334,10 @@ const emptyTally = (): ThreatTally => ({
  * `armsCryDef` is the level's `carry.armsCryDef` (story 4.1): its telegraphs are cries in the arms,
  * not micro-sleeps (both are threats no wave planned). `sequenceDefs` are the threats the steps of
  * the level's sequences spawn (a duel's, story 4.6; a stealth step's two alerts, story 4.9): a third kind of threat no wave planned, counted as neither.
+ * `abandonedDefs` are the threats the level's chores turn into when abandoned (story 9.5): a fourth kind of
+ * threat no wave planned, counted in `chores.abandoned` and as neither a micro-sleep nor a cry.
+ * `fairness` (story 3.13) is what the fairness check needs of the level's effective feel; without it
+ * the run reports 0 violations and 0 stretched telegraphs.
  */
 export function createRunRecorder(
   sim: Sim,
@@ -226,6 +345,8 @@ export function createRunRecorder(
   waves: readonly { readonly maxSimultaneous: number }[] = [],
   armsCryDef: string | null = null,
   sequenceDefs: ReadonlySet<string> = new Set(),
+  fairness: FairnessSetup | null = null,
+  abandonedDefs: ReadonlySet<string> = new Set(),
 ): RunRecorder {
   // Threat ids and defs never change after `createSim`.
   const defIdOf = new Map<number, string>();
@@ -255,6 +376,14 @@ export function createRunRecorder(
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
+  const chores: ChoreCounts = emptyChoreCounts(sim.chores.map((chore) => chore.def.id));
+  // The threat instances that are the open door of a chore (story 9.6), by id: they never change after `createSim`.
+  const openDoorThreatIds = new Set<number>();
+  for (const chore of sim.chores) {
+    const door =
+      chore.openThreatIndex === null ? undefined : sim.world.threats[chore.openThreatIndex];
+    if (door !== undefined) openDoorThreatIds.add(door.id);
+  }
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
@@ -273,9 +402,21 @@ export function createRunRecorder(
   let bladderPeakPct = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
+  const afterEffects = emptyAfterEffects();
   // A silence is picked (`ThreatHidden`), then telegraphed only if the baby is found: the pick is
   // what counts against the wave, and the later telegraph of the same threat is not a second one.
   const hiddenThreatIds = new Set<number>();
+  // The silences of the run (kept after the reveal): they take two places of the wave's limit, like in the director.
+  const silenceThreatIds = new Set<number>();
+  const fairnessCheck =
+    fairness === null
+      ? null
+      : createFairnessCheck(fairness.spacingMs, fairness.telegraphDelayMsOf, {
+          holdUntilMsOf: fairness.holdUntilMsOf,
+          holdMinMs: fairness.holdMinMs,
+        });
+  const weightOf = (threatId: number): number =>
+    silenceThreatIds.has(threatId) ? SILENCE_SIMULTANEOUS_WEIGHT : 1;
   // The threats no wave planned (the micro-sleep, the cry in the arms): they are in no wave's tally
   // and never count against a wave's limit, so their results must not move the active count either.
   const systemThreatIds = new Set<number>();
@@ -290,14 +431,19 @@ export function createRunRecorder(
   let isEnded = false;
   let endReason: LevelEndReason | null = null;
   let mamaWokeAtMs: number | null = null;
-  let scored: { scorePoints: number; stars: number; lostStars: number } | null = null;
+  let mamaHomeAtMs: number | null = null;
+  let catastrophePeakPct = 0;
+  let scored: { scorePoints: number; stars: number; lostStars: number; rows: ScoreRows } | null =
+    null;
   return {
     onEvent(event) {
+      fairnessCheck?.onEvent(event);
       if (event.type === 'ThreatTelegraphed' && hiddenThreatIds.delete(event.threatId)) {
         // The reveal of a silence picked earlier: already counted at its `ThreatHidden`.
       } else if (event.type === 'ThreatHidden') {
         hiddenThreatIds.add(event.threatId);
-        activeCount++;
+        silenceThreatIds.add(event.threatId);
+        activeCount += SILENCE_SIMULTANEOUS_WEIGHT;
         const wave = waveTallies[event.waveIndex];
         if (wave !== undefined) {
           wave.telegraphs++;
@@ -307,10 +453,12 @@ export function createRunRecorder(
         }
       } else if (event.type === 'ThreatTelegraphed' && event.waveIndex < 0) {
         if (armsCryDef !== null && event.kind === armsCryDef) armsCries++;
+        else if (abandonedDefs.has(event.kind)) chores.abandoned.telegraphed++;
         else if (!sequenceDefs.has(event.kind)) microSleeps++;
         systemThreatIds.add(event.threatId);
       } else if (event.type === 'ThreatTelegraphed') {
         activeCount++;
+        if (openDoorThreatIds.has(event.threatId)) chores.open.telegraphed++;
         const wave = waveTallies[event.waveIndex];
         if (wave !== undefined) {
           wave.telegraphs++;
@@ -321,7 +469,7 @@ export function createRunRecorder(
       } else if (event.type === 'ThreatCancelled') {
         // A cancelled wave threat leaves the count like a resolved one; a system threat never entered it.
         cancelledThreats++;
-        if (!systemThreatIds.has(event.threatId)) activeCount--;
+        if (!systemThreatIds.has(event.threatId)) activeCount -= weightOf(event.threatId);
       } else if (event.type === 'BabyPickedUp') {
         babyPickUps++;
       } else if (event.type === 'BabyPutDown') {
@@ -329,6 +477,18 @@ export function createRunRecorder(
         if (event.safe) safePutDowns++;
       } else if (event.type === 'ToiletFinished') {
         toiletVisits++;
+      } else if (event.type === 'ChoreBeatJudged') {
+        chores.beats[event.quality]++;
+        const planned = sim.chores[event.choreIndex];
+        const counts = planned === undefined ? undefined : chores.byDef[planned.def.id];
+        if (counts !== undefined) counts.beats[event.quality]++;
+        // A missed beat breaks what the def says it breaks (a plate); the cooking breaks nothing.
+        if (event.quality === 'fail') chores.objectsBroken += planned?.def.missBrokenObjects ?? 0;
+      } else if (event.type === 'ChoreCompleted') {
+        chores.completed++;
+        chores.homePoints += event.homePoints;
+        const counts = chores.byDef[sim.chores[event.choreIndex]?.def.id ?? ''];
+        if (counts !== undefined) counts.completed++;
       } else if (event.type === 'SequenceStarted') {
         sequencesStarted++;
         outcomesOf(sequenceOutcomes, event.id).started++;
@@ -373,6 +533,9 @@ export function createRunRecorder(
       } else if (event.type === 'LevelEnded') {
         isEnded = true;
         endReason = event.reason;
+        if (event.reason === 'mamaHome') mamaHomeAtMs = event.t;
+      } else if (event.type === 'CatastropheChanged') {
+        if (event.catastrophePct > catastrophePeakPct) catastrophePeakPct = event.catastrophePct;
       } else if (event.type === 'MamaWoke') {
         mamaWokeAtMs = event.t;
       } else if (event.type === 'LevelScored') {
@@ -380,15 +543,24 @@ export function createRunRecorder(
           scorePoints: event.scorePoints,
           stars: event.stars,
           lostStars: event.lostStars,
+          rows: {
+            laughPoints: event.laughPoints,
+            calmPoints: event.calmPoints,
+            homePoints: event.homePoints,
+            sighPoints: event.sighPoints,
+            screamPoints: event.screamPoints,
+          },
         };
       } else if (event.type === 'ResponseResolved') {
-        if (!systemThreatIds.has(event.threatId)) activeCount--;
+        if (!systemThreatIds.has(event.threatId)) activeCount -= weightOf(event.threatId);
         responses++;
         const defId = defIdOf.get(event.threatId) ?? `threat_${event.threatId}`;
         if (event.response === 'nothing') nothingResponses++;
         const tally = tallyOf(threats, defId);
         tally.responses++;
         tally[event.quality]++;
+        if (abandonedDefs.has(defId) && event.quality !== 'fail') chores.abandoned.resolved++;
+        if (openDoorThreatIds.has(event.threatId) && event.quality !== 'fail') chores.open.closed++;
         if (event.quality === 'fail' && event.reason !== undefined) {
           tally.failReasons[event.reason]++;
         }
@@ -400,8 +572,14 @@ export function createRunRecorder(
         gags++;
         byGag[event.gag] = countOf(byGag, event.gag) + 1;
         if (event.gag === PAPA_ASLEEP_GAG_ID) asleepGags++;
+        // Counted by the gagged threat's def, as the telegraphs and the lowerings are, not by the gag id.
+        if (abandonedDefs.has(defIdOf.get(event.threatId) ?? '')) chores.abandoned.boiledOver++;
+        // The baby got into the open dishwasher (story 9.6): counted by the threat that gagged, as the pot is.
+        if (openDoorThreatIds.has(event.threatId)) chores.open.gagged++;
       } else if (event.type === 'NearMiss') {
         nearMisses++;
+      } else if (event.type === 'AfterEffectStarted') {
+        afterEffects[event.kind]++;
       } else if (event.type === 'CoffeeDrunk') {
         coffees++;
       } else if (event.type === 'PhoneRingStarted') {
@@ -422,6 +600,11 @@ export function createRunRecorder(
       }
     },
     finish() {
+      const fairnessResult = fairnessCheck?.finish() ?? {
+        fairnessViolations: 0,
+        stretchedTelegraphs: 0,
+        stretchSumMs: 0,
+      };
       return {
         seed,
         worldHash: hashJson(sim.world),
@@ -431,6 +614,7 @@ export function createRunRecorder(
         microSleeps,
         coffees,
         asleepGags,
+        afterEffects: { ...afterEffects },
         phoneRings,
         phoneAnswers,
         phoneRingingSeconds,
@@ -448,6 +632,18 @@ export function createRunRecorder(
         comboPeakMultiplier,
         instinctTriggers,
         toiletVisits,
+        chores: {
+          ...chores,
+          beats: { ...chores.beats },
+          abandoned: { ...chores.abandoned },
+          byDef: Object.fromEntries(
+            Object.entries(chores.byDef).map(([id, counts]) => [
+              id,
+              { completed: counts.completed, beats: { ...counts.beats } },
+            ]),
+          ),
+          open: { ...chores.open },
+        },
         sequencesStarted,
         sequencesSucceeded,
         sequencesFailed,
@@ -468,6 +664,7 @@ export function createRunRecorder(
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
         noiseBySourcePct: { ...noiseBySourcePct },
+        ...fairnessResult,
         commands: sim.journal().entries.length,
         threats,
         byGag,
@@ -475,9 +672,12 @@ export function createRunRecorder(
         isEnded,
         endReason,
         mamaWokeAtMs,
+        mamaHomeAtMs,
+        catastrophePeakPct: round(catastrophePeakPct, 1),
         scorePoints: scored?.scorePoints ?? null,
         stars: scored?.stars ?? null,
         lostStars: scored?.lostStars ?? null,
+        rows: scored?.rows ?? null,
       };
     },
   };
@@ -503,7 +703,7 @@ export interface WaveReport {
   telegraphs: number;
   /** The most threats at once, over the runs. */
   peakSimultaneous: number;
-  /** The runs where the count went above `maxSimultaneous`: always 0 unless the director is wrong. */
+  /** The runs where the count (a silence counts for two) went above `maxSimultaneous`: always 0 unless the director is wrong. */
   overLimitRuns: number;
 }
 
@@ -512,6 +712,8 @@ export interface SimReport {
   bot: string;
   /** The difficulty tier the games were played at (story 2.8). */
   tier: DifficultyTierId;
+  /** What the `human` bot was shown (story 3.14): the chrono-ring `on` (the game), or `off` (the playtest of 2026-11-03). */
+  chronoRing: ChronoRingMode;
   seed: number;
   runs: number;
   /** Where each game stops at the latest: the cap, or the level's duration. */
@@ -522,15 +724,23 @@ export interface SimReport {
   endsByReason: Record<LevelEndReason, number>;
   /** Mean sim time of `MamaWoke` over the runs it happened in, in ms to one decimal; null if Mama never woke. */
   mamaWokeMeanAtMs: number | null;
+  /** Mean sim time of `LevelEnded{mamaHome}` over the runs it happened in, in ms to one decimal; null if Mama never came home early (story 3.16). */
+  mamaHomeMeanAtMs: number | null;
+  /** Mean over all the runs of the highest value the catastrophe gauge reached, in % to one decimal; null when there are no runs (story 3.16). */
+  meanCatastrophePeakPct: number | null;
   hashes: { feel: string; geometry: string; level: string; bots: string };
   /** Mean of Mama's score over the runs that ended, one decimal; null when none ended. */
   meanScore: number | null;
   /** Mean of Mama's stars over the runs that ended, one decimal; null when none ended. */
   meanStars: number | null;
+  /** Mean of each of the five rows of the note over the runs that ended, one decimal; null when none ended (story 3.12). */
+  meanRows: ScoreRows | null;
   /** Runs per number of stars, from 0 to 5 (index = stars); they add up to `endedRuns`. */
   starCounts: number[];
   /** `null` when no response was seen (no threat, or a game too short for one): not 0 %. */
   meanSuccessPct: number | null;
+  /** Share of perfect responses over every response of every run, in % to one decimal; `null` when there is none (story 3.14). */
+  perfectPct: number | null;
   threats: Record<string, ThreatReport>;
   /** One per wave of the level, in order. */
   waves: WaveReport[];
@@ -541,6 +751,20 @@ export interface SimReport {
     /** Total `NearMiss` events over the runs (the stairs' gags today). */
     nearMisses: number;
   };
+  /**
+   * The séquelles the gags left (`AfterEffectStarted`, story 3.15): the total of each kind over the runs, and
+   * all of them per run. `perfect` has none; `idle` piles them up.
+   */
+  afterEffects: {
+    byKind: Record<AfterEffectKind, number>;
+    meanPerRun: number;
+  };
+  /** The director-drawn windows that broke the fairness rule, over the runs: 0 when the director is right (story 3.13, FR75). */
+  fairnessViolations: number;
+  /** The director-drawn threats whose window opened later than their telegraph delay, over the runs: how often the director waits. */
+  stretchedTelegraphs: number;
+  /** Mean of how much later they opened, in ms to one decimal; null when none was stretched. */
+  meanStretchMs: number | null;
   /** The micro-sleeps telegraphed, over the runs (story 1.19). */
   microSleeps: number;
   /** The coffees drunk, over the runs. */
@@ -581,6 +805,31 @@ export interface SimReport {
   instinctTriggers: number;
   /** The toilet visits finished, over the runs (story 4.3). */
   toiletVisits: number;
+  /**
+   * The house chores over the runs (story 9.4): the runs where at least one chore was finished, the beats
+   * judged by quality, the mean Maison points the chores paid per run and the mean beats judged per run
+   * (a missed beat is announced again, so a clumsy player has more of them).
+   */
+  chores: {
+    runsCompleted: number;
+    beats: ChoreCounts['beats'];
+    meanHomePoints: number;
+    meanBeatsPerRun: number;
+    /** The pots of the abandoned chores over the runs (story 9.5): telegraphed, lowered in time, boiled over. */
+    abandoned: AbandonedCounts;
+    /**
+     * Each chore def of the level over the runs (story 9.6): the runs where it was finished, its beats by
+     * quality and the mean beats missed per run (each one a gag of the chore: smoke, a broken plate).
+     */
+    byDef: Record<
+      string,
+      { runsCompleted: number; beats: ChoreCounts['beats']; meanBeatsMissed: number }
+    >;
+    /** The mean objects the chores broke per run (story 9.6): the plates, each costing Mama's Soupir. */
+    meanObjectsBroken: number;
+    /** The open-door threats of the chores over the runs (story 9.6): telegraphed, closed in time, gagged. */
+    open: OpenDoorCounts;
+  };
   /** The special sequences started, won and lost, over the runs (story 4.4). */
   sequencesStarted: number;
   sequencesSucceeded: number;
@@ -623,7 +872,11 @@ export interface SimReport {
     seed: number;
     worldHash: string;
     responses: number;
+    /** Share of this run's responses that were perfect, in % to one decimal; null when it had none (story 3.14). */
+    perfectPct: number | null;
     gags: number;
+    /** The fairness violations of this run (story 3.13). */
+    fairnessViolations: number;
     commands: number;
     /** Null for a run cut by `--until-ms` before the level ended. */
     scorePoints: number | null;
@@ -631,6 +884,12 @@ export interface SimReport {
     /** Null for a run cut before the end (story 3.2). */
     endReason: LevelEndReason | null;
     lostStars: number | null;
+    /** The sim time Mama came home early at, in ms; null if she did not in this run (story 3.16). */
+    mamaHomeAtMs: number | null;
+    /** The highest value the catastrophe gauge reached in this run, in % (story 3.16). */
+    catastrophePeakPct: number;
+    /** The five rows of the note; null for a run cut before the end (story 3.12). */
+    rows: ScoreRows | null;
     /** The special sequences started, won and lost in this run (story 4.4). */
     sequencesStarted: number;
     sequencesSucceeded: number;
@@ -642,6 +901,8 @@ export interface SimReport {
     decoysTapped: number;
     beatsStray: number;
   }[];
+  /** The bot against the testers' journals (`--compare`, story 3.14); `null` without it. */
+  comparison: HumanComparison | null;
 }
 
 const round = (value: number, decimals: number): number => {
@@ -657,12 +918,17 @@ export interface ReportInput {
   level: string;
   bot: string;
   tier: DifficultyTierId;
+  chronoRing: ChronoRingMode;
   seed: number;
   untilSimMs: number;
   hashes: SimReport['hashes'];
   /** The level's waves: where they start and how many threats they allow at once. */
   waves: readonly { readonly fromMs: number; readonly maxSimultaneous: number }[];
 }
+
+/** The perfect responses of one run, over its threats. */
+const perfectOf = (run: RunSummary): number =>
+  Object.values(run.threats).reduce((sum, tally) => sum + tally.perfect, 0);
 
 const sortedKeys = (record: Record<string, unknown>): string[] => Object.keys(record).sort();
 
@@ -671,6 +937,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   const merged: Record<string, ThreatTally> = {};
   const byGag: Record<string, number> = {};
   let responses = 0;
+  let perfectResponses = 0;
   let good = 0;
   let gags = 0;
   let nearMisses = 0;
@@ -678,6 +945,12 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   const endsByReason = emptyEndsByReason();
   let mamaWokeCount = 0;
   let mamaWokeSumAtMs = 0;
+  let mamaHomeCount = 0;
+  let mamaHomeSumAtMs = 0;
+  let catastrophePeakSumPct = 0;
+  let fairnessViolations = 0;
+  let stretchedTelegraphs = 0;
+  let stretchSumMs = 0;
   let microSleeps = 0;
   let coffees = 0;
   let asleepRuns = 0;
@@ -698,6 +971,13 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let comboPointsCashed = 0;
   let comboPeakMultiplier = 0;
   let toiletVisits = 0;
+  let choresRunsCompleted = 0;
+  const choreBeats = { perfect: 0, success: 0, fail: 0 };
+  let choreHomePoints = 0;
+  const choreAbandoned: AbandonedCounts = { telegraphed: 0, resolved: 0, boiledOver: 0 };
+  const choreByDef: Record<string, { runsCompleted: number; beats: ChoreCounts['beats'] }> = {};
+  let choreObjectsBroken = 0;
+  const choreOpen: OpenDoorCounts = { telegraphed: 0, closed: 0, gagged: 0 };
   let sequencesStarted = 0;
   let sequencesSucceeded = 0;
   let sequencesFailed = 0;
@@ -720,10 +1000,19 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let noisePeakMaxPct = 0;
   let noiseFinalSumPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
+  const afterEffectsByKind = emptyAfterEffects();
   let scoredRuns = 0;
+  let rowRuns = 0;
   let scoreSum = 0;
   let starSum = 0;
   const starCounts: number[] = Array.from({ length: STAR_COUNT_MAX + 1 }, () => 0);
+  const rowSums: ScoreRows = {
+    laughPoints: 0,
+    calmPoints: 0,
+    homePoints: 0,
+    sighPoints: 0,
+    screamPoints: 0,
+  };
   const waves: WaveReport[] = input.waves.map((wave) => ({
     fromMs: wave.fromMs,
     maxSimultaneous: wave.maxSimultaneous,
@@ -737,6 +1026,15 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     if (run.mamaWokeAtMs !== null) {
       mamaWokeCount++;
       mamaWokeSumAtMs += run.mamaWokeAtMs;
+    }
+    if (run.mamaHomeAtMs !== null) {
+      mamaHomeCount++;
+      mamaHomeSumAtMs += run.mamaHomeAtMs;
+    }
+    catastrophePeakSumPct += run.catastrophePeakPct;
+    if (run.rows !== null) {
+      rowRuns++;
+      for (const key of SCORE_ROW_KEYS) rowSums[key] += run.rows[key];
     }
     if (run.scorePoints !== null && run.stars !== null) {
       scoredRuns++;
@@ -753,6 +1051,9 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     });
     gags += run.gags;
     nearMisses += run.nearMisses;
+    fairnessViolations += run.fairnessViolations;
+    stretchedTelegraphs += run.stretchedTelegraphs;
+    stretchSumMs += run.stretchSumMs;
     microSleeps += run.microSleeps;
     coffees += run.coffees;
     if (run.asleepGags > 0) asleepRuns++;
@@ -773,6 +1074,29 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboPointsCashed += run.comboPointsCashed;
     comboPeakMultiplier = Math.max(comboPeakMultiplier, run.comboPeakMultiplier);
     toiletVisits += run.toiletVisits;
+    if (run.chores.completed > 0) choresRunsCompleted++;
+    choreBeats.perfect += run.chores.beats.perfect;
+    choreBeats.success += run.chores.beats.success;
+    choreBeats.fail += run.chores.beats.fail;
+    choreHomePoints += run.chores.homePoints;
+    choreAbandoned.telegraphed += run.chores.abandoned.telegraphed;
+    choreAbandoned.resolved += run.chores.abandoned.resolved;
+    choreAbandoned.boiledOver += run.chores.abandoned.boiledOver;
+    for (const [id, counts] of Object.entries(run.chores.byDef)) {
+      let total = choreByDef[id];
+      if (total === undefined) {
+        total = { runsCompleted: 0, beats: { perfect: 0, success: 0, fail: 0 } };
+        choreByDef[id] = total;
+      }
+      if (counts.completed > 0) total.runsCompleted++;
+      total.beats.perfect += counts.beats.perfect;
+      total.beats.success += counts.beats.success;
+      total.beats.fail += counts.beats.fail;
+    }
+    choreObjectsBroken += run.chores.objectsBroken;
+    choreOpen.telegraphed += run.chores.open.telegraphed;
+    choreOpen.closed += run.chores.open.closed;
+    choreOpen.gagged += run.chores.open.gagged;
     sequencesStarted += run.sequencesStarted;
     sequencesSucceeded += run.sequencesSucceeded;
     sequencesFailed += run.sequencesFailed;
@@ -803,6 +1127,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
     noiseFinalSumPct += run.noiseFinalPct;
     for (const source of NOISE_SOURCES) noiseBySourcePct[source] += run.noiseBySourcePct[source];
+    for (const kind of AFTER_EFFECT_KINDS) afterEffectsByKind[kind] += run.afterEffects[kind];
     for (const gag of Object.keys(run.byGag)) {
       byGag[gag] = countOf(byGag, gag) + countOf(run.byGag, gag);
     }
@@ -818,6 +1143,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       into.offsetCount += from.offsetCount;
     }
     responses += run.responses;
+    perfectResponses += perfectOf(run);
   }
 
   const threats: Record<string, ThreatReport> = {};
@@ -845,17 +1171,32 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     level: input.level,
     bot: input.bot,
     tier: input.tier,
+    chronoRing: input.chronoRing,
     seed: input.seed,
     runs: runs.length,
     untilSimMs: input.untilSimMs,
     endedRuns,
     endsByReason,
     mamaWokeMeanAtMs: mamaWokeCount === 0 ? null : round(mamaWokeSumAtMs / mamaWokeCount, 1),
+    mamaHomeMeanAtMs: mamaHomeCount === 0 ? null : round(mamaHomeSumAtMs / mamaHomeCount, 1),
+    meanCatastrophePeakPct:
+      runs.length === 0 ? null : round(catastrophePeakSumPct / runs.length, 1),
     hashes: input.hashes,
     meanScore: scoredRuns === 0 ? null : round(scoreSum / scoredRuns, 1),
     meanStars: scoredRuns === 0 ? null : round(starSum / scoredRuns, 1),
+    meanRows:
+      rowRuns === 0
+        ? null
+        : {
+            laughPoints: round(rowSums.laughPoints / rowRuns, 1),
+            calmPoints: round(rowSums.calmPoints / rowRuns, 1),
+            homePoints: round(rowSums.homePoints / rowRuns, 1),
+            sighPoints: round(rowSums.sighPoints / rowRuns, 1),
+            screamPoints: round(rowSums.screamPoints / rowRuns, 1),
+          },
     starCounts,
     meanSuccessPct: responses === 0 ? null : pct(good, responses),
+    perfectPct: responses === 0 ? null : pct(perfectResponses, responses),
     threats,
     waves,
     gags: {
@@ -864,6 +1205,20 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       byGag: sortedByGag,
       nearMisses,
     },
+    afterEffects: {
+      byKind: afterEffectsByKind,
+      meanPerRun:
+        runs.length === 0
+          ? 0
+          : round(
+              AFTER_EFFECT_KINDS.reduce((sum, kind) => sum + afterEffectsByKind[kind], 0) /
+                runs.length,
+              2,
+            ),
+    },
+    fairnessViolations,
+    stretchedTelegraphs,
+    meanStretchMs: stretchedTelegraphs === 0 ? null : round(stretchSumMs / stretchedTelegraphs, 1),
     microSleeps,
     coffees,
     asleepRuns,
@@ -884,6 +1239,28 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     comboPeakMultiplier,
     instinctTriggers,
     toiletVisits,
+    chores: {
+      runsCompleted: choresRunsCompleted,
+      beats: choreBeats,
+      meanHomePoints: runs.length === 0 ? 0 : round(choreHomePoints / runs.length, 2),
+      meanBeatsPerRun:
+        runs.length === 0
+          ? 0
+          : round((choreBeats.perfect + choreBeats.success + choreBeats.fail) / runs.length, 1),
+      abandoned: choreAbandoned,
+      byDef: Object.fromEntries(
+        Object.entries(choreByDef).map(([id, total]) => [
+          id,
+          {
+            runsCompleted: total.runsCompleted,
+            beats: total.beats,
+            meanBeatsMissed: runs.length === 0 ? 0 : round(total.beats.fail / runs.length, 2),
+          },
+        ]),
+      ),
+      meanObjectsBroken: runs.length === 0 ? 0 : round(choreObjectsBroken / runs.length, 2),
+      open: choreOpen,
+    },
     sequencesStarted,
     sequencesSucceeded,
     sequencesFailed,
@@ -912,12 +1289,17 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       seed: run.seed,
       worldHash: run.worldHash,
       responses: run.responses,
+      perfectPct: run.responses === 0 ? null : pct(perfectOf(run), run.responses),
       gags: run.gags,
+      fairnessViolations: run.fairnessViolations,
       commands: run.commands,
       scorePoints: run.scorePoints,
       stars: run.stars,
       endReason: run.endReason,
       lostStars: run.lostStars,
+      mamaHomeAtMs: run.mamaHomeAtMs,
+      catastrophePeakPct: run.catastrophePeakPct,
+      rows: run.rows,
       sequencesStarted: run.sequencesStarted,
       sequencesSucceeded: run.sequencesSucceeded,
       sequencesFailed: run.sequencesFailed,
@@ -927,6 +1309,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       decoysTapped: run.decoysTapped,
       beatsStray: run.beatsStray,
     })),
+    comparison: null,
   };
 }
 

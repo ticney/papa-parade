@@ -1,4 +1,5 @@
 import {
+  CHORE_DEF_PATTERN,
   CONTENT_PATTERNS,
   CONTENT_SCHEMAS,
   LEVEL_GEOMETRY_PATTERN,
@@ -13,6 +14,7 @@ describe('matchContentPattern', () => {
     ['levels/salon_crawler.geometry.json', LEVEL_GEOMETRY_PATTERN, 'salon_crawler'],
     ['levels/salon_crawler.json', LEVEL_PATTERN, 'salon_crawler'],
     ['threats/outlet.json', THREAT_DEF_PATTERN, 'outlet'],
+    ['chores/cooking.json', CHORE_DEF_PATTERN, 'cooking'],
   ])('%s belongs to its pattern, with its id', (file, pattern, id) => {
     expect(matchContentPattern(file)).toEqual({ pattern, id });
   });

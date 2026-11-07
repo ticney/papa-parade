@@ -77,7 +77,13 @@ export function createTestCharacter(contract: {
   };
 }
 
-export const createTestPapa = (): CharacterAsset => createTestCharacter(PAPA_CONTRACT);
+/** As `papa.glb` has it, the steam is the mug's child: it shows and hides with the mug (story 2.13). */
+export const createTestPapa = (): CharacterAsset => {
+  const asset = createTestCharacter(PAPA_CONTRACT);
+  const steam = asset.scene.getObjectByName('papa_mug_steam');
+  if (steam !== undefined) asset.scene.getObjectByName('papa_mug')?.add(steam);
+  return asset;
+};
 export const createTestBaby = (): CharacterAsset => createTestCharacter(BABY_CONTRACT);
 export const createTestCharacters = (): { papa: CharacterAsset; baby: CharacterAsset } => ({
   papa: createTestPapa(),

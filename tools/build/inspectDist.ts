@@ -1,4 +1,8 @@
-import { CHARACTER_GLB_MAX_BYTES, LEVEL_PAYLOAD_MAX_BYTES } from '@shared/constants';
+import {
+  CHARACTER_GLB_MAX_BYTES,
+  LEVEL_PAYLOAD_MAX_BYTES,
+  LEVEL_PAYLOAD_MAX_BYTES_BY_ID,
+} from '@shared/constants';
 import {
   cspDirectives,
   headersFor,
@@ -101,6 +105,12 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'ppPropsTidied',
   // Story 3.6: the end photo's debug mirror (`data-pp-photo`), the same way.
   'ppPhoto',
+  // Story 2.11: the chrono-ring's judged mirror (`data-pp-chrono-judged`), the same way.
+  'ppChronoJudged',
+  // Story 9.3: the off-screen bubbles' mirror (`data-pp-offscreen`), the same way.
+  'ppOffscreen',
+  // Story 9.4: the house chores' mirror (`data-pp-chore`), the same way.
+  'ppChore',
 ];
 
 /**
@@ -188,7 +198,8 @@ function externalUrlsOf(indexHtml: string): string[] {
  * `prod` or the `playtest` flavour; pure, no disk. Every problem is listed, none stops the others.
  *
  * - both: the CSP of `_headers`; no cross-origin URL in `index.html`; each level's `.glb`, both
- *   characters' and all the audio within `LEVEL_PAYLOAD_MAX_BYTES`; each character's `.glb` there and
+ *   characters' and all the audio within `LEVEL_PAYLOAD_MAX_BYTES` (or the level's own budget in
+ *   `LEVEL_PAYLOAD_MAX_BYTES_BY_ID`, NFR15); each character's `.glb` there and
  *   within `CHARACTER_GLB_MAX_BYTES`.
  * - both: no {@link NEVER_SHIPPED_MARKERS} (dev-server-only code) in any chunk.
  * - `prod`: no debug or bot module in the manifest, no debug marker in any chunk.
@@ -249,9 +260,12 @@ export function inspectDist(input: DistInput, flavor: DistFlavor): DistReport {
     const payload = glb.bytes + sharedBytes;
     levelPayloadBytes = Math.max(levelPayloadBytes, payload);
     levelPayloadGzipBytes = Math.max(levelPayloadGzipBytes, glb.gzipBytes + sharedGzipBytes);
-    if (payload > LEVEL_PAYLOAD_MAX_BYTES) {
+    const budget = Object.hasOwn(LEVEL_PAYLOAD_MAX_BYTES_BY_ID, id)
+      ? (LEVEL_PAYLOAD_MAX_BYTES_BY_ID[id] as number)
+      : LEVEL_PAYLOAD_MAX_BYTES;
+    if (payload > budget) {
       problems.push(
-        `level "${id}": payload is ${payload} B (${glbPath} + the characters + all audio), over the ${LEVEL_PAYLOAD_MAX_BYTES} B budget`,
+        `level "${id}": payload is ${payload} B (${glbPath} + the characters + all audio), over the ${budget} B budget`,
       );
     }
   }

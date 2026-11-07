@@ -28,6 +28,7 @@ export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'ut
   events: Record<string, string>;
   resultScreen: { inputGraceMs: number; photoHoldMs: number };
   photo: { widthPx: number; heightPx: number; tiltMaxDeg: number };
+  door: { openMs: number; openAngleDeg: number };
   calibration: { beep: { clip: string } };
 };
 
@@ -45,6 +46,8 @@ export function hapticPatternOf(event: string): number[] | null {
 }
 
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
+  /** The catastrophe gauge (story 3.16): where Mama's face changes and where she is alarmed. */
+  catastrophe: { alertPct: number; faceStepsPct: number[] };
   timing: {
     telegraphDelayDefaultMs: number;
     windowMs: number;
@@ -76,7 +79,8 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
   };
   mama: {
     laughMaxPoints: number;
-    babyStateMaxPoints: number;
+    calmMaxPoints: number;
+    homeMaxPoints: number;
     sighMaxPoints: number;
     screamMaxPoints: number;
     earlyWakePenaltyStars: number;
@@ -364,7 +368,8 @@ export async function objectIconPoint(
 
 /**
  * Where a point of the live room (metres) is on the page, in px: the game's own iso camera, fitted
- * to the live room and to the canvas box. For checking where something is drawn.
+ * to the live room and to the canvas box. For checking where something is drawn. This is the
+ * **fixed** camera's: a level whose camera follows Papa (story 9.2) uses `ppPagePoint` instead.
  */
 export async function pagePointOf(
   page: Page,

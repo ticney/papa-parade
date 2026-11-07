@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs';
 import type { Feel } from '@content/schemas/feel';
-import { REDUCED_MOTION_ZOOM_CAP_PCT } from '@shared/constants';
+import { ISO_CAMERA_DISTANCE_M, REDUCED_MOTION_ZOOM_CAP_PCT } from '@shared/constants';
+import {
+  createFollowFrame,
+  type FollowFrame,
+  fitFollowFrame,
+  viewUM,
+  viewVM,
+} from '@shared/followCamera';
 import { asSimMs } from '@shared/time';
 import type { World } from '@sim';
 import { type OrthographicCamera, Vector3 } from 'three';
@@ -12,7 +19,7 @@ import {
   type SequenceFraming,
   sequenceFramingBlendAt,
 } from './cameraFx.ts';
-import { createIsoCamera, fitIsoCamera } from './isoCamera.ts';
+import { createIsoCamera, fitFollowCamera, fitIsoCamera, type RoomSize } from './isoCamera.ts';
 
 const PERFECT_CAMERA: Feel['fx']['perfectCamera'] = {
   zoomPct: 20,
@@ -485,5 +492,128 @@ describe('createFramingChain (story 4.10)', () => {
     framingAt(chain, 1000, null, 40, 5000);
     chain.clear();
     expect(framingAt(chain, 5010, null, 20, 5010).blend).toBe(0);
+  });
+});
+
+describe('the follow camera under createCameraFx (story 9.2, D4)', () => {
+  const FRAME_SIZE = { frameWidthM: 4, frameDepthM: 3 };
+  const BIG: RoomSize = { widthM: 14, depthM: 7, heightM: 2.5 };
+
+  function buildFollow(centreXM = 0, centreZM = 0, aspect = 16 / 9) {
+    const camera = createIsoCamera();
+    fitFollowCamera(camera, BIG, FRAME_SIZE, centreXM, centreZM, aspect);
+    const fx = createCameraFx(camera);
+    fx.captureBase();
+    const frame = createFollowFrame();
+    fitFollowFrame(frame, BIG, FRAME_SIZE.frameWidthM, FRAME_SIZE.frameDepthM, aspect);
+    return { camera, fx, frame };
+  }
+
+  /** The view's u and v extent on screen, in the view plane. */
+  function viewOf(camera: OrthographicCamera, frame: FollowFrame) {
+    const look = camera.position
+      .clone()
+      .addScaledVector(camera.getWorldDirection(new Vector3()), ISO_CAMERA_DISTANCE_M);
+    const centreUM = viewUM(look.x, look.z);
+    const centreVM = viewVM(look.x, look.y, look.z);
+    return {
+      minUM: centreUM - frame.halfWidthM / camera.zoom,
+      maxUM: centreUM + frame.halfWidthM / camera.zoom,
+      minVM: centreVM - frame.halfHeightM / camera.zoom,
+      maxVM: centreVM + frame.halfHeightM / camera.zoom,
+    };
+  }
+
+  it('moves the framing by a floor vector with no move under way: same orientation, zoom 1', () => {
+    const { camera, fx } = buildFollow();
+    const before = snapshot(camera);
+    const basePosition = camera.position.clone();
+    fx.moveBaseTo(2, -1.5);
+    fx.update(worldWith(), 1500, PERFECT_CAMERA, false, NO_FRAMING);
+    expect(camera.quaternion.toArray()).toEqual(before.quaternion);
+    expect(camera.zoom).toBe(1);
+    const moved = camera.position.clone().sub(basePosition);
+    expect(moved.x).toBeCloseTo(2, 12);
+    expect(moved.y).toBe(0);
+    expect(moved.z).toBeCloseTo(-1.5, 12);
+    expect([fx.baseCentreXM, fx.baseCentreZM]).toEqual([2, -1.5]);
+    // The same picture as a camera fitted there.
+    const there = createIsoCamera();
+    fitFollowCamera(there, BIG, FRAME_SIZE, 2, -1.5, 16 / 9);
+    expect(camera.position.distanceTo(there.position)).toBeLessThan(1e-9);
+    // Nothing is written again while nothing moves.
+    const written = snapshot(camera);
+    camera.position.x += 1;
+    fx.update(worldWith(), 1600, PERFECT_CAMERA, false, NO_FRAMING);
+    expect(camera.position.x).toBe(written.position[0] + 1);
+  });
+
+  it('keeps a perfect going while the base moves under it: zoom, turn and refocus glide as before', () => {
+    const moving = buildFollow();
+    const still = buildFollow();
+    const world = worldWith(slowMo(1000, 3000, 3300));
+    for (const { fx } of [moving, still]) {
+      fx.focusOn(2, -1);
+      fx.update(world, 1500, PERFECT_CAMERA, false, NO_FRAMING);
+      fx.focusOn(-3, 2);
+    }
+    for (const clockMs of [2000, 2050, 2100, 2400]) {
+      moving.fx.moveBaseTo(clockMs / 1000, 0);
+      for (const { fx } of [moving, still])
+        fx.update(world, clockMs, PERFECT_CAMERA, false, NO_FRAMING);
+      expect(moving.camera.zoom).toBe(still.camera.zoom);
+      expect(moving.fx.yawDeg).toBe(still.fx.yawDeg);
+      // `lookAt` from another point: the same orientation, to the last bits.
+      expect(moving.camera.quaternion.angleTo(still.camera.quaternion)).toBeLessThan(1e-7);
+    }
+  });
+
+  it('puts the base orientation back exactly after a perfect, the base moved during the move', () => {
+    const { camera, fx } = buildFollow();
+    const baseQuaternion = camera.quaternion.toArray();
+    const world = worldWith(slowMo(1000, 2200, 2500));
+    fx.focusOn(1, 1);
+    fx.update(world, 1500, PERFECT_CAMERA, false, NO_FRAMING);
+    expect(camera.quaternion.toArray()).not.toEqual(baseQuaternion);
+    fx.moveBaseTo(1.25, -0.5);
+    fx.update(world, 2300, PERFECT_CAMERA, false, NO_FRAMING);
+    fx.moveBaseTo(1.5, -0.75);
+    fx.update(world, 2600, PERFECT_CAMERA, false, NO_FRAMING);
+    expect(camera.quaternion.toArray()).toEqual(baseQuaternion);
+    expect(fx.yawDeg).toBe(0);
+    expect(camera.zoom).toBe(1);
+    expect([fx.baseCentreXM, fx.baseCentreZM]).toEqual([1.5, -0.75]);
+  });
+
+  it('keeps the zoomed and panned view inside the room at a wall, in follow mode', () => {
+    const { camera, fx, frame } = buildFollow(-6, -3);
+    fx.clampTo(frame);
+    // A perfect leaning far beyond the wall, through a sequence framing too.
+    fx.focusOn(-30, -30);
+    const framing: SequenceFraming = { blend: 1, zoomPct: 18, focusPct: 60, xM: -30, zM: -30 };
+    for (const clockMs of [1050, 1500, 2300]) {
+      fx.update(worldWith(slowMo(1000, 2200, 2500)), clockMs, PERFECT_CAMERA, false, framing);
+      const view = viewOf(camera, frame);
+      expect(view.minUM).toBeGreaterThanOrEqual(frame.minUM - 1e-6);
+      expect(view.maxUM).toBeLessThanOrEqual(frame.maxUM + 1e-6);
+      expect(view.minVM).toBeGreaterThanOrEqual(frame.minVM - 1e-6);
+      expect(view.maxVM).toBeLessThanOrEqual(frame.maxVM + 1e-6);
+    }
+  });
+
+  it('never clamps the fixed camera, even after a follow level: the same lean shows beyond the room', () => {
+    const { camera, fx, frame } = buildFollow(-6, -3);
+    // A follow level clamped it; the next, fixed level lets go (`followRig.setLevel` and `fit`).
+    fx.clampTo(frame);
+    fx.clampTo(null);
+    fx.focusOn(-30, -30);
+    fx.update(worldWith(slowMo(1000, 2200, 2500)), 1500, PERFECT_CAMERA, false, NO_FRAMING);
+    const view = viewOf(camera, frame);
+    expect(
+      view.minUM < frame.minUM ||
+        view.maxUM > frame.maxUM ||
+        view.minVM < frame.minVM ||
+        view.maxVM > frame.maxVM,
+    ).toBe(true);
   });
 });

@@ -1,11 +1,28 @@
 // The public API of the simulation (`@sim`). Everything else in `src/sim` is internal.
 
 export type { BabyState } from './baby/babyFsm.ts';
+export {
+  CHORE_BEAT_STATES,
+  CHORE_STATES,
+  type ChoreBeatState,
+  type ChoreState,
+} from './chores/choreFsm.ts';
+export {
+  CHORE_STATION_OBJECT_KINDS,
+  choreBeatCloseAt,
+  openThreatAnchorProblem,
+  openThreatOrphanProblem,
+  openThreatPlanProblem,
+  openThreatResponseProblem,
+} from './chores/chores.ts';
 export type { SimCommand } from './commands.ts';
 export type { SimObjectSpec } from './context.ts';
 export { type CreateSimOptions, createSim, type Sim } from './createSim.ts';
+export { silenceLimitProblem } from './director/fairness.ts';
 export { DISRUPTION_STATES, type DisruptionState } from './disruptions/disruptionFsm.ts';
 export {
+  AFTER_EFFECT_KINDS,
+  type AfterEffectKind,
   BABY_STIR_REASONS,
   type BabyStirReason,
   type BreathGaspReason,
@@ -76,11 +93,22 @@ export {
   stealthRoomForGeometry,
 } from './sequences/stealthExit.ts';
 export type { SimSnapshot } from './snapshot.ts';
-export { GAG_IDS, type GagId, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
+export {
+  AFTER_EFFECT_OF_GAG,
+  afterEffectProblem,
+  CATASTROPHE_OF_GAG,
+  catastropheProblem,
+  GAG_IDS,
+  type GagId,
+  PAPA_ASLEEP_GAG_ID,
+} from './threats/gags.ts';
 export type { ThreatState } from './threats/threatFsm.ts';
+export { holdEndAt } from './timing/holdEnd.ts';
 export type {
+  AfterEffectsSlice,
   BabySlice,
   BeatSlice,
+  ChoreInstance,
   ComboSlice,
   CycleSlice,
   DirectorSlice,
@@ -90,6 +118,7 @@ export type {
   GaugesSlice,
   MamaScore,
   MessSlice,
+  MischiefMark,
   PapaGlide,
   PapaSlice,
   PendingPress,

@@ -9,12 +9,14 @@ import type { StepContext } from '../context.ts';
 import { isLastOfWave } from '../director/waveState.ts';
 import type { FailReason, ResponseQuality, ThreatCancelReason } from '../events.ts';
 import { fatigueWindowModifier } from '../gauges/fatigue.ts';
+import { addNoise } from '../gauges/noise.ts';
 import { addResponseToCombo, resetCombo } from '../scoring/combo.ts';
 import { advanceSequenceOnResolve, failSequenceOnGag } from '../sequences/sequenceEnd.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import { activeDifficulty } from '../timing/difficulty.ts';
 import { type EffectiveWindow, effectiveWindow } from '../timing/effectiveWindow.ts';
 import type { ThreatInstance, World } from '../world.ts';
+import { applyAfterEffect } from './afterEffects.ts';
 import { applyGag, type GagId, gagIdOf } from './gags.ts';
 
 /**
@@ -84,6 +86,12 @@ function feintDelayMs(world: World, def: ThreatDef): number | null {
  * `idle → telegraph`. Freezes the window (D8: a buffered press is judged before the window opens, and a
  * window that moves while the player reads it would be unfair) and fixes the instant it opens.
  * `waveIndex` is the wave that drew the threat, -1 for a threat no wave planned.
+ *
+ * `postponeMs` is how much later than its natural instant the window opens (story 3.13, FR75): only
+ * the wave director passes one, to keep two windows `glideMaxMs + fairnessMarginMs` apart
+ * (`fairWindowOpenAt`); every other caller (the silence's find, the micro-sleep, the cry in the
+ * arms, the sequences) passes nothing. It moves `windowOpenAt` and `feintAt` by the same amount and
+ * never touches the signal's draw. The director's guarantee is for defs with no signal: no wave plans a `wait`.
  */
 export function telegraphThreat(
   world: World,
@@ -91,6 +99,7 @@ export function telegraphThreat(
   threat: ThreatInstance,
   def: ThreatDef,
   waveIndex: number,
+  postponeMs = 0,
 ): void {
   const { timing } = ctx.feel;
   const response = effectiveWindow(timing, def.windowMs ?? timing.windowMs, {
@@ -119,9 +128,11 @@ export function telegraphThreat(
   // The signal's draw first, the feint's second: two locals, so that the order cannot swap silently.
   const signalAfterMs = signalDelayMs(world, def);
   const feintAfterMs = feintDelayMs(world, def);
-  threat.windowOpenAt = asSimMs(world.time.sim + openAfterMs + signalAfterMs);
+  threat.windowOpenAt = asSimMs(world.time.sim + openAfterMs + signalAfterMs + postponeMs);
   threat.feintAt =
-    feintAfterMs === null ? null : asSimMs(world.time.sim + openAfterMs + feintAfterMs);
+    feintAfterMs === null
+      ? null
+      : asSimMs(world.time.sim + openAfterMs + feintAfterMs + postponeMs);
   threat.isFeintGiven = false;
   threat.press = null;
   threat.waveIndex = waveIndex;
@@ -233,8 +244,10 @@ export function resolveThreat(
     offsetMs,
     responseWindow: judged,
   });
-  // Mama's « Rire » counts every perfect, the micro-sleep's included (story 1.22).
+  // Mama's « Rire » counts every perfect, the micro-sleep's included (story 1.22), and every success
+  // beside them (story 3.12); a fail counts nothing.
   if (quality === 'perfect') world.score.perfects += 1;
+  if (quality === 'success') world.score.successes += 1;
   // No hitstop on a `nothing` (story 4.9): nobody pressed anything, and a freeze would stop the walk for nothing.
   if (def.response !== 'nothing') ctx.requestFreezeRealMs(ctx.feel.timing.hitstopMs);
   if (quality === 'perfect') startSlowMo(world, ctx, 'perfect', ctx.feel.timing.slowMoPerfect);
@@ -264,7 +277,7 @@ function gagOf(world: World, def: ThreatDef): GagId {
 
 /**
  * `→ gag`: a failed response. `ResponseResolved{fail}`, `GagTriggered`, then the gag's own
- * consequences (`applyGag`: a `NearMiss`, a pushed prop, or Papa falling asleep; NFR9: never an injury), with no hitstop
+ * consequences (`applyGag`: a `NearMiss`, a pushed prop; NFR9: never an injury), then its séquelle (`applyAfterEffect`, story 3.15), with no hitstop
  * and no slow-mo. `offsetMs` is `null` when no press ever came.
  */
 export function gagThreat(
@@ -292,9 +305,13 @@ export function gagThreat(
     },
     { type: 'GagTriggered', t: world.time.sim, threatId: threat.id, gag, reason },
   );
-  applyGag(world, ctx, threat, gag);
+  applyGag(world, ctx, threat, gag, def);
+  // What the gag leaves behind: Papa electrified or asleep, the baby downstairs, the mess (story 3.15).
+  applyAfterEffect(world, ctx, def, gag, threat);
   // The cry belongs to the def, not to the gag id: many defs share a gag (story 3.1 D9).
   if (def.gagCryMs !== undefined) startBabyCry(world, ctx, def.gagCryMs);
+  // Same for the noise a gag makes by itself (story 9.5: the pot boiling over).
+  if (def.gagNoisePct !== undefined) addNoise(world, ctx, def.gagNoisePct, 'gag');
   // A missed threat loses the combo, nothing is cashed (story 4.2).
   resetCombo(world, ctx, 'gag');
   // Every failure is a miss for Fatherly Instinct, the timed-out silence and the micro-sleep too (story 2.9).

@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-11-03
+# last_updated: 2026-11-07
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -39,9 +39,11 @@
 # - L'ordre du fichier est l'ordre de livraison (create-story prend la première story 'backlog').
 # - Les stories 3.5 à 3.11 [V1] sont placées après l'epic 4, conformément à epics.md.
 # - epic-3 reste 'in-progress' entre 3.4 et 3.5 : ne pas le passer à 'done' après 3.4.
+# - Rattrapage v2.3 (sprint-change-proposal-2026-11-03.md) : 3.12, 2.11, 3.13, 2.12, 2.13, 3.14, 3.15, 3.16
+#   se livrent après 3.6, puis un playtest, puis l'epic 9, puis 3.7 à 3.11. Les clés 2-x restent rattachées à epic-2.
 
 generated: 2026-10-26
-last_updated: 2026-11-03
+last_updated: 2026-11-07
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -113,6 +115,30 @@ development_status:
   # Les stories 3.5 à 3.11 restent rattachées à epic-3 (clé 3-x) mais se livrent ici.
   3-5-porte-qui-s-ouvre-et-rush-final: done
   3-6-photo-de-fin-figee: done
+
+  # Rattrapage v2.3 (2026-11-03) — ordre de livraison, avant le playtest puis l'epic 9.
+  3-12-note-de-maman-sur-cinq-lignes: done
+  2-11-anneau-chrono-autour-des-menaces: done
+  3-13-equite-de-trajet-du-directeur: done
+  2-12-bulle-d-activite-de-papa-et-tap-refuse-visible: done
+  2-13-poses-exagerees-du-cafe-et-du-telephone: done
+  3-14-joueur-simule-humain-realiste: done
+  3-15-sequelles-des-gags: done
+  3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot: done
+
+  # Epic 9 [P3] — après le playtest du rattrapage, avant 3.7 à 3.11.
+  epic-9: in-progress
+  9-1-grand-salon-avec-cuisine-ouverte-dans-blender: done
+  9-2-camera-qui-suit-papa: done
+  9-3-bulle-d-info-hors-cadre: done
+  9-4-cadre-des-taches-de-la-maison: done
+  9-5-tache-cuisine-et-casserole-sur-le-feu: done
+  9-6-tache-lave-vaisselle: done
+  9-7-nouvelles-betises-du-grand-salon: done
+  9-8-niveau-grand-salon-jouable-de-bout-en-bout: backlog
+  epic-9-retrospective: optional
+
+  # Epic 3 [V1] (fin) — après l'epic 9.
   3-7-reactions-de-maman-et-degaine-de-papa: ready-for-dev
   3-8-memoire-de-maman: backlog
   3-9-replay-des-meilleurs-moments: backlog
@@ -132,7 +158,7 @@ development_status:
   epic-5-retrospective: optional
 
   epic-6: backlog
-  6-1-chien-et-casserole: backlog
+  6-1-chien: backlog
   6-2-coolitude-et-desarmement: backlog
   6-3-preparation-entre-les-vagues: backlog
   6-4-petite-enfance-jauge-d-attention-et-provocation: backlog

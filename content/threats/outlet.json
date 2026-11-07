@@ -16,5 +16,7 @@
     "perfect": "resp_parry_perfect",
     "gag": "gag_outlet"
   },
+  "catastrophe": "nearMiss",
+  "afterEffect": { "kind": "electrified", "busyMs": 1500, "dimMs": 6000 },
   "cooldownMs": 6000
 }

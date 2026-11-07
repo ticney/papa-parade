@@ -10,19 +10,23 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  STAIRS,
   stepN,
+  testMicroSleepBusyMs,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
-import { putPapaToSleep } from '../papa/sleep.ts';
+import { occupyPapa } from '../threats/afterEffects.ts';
 import type { World } from '../world.ts';
 import { addFatigue, fatigueWindowModifier } from './fatigue.ts';
 
 const base = createTestContent();
 const geometry = createTestGeometry();
 const { fatigue: fatigueFeel, timing, difficulty } = base.feel;
+/** The nap's length: the micro-sleep's `afterEffect.busyMs` (story 3.15). */
+const ASLEEP_MS = testMicroSleepBusyMs();
 const GAIN_PER_STEP = (fatigueFeel.perSec * STEP_MS) / MS_PER_S;
 
 function contentWith(fatigue: Partial<Feel['fatigue']> = {}): ContentBundle {
@@ -308,7 +312,7 @@ describe('the micro-sleeps', () => {
       strictInvariants: true,
       t: world.time.sim,
     } as unknown as StepContext;
-    putPapaToSleep(world, ctx);
+    occupyPapa(world, ctx, 'asleep', ASLEEP_MS);
     const wakeAt = world.papa.busyUntil;
     const events = runUntil(sim, wakeAt + 200);
     const [first] = microSleeps(events);
@@ -354,6 +358,68 @@ describe('the micro-sleeps', () => {
   });
 });
 
+describe('the micro-sleep and a Firmness held on an anchor (story 9.7)', () => {
+  const HOLD_UNTIL_MS = 1500;
+  const tired = { startPoints: 90, microSleepMinMs: 0, microSleepMaxMs: 0 };
+
+  /** A game where `stairs` is forced at once and the micro-sleep is due at once; the first micro-sleep's window opening, and the stairs'. */
+  async function windowsWith(isHeld: boolean): Promise<{ microAt: number; stairsAt: number }> {
+    const plain = createTestLevel({ waves: [testWave([STAIRS])], gauges: FATIGUE_GAUGES });
+    const stairsDef = plain.threats.stairs;
+    if (stairsDef === undefined) throw new Error('no stairs def');
+    const level = isHeld
+      ? {
+          ...plain,
+          threats: {
+            ...plain.threats,
+            stairs: { ...stairsDef, response: 'firm' as const, holdUntilMs: HOLD_UNTIL_MS },
+          },
+        }
+      : plain;
+    const sim = await createSim({ content: contentWith(tired), geometry, level, seed: 1 });
+    const stairs = sim.world.threats.find((threat) => threat.defId === 'stairs');
+    if (stairs === undefined) throw new Error('no stairs');
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: stairs.id });
+    const events = runUntil(sim, 200);
+    expect(microSleeps(events)).toHaveLength(1);
+    const micro = sim.world.threats.find((threat) => threat.defId === 'papa_microsleep');
+    if (micro === undefined) throw new Error('no micro-sleep');
+    return { microAt: micro.windowOpenAt, stairsAt: stairs.windowOpenAt };
+  }
+
+  it('opens its window after the Firmness hold and the glide to it, instead of in the middle of the hold', async () => {
+    const spacingMs = base.feel.movement.glideMaxMs + base.feel.director.fairnessMarginMs;
+    const control = await windowsWith(false);
+    // A tap does not hold the micro-sleep back: it opens at its own instant, inside the Firmness's span.
+    expect(control.microAt).toBeLessThan(control.stairsAt + HOLD_UNTIL_MS);
+    const held = await windowsWith(true);
+    expect(held.microAt).toBeGreaterThanOrEqual(held.stairsAt + HOLD_UNTIL_MS + spacingMs);
+  });
+
+  it('is telegraphed at the same step either way: only its window is postponed', async () => {
+    const telegraphedAt = async (isHeld: boolean) => {
+      const plain = createTestLevel({ waves: [testWave([STAIRS])], gauges: FATIGUE_GAUGES });
+      const stairsDef = plain.threats.stairs;
+      if (stairsDef === undefined) throw new Error('no stairs def');
+      const level = isHeld
+        ? {
+            ...plain,
+            threats: {
+              ...plain.threats,
+              stairs: { ...stairsDef, response: 'firm' as const, holdUntilMs: HOLD_UNTIL_MS },
+            },
+          }
+        : plain;
+      const sim = await createSim({ content: contentWith(tired), geometry, level, seed: 1 });
+      const stairs = sim.world.threats.find((threat) => threat.defId === 'stairs');
+      if (stairs === undefined) throw new Error('no stairs');
+      sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: stairs.id });
+      return (microSleeps(runUntil(sim, 200))[0] as Telegraphed).t;
+    };
+    expect(await telegraphedAt(true)).toBe(await telegraphedAt(false));
+  });
+});
+
 describe('judging the micro-sleep', () => {
   async function telegraphedSim() {
     const sim = await newSim({
@@ -383,7 +449,7 @@ describe('judging the micro-sleep', () => {
     expect(sim.world.papa.glide).toBeNull();
   });
 
-  it('falls asleep for asleepMs when it is missed, with a papa_asleep gag and no near miss', async () => {
+  it('falls asleep for the afterEffect busyMs when it is missed, with a papa_asleep gag and no near miss', async () => {
     const { sim } = await telegraphedSim();
     const events = runUntil(sim, 3000);
     expect(events).toContainEqual(
@@ -393,10 +459,10 @@ describe('judging the micro-sleep', () => {
     const asleep = events.find(
       (event) => event.type === 'PapaStateChanged' && event.to === 'asleep',
     ) as { t: number };
-    expect(sim.world.papa.busyUntil).toBe(asleep.t + fatigueFeel.asleepMs);
-    const wake = runUntil(sim, asleep.t + fatigueFeel.asleepMs + STEP_MS).find(
+    expect(sim.world.papa.busyUntil).toBe(asleep.t + ASLEEP_MS);
+    const wake = runUntil(sim, asleep.t + ASLEEP_MS + STEP_MS).find(
       (event) => event.type === 'PapaStateChanged' && event.from === 'asleep',
     ) as { t: number; to: string };
-    expect(wake).toMatchObject({ to: 'idle', t: asleep.t + fatigueFeel.asleepMs });
+    expect(wake).toMatchObject({ to: 'idle', t: asleep.t + ASLEEP_MS });
   });
 });

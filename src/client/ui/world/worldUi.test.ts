@@ -15,7 +15,7 @@ class FakeElement {
       this.vars.delete(name);
     },
   };
-  classList = { toggle: () => false };
+  classList = { toggle: () => false, add: () => {}, remove: () => {} };
   parentNode: unknown = null;
   appended: FakeElement[] = [];
   hidden = false;
@@ -28,9 +28,14 @@ class FakeElement {
     this.appended.push(child);
   }
   animate() {
-    return { cancel() {}, addEventListener() {} };
+    const animation = { cancel() {}, addEventListener() {}, onfinish: null as (() => void) | null };
+    runningAnimations.push(animation);
+    return animation;
   }
 }
+
+/** Every animation a fake element started, in order: a test finishes one by calling its `onfinish`. */
+const runningAnimations: { onfinish: (() => void) | null }[] = [];
 
 function build(metrics?: VerbMetrics) {
   const container = new FakeElement();
@@ -109,7 +114,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     expect(ui.threatEntries).toEqual([entry]);
     ui.updateThreats(threat('telegraph'), null, null);
-    const object = ui.scene.children[7] as unknown as { element: FakeElement };
+    const object = ui.scene.children[8] as unknown as { element: FakeElement };
     ui.render(camera);
     expect(object.element.style.transform).toMatch(/translate\(400px, (200|199\.9\d*)px\)/);
     expect(object.element.parentNode).toBe(container);
@@ -121,7 +126,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.updateThreats(threat('telegraph'), null, null);
     ui.updateThreats(threat('resolved'), null, null);
-    const object = ui.scene.children[7] as unknown as { element: FakeElement };
+    const object = ui.scene.children[8] as unknown as { element: FakeElement };
     object.element.style.transform = 'untouched';
     ui.render(camera);
     expect(object.element.style.transform).toBe('untouched');
@@ -132,7 +137,7 @@ describe('createWorldUi, threat icons', () => {
     ui.mountThreats([entry]);
     ui.unmountThreats();
     expect(ui.threatEntries).toEqual([]);
-    expect(ui.scene.children).toHaveLength(7); // the tap marker, the glyph chip, the combo badge, the papa hint, the beat ring, the breath ring and the exit marker stay
+    expect(ui.scene.children).toHaveLength(8); // the tap marker, the glyph chip, the combo badge, the papa hint, the beat ring, the breath ring, the exit marker and the activity bubble stay
   });
 });
 
@@ -222,6 +227,102 @@ describe('createWorldUi, combo badge (story 4.2)', () => {
   });
 });
 
+describe('createWorldUi, activity bubble (story 2.12)', () => {
+  const combo = (multiplier: number) => ({ multiplier, basePoints: 0, carryTickAt: null });
+  const drinking = { state: 'drink', enteredAt: 0, busyUntil: 3000, xM: 1, zM: 1 } as const;
+  const idle = { ...drinking, state: 'idle', busyUntil: 0 } as const;
+  const threatOf = (state: string) => [{ id: 1, state }] as never;
+  const followingEntry = {
+    threatId: 1,
+    xM: 0,
+    yM: 0,
+    zM: 0,
+    icon: 'bolt' as const,
+    followsPapa: true,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
+  const togglesOf = (element: FakeElement): [string, boolean][] => {
+    const toggles: [string, boolean][] = [];
+    element.classList.toggle = ((name: string, force: boolean) => {
+      toggles.push([name, force]);
+      return force;
+    }) as never;
+    return toggles;
+  };
+
+  it('is the last child of the layer, and draws the layer by itself while it shows', () => {
+    const { ui, camera } = build();
+    ui.setSize(800, 400);
+    const bubble = ui.scene.children[7] as unknown as { element: FakeElement };
+    expect(ui.scene.children.at(-1)).toBe(bubble);
+    expect(bubble.element.className).toBe('pp-activity-bubble');
+    ui.render(camera);
+    expect(Object.keys(bubble.element.style)).not.toContain('transform');
+    ui.updateActivity(drinking, 0, [], 0);
+    expect(ui.activityBubble.isVisible).toBe(true);
+    ui.render(camera);
+    expect(Object.keys(bubble.element.style)).toContain('transform');
+  });
+
+  it('puts the badge beside the bubble while it shows, pop included, and back once it is gone', () => {
+    const { ui } = build();
+    ui.setSize(800, 400);
+    runningAnimations.length = 0;
+    const badge = ui.scene.children[2] as unknown as { element: FakeElement };
+    const toggles = togglesOf(badge.element);
+    const besideToggles = () =>
+      toggles.filter(([name]) => name === 'pp-combo-badge--beside-activity');
+    ui.updateCombo(combo(3), 1, drinking, [], 0);
+    ui.updateActivity(drinking, 0, [], 0);
+    ui.updateCombo(combo(3), 1, drinking, [], 16);
+    // Papa is free: the bubble pops out for ACTIVITY_BUBBLE_POP_MS, and the badge stays clear of it.
+    ui.updateActivity(idle, 100, [], 32);
+    expect(ui.activityBubble.isActive).toBe(false);
+    expect(ui.activityBubble.isVisible).toBe(true);
+    ui.updateCombo(combo(3), 1, drinking, [], 48);
+    expect(besideToggles()).toEqual([['pp-combo-badge--beside-activity', true]]);
+    // The pop is over: the bubble is gone and the badge goes back to the centre.
+    runningAnimations.at(-1)?.onfinish?.();
+    expect(ui.activityBubble.isVisible).toBe(false);
+    ui.updateCombo(combo(3), 1, drinking, [], 64);
+    expect(besideToggles()).toEqual([
+      ['pp-combo-badge--beside-activity', true],
+      ['pp-combo-badge--beside-activity', false],
+    ]);
+    expect(toggles.filter(([name]) => name === 'pp-combo-badge--aside')).toEqual([]);
+  });
+
+  it('a threat that follows Papa keeps the centre: the bubble steps left and the badge stays on the right', () => {
+    const { ui } = build();
+    ui.setSize(800, 400);
+    const bubble = ui.scene.children[7] as unknown as { element: FakeElement };
+    const badge = ui.scene.children[2] as unknown as { element: FakeElement };
+    const bubbleToggles = togglesOf(bubble.element);
+    const badgeToggles = togglesOf(badge.element);
+    ui.mountThreats([followingEntry]);
+    ui.updateActivity(drinking, 0, threatOf('telegraph'), 0);
+    ui.updateCombo(combo(3), 1, drinking, threatOf('telegraph'), 0);
+    expect(bubbleToggles).toEqual([['pp-activity-bubble--aside', true]]);
+    // The badge is aside (right of the threat), never beside the bubble at the same time.
+    expect(badgeToggles.filter(([, force]) => force)).toEqual([['pp-combo-badge--aside', true]]);
+    ui.updateActivity(drinking, 16, threatOf('resolved'), 16);
+    expect(bubbleToggles.at(-1)).toEqual(['pp-activity-bubble--aside', false]);
+  });
+
+  it('shakes the bubble on a refused tap', () => {
+    const { ui } = build();
+    ui.setSize(800, 400);
+    ui.updateActivity(drinking, 0, [], 0);
+    ui.shakeActivity(5);
+    expect(ui.activityBubble.isShaking).toBe(true);
+  });
+});
+
 describe('createWorldUi, glyph chip (story 1.17)', () => {
   const entry = {
     threatId: 1,
@@ -268,6 +369,7 @@ describe('createWorldUi, verbs (story 2.2)', () => {
     basePx: () => 40,
     lineHeight: () => 1,
     scale: () => 1,
+    threatSizePx: () => 64,
     widthPx: (text, fontPx) => text.length * fontPx * 0.5,
   };
   const base = {
@@ -301,7 +403,7 @@ describe('createWorldUi, verbs (story 2.2)', () => {
     expect(ui.threatEntries[0]?.verbOffsetPx).toBe(0);
     expect(ui.threatEntries[1]?.verbOffsetPx).toBeGreaterThan(0);
     // The renderer ran after the layout: both markers have their transform.
-    const objects = ui.scene.children.slice(7, 9) as unknown as { element: FakeElement }[];
+    const objects = ui.scene.children.slice(8, 10) as unknown as { element: FakeElement }[];
     for (const object of objects) expect(object.element.style.transform).toBeDefined();
   });
 
@@ -351,6 +453,7 @@ describe('createWorldUi, papa hint (story 4.3)', () => {
     basePx: () => 40,
     lineHeight: () => 1,
     scale: () => 1,
+    threatSizePx: () => 64,
     widthPx: (text, fontPx) => text.length * fontPx * 0.5,
   };
 

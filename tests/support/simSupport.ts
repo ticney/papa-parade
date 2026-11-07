@@ -26,6 +26,8 @@ export function simArgs(overrides: Partial<SimArgs> = {}): SimArgs {
     untilSimMs: 20_000,
     outPath: null,
     journalsDir: null,
+    chronoRing: 'on',
+    compareDir: null,
     sequenceId: null,
     sequenceAtMs: 1000,
     help: false,

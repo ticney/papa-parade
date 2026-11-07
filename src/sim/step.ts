@@ -1,5 +1,6 @@
 import { runInstinct } from './assist/paternalInstinct.ts';
 import { runBaby } from './baby/babySystem.ts';
+import { runChores, settleChores } from './chores/choreSystem.ts';
 import { applyCommands } from './commandQueue.ts';
 import type { StepContext, System } from './context.ts';
 import { runDirector } from './director/directorSystem.ts';
@@ -19,7 +20,14 @@ import type { World } from './world.ts';
  * Fixed order of the systems of one step (architecture, project-context):
  *
  *   applyCommands, advanceTime, runSequence, runDirector, runDisruptions, runBaby, runThreats,
- *   runPapa, runPhysics, runGauges, runInstinct, runScoring, runFlow
+ *   runChores, runPapa, settleChores, runPhysics, runGauges, runInstinct, runScoring, runFlow
+ *
+ * `runChores` (story 9.4) comes after the threats, whose windows it gives way to (a chore's beat is
+ * held while a threat's window is open), and before Papa, whose step it takes the taps on a station
+ * from: a chore is judged on its own commands, and Papa's state says whether he is working.
+ * `settleChores` comes right after Papa: a chore he left in this step (a tap elsewhere, the baby
+ * taken) is paused in the same step, so that no step ends with a working chore and a Papa who is not
+ * in `chore`.
  *
  * All of them exist. `runGauges` is the fatigue since story 1.19, the noise since 3.1 and the need
  * since 4.3. `runInstinct` (story 2.9) is Fatherly Instinct: it reads the misses `gagThreat` wrote
@@ -32,9 +40,10 @@ import type { World } from './world.ts';
  * `runSequence` (story 4.4) sits right after the clock and before the director, so that on the step a
  * special sequence starts the director already sees it (and returns early). It is a system, not a
  * helper, because later sequences hang their step kinds there.
- * Mama's note (story 1.22) needs no system: its counters are written where their events are made,
- * and `runFlow` gives the note (`scoreLevel`) in the step it ends the level. `runScoring` (story 4.2)
- * holds the combo's carry tick only: the rest of the combo is written where its event is made.
+ * Mama's note (story 1.22) is mostly written where its events are made, and `runFlow` gives it
+ * (`scoreLevel`) in the step it ends the level. `runScoring` holds what runs on a clock: the calm
+ * tracker (story 3.12, which counts that ending step) and the combo's carry tick (story 4.2); the rest
+ * of the combo is written where its event is made.
  *
  * Once the level has ended (`!isFlowLive(world)`: `ended` since story 1.18, `photo` since 3.5) a step runs only
  * {@link ENDED_SYSTEMS}: commands are drained and ignored, the clock keeps going (every
@@ -48,7 +57,9 @@ export const SYSTEMS: readonly System[] = [
   runDisruptions,
   runBaby,
   runThreats,
+  runChores,
   runPapa,
+  settleChores,
   runPhysics,
   runGauges,
   runInstinct,

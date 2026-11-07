@@ -50,9 +50,15 @@ const REQUIRED_KEYS = [
   'countdown.step_2',
   'countdown.step_1',
   'result.mama_woke',
+  'result.mama_home',
+  'hud.catastrophe_serene',
+  'hud.catastrophe_frowning',
+  'hud.catastrophe_worried',
+  'hud.catastrophe_alarmed',
   'result.next_age_unlocked',
   'result.score_laughs',
-  'result.score_baby_state',
+  'result.score_calm',
+  'result.score_home',
   'result.score_no_sigh',
   'result.score_no_scream',
   'result.star_lost',
@@ -210,5 +216,36 @@ describe('StringsSchema', () => {
     const result = parseContentFile(FILE, '{"a.b": "x", "a.b": "y"}', StringsSchema);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error[0]?.message).toMatch(/duplicate key "a\.b"/);
+  });
+});
+
+describe('the strings of the early end (story 3.16)', () => {
+  const live = JSON.parse(readFileSync('content/strings.fr.json', 'utf8')) as Record<
+    string,
+    string
+  >;
+  const keys = [
+    'result.mama_home',
+    'hud.catastrophe_serene',
+    'hud.catastrophe_frowning',
+    'hud.catastrophe_worried',
+    'hud.catastrophe_alarmed',
+  ];
+
+  it('name no failure: no « perdu », « échec », « game over » or « mort » (NFR9)', () => {
+    for (const key of keys) {
+      const text = (live[key] ?? '').toLowerCase();
+      expect(text, key).not.toBe('');
+      expect(FORBIDDEN_FAILURE_WORDS.test(text), key).toBe(false);
+      for (const word of ['perdu', 'échec', 'game over', 'mort']) {
+        expect(text, `${key}: ${word}`).not.toContain(word);
+      }
+    }
+  });
+
+  it('show no number: the face names Mama’s worry in words, never a percentage or the score', () => {
+    for (const key of keys.filter((each) => each.startsWith('hud.'))) {
+      expect(live[key], key).not.toMatch(/\d|%/);
+    }
   });
 });

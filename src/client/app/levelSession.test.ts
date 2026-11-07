@@ -14,12 +14,14 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestOutlet,
   OUTLET,
   SILENCE,
   STAIRS,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
+import type { LevelCameraSetup } from '../render/followRig.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
 import type { LevelFx, LevelScene } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
@@ -50,8 +52,14 @@ const NO_REAL_FX = () => ({
   papaClip: null,
   babyClip: null,
   papaMixerMs: 0,
+  papaBodyYawRad: 0,
+  papaSteamSwayDeg: 0,
+  papaBlablaTiltDeg: 0,
   doorOpenDeg: 0,
   dangerTintsShown: 0,
+  lightsFactor: 1,
+  mischiefDecals: 0,
+  choreShards: 0,
 });
 
 interface Deferred<T> {
@@ -123,6 +131,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
   }[] = [];
   const ready: LevelScene[] = [];
   const readyEntries: (readonly ThreatMarkerEntry[])[] = [];
+  const readyCameras: LevelCameraSetup[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
     t: (key) => `<${key}>`,
@@ -133,10 +142,11 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     scheduler,
     newSeed: () => seeds.shift() ?? 999,
     onSeed: (seed) => reportedSeeds.push(seed),
-    onLevelReady: (level, threatEntries) => {
+    onLevelReady: (level, threatEntries, camera) => {
       trace.push('ready');
       ready.push(level);
       readyEntries.push(threatEntries);
+      readyCameras.push(camera);
     },
     onLevelFrame: () => {
       drawn.frames++;
@@ -186,6 +196,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     scenes,
     ready,
     readyEntries,
+    readyCameras,
     sims: () => simsCreated,
   };
 }
@@ -282,6 +293,7 @@ describe('createLevelSession', () => {
         microSleepDefId: null,
         layDownDefIds: [],
         anchorThreatDefIds: [],
+        choreStations: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
         door: content.feedback.door,
@@ -458,6 +470,40 @@ describe('createLevelSession', () => {
     expect(ready.map((level) => level.id)).toEqual(['other_room']);
   });
 
+  it("hands onLevelReady the level's camera, its follow tuning and Papa's start (story 9.2)", async () => {
+    const fixed = setup();
+    await fixed.session.start();
+    const { papa, feel } = fixed.session.active?.sim.world ?? { papa: null, feel: null };
+    expect(fixed.readyCameras).toEqual([
+      { mode: 'fixed', follow: feel?.camera, papaStartXM: papa?.xM, papaStartZM: papa?.zM },
+    ]);
+    const follow = setup({
+      loadLevelContent: async (id) => {
+        const content = levelOf(id);
+        return ok({
+          ...content,
+          level: {
+            ...content.level,
+            camera: 'follow' as const,
+            feelOverrides: { ...content.level.feelOverrides, camera: { frameWidthM: 12 } },
+          },
+        });
+      },
+    });
+    await follow.session.start();
+    const world = follow.session.active?.sim.world;
+    // The level's effective feel: its own override of the frame, not the base feel.
+    expect(world?.feel.camera.frameWidthM).toBe(12);
+    expect(follow.readyCameras).toEqual([
+      {
+        mode: 'follow',
+        follow: world?.feel.camera,
+        papaStartXM: world?.papa.xM,
+        papaStartZM: world?.papa.zM,
+      },
+    ]);
+  });
+
   it('hands onLevelReady the icon points of the planned threats, from the anchors of the geometry', async () => {
     const { session, readyEntries } = setup({
       loadLevelContent: async (id) =>
@@ -487,6 +533,11 @@ describe('createLevelSession', () => {
         verbWidthPx: 0,
         verbHeightPx: 0,
         verbOffsetPx: 0,
+        // A parry has a chrono-ring (story 2.11), whose start fallback is the def's delay or the live feel's.
+        hasChronoRing: true,
+        telegraphDelayMs:
+          createTestOutlet().telegraphDelayMs ??
+          createTestContent().feel.timing.telegraphDelayDefaultMs,
       },
     ]);
   });
@@ -1197,6 +1248,7 @@ describe('createLevelSession › start options and outcomes', () => {
         microSleepDefId: null,
         layDownDefIds: [],
         anchorThreatDefIds: [],
+        choreStations: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
         door: content.feedback.door,

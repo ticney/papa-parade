@@ -1,0 +1,8 @@
+844x390-phone-1-baby-a: clip=on_phone yaw=-2.67 steam=0.0 tilt=7.4 papa=(-1.88,-1.13) baby=(-0.46,1.64) babyState=wander combo=1
+844x390-phone-2-baby-b: clip=on_phone yaw=-2.75 steam=0.0 tilt=7.0 papa=(-1.88,-1.13) baby=(-0.38,2.54) babyState=wander combo=1
+844x390-phone-3-baby-c: clip=on_phone yaw=-2.76 steam=0.0 tilt=2.1 papa=(-1.88,-1.13) baby=(-0.38,2.63) babyState=babble combo=1
+844x390-phone-6-baby-elsewhere: clip=on_phone yaw=-1.52 steam=0.0 tilt=-5.8 papa=(-1.88,-1.13) baby=(3.13,-1.38) babyState=act combo=1
+667x375-phone-1-baby-a: clip=on_phone yaw=-2.67 steam=0.0 tilt=7.4 papa=(-1.88,-1.13) baby=(-0.46,1.64) babyState=wander combo=1
+667x375-phone-2-baby-b: clip=on_phone yaw=-2.75 steam=0.0 tilt=7.0 papa=(-1.88,-1.13) baby=(-0.38,2.54) babyState=wander combo=1
+667x375-phone-3-baby-c: clip=on_phone yaw=-2.76 steam=0.0 tilt=2.1 papa=(-1.88,-1.13) baby=(-0.38,2.63) babyState=babble combo=1
+667x375-phone-6-baby-elsewhere: clip=on_phone yaw=-1.52 steam=0.0 tilt=-5.8 papa=(-1.88,-1.13) baby=(3.13,-1.38) babyState=act combo=1

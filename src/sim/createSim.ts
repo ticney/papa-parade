@@ -11,6 +11,12 @@ import {
 import { cloneJson, hashJson } from '@shared/hash';
 import { defaultStrictInvariants, invariant } from '@shared/invariant';
 import { asSimMs } from '@shared/time';
+import {
+  CHORE_STATION_OBJECT_KINDS,
+  openThreatAnchorProblem,
+  openThreatPlanProblem,
+  openThreatResponseProblem,
+} from './chores/chores.ts';
 import { computeApplyAt, createCommandQueue } from './commandQueue.ts';
 import { commandProblem, type SimCommand } from './commands.ts';
 import type {
@@ -18,11 +24,13 @@ import type {
   SimHiddenZone,
   SimLevel,
   SimObjectSpec,
+  SimPlannedChore,
   SimSafeZone,
   SimZoneRect,
   StepContext,
   System,
 } from './context.ts';
+import { silenceLimitProblem } from './director/fairness.ts';
 import { DISRUPTION_HANDLER_KINDS } from './disruptions/disruptionsSystem.ts';
 import type { SimEvent } from './events.ts';
 import { applyFeelPatch } from './feel/applyFeelPatch.ts';
@@ -45,7 +53,12 @@ import { SEQUENCE_HANDLER_KINDS } from './sequences/sequenceSteps.ts';
 import { sequenceStealthProblems, stealthRoomOf } from './sequences/stealthExit.ts';
 import { type SimSnapshot, takeSnapshot, worldFromSnapshot } from './snapshot.ts';
 import { SYSTEMS, step } from './step.ts';
-import { GAG_IDS, PAPA_ASLEEP_GAG_ID } from './threats/gags.ts';
+import {
+  afterEffectProblem,
+  catastropheProblem,
+  GAG_IDS,
+  PAPA_ASLEEP_GAG_ID,
+} from './threats/gags.ts';
 import { consumeFreeze, createFreezeState, requestFreeze } from './time/hitstop.ts';
 import { allocateId, createWorld, type World } from './world.ts';
 
@@ -82,6 +95,8 @@ export interface Sim {
   drainEvents(): readonly SimEvent[];
   /** The level's interactive objects (constant): the client projects them for its touch hit test. */
   readonly objects: readonly SimObjectSpec[];
+  /** The level's house chores (story 9.4), index-aligned with `world.chores`: the client and the bots read the stations. */
+  readonly chores: readonly SimPlannedChore[];
   /** The current world (a different object after `restore`). */
   readonly world: Readonly<World>;
   readonly timeScale: number;
@@ -242,6 +257,18 @@ function simLevelOf(
       def.target !== 'baby',
       `${entry.where}: the threat "${entry.def}" has target "baby": only a stealth step spawns it, a wave cannot plan it`,
     );
+    invariant(
+      def.target !== 'station',
+      `${entry.where}: the threat "${entry.def}" has target "station": only a chore's abandonedThreat spawns it, a wave cannot plan it`,
+    );
+    if (def.target === 'hiddenZone') {
+      const limitProblem = silenceLimitProblem(
+        entry.waveIndex,
+        entry.def,
+        waves[entry.waveIndex]?.maxSimultaneous ?? 0,
+      );
+      invariant(limitProblem === null, `${entry.where}: ${limitProblem}`);
+    }
     for (const gag of gagIdsOf(def)) {
       invariant(
         gag !== PAPA_ASLEEP_GAG_ID,
@@ -253,7 +280,14 @@ function simLevelOf(
       first === index,
       `${entry.where}: the anchor "${entry.anchor}" is already planned by ${(planned[first] as { where: string }).where}`,
     );
-    return { def, anchorId: entry.anchor, firstWaveIndex: entry.waveIndex, zone };
+    return {
+      def,
+      anchorId: entry.anchor,
+      firstWaveIndex: entry.waveIndex,
+      zone,
+      // Filled in below, once the chores that name an open-door threat are known (story 9.6).
+      openChoreIndex: -1,
+    };
   });
   if (microSleepDef !== undefined) {
     const where = `level ${level.level.id} › gauges.fatigue.microSleepDef`;
@@ -275,7 +309,13 @@ function simLevelOf(
         `${where}: the threat "${microSleepDef}" has the gag "${gag}", but a micro-sleep must have the gag "${PAPA_ASLEEP_GAG_ID}"`,
       );
     }
-    threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1, zone: null });
+    threats.push({
+      def,
+      anchorId: PAPA_TARGET_ANCHOR_ID,
+      firstWaveIndex: -1,
+      zone: null,
+      openChoreIndex: -1,
+    });
   }
   const microSleepIndex = microSleepDef === undefined ? -1 : threats.length - 1;
   // The cry in the arms (story 4.1) is pushed after the micro-sleep, which keeps its own index.
@@ -331,7 +371,13 @@ function simLevelOf(
         `${where}: the threat "${armsCryDef}" has the gag "${PAPA_ASLEEP_GAG_ID}", which is the micro-sleep's alone`,
       );
     }
-    threats.push({ def, anchorId: PAPA_TARGET_ANCHOR_ID, firstWaveIndex: -1, zone: null });
+    threats.push({
+      def,
+      anchorId: PAPA_TARGET_ANCHOR_ID,
+      firstWaveIndex: -1,
+      zone: null,
+      openChoreIndex: -1,
+    });
   }
   // Captured here: the duel threats pushed below come after the cry and must not move its index.
   const armsCryIndex = armsCryDef === undefined ? -1 : threats.length - 1;
@@ -368,6 +414,54 @@ function simLevelOf(
       `${entry.where}: the object "${entry.object}" is already planned by another disruption`,
     );
     disruptions.push({ def, objectId: entry.object, atMs: entry.atMs, waveIndex: entry.waveIndex });
+  }
+  // The house chores (story 9.4): `level.chores` and `content.chores` are index-aligned; the words
+  // are `content:check`'s and the level schema's. Every station object must be named, and once.
+  // `abandoned` is filled in below, once every other threat is planned (the pot comes last).
+  const choreBases: Omit<SimLevel['chores'][number], 'abandoned' | 'openThreatIndex'>[] = [];
+  (level.level.chores ?? []).forEach((entry, i) => {
+    const where = `level ${level.level.id} › chores[${i}]`;
+    const def = level.chores?.[i];
+    invariant(def !== undefined, `${where}: the chore ${entry.def} is not loaded`);
+    invariant(
+      def.id === entry.def,
+      `${where}: the loaded chore is "${def.id}", not "${entry.def}"`,
+    );
+    const object = level.level.objects.find((candidate) => candidate.id === entry.object);
+    invariant(
+      object !== undefined,
+      `${where}: the object "${entry.object}" is not in the level objects`,
+    );
+    invariant(
+      def.station === object.kind,
+      `${where}: the chore "${entry.def}" is played at a "${def.station}", but the object "${entry.object}" has the kind "${object.kind}"`,
+    );
+    invariant(
+      (OBJECT_ACTION_KINDS as readonly string[]).includes(def.station),
+      `${where}: the chore "${entry.def}" has the station "${def.station}", which the sim has no action for (${OBJECT_ACTION_KINDS.join(', ')})`,
+    );
+    invariant(
+      choreBases.every((other) => other.objectId !== entry.object),
+      `${where}: the object "${entry.object}" is already the station of another chore`,
+    );
+    const anchor = geometry.anchors.find((candidate) => candidate.id === object.anchor);
+    invariant(
+      anchor !== undefined,
+      `${where}: the object "${entry.object}" is at ${object.anchor}, which ${geometry.id} does not have`,
+    );
+    choreBases.push({
+      def,
+      objectId: entry.object,
+      xM: anchor.positionM[0],
+      zM: anchor.positionM[2],
+    });
+  });
+  for (const object of level.level.objects) {
+    invariant(
+      !(CHORE_STATION_OBJECT_KINDS as readonly string[]).includes(object.kind) ||
+        choreBases.some((chore) => chore.objectId === object.id),
+      `level ${level.level.id}: the ${object.kind} "${object.id}" is a station and no chore names it`,
+    );
   }
   const sequences: SimLevel['sequences'][number][] = [];
   const duelIndexByDef = new Map<string, number>();
@@ -427,6 +521,7 @@ function simLevelOf(
         anchorId: PAPA_TARGET_ANCHOR_ID,
         firstWaveIndex: -1,
         zone: null,
+        openChoreIndex: -1,
       });
       duelIndexByDef.set(step.threatDef, threats.length - 1);
       return threats.length - 1;
@@ -447,6 +542,7 @@ function simLevelOf(
         anchorId: BABY_TARGET_ANCHOR_ID,
         firstWaveIndex: -1,
         zone: null,
+        openChoreIndex: -1,
       });
       duelIndexByDef.set(defId, threats.length - 1);
       return threats.length - 1;
@@ -469,6 +565,101 @@ function simLevelOf(
       duelThreatIndexes,
       stealthThreatIndexes,
     });
+  });
+  // The open door of a chore (story 9.6): the threat its `openThreat` names is one of the wave threats
+  // planned above, exactly once, at the anchor of the chore's station. It is told which chore it is the
+  // door of (`openChoreIndex`), which the director reads. The words are `content:check`'s (the
+  // « with no chore of that def » refusal is its alone: the sim sees the chores of its own level only).
+  const openThreatIndexOf = (
+    base: Omit<SimLevel['chores'][number], 'abandoned' | 'openThreatIndex'>,
+    choreIndex: number,
+    where: string,
+  ): number | null => {
+    const openThreat = base.def.openThreat;
+    if (openThreat === undefined) return null;
+    const plannedIndexes: number[] = [];
+    planned.forEach((entry, k) => {
+      if (entry.def === openThreat) plannedIndexes.push(k);
+    });
+    const planProblem = openThreatPlanProblem(base.def.id, openThreat, plannedIndexes.length);
+    invariant(planProblem === null, `${where}: ${planProblem}`);
+    const k = plannedIndexes[0] as number;
+    const def = threats[k]?.def as ThreatDef;
+    invariant(
+      def.target === 'anchor',
+      `${where}: the threat "${openThreat}" has target "${def.target}", but the open threat of a chore must have target "anchor"`,
+    );
+    const responseProblem = openThreatResponseProblem(openThreat, def.response);
+    invariant(responseProblem === null, `${where}: ${responseProblem}`);
+    const object = level.level.objects.find((candidate) => candidate.id === base.objectId);
+    invariant(
+      object !== undefined,
+      `${where}: the object "${base.objectId}" is not in the level objects`,
+    );
+    const anchorProblem = openThreatAnchorProblem(
+      base.def.id,
+      openThreat,
+      (planned[k] as { anchor: string }).anchor,
+      object.anchor,
+    );
+    invariant(anchorProblem === null, `${where}: ${anchorProblem}`);
+    invariant(
+      (threats[k] as SimLevel['threats'][number]).openChoreIndex === -1,
+      `${where}: the threat "${openThreat}" is already the open threat of another chore`,
+    );
+    threats[k] = { ...(threats[k] as SimLevel['threats'][number]), openChoreIndex: choreIndex };
+    return k;
+  };
+  // The pot of an abandoned chore (story 9.5): one instance per chore that names one, pushed after every
+  // other planned threat so that none of their indices moves. It stands at the station's anchor, in no
+  // wave's pool (`firstWaveIndex` -1): only the chore system telegraphs it. The words are `content:check`'s.
+  const chores: SimLevel['chores'][number][] = choreBases.map((base, i) => {
+    const where = `level ${level.level.id} › chores[${i}]`;
+    const openThreatIndex = openThreatIndexOf(base, i, where);
+    const abandonedThreat = base.def.abandonedThreat;
+    if (abandonedThreat === undefined) return { ...base, abandoned: null, openThreatIndex };
+    const def = Object.hasOwn(level.threats, abandonedThreat.def)
+      ? level.threats[abandonedThreat.def]
+      : undefined;
+    invariant(
+      def !== undefined,
+      `${where}: no threat "${abandonedThreat.def}" is loaded for the abandoned chore`,
+    );
+    invariant(
+      def.target === 'station',
+      `${where}: the threat "${abandonedThreat.def}" has target "${def.target}", but the threat of an abandoned chore must have target "station"`,
+    );
+    invariant(
+      def.response === 'parry',
+      `${where}: a threat on a chore station (target "station") is parried: the response of "${abandonedThreat.def}" must be "parry", not "${def.response}"`,
+    );
+    for (const gag of gagIdsOf(def)) {
+      invariant(
+        (GAG_IDS as readonly string[]).includes(gag),
+        `${where}: the threat "${abandonedThreat.def}" has the gag "${gag}", which the sim does not know (${GAG_IDS.join(', ')})`,
+      );
+      invariant(
+        gag !== PAPA_ASLEEP_GAG_ID,
+        `${where}: "${PAPA_ASLEEP_GAG_ID}" is the micro-sleep's gag: only a threat with target "papa" may end in it`,
+      );
+    }
+    const object = level.level.objects.find((candidate) => candidate.id === base.objectId);
+    invariant(
+      object !== undefined,
+      `${where}: the object "${base.objectId}" is not in the level objects`,
+    );
+    threats.push({
+      def,
+      anchorId: object.anchor,
+      firstWaveIndex: -1,
+      zone: null,
+      openChoreIndex: -1,
+    });
+    return {
+      ...base,
+      abandoned: { threatIndex: threats.length - 1, afterMs: abandonedThreat.afterMs },
+      openThreatIndex,
+    };
   });
   const levelFinalRush = level.level.finalRush;
   if (levelFinalRush !== undefined) {
@@ -493,6 +684,14 @@ function simLevelOf(
     );
     invariant(cycleProblem === undefined, `level ${level.level.id} › cycle: ${cycleProblem}`);
   }
+  // Every other check first, so that a wrong gag is told by the more specific message; then the séquelle's kind (story 3.15).
+  for (const [defId, def] of Object.entries(level.threats)) {
+    const problem = afterEffectProblem(defId, gagIdsOf(def), def.afterEffect.kind);
+    invariant(problem === null, `level ${level.level.id}: ${problem}`);
+    const catastrophe = catastropheProblem(defId, gagIdsOf(def), def.catastrophe);
+    invariant(catastrophe === null, `level ${level.level.id}: ${catastrophe}`);
+  }
+
   return {
     cycle:
       levelCycle === undefined
@@ -529,6 +728,7 @@ function simLevelOf(
     }),
     threats,
     disruptions,
+    chores,
     sequences,
     objects: level.level.objects.map((object, index) => {
       const where = `level ${level.level.id} › objects[${index}]`;
@@ -764,6 +964,19 @@ export async function createSimWithSystems(
       waveIndex: -1,
     });
   });
+  simLevel.chores.forEach(() => {
+    world.chores.push({
+      state: 'untouched',
+      enteredAt: asSimMs(0),
+      beatsDone: 0,
+      beatState: 'none',
+      beatTelegraphAt: asSimMs(0),
+      beatWindowOpenAt: asSimMs(0),
+      responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+      beatsMissed: 0,
+      isOpen: false,
+    });
+  });
   simLevel.disruptions.forEach(() => {
     world.disruptions.push({
       state: 'pending',
@@ -851,6 +1064,7 @@ export async function createSimWithSystems(
       return drained;
     },
     objects: simLevel.objects,
+    chores: simLevel.chores,
     get world() {
       return world;
     },

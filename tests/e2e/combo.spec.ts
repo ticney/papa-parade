@@ -40,7 +40,7 @@ const hasVibrate = (): boolean => test.info().project.name === 'chromium';
 
 const liveFeelFile = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
   combo: { minMultiplier: number; maxMultiplier: number };
-  mama: { laughMaxPoints: number; laughPerPerfectPoints: number };
+  mama: { laughMaxPoints: number; laughPerPerfectPoints: number; laughPerSuccessPoints: number };
 };
 const { minMultiplier: MIN, maxMultiplier: MAX } = liveFeelFile.combo;
 const geometry = JSON.parse(readFileSync('content/levels/salon_crawler.geometry.json', 'utf8')) as {
@@ -335,17 +335,13 @@ test.describe('cashing the combo in', () => {
     await ppAdvance(page, 2);
     const scored = (await ppEvents(page, from)).find((event) => event.type === 'LevelScored');
     if (scored === undefined || scored.type !== 'LevelScored') throw new Error('no note was given');
-    const { laughMaxPoints, laughPerPerfectPoints } = liveFeelFile.mama;
-    const expected = Math.round(
-      Math.min(
-        laughMaxPoints,
-        world.score.perfects * laughPerPerfectPoints + world.score.comboPoints,
-      ),
-    );
+    const { laughMaxPoints, laughPerPerfectPoints, laughPerSuccessPoints } = liveFeelFile.mama;
+    // Story 3.12: the successes laugh too, beside the perfects and the combo points cashed in.
+    const withoutCombo =
+      world.score.perfects * laughPerPerfectPoints + world.score.successes * laughPerSuccessPoints;
+    const expected = Math.round(Math.min(laughMaxPoints, withoutCombo + world.score.comboPoints));
     expect(scored.laughPoints).toBe(expected);
-    expect(scored.laughPoints).toBeGreaterThan(
-      Math.round(Math.min(laughMaxPoints, world.score.perfects * laughPerPerfectPoints)),
-    );
+    expect(scored.laughPoints).toBeGreaterThan(Math.round(Math.min(laughMaxPoints, withoutCombo)));
     expect(problems).toEqual([]);
   });
 });

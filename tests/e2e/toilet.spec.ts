@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
-import { HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
+import { PAPA_HEIGHT_M } from '../../src/client/render/views/papaView.ts';
+import { COMBO_BADGE_OFFSET_M, HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
 import {
   collectProblems,
   hapticPatternOfCue,
@@ -13,6 +14,7 @@ import {
   startLevel,
   vibrations,
   WALK_BOUND_MS,
+  waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
 import {
@@ -22,6 +24,8 @@ import {
   ppFreeze,
   ppLoadLevel,
   ppSend,
+  ppSetFeel,
+  ppSilenceCatastrophe,
   ppWorld,
 } from './support/testApi.ts';
 
@@ -33,11 +37,15 @@ import {
 const LEVEL = 'salon_crawler';
 const SEED = 42;
 const CHUNK_STEPS = 10;
+/** A visit short enough to end before the next outlet (story 3.15: a gag during a visit cancels it). */
+const SHORT_VISIT_MS = 1500;
 const PILL = '[data-pp-zone="gauges"] > .pp-hud-gauges';
 const GAUGE_LABELS = [STRINGS['gauge.noise'], STRINGS['gauge.fatigue'], STRINGS['gauge.urge']];
 const NEED_GAUGE = `${PILL} > .pp-hud-gauge[aria-label^="${STRINGS['gauge.urge']} "]`;
 const DOOR = '.pp-object[data-pp-object="toilet"]';
 const HINT = '.pp-papa-hint';
+/** The bubble's centre is the projected point it is anchored on, to the pixel: this is a bound for the layout's rounding. */
+const BUBBLE_ANCHOR_TOLERANCE_PX = 6;
 const { bladder } = liveFeel;
 const HOLD_MS = (liveFeedback as unknown as { papaHint: { holdMs: number } }).papaHint.holdMs;
 const geometry = JSON.parse(readFileSync('content/levels/salon_crawler.geometry.json', 'utf8')) as {
@@ -117,6 +125,8 @@ test.describe('the gauge', () => {
   }) => {
     const problems = collectProblems(page);
     await openFrozen(page);
+    // 20 s of an idle player are gags: the catastrophe must not end the level under the bladder's rise.
+    await ppSilenceCatastrophe(page);
     const labels = await page
       .locator(`${PILL} > .pp-hud-gauge`)
       .evaluateAll((elements) =>
@@ -243,6 +253,28 @@ test.describe('the door', () => {
     await expect(page.locator(DOOR)).toHaveClass(/pp-object-occupied/);
     await expect(page.locator(DOOR)).not.toHaveClass(/pp-object-urgent/);
 
+    // The activity bubble (story 2.12) shows the door where Papa went in, with no Papa drawn: it is anchored on the
+    // world's Papa and not on his pose. (The layer is hidden above to compare the canvas: its box is still laid out.)
+    await waitFrames(page, 3);
+    const bubble = page.locator('.pp-activity-bubble');
+    await expect(bubble).toHaveClass(/pp-activity-bubble--door/);
+    expect(await bubble.evaluate((element) => (element as HTMLElement).style.display)).toBe('');
+    const entered = await ppWorld(page);
+    const anchor = await pagePointOf(
+      page,
+      entered.papa.xM,
+      PAPA_HEIGHT_M + COMBO_BADGE_OFFSET_M,
+      entered.papa.zM,
+    );
+    const bubbleBox = await bubble.boundingBox();
+    if (bubbleBox === null) throw new Error('the bubble has no box');
+    expect(
+      Math.hypot(
+        bubbleBox.x + bubbleBox.width / 2 - anchor.x,
+        bubbleBox.y + bubbleBox.height / 2 - anchor.y,
+      ),
+    ).toBeLessThan(BUBBLE_ANCHOR_TOLERANCE_PX);
+
     // Papa's mesh is hidden: the canvas around his feet is what the floor alone gives, and differs
     // from the same frame with him there.
     const world = await ppWorld(page);
@@ -285,13 +317,21 @@ test.describe('the door', () => {
     await recordVibrations(page);
     await openFrozen(page);
     const vibrationsBefore = hasVibrate() ? (await vibrations(page)).length : 0;
+    // The first outlet gags before Papa can get to the door, and its shock (story 3.15) would cancel a
+    // visit: let it go by, and keep the visit short enough to end before the next one is up (it is at
+    // least `cooldownMs` away from that gag).
+    await advanceUntil(page, 'the first gag', 15_000, (w) =>
+      w.threats.some((t) => t.state === 'gag'),
+    );
+    await advanceUntil(page, 'the end of the shock', 4000, (w) => w.papa.state === 'idle');
+    await ppSetFeel(page, { bladder: { toiletDurationMs: SHORT_VISIT_MS } });
     await ppSend(page, { type: 'SetBladder', pct: 100 });
     await ppSend(page, { type: 'TapObject', objectId: 'toilet' });
     await advanceUntil(page, 'the visit', WALK_BOUND_MS * 2, (w) => w.papa.state === 'onToilet');
     await advanceUntil(
       page,
       'the end of the visit',
-      bladder.toiletDurationMs + 2000,
+      SHORT_VISIT_MS + 2000,
       (w) => w.papa.state === 'idle',
     );
     const cues = (await ppCueLog(page)).map((entry) => entry.cueId);

@@ -32,7 +32,7 @@ world.time.sim = asSimMs(4200);
 
 const TABLE: FeedbackTable = {
   render: createTestFeedback().render,
-  characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
+  characters: createTestFeedback().characters,
   buses: {
     music: { gainPct: 50 },
     sfx: { gainPct: 90 },
@@ -114,6 +114,13 @@ const TABLE: FeedbackTable = {
       visual: { kind: 'soundWave', anchor: 'object', maxRadiusM: 0.8, durationMs: 900 },
       haptic: 'light',
     },
+    // The cooking's « la purée attache » (story 9.5): a ring on the station and the gag's puff there.
+    objectSmoke: {
+      audio: { clip: 'papa_bump', bus: 'sfx', gainPct: 100 },
+      visual: { kind: 'soundWave', anchor: 'object', maxRadiusM: 0.8, durationMs: 400 },
+      haptic: 'medium',
+      fx: 'gag',
+    },
     doorRing: {
       audio: { clip: 'env_door_key', bus: 'sfx', gainPct: 100 },
       visual: { kind: 'soundWave', anchor: 'door', maxRadiusM: 1.6, durationMs: 500 },
@@ -174,6 +181,7 @@ const FX: Feel['fx'] = {
     shake: { amplitudeM: 0.04, durationMs: 250 },
     particles: { style: 'puff', count: 12, speedMps: 0.8, lifeMs: 650, sizeM: 0.12 },
   },
+  dim: { lightsPct: 40, fadeMs: 400 },
   photoCamera: { yawDeg: 38, pitchDeg: 30, zoomPct: 0 },
   perfectCamera: { zoomPct: 18, yawDeg: 6, focusPct: 35, zoomInMs: 150, refocusMs: 200 },
 };
@@ -338,6 +346,16 @@ describe('feedbackDirector: a cue anchored on an object (story 1.20)', () => {
       'wave:3.25,-0.75,0.8,900,4200',
       'cue:objectRing',
     ]);
+    expect(newWarnings()).toEqual([]);
+  });
+
+  it('bursts the particles of the cue’s fx at the object too: the smoke of a missed beat is at the stove (story 9.5)', () => {
+    const { director, trace, newWarnings } = setup();
+    director.playCue('objectSmoke', world, null, 'phone');
+    const smoke = trace.filter((line) => line.startsWith('particles:'));
+    // The gag preset's puff, started where the ring starts: the object's x and z.
+    expect(smoke).toEqual([`particles:puff,12,0.8,650,0.12,3.25,-0.75,${NOW_REAL}`]);
+    expect(trace).toContain('wave:3.25,-0.75,0.8,400,4200');
     expect(newWarnings()).toEqual([]);
   });
 

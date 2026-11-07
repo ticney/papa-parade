@@ -87,6 +87,16 @@ describe('one-shots', () => {
   it('reads the other events of D5', () => {
     expect(papaOneShotOf({ type: 'PapaBlocked', t, xM: 0, zM: 0 })).toBe('stumble');
     expect(papaOneShotOf({ type: 'PapaSnored', t })).toBe('snore');
+    // The kick is for the coffee drunk (the fatigue drops), not for the sip that starts it (story 2.13).
+    expect(papaOneShotOf({ type: 'CoffeeDrunk', t, fatigue: 5 })).toBe('coffee_kick');
+    expect(
+      papaOneShotOf({
+        type: 'CoffeeStarted',
+        t,
+        objectId: 'coffee_machine',
+        untilAt: asSimMs(2000),
+      }),
+    ).toBeNull();
     expect(babyOneShotOf({ type: 'BabyPickedUp', t })).toBe('laugh');
     expect(babyOneShotOf({ type: 'BabyPutDown', t, safe: true })).toBe('stir');
     expect(babyOneShotOf({ type: 'WaitFeintGiven', t, threatId: 1 })).toBe('eyes_peek');

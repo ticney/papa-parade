@@ -5,6 +5,7 @@ import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   advanceTo,
+  chronoRingsInShownMarkers,
   cueIds,
   LEVEL,
   openFrozen,
@@ -455,6 +456,8 @@ test.describe('a real wake', () => {
   test('shows the cry and « BERCE ! »; a real tap in time parries it, Papa glides back, and he walks again', async ({
     page,
   }, testInfo) => {
+    // `reachAlert` searches the seeds for a real wake: 28 s of the 30 s on a quiet machine.
+    test.slow();
     const problems = collectProblems(page);
     const alert = await reachAlert(page, WAKE);
     await expect.poll(async () => (await shownMarkers(page))[0]?.glyph).toBe(THREAT_ICON_PATHS.cry);
@@ -486,6 +489,7 @@ test.describe('a real wake', () => {
   });
 
   test('not answered: gag_baby_woke_crying, and the sequence is failed', async ({ page }) => {
+    test.slow();
     const alert = await reachAlert(page, WAKE);
     await advanceTo(page, alert.windowOpenAt + alert.windowMs + 400);
     await waitFrames(page, 3);
@@ -556,6 +560,8 @@ test.describe('the options', () => {
       .poll(async () => (await shownMarkers(page))[0]?.verb)
       .toBe(STRINGS['verb.do_nothing']);
     expect((await shownMarkers(page))[0]?.glyph).toBe(THREAT_ICON_PATHS.sigh);
+    // The false alarm is a « do nothing »: no chrono-ring (story 2.11).
+    expect(await chronoRingsInShownMarkers(page)).toBe(0);
     await waitFrames(page, 3);
     expect(await cueIds(page)).toContain('tel_false_alarm_sigh');
     if (isChromium()) {

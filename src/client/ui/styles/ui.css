@@ -543,7 +543,7 @@ body {
   color: var(--pp-color-ink);
 }
 
-.pp-hud-timer svg {
+.pp-hud-timer > svg {
   width: 28px;
   height: 28px;
 }
@@ -575,7 +575,7 @@ body {
   height: 32px;
 }
 
-.pp-hud-timer--compact svg {
+.pp-hud-timer--compact > svg {
   width: 22px;
   height: 22px;
 }
@@ -599,6 +599,69 @@ body {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Mama's face (story 3.16, UX `catastrophe-face`): a round paper chip with an ink outline, 44 px (36 px
+   while the timer is compact), seated at the start of the timer pill beside the variant's icon. It sticks
+   out of the 40 px pill by 2 px on each side (negative block margins keep the pill's height). The face
+   is ink, drawn by one path; the expression, not the hue, carries the state. Idle (under 50 % and not
+   changing) it sits at 70 % opacity, like the gauges. */
+.pp-hud-catastrophe {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -2px 0;
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+  color: var(--pp-color-ink);
+}
+
+.pp-hud-catastrophe svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pp-hud-catastrophe--compact {
+  width: 36px;
+  height: 36px;
+}
+
+.pp-hud-catastrophe--idle {
+  opacity: 0.7;
+}
+
+.pp-hud-catastrophe-line {
+  fill: none;
+  stroke: var(--pp-color-ink);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Above 70 %: a 3 px gauge-warn ring whose colour pulses (paint only, no movement) slower than 3 Hz: 700 ms a beat is
+   about 1.4 Hz. The state also reads from the expression, never from the hue alone. Reduced motion
+   keeps the ring and the pulse but slows it to 1 Hz (1000 ms a beat), with no movement at all. */
+.pp-hud-catastrophe--alarmed {
+  box-shadow:
+    0 0 0 3px var(--pp-color-gauge-warn),
+    0 0 0 5px var(--pp-color-ink);
+  animation: pp-catastrophe-pulse 700ms ease-in-out infinite;
+}
+
+@keyframes pp-catastrophe-pulse {
+  50% {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--pp-color-gauge-warn) 45%, transparent),
+      0 0 0 5px var(--pp-color-ink);
+  }
+}
+
+:where(:root[data-pp-motion="reduced"]) .pp-hud-catastrophe--alarmed {
+  animation: pp-catastrophe-pulse 1000ms ease-in-out infinite;
 }
 
 /* The sequence bar (story 4.4, UX-DR23): directly under the timer, out of the grid (the gauges and
@@ -987,8 +1050,9 @@ body {
 
 /* ---------------------------------------------------------------------------------------------
    Result: Mama's note (story 1.22, UX `score-row`, `star`, the right column of key-result.html).
-   The frozen room stays drawn under the scrim. Sized to fit 750 × 340 without scrolling: 28px rows,
-   a 16px panel padding. Every text is 16px or more (`--pp-spacing-text-min`).
+   The frozen room stays drawn under the scrim. Sized to fit 750 × 340 without scrolling: five 24px
+   rows (the chip's height; story 3.12 added the fifth), and under 380px of height a tighter panel and
+   score card (the media query below). Every text is 16px or more (`--pp-spacing-text-min`).
    --------------------------------------------------------------------------------------------- */
 .pp-result-screen {
   background: var(--pp-color-scrim);
@@ -1081,7 +1145,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--pp-spacing-2);
-  min-height: 28px;
+  min-height: 24px;
 }
 
 .pp-score-chip {
@@ -1100,8 +1164,12 @@ body {
   background: var(--pp-color-mama-laugh);
 }
 
-.pp-score-chip-baby {
-  background: var(--pp-color-paper);
+.pp-score-chip-calm {
+  background: var(--pp-color-mama-calm);
+}
+
+.pp-score-chip-home {
+  background: var(--pp-color-mama-home);
 }
 
 .pp-score-chip-sigh {
@@ -1198,6 +1266,13 @@ body {
   fill-opacity: 0.2;
   stroke: var(--pp-color-ink-soft);
   stroke-width: 2;
+}
+
+/* « Maman est rentrée plus tôt ! » (story 3.16): 0 stars whatever the score, so every slot is a dashed
+   empty star in ink-soft, with no chip and nothing red. Only on this panel: the other results keep
+   their solid empty stars. */
+.pp-result-panel-home .pp-star-empty .pp-star-shape {
+  stroke-dasharray: 3.2 2.4;
 }
 
 /* The ink outline is mandatory: `star` on paper is too faint alone (DESIGN, contrast). */
@@ -1308,6 +1383,12 @@ body {
   box-shadow: 0 3px 0 var(--pp-color-mama-laugh);
 }
 
+/* « Maman est rentrée plus tôt ! » (story 3.16): the same place and shape, in the ink's neutral: the
+   Domestic register has no red here, and no alert. */
+.pp-result-panel-home .pp-result-reason {
+  box-shadow: 0 3px 0 var(--pp-color-ink-soft);
+}
+
 /* One slam when the header comes up: in from large and tilted, down to rest. `transform` only. */
 .pp-result-reason-slam {
   animation: pp-result-slam 300ms cubic-bezier(0.2, 0.9, 0.3, 1.3) 1 both;
@@ -1326,12 +1407,17 @@ body {
 }
 
 /* On a short landscape phone the header costs about 40px that the 750 × 340 layout of story 1.22 does
-   not have: a panel with a header tightens its padding and gaps (the text keeps its size). */
-@media (max-height: 360px) {
-  .pp-result-panel-woken,
-  .pp-result-panel-cycle-done {
+   not have, and the fifth row of the note (story 3.12) another 24px: the panel tightens its padding
+   and gaps, and the score card its own padding (the text keeps its size). 380px takes in 667 × 375,
+   the smallest landscape phone the UX names (3.12 review); 844 × 390 keeps the roomy layout. */
+@media (max-height: 380px) {
+  .pp-result-panel {
     gap: var(--pp-spacing-1);
     padding-block: var(--pp-spacing-2);
+  }
+
+  .pp-score-card {
+    padding-block: var(--pp-spacing-1);
   }
 }
 
@@ -1630,14 +1716,21 @@ body {
    never takes a tap.
 --------------------------------------------------------------------------------------------- */
 .pp-combo-badge {
-  --pp-combo-aside-offset: 64px;
   pointer-events: none;
   white-space: nowrap;
 }
 
-/* A threat on Papa (the micro-sleep, the cry in the arms) has its verb in the same spot: step aside. */
+/*
+  A threat on Papa (the micro-sleep, the cry in the arms) has its verb in the same spot: step aside, to the
+  right of the threat and its chrono-ring. The offset is computed in `activityBubble.ts` from the constants.
+*/
 .pp-combo-badge--aside {
-  translate: var(--pp-combo-aside-offset) 0;
+  translate: var(--pp-activity-badge-aside-offset) 0;
+}
+
+/* The activity bubble shows above Papa (story 2.12): the badge sits to its right, clear of its ring. */
+.pp-combo-badge--beside-activity {
+  translate: var(--pp-activity-beside-offset) 0;
 }
 
 .pp-combo-badge-text {
@@ -1650,6 +1743,166 @@ body {
 /* The banked « +N » reads differently from the « xN » still at risk: the star colour for the fill. */
 .pp-combo-badge--cash-in .pp-combo-badge-text {
   color: var(--pp-color-star);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   The activity bubble (DESIGN.md › activity-bubble, story 2.12): a paper disc with an ink border and a
+   pictogram in ink, above a busy Papa at the combo badge's height, its tail pointing down to him. The
+   hold-ring's visual around it (a paper band over the ring-track, a 2 px ink outline) drains to
+   `busyUntil`, or, for a chore (story 9.4), fills with its progress (beats done over beats):
+   `--pp-activity-progress` is the whole percent that is paper, from 12 o'clock clockwise, so the edge
+   moves counter-clockwise as it falls and clockwise as it fills. `activityBubble.ts` writes it from the sim time as drawn:
+   there is no transition or animation on it. Every size comes from `constants.ts`: the root properties per
+   surface are written once by `applyActivityBubbleMetrics`, the widths inline on the bubble, over the 0px
+   placeholders here. The outer box is placed by the CSS2DRenderer (it writes `transform`, so the aside step
+   is `translate`); the body is the one the Web Animations API squashes and pops, and the shake is a class.
+   Never a threat colour. It takes no tap.
+--------------------------------------------------------------------------------------------- */
+:root {
+  --pp-activity-size-compact: 0px;
+  --pp-activity-size-regular: 0px;
+  --pp-activity-reach-compact: 0px;
+  --pp-activity-reach-regular: 0px;
+  --pp-activity-beside-offset-compact: 0px;
+  --pp-activity-beside-offset-regular: 0px;
+  --pp-activity-aside-offset-compact: 0px;
+  --pp-activity-aside-offset-regular: 0px;
+  --pp-activity-badge-aside-offset-compact: 0px;
+  --pp-activity-badge-aside-offset-regular: 0px;
+  --pp-activity-size: var(--pp-activity-size-regular);
+  --pp-activity-reach: var(--pp-activity-reach-regular);
+  --pp-activity-beside-offset: var(--pp-activity-beside-offset-regular);
+  --pp-activity-aside-offset: var(--pp-activity-aside-offset-regular);
+  --pp-activity-badge-aside-offset: var(--pp-activity-badge-aside-offset-regular);
+}
+
+:root[data-pp-surface="compact"] {
+  --pp-activity-size: var(--pp-activity-size-compact);
+  --pp-activity-reach: var(--pp-activity-reach-compact);
+  --pp-activity-beside-offset: var(--pp-activity-beside-offset-compact);
+  --pp-activity-aside-offset: var(--pp-activity-aside-offset-compact);
+  --pp-activity-badge-aside-offset: var(--pp-activity-badge-aside-offset-compact);
+}
+
+.pp-activity-bubble {
+  /* Placeholders (the stylesheet check wants a declaration): `activityBubble.ts` writes the constants inline. */
+  --pp-activity-border: 0px;
+  --pp-activity-border-reduced: 0px;
+  --pp-activity-stroke: 0px;
+  --pp-activity-outline: 0px;
+  --pp-activity-shake-ms: 0ms;
+  --pp-activity-progress: 100;
+  position: relative;
+  width: var(--pp-activity-size);
+  height: var(--pp-activity-size);
+  pointer-events: none;
+}
+
+/* A threat that follows Papa holds the centre: the bubble steps left, clear of its chrono-ring. */
+.pp-activity-bubble--aside {
+  translate: calc(-1 * var(--pp-activity-aside-offset)) 0;
+}
+
+/* The squash and the pop (Web Animations) run on the pop; the shake (a class) on the body inside it. */
+.pp-activity-pop,
+.pp-activity-body {
+  position: absolute;
+  inset: 0;
+}
+
+.pp-activity-disc {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: var(--pp-activity-border) solid var(--pp-color-ink);
+  border-radius: 50%;
+  background: var(--pp-color-paper);
+}
+
+.pp-activity-pictogram {
+  width: 62%;
+  height: 62%;
+}
+
+.pp-activity-ring-band,
+.pp-activity-ring-outline {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.pp-activity-ring-band {
+  inset: calc(-1 * var(--pp-activity-stroke));
+  background: conic-gradient(
+    var(--pp-color-paper) calc(var(--pp-activity-progress) * 1%),
+    var(--pp-color-ring-track) 0
+  );
+  /* Only the band: the middle is the disc (a mask reads alpha only; the ink is opaque). */
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-activity-stroke)),
+    var(--pp-color-ink) calc(100% - var(--pp-activity-stroke) + 0.5px)
+  );
+}
+
+.pp-activity-ring-outline {
+  inset: calc(-1 * (var(--pp-activity-stroke) + var(--pp-activity-outline)));
+  /* The ink outline around the band, and nothing inside it. */
+  background: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-activity-outline)),
+    var(--pp-color-ink) calc(100% - var(--pp-activity-outline) + 0.5px)
+  );
+}
+
+/* The tail hangs below the ring, over it, pointing down to Papa. */
+.pp-activity-tail {
+  position: absolute;
+  top: calc(100% - var(--pp-activity-border));
+  left: 50%;
+  width: calc(var(--pp-activity-size) * 0.38);
+  height: calc(
+    var(--pp-activity-reach) -
+    var(--pp-activity-size) /
+    2 +
+    var(--pp-activity-size) *
+    0.2
+  );
+  translate: -50% 0;
+  overflow: visible;
+}
+
+/* A refused tap on a threat: a short shake of the bubble, one run. `transform` only. */
+.pp-activity-body--refused {
+  animation: pp-activity-shake var(--pp-activity-shake-ms) ease-in-out 1;
+}
+
+@keyframes pp-activity-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  45% {
+    transform: translateX(4px);
+  }
+  70% {
+    transform: translateX(-3px);
+  }
+}
+
+/* The reduced replacement of the shake (a static class held for the same time): the border goes from 3 px to 5 px. */
+.pp-activity-body--thick .pp-activity-disc {
+  box-shadow: inset 0 0 0 calc(var(--pp-activity-border-reduced) - var(--pp-activity-border))
+    var(--pp-color-ink);
+}
+
+/* No movement under reduced motion: the thicker border says it instead. The ring is unchanged (timing). */
+:where(:root[data-pp-motion="reduced"]) .pp-activity-body--refused {
+  animation: none;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -1837,8 +2090,27 @@ body {
    --------------------------------------------------------------------------------------------- */
 :root {
   --pp-threat-size: 64px; /* the icon's size: the glyph chip hangs from it too */
-  /* From the icon's edge to the verb's bottom edge: clear of the highlight ring (0.3 of the size). */
-  --pp-verb-gap: calc(var(--pp-threat-size) * 0.3 + 2px);
+  /*
+    What the marker takes around the icon (story 2.11), in px from the icon's edge. Written once on the
+    root by `applyChronoRingMetrics` (`chronoRing.ts`) from `constants.ts`, which `holdRingSpec.test.ts` pins to
+    DESIGN.md: the chrono-ring's outermost ink, the gap kept outside it, and the target-highlight's ring and
+    ink outlines. The 0 here is only the value before the first write.
+  */
+  --pp-chrono-reach: 0px;
+  --pp-chrono-gap: 0px;
+  --pp-highlight-stroke: 0px;
+  --pp-highlight-outline: 0px;
+  /*
+    From the icon's edge to the verb's bottom edge: the highlight's outer edge, which sits a gap outside the
+    chrono-ring (`threatFootprint`, `chronoRing.test.ts`, pins the same sum).
+  */
+  --pp-verb-gap: calc(
+    var(--pp-chrono-reach) +
+    var(--pp-chrono-gap) +
+    var(--pp-highlight-stroke) +
+    2 *
+    var(--pp-highlight-outline)
+  );
 }
 
 :root[data-pp-surface="compact"] {
@@ -1951,15 +2223,90 @@ body {
   }
 }
 
+/* A gap outside the chrono-ring's outermost ink: its inner ink starts at reach + gap from the icon's edge. */
 .pp-threat-highlight {
   position: absolute;
-  inset: calc(var(--pp-threat-size) * -0.3);
+  inset: calc(
+    -1 *
+    (
+      var(--pp-chrono-reach) +
+      var(--pp-chrono-gap) +
+      var(--pp-highlight-stroke) +
+      var(--pp-highlight-outline)
+    )
+  );
   box-sizing: border-box;
-  border: 4px solid var(--pp-color-alert);
+  border: var(--pp-highlight-stroke) solid var(--pp-color-alert);
   border-radius: 50%;
   box-shadow:
-    0 0 0 2px var(--pp-color-ink),
-    inset 0 0 0 2px var(--pp-color-ink);
+    0 0 0 var(--pp-highlight-outline) var(--pp-color-ink),
+    inset 0 0 0 var(--pp-highlight-outline) var(--pp-color-ink);
+}
+
+/*
+  The chrono-ring (story 2.11; DESIGN.md › chrono-ring): an SVG over the marker's box, outside the hold-ring
+  with a gap. `chronoRingElement.ts` writes every radius and stroke width (from `constants.ts`) and the dash
+  of the paper progress; the colours are here. Paper over the ring-track in a 5 px band with a 2 px ink outer
+  outline; from the opening of the window (`--lit`) the final arc is `alert`, 8 px, growing outward, and the
+  perfect notch is a 2 px ink tick across it. Never `parry` or `dodge` coloured: the lit arc is told by its
+  thickness, not its hue. A held Firmness (`--hold`) drains the ring and drops the lit arc and the notch. It
+  never animates (« lighting up » is a class flip, and the ring is gameplay timing), so it has no reduced rule.
+*/
+.pp-chrono-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pp-chrono-ring[hidden] {
+  display: none;
+}
+
+.pp-chrono-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pp-chrono-ring circle {
+  fill: none;
+}
+
+.pp-chrono-outline {
+  stroke: var(--pp-color-ink);
+}
+
+.pp-chrono-track {
+  stroke: var(--pp-color-ring-track);
+}
+
+.pp-chrono-arc-outline {
+  stroke: var(--pp-color-ink);
+  display: none;
+}
+
+.pp-chrono-arc {
+  stroke: var(--pp-color-alert);
+  display: none;
+}
+
+.pp-chrono-ring--lit .pp-chrono-arc-outline,
+.pp-chrono-ring--lit .pp-chrono-arc {
+  display: inline;
+}
+
+.pp-chrono-progress {
+  stroke: var(--pp-color-paper);
+}
+
+.pp-chrono-notch {
+  stroke: var(--pp-color-ink);
+}
+
+.pp-chrono-ring--hold .pp-chrono-arc-outline,
+.pp-chrono-ring--hold .pp-chrono-arc,
+.pp-chrono-ring--hold .pp-chrono-notch {
+  display: none;
 }
 
 /*
@@ -1993,9 +2340,10 @@ body {
   whole px) when verbs of simultaneous threats would overlap. It takes no pointer events (the marker's).
 */
 .pp-threat-verb-stack {
-  /* Pushed up by `threatMarkers.ts` when verbs overlap. */
+  /* Pushed up by `threatMarkers.ts` when verbs overlap; below 0 (pulled down) by it and `objectMarkers.ts`
+     when the verb would start above the HUD's top row (`verbTopMinPx`), and only then. */
   --pp-verb-offset: 0px;
-  /* Shifted sideways by `threatMarkers.ts` when the verb would reach past an edge of the layer. */
+  /* Shifted sideways by `threatMarkers.ts` and `objectMarkers.ts` when the verb would reach past an edge of the layer. */
   --pp-verb-shift-x: 0px;
   position: absolute;
   left: 50%;
@@ -2087,6 +2435,21 @@ body {
   top: calc(-1 * (var(--pp-threat-size) / 2 + var(--pp-verb-gap) + var(--pp-chip-rise)));
 }
 
+/*
+  Beside an off-screen bubble (story 9.3, D7): the anchor is the bubble's centre and `--pp-chip-half` its
+  outer radius. The right of the bubble is the default placement above; its left, or under it.
+*/
+.pp-glyph-chip-anchor--bubble-left .pp-glyph-chip {
+  left: auto;
+  right: calc(var(--pp-chip-half) + var(--pp-spacing-2));
+}
+
+.pp-glyph-chip-anchor--bubble-below .pp-glyph-chip {
+  left: 0;
+  top: calc(var(--pp-chip-half) + var(--pp-spacing-2));
+  transform: translateX(-50%);
+}
+
 @keyframes pp-hold-pop {
   0% {
     transform: scale(1);
@@ -2174,6 +2537,13 @@ body {
   opacity: 0.6;
 }
 
+/* A chore's station once its chore is done (story 9.4): dimmed like a toilet in use. A tap on it walks Papa there
+   and starts nothing; Space and A skip it, so it never shadows a baby beside it. */
+.pp-object-done .pp-object-icon {
+  background: var(--pp-color-ink-soft);
+  opacity: 0.6;
+}
+
 .pp-object-urgent .pp-object-halo {
   opacity: 1;
   animation: pp-threat-pulse 1400ms ease-in-out infinite;
@@ -2209,14 +2579,22 @@ body {
    and non-diegetic; it takes no input. Alert fill, ink glyph and outline (the mockup's state C), the
    tail pointing out to the edge (mirrored on the left). It blinks at 2 Hz, under the 3 Hz ceiling;
    with reduced motion it pulses at 1 Hz, with no on/off flash. */
+/* The bubble's own box, said once: the ring beside it (below) is sized and placed from the same values. The
+   tail (14 px, on the screen-edge side) fills the edge margin. */
+:root {
+  --pp-silence-bubble-width: 76px;
+  --pp-silence-bubble-height: 58px;
+  --pp-silence-bubble-edge: 14px;
+}
+
 .pp-silence-bubble {
   position: absolute;
   z-index: 35;
   box-sizing: border-box;
   display: grid;
   place-items: center;
-  width: 76px;
-  height: 58px;
+  width: var(--pp-silence-bubble-width);
+  height: var(--pp-silence-bubble-height);
   padding-bottom: 12px;
   background: var(--pp-color-alert);
   border: var(--pp-outline);
@@ -2236,11 +2614,105 @@ body {
 }
 
 .pp-silence-bubble-right {
-  right: calc(var(--pp-spacing-hud-inset-right) + 14px);
+  right: calc(var(--pp-spacing-hud-inset-right) + var(--pp-silence-bubble-edge));
 }
 
 .pp-silence-bubble-left {
-  left: calc(var(--pp-spacing-hud-inset-left) + 14px);
+  left: calc(var(--pp-spacing-hud-inset-left) + var(--pp-silence-bubble-edge));
+}
+
+/*
+  The ring beside the bubble (story 2.11, D8): the chrono-ring's look for the find-the-baby deadline, on the
+  centre side of the bubble, a gap from it (its tail points the other way, to the screen edge). A sibling of
+  the bubble, not a child, so it does not blink with it. Paper over the ring-track in a band, with an ink
+  outline around it; no lit arc, no notch. The fill (`--pp-silence-progress`, whole per-mille, written by
+  `silenceBubble.ts` from the drawn sim time) is game time only. The band and outline widths
+  (`--pp-silence-ring-stroke`, `--pp-silence-ring-outline`) are the hold-ring's constants, written inline by
+  `silenceBubble.ts` over a 0px placeholder here (a copy would drift unpinned); its size and place come from the
+  bubble's own custom properties above. It never animates, so it needs no reduced-motion rule.
+*/
+:root {
+  --pp-silence-ring-gap: 8px;
+}
+
+.pp-silence-ring {
+  --pp-silence-progress: 0;
+  /* Placeholders (the stylesheet check wants a declaration): `silenceBubble.ts` writes the constants inline. */
+  --pp-silence-ring-stroke: 0px;
+  --pp-silence-ring-outline: 0px;
+  position: absolute;
+  z-index: 35;
+  box-sizing: border-box;
+  width: var(--pp-silence-bubble-height);
+  height: var(--pp-silence-bubble-height);
+  pointer-events: none;
+}
+
+.pp-silence-ring[hidden] {
+  display: none;
+}
+
+/* Past the bubble's edge margin and its width, and a gap. */
+.pp-silence-ring-right {
+  right: calc(
+    var(--pp-spacing-hud-inset-right) +
+    var(--pp-silence-bubble-edge) +
+    var(--pp-silence-bubble-width) +
+    var(--pp-silence-ring-gap)
+  );
+}
+
+.pp-silence-ring-left {
+  left: calc(
+    var(--pp-spacing-hud-inset-left) +
+    var(--pp-silence-bubble-edge) +
+    var(--pp-silence-bubble-width) +
+    var(--pp-silence-ring-gap)
+  );
+}
+
+.pp-silence-ring-band,
+.pp-silence-ring-outline {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+
+.pp-silence-ring-band {
+  inset: 0;
+  background: conic-gradient(
+    var(--pp-color-paper) calc(var(--pp-silence-progress) * 0.1%),
+    var(--pp-color-ring-track) 0
+  );
+  /* Only the band: the middle is the room (a mask reads alpha only; the ink is opaque). */
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-silence-ring-stroke)),
+    var(--pp-color-ink) calc(100% - var(--pp-silence-ring-stroke) + 0.5px)
+  );
+}
+
+/*
+  The ring sits over the dark page margin as often as over the room, where a 40 % ink track and an ink
+  outline vanish: a faint paper veil under the band keeps the whole circle, not only its filled arc, readable.
+*/
+.pp-silence-ring-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--pp-color-paper);
+  opacity: 0.3;
+}
+
+.pp-silence-ring-outline {
+  inset: calc(var(--pp-silence-ring-outline) * -1);
+  /* The ink outline around the band, 2px wide, and nothing inside it. */
+  background: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--pp-silence-ring-outline)),
+    var(--pp-color-ink) calc(100% - var(--pp-silence-ring-outline) + 0.5px)
+  );
 }
 
 .pp-silence-bubble::before,
@@ -2299,4 +2771,226 @@ body {
 
 :where(:root[data-pp-motion="reduced"]) .pp-silence-bubble {
   animation: pp-silence-pulse 1000ms ease-in-out infinite;
+}
+
+/*
+  The off-screen bubble (story 9.3; DESIGN.md › offscreen-bubble, UX-DR30): in a follow level, a paper disc
+  with an ink border at the left, right or top edge for a threat whose icon is outside the frame. It holds
+  the threat's own icon (`.pp-threat-icon`, its shape and colour), the threat's chrono-ring as its marker
+  draws it, and an ink chevron on its rim toward the threat. `offscreenLayout.ts` places its centre
+  (`left`, `top`, whole px) and turns the chevron (`--pp-offscreen-angle`); `offscreenBubble.ts` writes the
+  ring's per-mille and its geometry. Every size is a constant written on the root per surface by
+  `applyOffscreenBubbleMetrics` (`offscreenBubbleSpec.test.ts`): no px literal here. It takes no input (the
+  canvas gets the tap) and never animates: it pops in and out, so it has no reduced-motion rule.
+*/
+:root {
+  /* Placeholders (the stylesheet check wants a declaration): `applyOffscreenBubbleMetrics` writes the constants inline. */
+  --pp-offscreen-icon-compact: 0px;
+  --pp-offscreen-icon-regular: 0px;
+  --pp-offscreen-disc-compact: 0px;
+  --pp-offscreen-disc-regular: 0px;
+  --pp-offscreen-border-compact: 0px;
+  --pp-offscreen-border-regular: 0px;
+  --pp-offscreen-ring-in-compact: 0px;
+  --pp-offscreen-ring-in-regular: 0px;
+  --pp-offscreen-band-out-compact: 0px;
+  --pp-offscreen-band-out-regular: 0px;
+  --pp-offscreen-outline-out-compact: 0px;
+  --pp-offscreen-outline-out-regular: 0px;
+  --pp-offscreen-arc-out-compact: 0px;
+  --pp-offscreen-arc-out-regular: 0px;
+  --pp-offscreen-reach-compact: 0px;
+  --pp-offscreen-reach-regular: 0px;
+  --pp-offscreen-chevron-compact: 0px;
+  --pp-offscreen-chevron-regular: 0px;
+  --pp-offscreen-notch-compact: 0deg;
+  --pp-offscreen-notch-regular: 0deg;
+  --pp-offscreen-icon: var(--pp-offscreen-icon-regular);
+  --pp-offscreen-disc: var(--pp-offscreen-disc-regular);
+  --pp-offscreen-border: var(--pp-offscreen-border-regular);
+  --pp-offscreen-ring-in: var(--pp-offscreen-ring-in-regular);
+  --pp-offscreen-band-out: var(--pp-offscreen-band-out-regular);
+  --pp-offscreen-outline-out: var(--pp-offscreen-outline-out-regular);
+  --pp-offscreen-arc-out: var(--pp-offscreen-arc-out-regular);
+  --pp-offscreen-reach: var(--pp-offscreen-reach-regular);
+  --pp-offscreen-chevron: var(--pp-offscreen-chevron-regular);
+  --pp-offscreen-notch: var(--pp-offscreen-notch-regular);
+}
+
+:root[data-pp-surface="compact"] {
+  --pp-offscreen-icon: var(--pp-offscreen-icon-compact);
+  --pp-offscreen-disc: var(--pp-offscreen-disc-compact);
+  --pp-offscreen-border: var(--pp-offscreen-border-compact);
+  --pp-offscreen-ring-in: var(--pp-offscreen-ring-in-compact);
+  --pp-offscreen-band-out: var(--pp-offscreen-band-out-compact);
+  --pp-offscreen-outline-out: var(--pp-offscreen-outline-out-compact);
+  --pp-offscreen-arc-out: var(--pp-offscreen-arc-out-compact);
+  --pp-offscreen-reach: var(--pp-offscreen-reach-compact);
+  --pp-offscreen-chevron: var(--pp-offscreen-chevron-compact);
+  --pp-offscreen-notch: var(--pp-offscreen-notch-compact);
+}
+
+.pp-offscreen-bubble {
+  /* Written inline by `offscreenBubble.ts`; these are the values before the first write. */
+  --pp-offscreen-angle: 0deg;
+  --pp-offscreen-progress: 0;
+  --pp-offscreen-arc-from: 1000;
+  --pp-offscreen-notch-at: 0;
+  /* The colour past the arc's start in the band: the track until the window opens, then the alert. */
+  --pp-offscreen-lit-color: var(--pp-color-ring-track);
+  position: absolute;
+  z-index: 30;
+  box-sizing: border-box;
+  width: calc(2 * var(--pp-offscreen-disc));
+  height: calc(2 * var(--pp-offscreen-disc));
+  /* `left` and `top` are the centre. */
+  margin: calc(-1 * var(--pp-offscreen-disc)) 0 0 calc(-1 * var(--pp-offscreen-disc));
+  border: var(--pp-offscreen-border) solid var(--pp-color-ink);
+  border-radius: 50%;
+  background: var(--pp-color-paper);
+  box-shadow: var(--pp-lift);
+  pointer-events: none;
+}
+
+/* The ink chevron on the rim, toward the threat: an arrowhead turned around the centre, its base on the border's outer edge. */
+.pp-offscreen-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--pp-offscreen-chevron);
+  height: calc(2 * var(--pp-offscreen-chevron));
+  background: var(--pp-color-ink);
+  clip-path: polygon(0 0, 100% 50%, 0 100%, 40% 50%);
+  transform-origin: 0 50%;
+  transform: translateY(-50%) rotate(var(--pp-offscreen-angle)) translateX(var(--pp-offscreen-disc));
+}
+
+/* The threat's icon, at the bubble's size for it, in the middle. */
+.pp-offscreen-bubble .pp-threat-icon {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: var(--pp-offscreen-icon);
+  height: var(--pp-offscreen-icon);
+  translate: -50% -50%;
+}
+
+/* The target-highlight (D7): the alert ring outside the ink border, with its ink edge. */
+.pp-offscreen-bubble--targeted {
+  box-shadow:
+    0 0 0 var(--pp-highlight-stroke) var(--pp-color-alert),
+    0 0 0 calc(var(--pp-highlight-stroke) + var(--pp-highlight-outline)) var(--pp-color-ink);
+}
+
+.pp-offscreen-bubble--lit {
+  --pp-offscreen-lit-color: var(--pp-color-alert);
+}
+
+.pp-offscreen-band,
+.pp-offscreen-arc {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(2 * var(--pp-offscreen-reach));
+  height: calc(2 * var(--pp-offscreen-reach));
+  translate: -50% -50%;
+  border-radius: 50%;
+}
+
+.pp-offscreen-band[hidden],
+.pp-offscreen-arc[hidden] {
+  display: none;
+}
+
+/*
+  The band, as the marker's ring draws it: paper progress over the ring-track, clockwise from 12 o'clock;
+  past the final arc's start the lit colour (the alert once the window is open, the track before).
+*/
+/* The band itself draws nothing: its look is its `::before` (masked to the ring) and the notch its `::after`, so
+   that the mask does not cut the notch. */
+.pp-offscreen-band {
+  z-index: 1;
+}
+
+.pp-offscreen-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--pp-color-paper) 0 calc(var(--pp-offscreen-progress) * 0.1%),
+    var(--pp-color-ring-track) calc(var(--pp-offscreen-progress) * 0.1%)
+      calc(var(--pp-offscreen-arc-from) * 0.1%),
+    var(--pp-offscreen-lit-color) calc(var(--pp-offscreen-arc-from) * 0.1%)
+  );
+  mask: radial-gradient(
+    circle,
+    transparent var(--pp-offscreen-ring-in),
+    var(--pp-color-ink) var(--pp-offscreen-ring-in),
+    var(--pp-color-ink) var(--pp-offscreen-band-out),
+    transparent var(--pp-offscreen-band-out)
+  );
+}
+
+/* The perfect notch: an ink tick across the band and the lit arc, at the window's centre. */
+.pp-offscreen-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent var(--pp-offscreen-ring-in),
+    var(--pp-color-ink) var(--pp-offscreen-ring-in),
+    var(--pp-color-ink) var(--pp-offscreen-arc-out),
+    transparent var(--pp-offscreen-arc-out)
+  );
+  mask: conic-gradient(
+    from calc(var(--pp-offscreen-notch-at) * 0.36deg - var(--pp-offscreen-notch)),
+    var(--pp-color-ink) 0 calc(2 * var(--pp-offscreen-notch)),
+    transparent 0
+  );
+}
+
+/* Under the band: its ink outline all round, then (lit) the outer part of the final arc and its ink. */
+.pp-offscreen-arc {
+  background: radial-gradient(
+    circle,
+    transparent var(--pp-offscreen-band-out),
+    var(--pp-color-ink) var(--pp-offscreen-band-out),
+    var(--pp-color-ink) var(--pp-offscreen-outline-out),
+    transparent var(--pp-offscreen-outline-out)
+  );
+}
+
+.pp-offscreen-arc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent var(--pp-offscreen-ring-in),
+    var(--pp-color-alert) var(--pp-offscreen-ring-in),
+    var(--pp-color-alert) var(--pp-offscreen-arc-out),
+    var(--pp-color-ink) var(--pp-offscreen-arc-out),
+    var(--pp-color-ink) var(--pp-offscreen-reach),
+    transparent var(--pp-offscreen-reach)
+  );
+  mask: conic-gradient(
+    transparent 0 calc(var(--pp-offscreen-arc-from) * 0.1%),
+    var(--pp-color-ink) 0
+  );
+  visibility: hidden;
+}
+
+.pp-offscreen-bubble--lit .pp-offscreen-arc::after {
+  visibility: visible;
+}
+
+/* A held Firmness drains the ring: no lit arc, no notch. */
+.pp-offscreen-bubble--hold .pp-offscreen-arc::after,
+.pp-offscreen-bubble--hold .pp-offscreen-band::after {
+  visibility: hidden;
 }

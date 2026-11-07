@@ -1,6 +1,11 @@
 import { log } from '@shared/log';
 import { describe, expect, it, vi } from 'vitest';
-import { createVerbMetrics, type VerbMetricsSource } from './verbMetrics.ts';
+import {
+  createVerbMetrics,
+  type VerbMetrics,
+  type VerbMetricsSource,
+  verbTopMinPx,
+} from './verbMetrics.ts';
 
 const VARS: Record<string, string> = {
   '--pp-font-verb-family': '"Baloo 2"',
@@ -44,6 +49,16 @@ describe('createVerbMetrics', () => {
     expect(createVerbMetrics(source('regular', { '--pp-verb-scale': '1.25' })).scale()).toBe(1.25);
     expect(createVerbMetrics(source('regular', { '--pp-verb-scale': 'big' })).scale()).toBe(1);
     expect(createVerbMetrics(source('regular', { '--pp-verb-scale': '0' })).scale()).toBe(1);
+  });
+
+  it('reads the threat icon size of the surface (the chrono-ring hangs from it, story 2.11)', () => {
+    expect(
+      createVerbMetrics(source('regular', { '--pp-threat-size': '64px' })).threatSizePx(),
+    ).toBe(64);
+    expect(
+      createVerbMetrics(source('compact', { '--pp-threat-size': '56px' })).threatSizePx(),
+    ).toBe(56);
+    expect(createVerbMetrics(source('regular')).threatSizePx()).toBe(64);
   });
 
   it('falls back to the DESIGN regular size when the token is missing', () => {
@@ -90,5 +105,31 @@ describe('createVerbMetrics', () => {
     metrics.widthPx('ABCD', 40);
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockRestore();
+  });
+
+  it('reads the bottom of the HUD row, and keeps to the layer (0), saying so once, when there is none', () => {
+    expect(createVerbMetrics({ ...source('regular'), hudBottomPx: () => 56 }).hudBottomPx?.()).toBe(
+      56,
+    );
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
+    const missing = createVerbMetrics({ ...source('regular'), hudBottomPx: () => Number.NaN });
+    expect(missing.hudBottomPx?.()).toBe(0);
+    expect(missing.hudBottomPx?.()).toBe(0);
+    expect(createVerbMetrics(source('regular')).hudBottomPx?.()).toBe(0);
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+});
+
+describe('verbTopMinPx (story 9.5 review)', () => {
+  const base: VerbMetrics = createVerbMetrics(source('regular'));
+
+  it('is the bottom of the HUD row: a verb that clears it, however closely, keeps its place', () => {
+    expect(verbTopMinPx({ ...base, hudBottomPx: () => 56 })).toBe(56);
+  });
+
+  it('is no limit at all when the metrics know no HUD (a test double)', () => {
+    const { hudBottomPx: _unused, ...withoutHud } = base;
+    expect(verbTopMinPx(withoutHud)).toBe(Number.NEGATIVE_INFINITY);
   });
 });

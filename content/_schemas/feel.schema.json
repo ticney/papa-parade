@@ -201,6 +201,21 @@
       "additionalProperties": false,
       "description": "Papa movement (GDD §3)."
     },
+    "director": {
+      "type": "object",
+      "properties": {
+        "fairnessMarginMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Margin added to `movement.glideMaxMs`: two windows of the director never open closer than their sum (FR75, ADR-011), in ms. 0 keeps the glide alone."
+        }
+      },
+      "required": [
+        "fairnessMarginMs"
+      ],
+      "additionalProperties": false,
+      "description": "Wave director (GDD mechanic 17, ADR-011)."
+    },
     "baby": {
       "type": "object",
       "properties": {
@@ -330,11 +345,6 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "description": "Time Papa spends drinking a coffee, in ms."
-        },
-        "asleepMs": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "How long Papa sleeps after a missed micro-sleep, in ms."
         }
       },
       "required": [
@@ -346,8 +356,7 @@
         "microSleepMinMs",
         "microSleepMaxMs",
         "coffeeReductionPoints",
-        "coffeeDurationMs",
-        "asleepMs"
+        "coffeeDurationMs"
       ],
       "additionalProperties": false,
       "description": "Papa's fatigue (GDD §6)."
@@ -591,6 +600,22 @@
               "additionalProperties": false,
               "description": "Sniffing (story 5.3): GDD +3 %."
             },
+            "debrisStep": {
+              "type": "object",
+              "properties": {
+                "noisePct": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Noise added once per occurrence, in % of the gauge."
+                }
+              },
+              "required": [
+                "noisePct"
+              ],
+              "additionalProperties": false,
+              "description": "Papa walking onto a debris on the floor (story 3.15, `DebrisSteppedOn`): GDD +3 %."
+            },
             "snore": {
               "type": "object",
               "properties": {
@@ -615,6 +640,7 @@
             "floorCreak",
             "breathReleased",
             "sniff",
+            "debrisStep",
             "snore"
           ],
           "additionalProperties": false,
@@ -628,6 +654,86 @@
       ],
       "additionalProperties": false,
       "description": "The noise gauge of the Sieste levels (FR18, GDD rule 7)."
+    },
+    "catastrophe": {
+      "type": "object",
+      "properties": {
+        "risePct": {
+          "type": "object",
+          "properties": {
+            "nearMiss": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Catastrophe added by a near-miss gag (outlet, stairs), in % of the gauge."
+            },
+            "mess": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Catastrophe added by a mess gag (table object, silence mischief), in % of the gauge."
+            },
+            "microSleep": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Catastrophe added by a micro-sleep gag, in % of the gauge."
+            },
+            "choreBeat": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Catastrophe added by a missed chore beat (stories 9.4 / 9.5), in % of the gauge."
+            }
+          },
+          "required": [
+            "nearMiss",
+            "mess",
+            "microSleep",
+            "choreBeat"
+          ],
+          "additionalProperties": false,
+          "description": "The rise of one gag by its category, before the tier multiplier (GDD mechanic 14)."
+        },
+        "decayPerSec": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s; tuned to 0.4 by Geo, story 3.16 option D)."
+        },
+        "perfectDropPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %; tuned to 2 by Geo, story 3.16 option D)."
+        },
+        "alertPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Above this catastrophe Mama is alarmed: the client plays the alert, tightens the music, in % of the gauge."
+        },
+        "faceStepsPct": {
+          "minItems": 2,
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "A threshold of the face, in % of the gauge."
+          },
+          "description": "The two thresholds between Mama's faces, in % of the gauge: she frowns from the first and is worried from the second (strictly ascending, below `alertPct`)."
+        }
+      },
+      "required": [
+        "risePct",
+        "decayPerSec",
+        "perfectDropPct",
+        "alertPct",
+        "faceStepsPct"
+      ],
+      "additionalProperties": false,
+      "description": "The catastrophe gauge (FR73, GDD mechanic 14): at 100 % Mama comes home early."
     },
     "bladder": {
       "type": "object",
@@ -830,11 +936,17 @@
             "hasInstinct": {
               "type": "boolean",
               "description": "Whether Fatherly Instinct (GDD §9) is available."
+            },
+            "catastropheMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay."
             }
           },
           "required": [
             "windowMultiplier",
-            "hasInstinct"
+            "hasInstinct",
+            "catastropheMultiplier"
           ],
           "additionalProperties": false,
           "description": "Assistance tier: wider windows, instinct on (GDD, accessibility)."
@@ -850,11 +962,17 @@
             "hasInstinct": {
               "type": "boolean",
               "description": "Whether Fatherly Instinct (GDD §9) is available."
+            },
+            "catastropheMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay."
             }
           },
           "required": [
             "windowMultiplier",
-            "hasInstinct"
+            "hasInstinct",
+            "catastropheMultiplier"
           ],
           "additionalProperties": false,
           "description": "Normal tier: the game as designed."
@@ -870,11 +988,17 @@
             "hasInstinct": {
               "type": "boolean",
               "description": "Whether Fatherly Instinct (GDD §9) is available."
+            },
+            "catastropheMultiplier": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay."
             }
           },
           "required": [
             "windowMultiplier",
-            "hasInstinct"
+            "hasInstinct",
+            "catastropheMultiplier"
           ],
           "additionalProperties": false,
           "description": "Experienced-dad tier: tighter windows, no instinct."
@@ -897,17 +1021,17 @@
           "maximum": 9007199254740991,
           "description": "Most points the baby laughs can give, in points."
         },
-        "babyStateMaxPoints": {
+        "calmMaxPoints": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "Most points the baby state can give, in points."
+          "description": "Most points the baby staying calm can give, in points."
         },
-        "babyStateFixedPoints": {
+        "homeMaxPoints": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "Baby-state points used by the prototype instead of the real computation, in points."
+          "description": "Most points the house chores can give, in points."
         },
         "baseScorePoints": {
           "type": "integer",
@@ -949,6 +1073,17 @@
           "minimum": 0,
           "description": "Laugh points each perfect response gives (held to `laughMaxPoints`), in points per perfect."
         },
+        "laughPerSuccessPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Laugh points each success (not perfect) gives (held to `laughMaxPoints`), in points per success."
+        },
+        "calmNoiseThresholdPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "The baby counts as calm while the noise gauge is strictly below this level, in % of the gauge."
+        },
         "sighPerPropOnFloorPoints": {
           "type": "number",
           "minimum": 0,
@@ -972,14 +1107,16 @@
       },
       "required": [
         "laughMaxPoints",
-        "babyStateMaxPoints",
-        "babyStateFixedPoints",
+        "calmMaxPoints",
+        "homeMaxPoints",
         "baseScorePoints",
         "sighMaxPoints",
         "screamMaxPoints",
         "starThresholdPoints",
         "earlyWakePenaltyStars",
         "laughPerPerfectPoints",
+        "laughPerSuccessPoints",
+        "calmNoiseThresholdPct",
         "sighPerPropOnFloorPoints",
         "sighPerBrokenPropPoints",
         "sighPerMischiefPoints",
@@ -1102,10 +1239,16 @@
           ],
           "additionalProperties": false,
           "description": "The gag of the object on the coffee table (story 1.16)."
+        },
+        "debrisStepRadiusM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Papa steps on a debris (`DebrisSteppedOn`, +`noise.sources.debrisStep`) when he comes within this distance of it, in metres (story 3.15)."
         }
       },
       "required": [
-        "tableObjectFall"
+        "tableObjectFall",
+        "debrisStepRadiusM"
       ],
       "additionalProperties": false,
       "description": "Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key."
@@ -1366,6 +1509,29 @@
           "additionalProperties": false,
           "description": "Juice of a gag: the « pouf »."
         },
+        "dim": {
+          "type": "object",
+          "properties": {
+            "lightsPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Level the 3D lights fade to while the room is dim, in % (100 = no dimming)."
+            },
+            "fadeMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2000,
+              "description": "Time to fade the lights to that level, and back, in **sim** ms."
+            }
+          },
+          "required": [
+            "lightsPct",
+            "fadeMs"
+          ],
+          "additionalProperties": false,
+          "description": "The pénombre of the outlet gag (story 3.15): only the 3D lights fade, the world UI never does."
+        },
         "photoCamera": {
           "type": "object",
           "properties": {
@@ -1446,11 +1612,77 @@
         "success",
         "perfect",
         "gag",
+        "dim",
         "photoCamera",
         "perfectCamera"
       ],
       "additionalProperties": false,
       "description": "On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only."
+    },
+    "camera": {
+      "type": "object",
+      "properties": {
+        "frameWidthM": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 30,
+          "description": "Width of the floor box the follow camera fits, in metres (story 9.2): the same fit as the fixed camera on a room this size, so it sets the characters' scale on screen."
+        },
+        "frameDepthM": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 30,
+          "description": "Depth of the floor box the follow camera fits, in metres."
+        },
+        "deadZoneWidthPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 80,
+          "description": "Width of the centred dead zone, in % of the frame's width: Papa moves inside it without moving the camera."
+        },
+        "deadZoneHeightPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 80,
+          "description": "Height of the centred dead zone, in % of the frame's height."
+        },
+        "edgeMarginPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Papa's drawn point never comes nearer an edge of the frame than this, in % of the frame's size on that axis (a hard limit, even during a glide), except where the view would leave the room: the walls win, near a wall or across a room narrower than the frame."
+        },
+        "catchUpMs": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 3000,
+          "description": "Time the camera takes to cover 95 % of a sudden jump of its goal, in **sim** ms (a pause holds it, a slow-mo slows it)."
+        },
+        "dampingRatio": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1,
+          "description": "Damping of the catch-up spring: 1 = no overshoot; below, a slight bounce (0.8 = about 1.5 %)."
+        },
+        "reducedCatchUpMs": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 5000,
+          "description": "The catch-up time under « Réduire les animations », in **sim** ms, with no overshoot at all (a damping of 1). Not below `catchUpMs`."
+        }
+      },
+      "required": [
+        "frameWidthM",
+        "frameDepthM",
+        "deadZoneWidthPct",
+        "deadZoneHeightPct",
+        "edgeMarginPct",
+        "catchUpMs",
+        "dampingRatio",
+        "reducedCatchUpMs"
+      ],
+      "additionalProperties": false,
+      "description": "The follow camera of a level with `camera: \"follow\"` (story 9.2): its frame, dead zone, edge margin and catch-up. Client only."
     },
     "music": {
       "type": "object",
@@ -1628,11 +1860,13 @@
     "timing",
     "input",
     "movement",
+    "director",
     "baby",
     "fatigue",
     "carry",
     "combo",
     "noise",
+    "catastrophe",
     "bladder",
     "sequences",
     "endOfLevel",
@@ -1643,6 +1877,7 @@
     "physics",
     "gags",
     "fx",
+    "camera",
     "music",
     "calibration"
   ],

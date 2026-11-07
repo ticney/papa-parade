@@ -1,4 +1,8 @@
-import { BABY_CRYING_EVERY_MS } from '@shared/constants';
+import {
+  AFTER_EFFECT_BUSY_MAX_MS,
+  BABY_CRYING_EVERY_MS,
+  MICRO_SLEEP_BUSY_MAX_MS,
+} from '@shared/constants';
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 
@@ -18,6 +22,15 @@ export const THREAT_RESPONSES = ['parry', 'firm', 'wait', 'nothing'] as const;
 export type ThreatResponse = (typeof THREAT_RESPONSES)[number];
 
 /**
+ * The catastrophe category of a threat's gags (story 3.16, FR73, GDD mechanic 14): which row of
+ * `feel.catastrophe.risePct` a gag of the threat raises the gauge by. `none` raises nothing (the
+ * gags of the E4 sequences, to be costed later). `choreBeat` is a rise of its own, not a threat's.
+ * `createSim` and `content:check` pair it with the gag (`CATASTROPHE_OF_GAG`).
+ */
+export const THREAT_CATASTROPHE_CATEGORIES = ['nearMiss', 'mess', 'microSleep', 'none'] as const;
+export type ThreatCatastrophe = (typeof THREAT_CATASTROPHE_CATEGORIES)[number];
+
+/**
  * The glyphs a threat's marker can draw, as data (the client has one per entry, as a
  * `Record<ThreatIcon, …>`: a missing glyph is a type error). The marker's shape and colour are
  * separate keys (`THREAT_ICON_SHAPES`, `THREAT_COLORS`, story 2.2).
@@ -34,6 +47,13 @@ export const THREAT_ICONS = [
   'sweat',
   'open_hand',
   'sigh',
+  'pot',
+  'dishwasher',
+  'tablecloth',
+  'cabinet',
+  'bin',
+  'plant',
+  'cup',
 ] as const;
 export type ThreatIcon = (typeof THREAT_ICONS)[number];
 
@@ -55,7 +75,7 @@ export const THREAT_SHAPE_COLORS: Readonly<Record<ThreatIconShape, ThreatColor>>
 };
 
 /** `^verb\.[a-z0-9_]+$`: a key of the `verb.` group of `strings.fr.json`. */
-const VERB_KEY_PATTERN = /^verb\.[a-z0-9_]+$/;
+export const VERB_KEY_PATTERN = /^verb\.[a-z0-9_]+$/;
 
 /** Only a `dodge` response has a default verb of its own (`verb.dodge`, « ESQUIVE ! »). */
 const hasDefaultVerb = (response: string): boolean => response === 'dodge';
@@ -64,9 +84,10 @@ const hasDefaultVerb = (response: string): boolean => response === 'dodge';
  * Where a threat stands: on a planned anchor of the level (a wave plans it), on Papa himself
  * (the sim spawns it: the micro-sleep of story 1.19, which follows him wherever he walks), or in a
  * hidden zone of the room (the suspicious silence of story 1.21: the baby goes there and goes quiet),
- * or on the baby wherever he lies (story 4.9: a stealth step's alerts, whose marker follows him).
+ * or on the baby wherever he lies (story 4.9: a stealth step's alerts, whose marker follows him),
+ * or on a chore's station (story 9.5: the pot left on the fire; only the chore system spawns it).
  */
-export const THREAT_TARGETS = ['anchor', 'papa', 'hiddenZone', 'baby'] as const;
+export const THREAT_TARGETS = ['anchor', 'papa', 'hiddenZone', 'baby', 'station'] as const;
 export type ThreatTarget = (typeof THREAT_TARGETS)[number];
 
 const FeedbackCuesSchema = z
@@ -83,6 +104,69 @@ const FeedbackCuesSchema = z
     ).optional(),
   })
   .describe('Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11).');
+
+const busyMs = (description: string, maxMs: number) =>
+  z.int().positive().max(maxMs).describe(description);
+const spanMs = (description: string) => z.int().positive().describe(description);
+
+/**
+ * What a gag leaves behind (story 3.15, FR72, GDD mechanic 13): the séquelle, as data on the threat.
+ * Every def declares one (`none` included: a new threat « doit déclarer sa séquelle »). A union on
+ * `kind`, so that a key is required where it belongs and refused elsewhere, with no `.optional()`.
+ * What Papa is busy for is capped by the GDD (`AFTER_EFFECT_BUSY_MAX_MS`, 2 s; the micro-sleep 3 s,
+ * `MICRO_SLEEP_BUSY_MAX_MS`); `createSim` and `content:check` pair the kind with the gag
+ * (`AFTER_EFFECT_OF_GAG`).
+ */
+export const AfterEffectDefSchema = z
+  .discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('none') }).describe('No séquelle (costed later, GDD).'),
+    z
+      .strictObject({
+        kind: z.literal('electrified'),
+        busyMs: busyMs(
+          'How long Papa cannot answer, in sim ms (at most 2000).',
+          AFTER_EFFECT_BUSY_MAX_MS,
+        ),
+        dimMs: spanMs('How long the room stays dim after the gag, in sim ms.'),
+      })
+      .describe('Papa is electrified (cannot answer) and the room goes dim (the outlet).'),
+    z
+      .strictObject({
+        kind: z.literal('babyDownstairs'),
+        carryUpMs: busyMs(
+          'How long Papa is busy carrying the baby back up, in sim ms (at most 2000).',
+          AFTER_EFFECT_BUSY_MAX_MS,
+        ),
+        selfReturnMs: spanMs(
+          'If Papa does not fetch him, the baby climbs back by himself after this long, in sim ms.',
+        ),
+      })
+      .describe('The baby is at the bottom of the stairs; Papa must fetch him (the stairs).'),
+    z
+      .strictObject({
+        kind: z.literal('debris'),
+        pickUpMs: busyMs(
+          'How long Papa is busy picking the debris up, in sim ms (at most 2000).',
+          AFTER_EFFECT_BUSY_MAX_MS,
+        ),
+      })
+      .describe('The pushed object stays on the floor until picked up (the coffee table).'),
+    z
+      .strictObject({ kind: z.literal('mess') })
+      .describe(
+        'The mischief stays visible until the end of the level and on the photo (the silence).',
+      ),
+    z
+      .strictObject({
+        kind: z.literal('asleep'),
+        busyMs: busyMs('How long Papa sleeps, in sim ms (at most 3000).', MICRO_SLEEP_BUSY_MAX_MS),
+      })
+      .describe('Papa nods off (the micro-sleep).'),
+  ])
+  .describe("The séquelle of the threat's gag (story 3.15).");
+
+export type AfterEffectDef = z.infer<typeof AfterEffectDefSchema>;
+export type AfterEffectDefKind = AfterEffectDef['kind'];
 
 /** The keys every threat def has, whatever its target. */
 const baseShape = {
@@ -199,6 +283,12 @@ const baseShape = {
     .enum(THREAT_COLORS)
     .describe("Colour of the threat's marker, by DESIGN.md token name (`parry` or `dodge`)."),
   feedback: FeedbackCuesSchema,
+  catastrophe: z
+    .enum(THREAT_CATASTROPHE_CATEGORIES)
+    .describe(
+      'How much a gag of this threat raises the catastrophe gauge: the row of `feel.catastrophe.risePct` (`none` = nothing). Must fit the gag (story 3.16).',
+    ),
+  afterEffect: AfterEffectDefSchema,
   cooldownMs: z
     .number()
     .min(0)
@@ -212,19 +302,29 @@ const baseShape = {
     .describe(
       'When a miss ends in the gag, the baby cries for this long, in sim ms, at least 1000 (story 3.1: one `BabyCrying` per second, +2 % noise each; a shorter cry would be silent). Absent: the gag does not make him cry.',
     ),
+  gagNoisePct: z
+    .number()
+    .positive()
+    .max(100)
+    .optional()
+    .describe(
+      'When a miss ends in the gag, the noise gauge rises by this many points at once (story 9.5: the pot boiling over; no effect in a level with no noise gauge). Absent: the gag makes no noise of its own.',
+    ),
 };
 
 const AnchoredThreatDefSchema = z
   .strictObject({
     ...baseShape,
     target: z
-      .enum(['anchor', 'papa', 'baby'])
+      .enum(['anchor', 'papa', 'baby', 'station'])
       .describe(
-        'Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), or on the baby (a stealth step spawns it, story 4.9).',
+        'Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), on the baby (a stealth step spawns it, story 4.9), or on a chore station (the chore system spawns it, story 9.5).',
       ),
     gag: idSchema('The gag played on a miss (a `GAG_IDS` entry of the sim).'),
   })
-  .describe('A threat that stands on an anchor of the level, on Papa, or on the baby.');
+  .describe(
+    'A threat that stands on an anchor of the level, on Papa, on the baby, or on a chore station.',
+  );
 
 const HiddenZoneThreatDefSchema = z
   .strictObject({
@@ -443,6 +543,14 @@ export const ThreatDefSchema = z
         code: 'custom',
         path: ['verbKey'],
         message: `a \`null\` verbKey (the default verb of the response) is only for a "dodge" response, not "${def.response}": write the \`verb.\` key`,
+      });
+    }
+    // A pot on the fire (story 9.5) is lowered, never dodged or waited out: it is a parry.
+    if (def.target === 'station' && def.response !== 'parry') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['response'],
+        message: `a threat on a chore station (target "station") is parried: its response must be "parry", not "${def.response}"`,
       });
     }
     // One issue at most per path: a broken pair is reported alone, then the response rule.

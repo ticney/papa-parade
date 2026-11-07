@@ -14,6 +14,12 @@ const PAPA_LOOPS: Readonly<Record<PapaState, string>> = {
   asleep: 'asleep',
   onPhone: 'on_phone',
   onToilet: 'idle',
+  // The shock of the outlet (the hair stays on end, `gags.ts`), the baby carried up the stairs, a debris picked up.
+  electrified: 'gag_shock',
+  carryingUp: 'carry_idle',
+  pickingUp: 'idle',
+  // A house chore (story 9.4): idle at the station until story 9.5 gives the cooking its own gestures.
+  chore: 'idle',
 };
 
 /** `wander` and `approach` crawl; a laid baby has no loop of his own: `carried`, lowered by `layDownPct`. */
@@ -25,6 +31,9 @@ const BABY_LOOPS: Readonly<Record<BabyState, string>> = {
   act: 'act',
   mischiefSilent: 'sneak',
   carried: 'carried',
+  // Left at the bottom of the stairs, and carried back up (story 3.15): he babbles, delighted, then is carried.
+  downstairs: 'babble',
+  carriedUp: 'carried',
 };
 
 /** The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`). */
@@ -50,6 +59,8 @@ export function papaOneShotOf(event: Readonly<SimEvent>): string | null {
       return 'stumble';
     case 'PapaSnored':
       return 'snore';
+    case 'CoffeeDrunk':
+      return 'coffee_kick';
     default:
       return null;
   }
@@ -114,6 +125,7 @@ export const PAPA_CONTRACT = {
     'root',
     'spine',
     'head',
+    'eyes',
     'eyelids',
     'arm_l',
     'hand_l',
@@ -123,7 +135,15 @@ export const PAPA_CONTRACT = {
     'leg_r',
   ],
   visibleNodes: ['papa_body', 'papa_shirt'],
-  hiddenNodes: ['papa_mug', 'papa_handset', 'papa_hair', 'papa_look_mash', 'papa_look_shirt'],
+  hiddenNodes: [
+    'papa_mug',
+    'papa_mug_steam',
+    'papa_handset',
+    'papa_blabla',
+    'papa_hair',
+    'papa_look_mash',
+    'papa_look_shirt',
+  ],
   clips: [
     'idle',
     'walk',
@@ -140,8 +160,11 @@ export const PAPA_CONTRACT = {
     'gag_shock',
     'stumble',
     'snore',
+    'coffee_kick',
   ],
   codeDrivenBones: ['eyelids'],
+  /** The steam sways and the bla-bla bubble wobbles by code on the sim clock, so reduced motion can hold them (D3). */
+  codeDrivenNodes: ['papa_mug_steam', 'papa_blabla'],
 } as const;
 
 /** The baby's contract with his `.glb`: `head` turns to the gaze and `eyelids` follow the duel, both by code. */
@@ -166,4 +189,5 @@ export const BABY_CONTRACT = {
     'laugh',
   ],
   codeDrivenBones: ['head', 'eyelids'],
+  codeDrivenNodes: [],
 } as const;

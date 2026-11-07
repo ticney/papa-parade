@@ -201,7 +201,9 @@ describe('the toilet (story 4.3)', () => {
     expect(events).toContainEqual(expect.objectContaining({ type: 'ComboChanged', reason: 'gag' }));
     expect(world.combo.multiplier).toBe(base.feel.combo.minMultiplier);
     expect(types(events)).not.toContain('PapaGlideStarted');
-    expect(world.papa.state).toBe('onToilet');
+    // The gag's séquelle lands on the visit and cancels it, as a nap does: back in the room, electrified (story 3.15).
+    expect(world.papa.state).toBe('electrified');
+    expect(types(events)).not.toContain('ToiletFinished');
     expect(world.gauges.fatigue).toBeGreaterThan(fatigueBefore);
     expect(world.baby.xM !== babyBefore.xM || world.baby.zM !== babyBefore.zM).toBe(true);
   });
@@ -215,7 +217,8 @@ describe('the toilet (story 4.3)', () => {
       walkIn(sim);
       const events = runUntil(sim, sim.world.time.sim + 30_000);
       expect(ofType(events, 'ThreatTelegraphed').length).toBeGreaterThanOrEqual(2);
-      expect(sim.world.papa.state).toBe('onToilet');
+      // The first gag electrifies him, which ends the visit (story 3.15); the room went on until then.
+      expect(ofType(events, 'ToiletFinished')).toEqual([]);
     });
 
     it('a suspicious silence starts and times out with nobody to find the baby', async () => {

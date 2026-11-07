@@ -1,4 +1,5 @@
 import type { BotSettings } from './schemas/bots.ts';
+import type { ChoreDef } from './schemas/chore.ts';
 import type { DisruptionDef } from './schemas/disruption.ts';
 import type { FeedbackTable } from './schemas/feedback.ts';
 import type { Feel } from './schemas/feel.ts';
@@ -29,4 +30,9 @@ export interface LevelContent {
   disruptions: Readonly<Record<string, DisruptionDef>>;
   /** Story 4.4. Empty when the level names no sequence. */
   sequences: Readonly<Record<string, SequenceDef>>;
+  /**
+   * Story 9.4. The chore def of each entry of `level.chores`, index-aligned. Present only when the
+   * level declares stations, so that every other level keeps its `levelHash`.
+   */
+  chores?: readonly ChoreDef[];
 }

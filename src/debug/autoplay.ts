@@ -22,7 +22,7 @@ export function installAutoplay(host: TestHost, botId: string): Result<void, App
   // Asked once with a throwaway setup, so that a bad id is refused before the level starts.
   const probe = createBot(
     botId,
-    setupFor(host, 0, host.content.feel.input.holdMinMs, {}, [], null),
+    setupFor(host, 0, host.content.feel.input.holdMinMs, {}, [], [], null),
   );
   if (!probe.ok) return probe;
 
@@ -37,6 +37,7 @@ export function installAutoplay(host: TestHost, botId: string): Result<void, App
         feel.input.holdMinMs,
         botResponsesOf(level.threats),
         releaseDefIdsOf(level.threats),
+        (level.level.chores ?? []).map((chore) => chore.object),
         safeSpotOf(geometry),
       ),
     );
@@ -60,9 +61,20 @@ function setupFor(
   holdMinMs: number,
   responses: BotSetup['responses'],
   releaseDefIds: readonly string[],
+  choreObjectIds: readonly string[],
   safeSpot: BotSetup['safeSpot'],
 ): BotSetup {
-  return { seed, holdMinMs, responses, releaseDefIds, safeSpot, settings: host.content.bots };
+  return {
+    seed,
+    holdMinMs,
+    responses,
+    releaseDefIds,
+    choreObjectIds,
+    safeSpot,
+    // The game always draws the chrono-ring since story 2.11.
+    isChronoRingShown: true,
+    settings: host.content.bots,
+  };
 }
 
 /** Before a step: asks the bot, enqueues what it says. One reused array, no allocation per step. */

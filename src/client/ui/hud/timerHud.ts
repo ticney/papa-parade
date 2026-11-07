@@ -22,6 +22,11 @@ export interface TimerHud {
    * motion is reduced) while the world's flow is `finalRush`. Writes the DOM only on a change; no new node.
    */
   setRush(isRush: boolean): void;
+  /**
+   * Seats Mama's face (story 3.16) in the pill, in front of the variant's icon (UX `catastrophe-face`:
+   * attached to the timer, beside its icon). Once; the face keeps its own state.
+   */
+  mountFace(face: HTMLElement): void;
 }
 
 export interface TimerHudOptions {
@@ -89,6 +94,7 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
   element.append(digits);
   let variant: LevelVariant | null = null;
   let icon: SVGSVGElement | null = null;
+  let face: HTMLElement | null = null;
   let clock = '';
   let isCompact = false;
   let isRush = false;
@@ -106,8 +112,9 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
     setVariant(next) {
       variant = next;
       const fresh = ICONS[next](doc);
-      if (icon === null) element.prepend(fresh);
-      else icon.replaceWith(fresh);
+      if (icon !== null) icon.replaceWith(fresh);
+      else if (face !== null) face.after(fresh);
+      else element.prepend(fresh);
       icon = fresh;
       refreshLabel();
     },
@@ -122,6 +129,10 @@ export function createTimerHud(doc: Doc, options: TimerHudOptions): TimerHud {
       if (next === isRush) return;
       isRush = next;
       element.classList.toggle('pp-hud-timer--rush', next);
+    },
+    mountFace(next) {
+      face = next;
+      element.prepend(next);
     },
     setRemainingS(seconds) {
       clock = formatClock(seconds);

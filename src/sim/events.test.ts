@@ -67,12 +67,20 @@ describe('SIM_EVENT_TYPES', () => {
 describe('the fatigue events (story 1.19)', () => {
   it('lists CoffeeDrunk, CoffeeStarted and FatigueThresholdCrossed in their alphabetical places', () => {
     const names: readonly string[] = SIM_EVENT_TYPES;
-    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('BreathReleased') + 1);
+    // `CatastropheChanged` (story 3.16) sorts between them.
+    expect(names.indexOf('CatastropheChanged')).toBe(names.indexOf('BreathReleased') + 1);
+    // The four `Chore*` events (story 9.4) sort between `CatastropheChanged` and `CoffeeDrunk`.
+    expect(names.indexOf('ChoreBeatJudged')).toBe(names.indexOf('CatastropheChanged') + 1);
+    expect(names.indexOf('ChoreBeatTelegraphed')).toBe(names.indexOf('ChoreBeatJudged') + 1);
+    expect(names.indexOf('ChoreCompleted')).toBe(names.indexOf('ChoreBeatTelegraphed') + 1);
+    expect(names.indexOf('ChoreRefused')).toBe(names.indexOf('ChoreCompleted') + 1);
+    expect(names.indexOf('CoffeeDrunk')).toBe(names.indexOf('ChoreRefused') + 1);
     expect(names.indexOf('CoffeeStarted')).toBe(names.indexOf('CoffeeDrunk') + 1);
     expect(names.indexOf('ComboCashedIn')).toBe(names.indexOf('CoffeeStarted') + 1);
     expect(names.indexOf('ComboChanged')).toBe(names.indexOf('ComboCashedIn') + 1);
     expect(names.indexOf('CycleCompleted')).toBe(names.indexOf('ComboChanged') + 1);
-    expect(names.indexOf('DecoyCued')).toBe(names.indexOf('CycleCompleted') + 1);
+    expect(names.indexOf('DebrisSteppedOn')).toBe(names.indexOf('CycleCompleted') + 1);
+    expect(names.indexOf('DecoyCued')).toBe(names.indexOf('DebrisSteppedOn') + 1);
     expect(names.indexOf('DecoyTapped')).toBe(names.indexOf('DecoyCued') + 1);
     expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('DecoyTapped') + 1);
     expect(names.indexOf('FinalRushStarted')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
@@ -113,8 +121,8 @@ describe('the lullaby walk events (story 4.5)', () => {
 });
 
 describe('LEVEL_END_REASONS (story 3.2)', () => {
-  it('lists the three ways a level ends', () => {
-    expect([...LEVEL_END_REASONS]).toEqual(['timer', 'mamaWoke', 'cycleDone']);
+  it('lists the four ways a level ends', () => {
+    expect([...LEVEL_END_REASONS]).toEqual(['timer', 'mamaWoke', 'cycleDone', 'mamaHome']);
     expect(new Set(LEVEL_END_REASONS).size).toBe(LEVEL_END_REASONS.length);
   });
 

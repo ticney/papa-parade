@@ -1,0 +1,20 @@
+{
+  "$schema": "../../content/_schemas/chore.schema.json",
+  "id": "cooking",
+  "station": "stove",
+  "windowMs": null,
+  "beats": [
+    { "verbKey": "verb.stir", "telegraphDelayMs": 2000 },
+    { "verbKey": "verb.mash", "telegraphDelayMs": 2500 },
+    { "verbKey": "verb.stir", "telegraphDelayMs": 1500 },
+    { "verbKey": "verb.turn_off_heat", "telegraphDelayMs": 3000 }
+  ],
+  "homePoints": 7.5,
+  "feedback": {
+    "telegraph": "chore_beat_cued",
+    "success": "chore_beat_caught",
+    "perfect": "chore_beat_perfect",
+    "miss": "chore_puree_stuck",
+    "completed": "chore_completed"
+  }
+}

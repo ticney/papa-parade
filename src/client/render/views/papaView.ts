@@ -1,3 +1,4 @@
+import { ISO_YAW_DEG } from '@shared/constants';
 import type { BabySlice, PapaSlice } from '@sim';
 import { BoxGeometry, Color, Group, Mesh, type Object3D } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
@@ -6,7 +7,10 @@ import { PALETTE } from '../materials/palette.ts';
 import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
 import { papaClipOf } from './characterClips.ts';
 import {
+  busyCycleAt,
+  type ClipFacings,
   clipTimeScaleOf,
+  papaFacingYawRad,
   stepSpeedMpsOf,
   type TravelClips,
   turnToward,
@@ -55,10 +59,24 @@ export function papaPoseAt(papa: Readonly<PapaSlice>, alpha: number, out: PapaPo
   out.yawRad = Math.atan2(papa.headingX, papa.headingZ);
 }
 
+/** The side effects of his busy props (`feedback.json › characters.busyProps`, story 2.13). */
+export interface BusyPropsConfig {
+  readonly steamSwayDeg: number;
+  readonly steamStretchPct: number;
+  readonly steamPeriodMs: number;
+  readonly blablaTiltDeg: number;
+  readonly blablaBobAmplitudeM: number;
+  readonly blablaPeriodMs: number;
+  readonly blablaPlace: { readonly screenOffsetM: number; readonly heightM: number };
+}
+
 /** What the view reads from the feedback table (`feedback.json › characters`). */
 export interface CharacterMotionConfig {
   readonly turnRateDegPerSec: number;
   readonly clips: TravelClips;
+  /** Where each clip turns his body (story 2.13). */
+  readonly clipFacing: ClipFacings;
+  readonly busyProps: BusyPropsConfig;
 }
 
 export interface PapaView {
@@ -67,8 +85,9 @@ export interface PapaView {
   /** Moves him and his shadow. Allocates nothing. */
   update(papa: Readonly<PapaSlice>, alpha: number): void;
   /**
-   * Plays the loop the world says now, turns his body toward his heading and advances his mixer by
-   * `dtMs` of sim time; a `dtMs` of 0 holds him. Allocates nothing once the clips have played once.
+   * Plays the loop the world says now, turns his body toward the facing of the clip the player sees (the
+   * camera, away from the baby) or else his heading, and advances his mixer by `dtMs` of sim time; a
+   * `dtMs` of 0 holds him. Allocates nothing once the clips have played once.
    */
   animate(papa: Readonly<PapaSlice>, baby: Readonly<BabySlice>, dtMs: number): void;
   /** Plays a clip once, over his loop. */
@@ -90,10 +109,23 @@ export interface PapaView {
    * ms). Off, it hides the « Z » and leaves the eyelids to `setEyelids`. Allocates nothing.
    */
   setAsleep(isAsleep: boolean, clockMs: number): void;
-  /** A mug in his hand while he drinks. Allocates nothing. */
-  setDrinking(isDrinking: boolean): void;
-  /** A handset at the side of his head while he is on the phone. Allocates nothing. */
-  setOnPhone(isOnPhone: boolean): void;
+  /**
+   * A mug in his hand while he drinks, with its steam swaying on `clockMs` (sim ms). Under reduced motion
+   * the steam is shown, held at its rest transform. Allocates nothing.
+   */
+  setDrinking(isDrinking: boolean, clockMs: number, isMotionReduced: boolean): void;
+  /**
+   * A handset at the side of his head while he is on the phone, and a bla-bla bubble at his side that
+   * wobbles on `clockMs` (sim ms). Under reduced motion the bubble is shown, held at its rest transform.
+   * Allocates nothing.
+   */
+  setOnPhone(isOnPhone: boolean, clockMs: number, isMotionReduced: boolean): void;
+  /** The way his drawn body faces, in radians (0 faces +z, positive toward +x): it turns, the sim's heading does not. */
+  readonly bodyYawRad: number;
+  /** How far the steam leans now, in degrees; 0 while it is hidden or held. */
+  readonly steamSwayDeg: number;
+  /** How far the bla-bla bubble tilts now, in degrees; 0 while it is hidden or held. */
+  readonly blablaTiltDeg: number;
   /**
    * Papa is out of the room (the toilet, story 4.3): the whole of him, blob shadow included, is
    * hidden, and drawn again with the next call that says he is back. Allocates nothing.
@@ -132,7 +164,9 @@ export function createPapaView(
 
   const eyelids = rig.node('eyelids');
   const mug = rig.node('papa_mug');
+  const steam = rig.node('papa_mug_steam');
   const handset = rig.node('papa_handset');
+  const blabla = rig.node('papa_blabla');
   const hair = rig.node('papa_hair');
   const mash = rig.node('papa_look_mash');
   const shirt = rig.node('papa_shirt');
@@ -142,6 +176,22 @@ export function createPapaView(
   hair.visible = false;
   mash.visible = false;
   insideOutShirt.visible = false;
+  blabla.visible = false;
+
+  // The steam sways about the rim it stands on, so its rest transform is the file's: written back as is when held.
+  const steamRestRotationZ = steam.rotation.z;
+  const steamRestScaleY = steam.scale.y;
+  const { busyProps } = motion;
+  const steamSwayRad = (busyProps.steamSwayDeg * Math.PI) / 180;
+  const blablaTiltRad = (busyProps.blablaTiltDeg * Math.PI) / 180;
+  // The bubble leaves the turning body for the group, which never turns, and stands at his side, on
+  // the side of the screen `screenOffsetM` says (screen right is (cos yaw, -sin yaw) for the camera at
+  // `ISO_YAW_DEG`). It faces the camera, so that it reads from every heading (D4).
+  const cameraYawRad = (ISO_YAW_DEG * Math.PI) / 180;
+  const blablaPlace = busyProps.blablaPlace;
+  const blablaBaseX = blablaPlace.screenOffsetM * Math.cos(cameraYawRad);
+  const blablaBaseZ = -blablaPlace.screenOffsetM * Math.sin(cameraYawRad);
+  const blablaRestRotationZ = blabla.rotation.z;
 
   // The « Z »: two bars and a diagonal, in ink, above the head. Made here, not in the file: it
   // floats free of the skeleton.
@@ -165,10 +215,14 @@ export function createPapaView(
 
   const group = new Group();
   group.name = 'papa_group';
-  group.add(body, shadow, zSign);
+  group.add(body, shadow, zSign, blabla);
+  blabla.position.set(blablaBaseX, blablaPlace.heightM, blablaBaseZ);
+  blabla.rotation.set(0, cameraYawRad, blablaRestRotationZ);
   scene.add(group);
   const pose: PapaPose = { xM: 0, zM: 0, yawRad: 0 };
   let bodyYawRad: number | null = null;
+  let steamSwayNowDeg = 0;
+  let blablaTiltNowDeg = 0;
 
   let asleepAmount = 0;
   let wantedEyelids = 0;
@@ -201,15 +255,18 @@ export function createPapaView(
       }
     },
     animate(papa, baby, dtMs) {
+      const clip = papaClipOf(papa, baby);
+      rig.play(clip, clipTimeScaleOf(clip, stepSpeedMpsOf(papa), motion.clips));
+      // The clip the player sees (a one-shot over his loop) decides where he faces; his heading is the sim's.
+      const wantedYawRad =
+        papaFacingYawRad(papa, baby, rig.clipName, motion.clipFacing) ?? pose.yawRad;
       bodyYawRad = turnToward(
-        bodyYawRad ?? pose.yawRad,
-        pose.yawRad,
+        bodyYawRad ?? wantedYawRad,
+        wantedYawRad,
         motion.turnRateDegPerSec,
         dtMs,
       );
       body.rotation.y = bodyYawRad;
-      const clip = papaClipOf(papa, baby);
-      rig.play(clip, clipTimeScaleOf(clip, stepSpeedMpsOf(papa), motion.clips));
       rig.update(dtMs);
     },
     playOnce(clip) {
@@ -247,11 +304,38 @@ export function createPapaView(
       asleepAmount = next;
       applyEyelids();
     },
-    setDrinking(isDrinking) {
+    setDrinking(isDrinking, clockMs, isMotionReduced) {
       mug.visible = isDrinking;
+      if (!isDrinking) {
+        steamSwayNowDeg = 0;
+        return;
+      }
+      // Shown, and still when motion is reduced: a pose carries a state, the steam only decorates it.
+      const cycle = isMotionReduced ? 0 : busyCycleAt(clockMs, busyProps.steamPeriodMs);
+      steam.rotation.z = steamRestRotationZ + cycle * steamSwayRad;
+      steam.scale.y = steamRestScaleY * (1 + cycle * (busyProps.steamStretchPct / 100));
+      steamSwayNowDeg = cycle * busyProps.steamSwayDeg;
     },
-    setOnPhone(isOnPhone) {
+    setOnPhone(isOnPhone, clockMs, isMotionReduced) {
       handset.visible = isOnPhone;
+      blabla.visible = isOnPhone;
+      if (!isOnPhone) {
+        blablaTiltNowDeg = 0;
+        return;
+      }
+      const cycle = isMotionReduced ? 0 : busyCycleAt(clockMs, busyProps.blablaPeriodMs);
+      blabla.rotation.z = blablaRestRotationZ + cycle * blablaTiltRad;
+      blabla.position.y = blablaPlace.heightM + cycle * busyProps.blablaBobAmplitudeM;
+      blablaTiltNowDeg = cycle * busyProps.blablaTiltDeg;
+    },
+    get bodyYawRad() {
+      return bodyYawRad ?? pose.yawRad;
+    },
+    get steamSwayDeg() {
+      return steamSwayNowDeg;
+    },
+    get blablaTiltDeg() {
+      return blablaTiltNowDeg;
     },
     setAway(isAway) {
       group.visible = !isAway;
@@ -269,6 +353,10 @@ export function createPapaView(
     },
     dispose() {
       rig.dispose();
+      // The bubble left the rig's scene for the group: `rig.dispose()` no longer reaches it or its hull (D4).
+      blabla.traverse((node) => {
+        if (node instanceof Mesh) node.geometry.dispose();
+      });
       zBarGeometry.dispose();
       zDiagonalGeometry.dispose();
       scene.remove(group);

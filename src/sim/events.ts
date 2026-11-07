@@ -1,5 +1,9 @@
 import type { Feel } from '@content/schemas/feel';
-import type { ThreatResponse } from '@content/schemas/threat';
+import type {
+  AfterEffectDefKind,
+  ThreatCatastrophe,
+  ThreatResponse,
+} from '@content/schemas/threat';
 import type { InvariantViolation } from '@shared/invariant';
 import type { SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
@@ -9,9 +13,21 @@ import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
 /**
  * What made noise: a row of `feel.noise.sources` (typed from the schema, so a new row cannot be
- * forgotten here), or `debug` for the `SetNoise` command (story 3.1).
+ * forgotten here), `gag` for the noise a def makes by itself when it ends in its gag (`gagNoisePct`, story
+ * 9.5; not a feel key: the def owns the amount), or `debug` for the `SetNoise` command (story 3.1).
  */
-export type NoiseSource = keyof Feel['noise']['sources'] | 'debug';
+export type NoiseSource = keyof Feel['noise']['sources'] | 'gag' | 'debug';
+
+/**
+ * What moved the catastrophe gauge (story 3.16): the category of a gag (a threat's `catastrophe`
+ * other than `none`), `choreBeat` (a missed chore beat, stories 9.4 / 9.5), `perfect` (a perfect
+ * response takes it down) or `debug` for the `SetCatastrophe` command.
+ */
+export type CatastropheSource =
+  | Exclude<ThreatCatastrophe, 'none'>
+  | 'choreBeat'
+  | 'perfect'
+  | 'debug';
 
 /** How a response ended: `fail` is a gag. */
 export type ResponseQuality = 'perfect' | 'success' | 'fail';
@@ -40,16 +56,18 @@ export type SilenceEndReason = 'found' | 'timedOut' | 'levelEnded';
 
 /**
  * Why a level ended: the clock reached the level's `durationMs` (`timer`), the noise reached 100 %
- * in a Sieste level and woke Mama (`mamaWoke`, story 3.2), or the last entry of the bedtime cycle was
- * won (`cycleDone`, story 4.10).
+ * in a Sieste level and woke Mama (`mamaWoke`, story 3.2), the last entry of the bedtime cycle was
+ * won (`cycleDone`, story 4.10), or the catastrophe gauge reached 100 % and Mama came home early
+ * (`mamaHome`, story 3.16: the only « lost level », a gag and never a game over).
  */
-export type LevelEndReason = 'timer' | 'mamaWoke' | 'cycleDone';
+export type LevelEndReason = 'timer' | 'mamaWoke' | 'cycleDone' | 'mamaHome';
 
 /** Every `LevelEndReason`, as data: the report and the client key their records by it. */
 export const LEVEL_END_REASONS = [
   'timer',
   'mamaWoke',
   'cycleDone',
+  'mamaHome',
 ] as const satisfies readonly LevelEndReason[];
 
 type UnlistedLevelEndReason = Exclude<LevelEndReason, (typeof LEVEL_END_REASONS)[number]>;
@@ -151,6 +169,31 @@ export const COMBO_CHANGE_REASONS_ARE_COMPLETE: [UnlistedComboChangeReason] exte
   ? true
   : UnlistedComboChangeReason = true;
 
+/**
+ * What `AfterEffectStarted` / `AfterEffectEnded` name (story 3.15, D8): the kinds of the defs
+ * (`none` is no séquelle), plus `dim` (the outlet's pénombre, a décor séquelle of its own) and
+ * `carryUp` (the second half of the stairs' séquelle: Papa carries the baby up, which no def names).
+ */
+export type AfterEffectKind = Exclude<AfterEffectDefKind, 'none'> | 'dim' | 'carryUp';
+
+/** Every `AfterEffectKind`, as data (the sim report counts one row each). */
+export const AFTER_EFFECT_KINDS = [
+  'electrified',
+  'babyDownstairs',
+  'debris',
+  'mess',
+  'asleep',
+  'dim',
+  'carryUp',
+] as const satisfies readonly AfterEffectKind[];
+
+type UnlistedAfterEffectKind = Exclude<AfterEffectKind, (typeof AFTER_EFFECT_KINDS)[number]>;
+
+/** Compile-time proof that `AFTER_EFFECT_KINDS` holds every member of the union. */
+export const AFTER_EFFECT_KINDS_ARE_COMPLETE: [UnlistedAfterEffectKind] extends [never]
+  ? true
+  : UnlistedAfterEffectKind = true;
+
 /** Domain events pushed by the systems into `ctx.events`; `t` is sim time. */
 export type SimEvent =
   | { type: 'TimeScaleChanged'; t: SimMs; from: number; to: number }
@@ -187,11 +230,14 @@ export type SimEvent =
    * `ComboChanged{cashIn}`.
    */
   | { type: 'ComboCashedIn'; t: SimMs; multiplier: number; basePoints: number; points: number }
-  /** Papa set off to a pressed threat; he arrives by `arriveAt` (choreography: no judgement waits for it). */
+  /**
+   * Papa set off to a pressed threat; he arrives by `arriveAt` (choreography: no judgement waits for it).
+   * `threatId` is null for a glide to a chore's station (story 9.4).
+   */
   | {
       type: 'PapaGlideStarted';
       t: SimMs;
-      threatId: number;
+      threatId: number | null;
       toXM: number;
       toZM: number;
       arriveAt: SimMs;
@@ -233,6 +279,11 @@ export type SimEvent =
    */
   | { type: 'SilenceEnded'; t: SimMs; threatId: number; reason: SilenceEndReason }
   | { type: 'WindowOpened'; t: SimMs; threatId: number }
+  /**
+   * A `PressThreat` on an answerable (`telegraph` / `windowOpen`) threat reached a busy Papa
+   * (story 2.12): refused, so no press is recorded and nothing else changes. Once per command.
+   */
+  | { type: 'TapRefused'; t: SimMs; threatId: number }
   /**
    * The feint of a `wait` threat that has one (story 4.7): « un œil s'entrouvre », before the signal.
    * Once per telegraph, never after the window opens, and never for a def with no `feint`.
@@ -339,6 +390,19 @@ export type SimEvent =
    */
   | { type: 'NoiseChanged'; t: SimMs; source: NoiseSource; noisePct: number; deltaPct: number }
   /**
+   * The catastrophe gauge moved by a gag, a perfect response or the debug command (story 3.16):
+   * `deltaPct` is the change after the clamp (never 0) and `catastrophePct` the value after it, in %
+   * of the gauge. The decay is silent: read `world.gauges.catastrophePct` for the exact value.
+   * `source` is the gag's category, `perfect` or `debug`.
+   */
+  | {
+      type: 'CatastropheChanged';
+      t: SimMs;
+      source: CatastropheSource;
+      catastrophePct: number;
+      deltaPct: number;
+    }
+  /**
    * The need reached `feel.bladder.slowFromPct` (story 4.3): from now on Papa's walks are slower,
    * until a visit to the toilet. Once per upward crossing.
    */
@@ -349,6 +413,36 @@ export type SimEvent =
   | { type: 'ToiletFinished'; t: SimMs }
   /** A tap on the toilet while the baby is carried: Papa does not move (he must put the baby down first). */
   | { type: 'ToiletRefused'; t: SimMs; objectId: string }
+  /**
+   * A beat of a house chore was announced (story 9.4): its window opens at `windowOpenAt`. `choreIndex`
+   * is the index in `world.chores` and `ctx.level.chores`. Emitted when the chore starts or resumes,
+   * after a hold, and after a miss (the same beat again).
+   */
+  | {
+      type: 'ChoreBeatTelegraphed';
+      t: SimMs;
+      choreIndex: number;
+      beatIndex: number;
+      windowOpenAt: SimMs;
+    }
+  /**
+   * A beat was judged on the tap's own `t` (story 9.4). `fail` is a miss, with its `reason` (`early`
+   * under `feel.input.earlyPress: "fail"`, or `late`, which is also the absence of any tap); the
+   * beat is announced again right after it. `offsetMs` is null when nobody tapped.
+   */
+  | {
+      type: 'ChoreBeatJudged';
+      t: SimMs;
+      choreIndex: number;
+      beatIndex: number;
+      quality: ResponseQuality;
+      reason: 'early' | 'late' | null;
+      offsetMs: number | null;
+    }
+  /** The last beat of a chore was caught: it is done for the level and its `homePoints` are Mama's (story 9.4). */
+  | { type: 'ChoreCompleted'; t: SimMs; choreIndex: number; homePoints: number }
+  /** A tap on a chore's station while the baby is carried: Papa goes nowhere (story 9.4 D10). */
+  | { type: 'ChoreRefused'; t: SimMs; objectId: string; reason: 'carrying' }
   /**
    * A special sequence started (story 4.4). Follows `ThreatCancelled`s and the baby's pick-up, and
    * precedes `SequenceStepStarted{0}`.
@@ -431,9 +525,25 @@ export type SimEvent =
   | { type: 'PropBroken'; t: SimMs; propId: string; impulseNs: number }
   /**
    * Papa put a prop back where it spawned in the final rush (story 3.5): it left the mess in this very
-   * step, so Mama's sigh falls by `feel.mama.sighPerPropOnFloorPoints`.
+   * step, so Mama's sigh is counted with one prop less (`feel.mama.sighPerPropOnFloorPoints` each; the
+   * row is rounded once, so the drop is that slope rounded up or down).
    */
   | { type: 'PropTidied'; t: SimMs; propId: string }
+  /**
+   * A gag's séquelle began (story 3.15, FR72). `until` is when it ends on its own, null for a
+   * `debris` and a `mess` (a pick-up, or never). `propId` is the debris' prop, null for the others.
+   */
+  | {
+      type: 'AfterEffectStarted';
+      t: SimMs;
+      kind: AfterEffectKind;
+      until: SimMs | null;
+      propId: string | null;
+    }
+  /** A séquelle ended, or was replaced by another (story 3.15); `propId` as in `AfterEffectStarted`. */
+  | { type: 'AfterEffectEnded'; t: SimMs; kind: AfterEffectKind; propId: string | null }
+  /** Papa came within `feel.gags.debrisStepRadiusM` of a debris, once per entry (story 3.15): +`noise.sources.debrisStep`. */
+  | { type: 'DebrisSteppedOn'; t: SimMs; propId: string }
   /**
    * Mama was woken by the noise (story 3.2): the noise reached 100 % in a Sieste level. Right before
    * `LevelEnded{mamaWoke}`, at the same `t`.
@@ -454,7 +564,7 @@ export type SimEvent =
   | { type: 'LevelEnded'; t: SimMs; reason: LevelEndReason }
   /**
    * Mama's note (story 1.22), right after `LevelEnded` and at the same `t`, once per level: the
-   * four rows (`sighPoints` and `screamPoints` are what she takes off), the score out of 100 and the
+   * five rows (`sighPoints` and `screamPoints` are what she takes off), the score out of 100 and the
    * stars (after the `lostStars` she took off for being woken, story 3.2). The same values are in
    * `world.score.final`.
    */
@@ -462,7 +572,8 @@ export type SimEvent =
       type: 'LevelScored';
       t: SimMs;
       laughPoints: number;
-      babyStatePoints: number;
+      calmPoints: number;
+      homePoints: number;
       sighPoints: number;
       screamPoints: number;
       scorePoints: number;
@@ -477,6 +588,8 @@ export type SimEvent =
  * `content/feedback.json` against it. No system reads it, so no golden moves.
  */
 export const SIM_EVENT_TYPES = [
+  'AfterEffectEnded',
+  'AfterEffectStarted',
   'BabyCrying',
   'BabyPickedUp',
   'BabyPutDown',
@@ -491,11 +604,17 @@ export const SIM_EVENT_TYPES = [
   'BreathGasped',
   'BreathHeld',
   'BreathReleased',
+  'CatastropheChanged',
+  'ChoreBeatJudged',
+  'ChoreBeatTelegraphed',
+  'ChoreCompleted',
+  'ChoreRefused',
   'CoffeeDrunk',
   'CoffeeStarted',
   'ComboCashedIn',
   'ComboChanged',
   'CycleCompleted',
+  'DebrisSteppedOn',
   'DecoyCued',
   'DecoyTapped',
   'FatigueThresholdCrossed',
@@ -533,6 +652,7 @@ export const SIM_EVENT_TYPES = [
   'SequenceStepStarted',
   'SilenceEnded',
   'SilenceStarted',
+  'TapRefused',
   'ThreatCancelled',
   'ThreatHidden',
   'ThreatRearmed',

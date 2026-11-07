@@ -20,7 +20,9 @@ export function readThreatsOff(search: string): boolean {
  * plans a phone either): still a valid `LevelContent` for `createSim`. The
  * duration stays, so the timer still runs and the level still ends. The level's gauges stay, and
  * the micro-sleep def with them (story 1.19: `createSim` refuses a fatigue gauge whose def is not
- * loaded), the cry in the arms of a level that carries (story 4.1) and the threats the duel steps of
+ * loaded), the cry in the arms of a level that carries (story 4.1), the pot each chore turns into when it is
+ * abandoned (story 9.5: `createSim` refuses a chore whose pot def is not loaded; it only ever comes when the
+ * cooking is left alone) and the threats the duel steps of
  * its sequences spawn (story 4.6: the sequences stay, so their defs do), and the two alerts of a stealth step (story 4.9). So a run of more than about 150 s (fatigue crosses its threshold at 140 s) still sees
  * micro-sleeps: the switch is quiet for the short runs the tests make, not for a whole level.
  */
@@ -63,11 +65,26 @@ export function withoutThreats(content: LevelContent): LevelContent {
       }
     }
   }
+  // The pot of an abandoned chore (story 9.5) stays with its chore, like the others.
+  for (const chore of content.chores ?? []) {
+    if (chore.abandonedThreat !== undefined) keep(chore.abandonedThreat.def, 'abandoned chore');
+  }
+  // The open door of a chore (story 9.6) cannot stay the way the pot does: it is a wave threat (the director
+  // draws it, `createSim` refuses a chore whose door no wave plans) and the waves are emptied. A quiet room has
+  // no baby heading for the open dishwasher either, so the chores lose their `openThreat` instead: the
+  // dishwasher is emptied as before, its door never a target and never read (`isOpen` stays false).
+  const chores = content.chores?.map((chore) => {
+    if (chore.openThreat === undefined) return chore;
+    const { openThreat: _openThreat, ...withoutDoor } = chore;
+    return withoutDoor;
+  });
   return {
     level: { ...content.level, waves: [] },
     threats: { ...microSleep, ...armsCry, ...duelThreats },
     disruptions: {},
     // The level's sequences stay: a debug start still works with no wave (story 4.4).
     sequences: content.sequences,
+    // So do its house chores (story 9.4): a station is no threat, and `createSim` refuses one whose def is lost.
+    ...(chores === undefined ? {} : { chores }),
   };
 }

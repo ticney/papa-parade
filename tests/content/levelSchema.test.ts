@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { parseContentFile } from '@content/parseContentFile';
-import { LEVEL_VARIANTS, LevelSchema, OBJECT_KINDS } from '@content/schemas/level';
+import {
+  LEVEL_CAMERA_MODES,
+  LEVEL_VARIANTS,
+  LevelSchema,
+  OBJECT_KINDS,
+} from '@content/schemas/level';
 import { OBJECT_ACTION_KINDS } from '@sim';
 import { describe, expect, it } from 'vitest';
 
@@ -137,6 +142,29 @@ describe('content/levels/salon_crawler.json', () => {
     const parsed = parse(bare);
     expect(parsed).toMatchObject({ ok: true });
     expect(parsed.ok && parsed.value.feelOverrides).toEqual({});
+  });
+
+  describe('the camera of the level (story 9.2)', () => {
+    it('defaults to the fixed camera: the live salon does not write it', () => {
+      expect(real.camera).toBeUndefined();
+      const parsed = parse(real);
+      expect(parsed.ok && parsed.value.camera).toBe('fixed');
+    });
+
+    it.each([...LEVEL_CAMERA_MODES])('accepts %s', (mode) => {
+      const parsed = parse({ ...real, camera: mode });
+      expect(parsed.ok && parsed.value.camera).toBe(mode);
+    });
+
+    it('has exactly the fixed and the follow camera', () => {
+      expect(LEVEL_CAMERA_MODES).toEqual(['fixed', 'follow']);
+    });
+
+    it('refuses a third mode, at its path', () => {
+      expect(
+        problemsOf(parse({ ...real, camera: 'orbit' })).map(({ jsonPath }) => jsonPath),
+      ).toEqual(['camera']);
+    });
   });
 
   it('accepts the same def at several anchors', () => {

@@ -2,6 +2,16 @@ import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { SCREEN_FLASH_CLASSES } from '../../src/client/ui/hud/screenFlash.ts';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
+import {
+  advanceAndRead,
+  busyProps,
+  CAMERA_YAW_RAD,
+  freezeSalon,
+  startCall,
+  startDrinking,
+  wrapRad,
+  YAW_TOLERANCE_RAD,
+} from './support/busyPapa.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   collectProblems,
@@ -11,6 +21,7 @@ import {
   OVERRUN_MARGIN_MS,
   objectIconPoint,
   startLevel,
+  threatIconPoint,
   WALK_BOUND_MS,
   waitFrames,
 } from './support/game.ts';
@@ -44,6 +55,13 @@ const PERFECTS = 3;
 const COMPARED_RESPONSES = 5;
 /** Chunks of 10 steps the sim may take to let a Papa at full fatigue fall asleep (30 s of sim time). */
 const FATIGUE_CHUNKS_MAX = Math.ceil(30_000 / (10 * STEP_MS));
+/** The cry in the arms is due `armsCryMaxMs` after the pick-up at the latest. */
+const ARMS_CRY_CHUNKS_MAX = Math.ceil(
+  ((JSON.parse(readFileSync('content/feel.json', 'utf8')) as { carry: { armsCryMaxMs: number } })
+    .carry.armsCryMaxMs +
+    5000) /
+    (10 * STEP_MS),
+);
 
 const live = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
   fx: { perfectCamera: { zoomPct: number } };
@@ -248,6 +266,77 @@ test.describe('the CSS follows the saved setting, not the OS', () => {
 });
 
 // ---------------------------------------------------------------------------------------------
+// The activity bubble (story 2.12): a refused tap shakes it, or thickens its border under reduced motion.
+// ---------------------------------------------------------------------------------------------
+
+test.describe('the activity bubble and a refused tap (story 2.12)', () => {
+  const BODY = '.pp-activity-body';
+
+  /** Papa drinks, the outlet is up, and a real click on its marker is refused: what the bubble did at that step. */
+  async function refuseATap(page: Page, reducedMotion: boolean) {
+    await seedSettings(page, { reducedMotion });
+    await startLevel(page);
+    await ppFreeze(page, true);
+    await ppLoadLevel(page, LEVEL, SEED);
+    await ppSend(page, { type: 'TapObject', objectId: 'coffee_machine' });
+    for (let i = 0; i < Math.ceil(WALK_BOUND_MS / STEP_MS); i++) {
+      await ppAdvance(page, 1);
+      if ((await ppWorld(page)).papa.state === 'drink') break;
+    }
+    expect((await ppWorld(page)).papa.state).toBe('drink');
+    const outlet = (await ppWorld(page)).threats.find((threat) => threat.defId === 'outlet');
+    if (outlet === undefined) throw new Error('the level does not plan the outlet');
+    await ppSend(page, { type: 'ForceThreat', threatId: outlet.id });
+    await ppAdvance(page, 1);
+    await waitFrames(page, 3);
+    const point = await threatIconPoint(page);
+    await page.mouse.click(point.x, point.y);
+    // Read at the very step that refuses: the shake lasts 150 ms of real time.
+    return page.evaluate(() => {
+      window.__PP__?.advance(1);
+      const body = document.querySelector('.pp-activity-body');
+      return {
+        classes: [...(body?.classList ?? [])],
+        animations: body?.getAnimations().length ?? -1,
+        shadow: getComputedStyle(document.querySelector('.pp-activity-disc') as Element).boxShadow,
+      };
+    });
+  }
+
+  test('with the setting on: no animation runs on the bubble, its border is thicker, and the cue still plays', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const seen = await refuseATap(page, true);
+    expect(seen.classes).toContain('pp-activity-body--thick');
+    expect(seen.classes).not.toContain('pp-activity-body--refused');
+    expect(seen.animations).toBe(0);
+    expect(seen.shadow).not.toBe('none');
+    const cues = (await ppCueLog(page)).filter((record) => record.cueId === 'papa_busy_refused');
+    expect(cues).toHaveLength(1);
+    expect(cues[0]?.haptic).toBe('light');
+    // The ring is gameplay timing: it is there, and the bubble was never squashed in.
+    await expect(page.locator('.pp-activity-bubble')).toBeVisible();
+    expect(await page.locator(BODY).evaluate((body) => body.getAnimations().length)).toBe(0);
+    expect(problems).toEqual([]);
+  });
+
+  test('positive control: with the setting off, the same refused tap shakes the bubble and leaves its border alone', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const seen = await refuseATap(page, false);
+    expect(seen.classes).toContain('pp-activity-body--refused');
+    expect(seen.classes).not.toContain('pp-activity-body--thick');
+    expect(seen.animations).toBeGreaterThan(0);
+    expect(seen.shadow).toBe('none');
+    expect(problems).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
 // « Grands verbes »: 25 % larger, and never cut.
 // ---------------------------------------------------------------------------------------------
 
@@ -372,6 +461,11 @@ function largeVerbsWhole(): void {
     const targetOf = (defId: string): string =>
       (JSON.parse(readFileSync(`content/threats/${defId}.json`, 'utf8')) as { target: string })
         .target;
+    const microSleepDefId = (
+      JSON.parse(readFileSync(`content/levels/${LEVEL}.json`, 'utf8')) as {
+        gauges: { fatigue: { microSleepDef: string } };
+      }
+    ).gauges.fatigue.microSleepDef;
     const allDefIds = [
       ...new Set((await ppWorld(page)).threats.map((threat) => threat.defId)),
     ].filter((defId) => targetOf(defId) !== 'hiddenZone');
@@ -402,7 +496,29 @@ function largeVerbsWhole(): void {
       await ppLoadLevel(page, LEVEL, SEED);
       const threat = (await ppWorld(page)).threats.find((candidate) => candidate.defId === defId);
       if (threat === undefined) throw new Error(`the level does not plan ${defId}`);
-      if (targetOf(defId) === 'papa') {
+      // The other threats on Papa (the duel's eyes, the fake sleep, the bomb drop) are spawned by a sequence
+      // step: `ForceThreat` ignores them and fatigue does not draw them, so there is nothing of theirs to
+      // measure here (their own specs read their verbs). Before story 3.15 a verb of another threat that
+      // happened to be up at that instant satisfied the check; it is no longer left to chance.
+      if (targetOf(defId) === 'papa' && defId !== 'arms_cry' && defId !== microSleepDefId) continue;
+      if (defId === 'arms_cry') {
+        // The cry in the arms comes only while Papa carries the baby (story 4.1), after its own delay (the
+        // shock of an outlet gag, story 3.15, may hold Papa a moment: a tap is repeated until he carries).
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if ((await ppWorld(page)).baby.state === 'carried') break;
+          await ppSend(page, { type: 'TapBaby' });
+          for (let i = 0; i < Math.ceil(WALK_BOUND_MS / (10 * STEP_MS)); i++) {
+            if ((await ppWorld(page)).baby.state === 'carried') break;
+            await ppAdvance(page, 10);
+          }
+        }
+        expect((await ppWorld(page)).baby.state, 'the baby is carried').toBe('carried');
+        for (let chunk = 0; chunk < ARMS_CRY_CHUNKS_MAX; chunk++) {
+          const state = (await ppWorld(page)).threats.find((one) => one.id === threat.id)?.state;
+          if (state !== 'idle') break;
+          await ppAdvance(page, 10);
+        }
+      } else if (targetOf(defId) === 'papa') {
         // The micro-sleep comes from fatigue, not from `ForceThreat`: Papa at the top of the gauge.
         await ppSend(page, { type: 'SetFatigue', points: 100 });
         for (let chunk = 0; chunk < FATIGUE_CHUNKS_MAX; chunk++) {
@@ -451,3 +567,68 @@ function largeVerbsWhole(): void {
     expect(problems).toEqual([]);
   });
 }
+
+// Papa's busy poses (story 2.13): a pose carries a state, so « Réduire les animations » keeps the clip, the
+// props and the facing and freezes only what decorates them: the steam and the bla-bla.
+test.describe('Papa busy under « Réduire les animations » (story 2.13)', () => {
+  /** What the view shows of him while he drinks, after the turn is done and the sim moved on a little. */
+  async function drinkingView(page: Page, reducedMotion: boolean) {
+    await seedSettings(page, { reducedMotion });
+    await freezeSalon(page);
+    await startDrinking(page);
+    if (reducedMotion) await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
+    else await expect(html(page)).not.toHaveAttribute('data-pp-motion', /./);
+    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    const eighthSteps = Math.max(1, Math.round(busyProps.steamPeriodMs / 8 / STEP_MS));
+    const second = await advanceAndRead(page, eighthSteps);
+    const third = await advanceAndRead(page, eighthSteps);
+    return { first, second, third };
+  }
+
+  test('the pose stays, he still turns for the camera, and the steam holds still', async ({
+    page,
+  }) => {
+    const { first, second, third } = await drinkingView(page, true);
+    expect(first.papaClip).toBe('drink');
+    // The clip runs: his mixer moves with the sim.
+    expect(second.papaMixerMs).toBeGreaterThan(first.papaMixerMs);
+    expect(third.papaMixerMs).toBeGreaterThan(second.papaMixerMs);
+    // He still faces the camera: the facing is the pose's.
+    expect(Math.abs(wrapRad(first.papaBodyYawRad - CAMERA_YAW_RAD))).toBeLessThan(
+      YAW_TOLERANCE_RAD,
+    );
+    // The steam is exactly where it rests, however long the clock runs.
+    expect(first.papaSteamSwayDeg).toBe(0);
+    expect(second.papaSteamSwayDeg).toBe(0);
+    expect(third.papaSteamSwayDeg).toBe(0);
+  });
+
+  test('positive control: with the setting off, the same steps move the steam', async ({
+    page,
+  }) => {
+    const { first, second, third } = await drinkingView(page, false);
+    expect(first.papaClip).toBe('drink');
+    expect(Math.abs(wrapRad(first.papaBodyYawRad - CAMERA_YAW_RAD))).toBeLessThan(
+      YAW_TOLERANCE_RAD,
+    );
+    const angles = new Set([first, second, third].map((fx) => fx.papaSteamSwayDeg));
+    expect(angles.size).toBeGreaterThan(1);
+  });
+
+  test('on the phone, the bubble is shown and holds still, and he still turns his back to the baby', async ({
+    page,
+  }) => {
+    await seedSettings(page, { reducedMotion: true });
+    await freezeSalon(page);
+    await startCall(page);
+    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    const eighthSteps = Math.max(1, Math.round(busyProps.blablaPeriodMs / 8 / STEP_MS));
+    const second = await advanceAndRead(page, eighthSteps);
+    expect(first.papaClip).toBe('on_phone');
+    expect(first.papaBlablaTiltDeg).toBe(0);
+    expect(second.papaBlablaTiltDeg).toBe(0);
+    const world = await ppWorld(page);
+    const away = Math.atan2(world.papa.xM - world.baby.xM, world.papa.zM - world.baby.zM);
+    expect(Math.abs(wrapRad(second.papaBodyYawRad - away))).toBeLessThan(YAW_TOLERANCE_RAD);
+  });
+});

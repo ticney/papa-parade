@@ -1,8 +1,10 @@
 import './zodConfig.ts';
+import { invariant } from '@shared/invariant';
 import { err, ok, type Result } from '@shared/result';
 import type { LevelContent } from './contentBundle.ts';
 import { type ContentError, type ContentProblem, createContentError } from './contentError.ts';
 import {
+  CHORE_DEF_PATTERN,
   DISRUPTION_DEF_PATTERN,
   LEVEL_PATTERN,
   SEQUENCE_DEF_PATTERN,
@@ -11,6 +13,7 @@ import {
 import type { ContentSource } from './contentSource.ts';
 import { formatJsonPath } from './jsonPath.ts';
 import { parseContentFile } from './parseContentFile.ts';
+import type { ChoreDef } from './schemas/chore.ts';
 import type { DisruptionDef } from './schemas/disruption.ts';
 import type { SequenceDef } from './schemas/sequence.ts';
 import type { ThreatDef } from './schemas/threat.ts';
@@ -146,6 +149,34 @@ export async function loadLevelContent(
     disruptions[defId] = def.value;
   }
 
+  // The chores of the level's stations (story 9.4), index-aligned with `level.chores`.
+  const choreDefs: Record<string, ChoreDef> = {};
+  const failedChores = new Set<string>();
+  for (const [i, entry] of (level.chores ?? []).entries()) {
+    const defId = entry.def;
+    if (Object.hasOwn(choreDefs, defId) || failedChores.has(defId)) continue;
+    const defFile = `${CHORE_DEF_PATTERN.dir}/${defId}${CHORE_DEF_PATTERN.suffix}`;
+    const defDisplay = `content/${defFile}`;
+    const defText = await readText(source, defFile);
+    if (!defText.ok) {
+      failedChores.add(defId);
+      problems.push({
+        file: levelDisplay,
+        jsonPath: formatJsonPath(['chores', i, 'def']),
+        message: `cannot load the chore "${defId}": ${defText.error[0]?.message ?? 'unreadable'}`,
+      });
+      continue;
+    }
+    const def = parseContentFile(defDisplay, defText.value, CHORE_DEF_PATTERN.schema);
+    if (!def.ok) {
+      failedChores.add(defId);
+      problems.push(...def.error);
+      continue;
+    }
+    problems.push(...checkId(defDisplay, def.value.id, defId));
+    choreDefs[defId] = def.value;
+  }
+
   const sequences: Record<string, SequenceDef> = {};
   const failedSequences = new Set<string>();
   for (const [i, sequenceId] of level.sequences.entries()) {
@@ -199,6 +230,32 @@ export async function loadLevelContent(
     }
   }
 
+  // A chore may name the threat it turns into when abandoned (story 9.5): loaded last, after every
+  // other def, so that no existing threat of the level moves; a missing file is reported at the chore.
+  for (const [choreId, choreDef] of Object.entries(choreDefs)) {
+    if (choreDef.abandonedThreat === undefined) continue;
+    await loadThreat(
+      choreDef.abandonedThreat.def,
+      `content/${CHORE_DEF_PATTERN.dir}/${choreId}${CHORE_DEF_PATTERN.suffix}`,
+      formatJsonPath(['abandonedThreat', 'def']),
+    );
+  }
+
   if (problems.length > 0) return err(createContentError(problems));
-  return ok({ level, threats, disruptions, sequences });
+  const chores =
+    level.chores === undefined
+      ? undefined
+      : level.chores.map((entry) => {
+          // Index-aligned with `level.chores`: a missing def was a problem above, never dropped here.
+          const def = choreDefs[entry.def];
+          invariant(def !== undefined, `level ${level.id}: the chore ${entry.def} is not loaded`);
+          return def;
+        });
+  return ok({
+    level,
+    threats,
+    disruptions,
+    sequences,
+    ...(chores === undefined ? {} : { chores }),
+  });
 }

@@ -46,10 +46,11 @@ export interface ResultKeyTarget {
   removeEventListener(type: 'blur', listener: () => void): void;
 }
 
-/** The maxima of the four rows, from `feel.mama`: never written in code. */
+/** The maxima of the five rows, from `feel.mama`: never written in code. */
 export interface ResultMaxima {
   laughMaxPoints: number;
-  babyStateMaxPoints: number;
+  calmMaxPoints: number;
+  homeMaxPoints: number;
   sighMaxPoints: number;
   screamMaxPoints: number;
 }
@@ -57,7 +58,7 @@ export interface ResultMaxima {
 export interface ResultScreenOptions {
   t: Translator;
   score: MamaScore;
-  /** Why the level ended: `mamaWoke` adds the header « Maman s'est réveillée ! » (story 3.2), `cycleDone` « Il dort enfin ! » (story 4.10). */
+  /** Why the level ended: `mamaWoke` adds the header « Maman s'est réveillée ! » (story 3.2), `mamaHome` « Maman est rentrée plus tôt ! » (story 3.16), `cycleDone` « Il dort enfin ! » (story 4.10). */
   endReason: LevelEndReason;
   maxima: ResultMaxima;
   timings: ResultScreenTimings;
@@ -78,6 +79,8 @@ export interface ResultScreenOptions {
   onStar(isLast: boolean): void;
   /** The header of a woken Mama comes up, once, when the rows start (never on a rebuild or a skip). */
   onMamaWoke(): void;
+  /** The header of a Mama come home early comes up, once, when the rows start (never on a rebuild or a skip): the door slams (story 3.16). */
+  onMamaHome(): void;
   /** A lost star is stamped (after the earned ones). Never called for a skipped or done one. */
   onStarLost(): void;
   /** The phase changed (also once at build). `actions` means the sequence is done. */
@@ -107,10 +110,16 @@ const CHIP_ICONS: Readonly<Record<RowKind, readonly [string, Record<string, stri
     ['circle', { cx: '11', cy: '6', r: '1.4' }],
     ['path', { d: 'M4 9.5q4 4.5 8 0z' }],
   ],
-  baby: [
-    ['circle', { cx: '5.5', cy: '7', r: '1.4' }],
-    ['circle', { cx: '10.5', cy: '7', r: '1.4' }],
-    ['path', { d: 'M6 10.5q2 1.5 4 0', class: 'pp-score-chip-line' }],
+  // Calme du bébé: a sleeping face, two closed-eye arcs and a small smile.
+  calm: [
+    ['path', { d: 'M3.5 7q1.5 -2 3 0M9.5 7q1.5 -2 3 0', class: 'pp-score-chip-line' }],
+    ['path', { d: 'M6 11q2 1.5 4 0', class: 'pp-score-chip-line' }],
+  ],
+  // Maison: a little house, a roof over a door.
+  home: [
+    ['path', { d: 'M2.5 8L8 3l5.5 5z' }],
+    ['path', { d: 'M4.5 8v5h7V8z', class: 'pp-score-chip-line' }],
+    ['path', { d: 'M7 13v-3h2v3', class: 'pp-score-chip-line' }],
   ],
   sigh: [
     ['path', { d: 'M3.5 6.5h3M9.5 6.5h3', class: 'pp-score-chip-line' }],
@@ -123,7 +132,12 @@ const CHIP_ICONS: Readonly<Record<RowKind, readonly [string, Record<string, stri
   ],
 };
 
-type RowKind = 'laugh' | 'baby' | 'sigh' | 'scream';
+type RowKind = 'laugh' | 'calm' | 'home' | 'sigh' | 'scream';
+
+/** Points as the screen writes them: whole, or with a half and a decimal comma (`7,5`: a chore is worth half points, story 9.4). */
+function formatPoints(points: number): string {
+  return String(points).replace('.', ',');
+}
 
 interface Row {
   kind: RowKind;
@@ -135,7 +149,7 @@ interface Row {
 /**
  * The Result screen (story 1.22, UX-DR13): the end photo drops in as a polaroid left of the panel
  * and holds alone (`photoHoldMs`, story 3.6; the panel is transparent meanwhile, and a level that took
- * no photo skips this), then Mama's four rows count up one after the other, the total
+ * no photo skips this), then Mama's five rows count up one after the other, the total
  * follows them, the earned stars stamp one by one, then the stars a woken Mama took off (dashed,
  * with a « −1 », story 3.2), then « Rejouer » comes up and takes focus. A woken Mama also puts a
  * header over the card, with its own cue, when the rows start (nothing sits between the photo and
@@ -156,10 +170,16 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
       maxPoints: maxima.laughMaxPoints,
     },
     {
-      kind: 'baby',
-      labelKey: 'result.score_baby_state',
-      totalPoints: score.babyStatePoints,
-      maxPoints: maxima.babyStateMaxPoints,
+      kind: 'calm',
+      labelKey: 'result.score_calm',
+      totalPoints: score.calmPoints,
+      maxPoints: maxima.calmMaxPoints,
+    },
+    {
+      kind: 'home',
+      labelKey: 'result.score_home',
+      totalPoints: score.homePoints,
+      maxPoints: maxima.homeMaxPoints,
     },
     {
       kind: 'sigh',
@@ -195,8 +215,8 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const panel = make(
     'section',
     `pp-panel pp-result-panel${options.endReason === 'mamaWoke' ? ' pp-result-panel-woken' : ''}${
-      options.endReason === 'cycleDone' ? ' pp-result-panel-cycle-done' : ''
-    }`,
+      options.endReason === 'mamaHome' ? ' pp-result-panel-home' : ''
+    }${options.endReason === 'cycleDone' ? ' pp-result-panel-cycle-done' : ''}`,
   );
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'true');
@@ -218,12 +238,16 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   }
 
   const isMamaWoke = options.endReason === 'mamaWoke';
+  const isMamaHome = options.endReason === 'mamaHome';
   // The slam is one run of an animation: a rebuilt, finished screen shows the header at rest. The end
   // of the bedtime cycle (story 4.10) shows its header in the same place, with no slam and no event.
   // With a photo the header waits for the rows (`mountHeader`, story 3.6); without one it is there at once.
   let header: HTMLElement | null = null;
   if (isMamaWoke) {
     header = make('h2', 'pp-result-reason pp-type-heading', t('result.mama_woke'));
+  } else if (isMamaHome) {
+    // The same place and style as « Maman s'est réveillée ! » (UX early-end banner): Domestic, no red, no stamp.
+    header = make('h2', 'pp-result-reason pp-type-heading', t('result.mama_home'));
   } else if (options.endReason === 'cycleDone') {
     header = make(
       'h2',
@@ -236,7 +260,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const mountHeader = (isSlammed: boolean): void => {
     if (header === null || isHeaderMounted) return;
     isHeaderMounted = true;
-    if (isSlammed && isMamaWoke) header.classList.add('pp-result-reason-slam');
+    if (isSlammed && (isMamaWoke || isMamaHome)) header.classList.add('pp-result-reason-slam');
     panel.prepend(header);
   };
   /** The panel is transparent while the photo stands alone; this lets it show (its pop-in plays then). */
@@ -407,8 +431,8 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const showRow = (index: number, points: number): void => {
     if (shown[index] === points) return;
     shown[index] = points;
-    (values[index] as HTMLElement).textContent = String(points);
-    totalValue.textContent = String(shown.reduce((sum, value) => sum + value, 0));
+    (values[index] as HTMLElement).textContent = formatPoints(points);
+    totalValue.textContent = formatPoints(shown.reduce((sum, value) => sum + value, 0));
   };
   const showTotals = (): void => {
     for (let index = 0; index < rows.length; index++) {
@@ -470,7 +494,9 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     const startedAtReal = options.now();
     const tick = (): void => {
       const share = Math.min(1, (options.now() - startedAtReal) / timings.rowCountUpMs);
-      showRow(index, Math.round(totalPoints * share));
+      // The Maison row counts in halves, as it can end on one (7,5); the others never do.
+      const perPoint = (rows[index] as Row).kind === 'home' ? 2 : 1;
+      showRow(index, Math.round(totalPoints * share * perPoint) / perPoint);
       if (share < 1) later(tick, COUNT_UP_FRAME_MS);
     };
     tick();
@@ -542,6 +568,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     mountHeader(true);
     enter('rows');
     if (isMamaWoke) options.onMamaWoke();
+    if (isMamaHome) options.onMamaHome();
     for (let index = 0; index < rows.length; index++) {
       later(() => countUp(index), index * timings.rowStaggerMs);
     }

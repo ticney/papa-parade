@@ -1,0 +1,35 @@
+{
+  "version": 3,
+  "seed": 54,
+  "feelHash": "091c2088e4a213",
+  "geometryHash": "1fad21f04c6015",
+  "levelHash": "14e5828458144b",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 100,
+      "command": {
+        "t": 100,
+        "threatId": 1,
+        "type": "ForceThreat"
+      }
+    },
+    {
+      "applyAt": 4500,
+      "command": {
+        "t": 4500,
+        "type": "TapFloor",
+        "xM": 1.64,
+        "zM": -0.96
+      }
+    },
+    {
+      "applyAt": 6500,
+      "command": {
+        "objectId": "mug_01",
+        "t": 6500,
+        "type": "TapObject"
+      }
+    }
+  ]
+}

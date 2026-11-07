@@ -1,0 +1,62 @@
+{
+  "$schema": "../_schemas/level.schema.json",
+  "id": "salon_kitchen",
+  "variant": "nap",
+  "durationMs": 180000,
+  "waves": [
+    {
+      "fromMs": 0,
+      "maxSimultaneous": 1,
+      "gapMinMs": 4000,
+      "gapMaxMs": 7000,
+      "lullMs": 3000,
+      "threats": [
+        { "def": "outlet", "anchor": "outlet_01" },
+        { "def": "stairs", "anchor": "stairs_top" },
+        { "def": "dishwasher_open", "anchor": "dishwasher" },
+        { "def": "tablecloth_pull", "anchor": "dining_table" },
+        { "def": "low_cabinet_open", "anchor": "low_cabinet" },
+        { "def": "plant_dig", "anchor": "plant" }
+      ]
+    },
+    {
+      "fromMs": 60000,
+      "maxSimultaneous": 2,
+      "gapMinMs": 1000,
+      "gapMaxMs": 3000,
+      "lullMs": 3000,
+      "threats": [
+        { "def": "coffee_table_object", "anchor": "coffee_table" },
+        { "def": "silence_mischief", "anchor": "behind_sofa" },
+        { "def": "bin_rummage", "anchor": "bin" },
+        { "def": "papa_mug_low", "anchor": "papa_mug" }
+      ]
+    },
+    {
+      "fromMs": 120000,
+      "maxSimultaneous": 3,
+      "gapMinMs": 500,
+      "gapMaxMs": 2000,
+      "lullMs": 3000,
+      "threats": [],
+      "disruptions": [{ "def": "phone", "object": "phone", "atMs": 125000 }]
+    }
+  ],
+  "objects": [
+    { "id": "coffee_machine", "kind": "coffee_machine", "anchor": "coffee_machine" },
+    { "id": "phone", "kind": "phone", "anchor": "phone" },
+    { "id": "toilet", "kind": "toilet", "anchor": "toilet" },
+    { "id": "stove", "kind": "stove", "anchor": "stove" },
+    { "id": "dishwasher", "kind": "dishwasher", "anchor": "dishwasher" }
+  ],
+  "chores": [
+    { "def": "cooking", "object": "stove" },
+    { "def": "unload_dishwasher", "object": "dishwasher" }
+  ],
+  "gauges": { "noise": {}, "fatigue": { "microSleepDef": "papa_microsleep" }, "need": {} },
+  "carry": { "armsCryDef": "arms_cry" },
+  "sequences": ["stay_awake", "lullaby_walk", "bedtime_duel", "bomb_drop", "stealth_exit"],
+  "finalRush": { "spillAnchor": "coffee_table" },
+  "camera": "follow",
+  "feelOverrides": { "movement": { "glideMaxMs": 900 } }
+}

@@ -3,6 +3,7 @@ import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
   createTestContent,
+  createTestFakeSleep,
   createTestGeometry,
   createTestLevel,
   createTestMicroSleep,
@@ -120,6 +121,31 @@ describe('threat FSM', () => {
     ]);
   });
 
+  it('telegraphThreat postpones the window by postponeMs, the telegraph itself staying where it is (story 3.13)', async () => {
+    const { world, ctx, events, threat } = await setup();
+    telegraphThreat(world, ctx, threat, def, 0, 300);
+    expect(threat).toMatchObject({
+      state: 'telegraph',
+      enteredAt: 500,
+      windowOpenAt: 500 + 1200 + 300,
+    });
+    expect(events).toEqual([expect.objectContaining({ type: 'ThreatTelegraphed', t: 500 })]);
+    expect(events).toHaveLength(1);
+  });
+
+  it('telegraphThreat moves the feint by the same postponement and draws the same numbers', async () => {
+    const fakeSleep = createTestFakeSleep();
+    if (fakeSleep.feint === undefined) throw new Error('the frozen fake sleep has a feint');
+    const plain = await setup();
+    const postponed = await setup();
+    telegraphThreat(plain.world, plain.ctx, plain.threat, fakeSleep, 0);
+    telegraphThreat(postponed.world, postponed.ctx, postponed.threat, fakeSleep, 0, 300);
+    expect(postponed.threat.feintAt).toBe((plain.threat.feintAt as number) + 300);
+    expect(postponed.threat.windowOpenAt).toBe(plain.threat.windowOpenAt + 300);
+    // The signal and the feint draw one number each, whatever the postponement.
+    expect(postponed.world.rng).toEqual(plain.world.rng);
+  });
+
   it('openWindow emits WindowOpened', async () => {
     const { world, ctx, events, threat } = await setup();
     openWindow(world, ctx, threat, def);
@@ -211,6 +237,18 @@ describe('threat FSM', () => {
     expect(world.score.nearMisses).toBe(0);
   });
 
+  it('counts a success for Mama’s laughs beside the perfects, and not a perfect or a fail (story 3.12)', async () => {
+    const { world, ctx, threat } = await setup();
+    resolveThreat(world, ctx, threat, def, 'perfect', 0);
+    gagThreat(world, ctx, threat, def, 'late', null);
+    expect(world.score.successes).toBe(0);
+    resolveThreat(world, ctx, threat, def, 'success', 30);
+    resolveThreat(world, ctx, threat, def, 'success', 40);
+    resolveThreat(world, ctx, threat, createTestMicroSleep(), 'success', 50);
+    expect(world.score.successes).toBe(3);
+    expect(world.score.perfects).toBe(1);
+  });
+
   it('counts the micro-sleep’s perfect too: a perfect is a perfect (story 1.22, open point 2)', async () => {
     const { world, ctx, threat } = await setup();
     resolveThreat(world, ctx, threat, createTestMicroSleep(), 'perfect', 0);
@@ -223,7 +261,14 @@ describe('threat FSM', () => {
     expect(freezes).toEqual([]);
     expect(world.time.slowMos).toEqual([]);
     expect(threat.state).toBe('gag');
-    expect(events.map((event) => event.type)).toEqual(['ResponseResolved', 'GagTriggered']);
+    // The outlet's séquelle follows the gag (story 3.15): Papa is electrified and the room goes dim.
+    expect(events.map((event) => event.type)).toEqual([
+      'ResponseResolved',
+      'GagTriggered',
+      'PapaStateChanged',
+      'AfterEffectStarted',
+      'AfterEffectStarted',
+    ]);
     expect(events[1]).toEqual({
       type: 'GagTriggered',
       t: 500,
@@ -257,8 +302,10 @@ describe('threat FSM', () => {
       'ResponseResolved',
       'GagTriggered',
       'NearMiss',
+      'BabyStateChanged',
+      'AfterEffectStarted',
     ]);
-    expect(events.map((event) => event.t)).toEqual([700, 700, 700]);
+    expect(events.map((event) => event.t)).toEqual([700, 700, 700, 700, 700]);
     expect(events[2]).toEqual({ type: 'NearMiss', t: 700, threatId: 1, gag: 'stairs_slide' });
   });
 
@@ -295,6 +342,13 @@ describe('gags', () => {
       'papa_asleep',
       'tissues_everywhere',
       'crayon_scribbles',
+      'pot_boiled_over',
+      'baby_in_dishwasher',
+      'dishes_on_floor',
+      'pan_concert',
+      'peelings_everywhere',
+      'soil_on_rug',
+      'coffee_spilled',
       'arms_wail',
       'baby_eyes_reopened',
       'baby_sat_up',

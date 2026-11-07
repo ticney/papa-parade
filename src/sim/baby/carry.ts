@@ -60,6 +60,23 @@ function drawArmsCryAt(world: World, ctx: StepContext) {
 }
 
 /**
+ * The baby leaves the bottom of the stairs by another way than the self-return or Papa's fetch (a
+ * sequence takes or places him, the level ends): his wait is over, `downstairsUntil` back to null and
+ * `AfterEffectEnded{babyDownstairs}`. Does nothing if he is not `downstairs`. The caller moves him.
+ */
+export function endDownstairsWait(world: World, ctx: StepContext): void {
+  const { baby } = world;
+  if (baby.state !== 'downstairs') return;
+  baby.downstairsUntil = null;
+  ctx.events.push({
+    type: 'AfterEffectEnded',
+    t: world.time.sim,
+    kind: 'babyDownstairs',
+    propId: null,
+  });
+}
+
+/**
  * Papa takes the baby in his arms, at the step of the command: he stops, the baby stops crawling,
  * drops his target and is set at Papa's point looking where Papa looks (`BabyStateChanged`, then
  * `BabyPickedUp`). Every threat of the baby that is announced or open, an anchored one or a found
@@ -75,12 +92,17 @@ export function takeBaby(world: World, ctx: StepContext): void {
   baby.zM = papa.zM;
   baby.gazeX = papa.headingX;
   baby.gazeZ = papa.headingZ;
+  // A sequence that carries the baby takes him wherever he is, the bottom of the stairs included
+  // (story 3.15): his wait is over.
+  endDownstairsWait(world, ctx);
   enterBabyState(world, ctx, 'carried');
   ctx.events.push({ type: 'BabyPickedUp', t: world.time.sim });
   for (let i = 0; i < world.threats.length; i++) {
     const threat = world.threats[i] as ThreatInstance;
     if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') continue;
-    if (ctx.level.threats[i]?.def.target === 'papa') continue;
+    // The cry in the arms is Papa's; the pot on the stove (story 9.5) is no business of the baby's arms.
+    const target = ctx.level.threats[i]?.def.target;
+    if (target === 'papa' || target === 'station') continue;
     cancelThreat(world, ctx, threat, 'carried');
   }
   if (ctx.level.armsCryIndex >= 0) world.carry.armsCryAt = drawArmsCryAt(world, ctx);

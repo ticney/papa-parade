@@ -5,7 +5,7 @@ import { createRng } from '@shared/rng';
 import { asSimMs } from '@shared/time';
 import { createSim, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
-import { botSetup, makeBot, playBotGame, responses } from '../support/botSupport.ts';
+import { botSetup, legacyHuman, makeBot, playBotGame, responses } from '../support/botSupport.ts';
 import {
   CARRY,
   createTestContent,
@@ -36,7 +36,7 @@ async function playDuel(
   });
   sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: 'bedtime_duel' });
   const events: SimEvent[] = [];
-  const settings = { human: { ...NO_JITTER, ...human } };
+  const settings = { human: legacyHuman({ ...NO_JITTER, ...human }) };
   playGame(sim, makeBot(id, botSetup(seed, settings, level)), untilSimMs, (event) =>
     events.push({ ...event }),
   );
@@ -131,7 +131,7 @@ describe('the bots and the feint of a fake sleep (story 4.7)', () => {
     });
     sim.enqueue({ type: 'StartSequence', t: asSimMs(0), sequenceId: def.id });
     const events: SimEvent[] = [];
-    const settings = { human: { ...NO_JITTER, ...human } };
+    const settings = { human: legacyHuman({ ...NO_JITTER, ...human }) };
     playGame(sim, makeBot(id, botSetup(seed, settings, level)), untilSimMs, (event) =>
       events.push({ ...event }),
     );
@@ -212,7 +212,7 @@ describe('the human bot and a parry: its draws are unchanged (story 4.6)', () =>
       const human = { reactionMs: 250, aimOffsetMs: 10, jitterSdMs: 60 };
       const { sim, events } = await playBotGame('human', seed, {
         untilSimMs: 30_000,
-        settings: { human },
+        settings: { human: legacyHuman(human) },
       });
       const presses = sim.journal().entries.filter((entry) => entry.command.type === 'PressThreat');
       const telegraphs = events.filter((event) => event.type === 'ThreatTelegraphed');

@@ -33,6 +33,9 @@
     "walkSpeedMps": 3,
     "papaRadiusM": 0.25
   },
+  "director": {
+    "fairnessMarginMs": 300
+  },
   "baby": {
     "crawlSpeedMps": 0.6,
     "bodyRadiusM": 0.2,
@@ -55,8 +58,7 @@
     "microSleepMinMs": 8000,
     "microSleepMaxMs": 12000,
     "coffeeReductionPoints": 40,
-    "coffeeDurationMs": 3000,
-    "asleepMs": 3000
+    "coffeeDurationMs": 3000
   },
   "carry": {
     "reachM": 1.2,
@@ -102,10 +104,20 @@
       "sniff": {
         "noisePct": 3
       },
+      "debrisStep": {
+        "noisePct": 3
+      },
       "snore": {
         "noisePct": 15
       }
     }
+  },
+  "catastrophe": {
+    "risePct": { "nearMiss": 35, "mess": 20, "microSleep": 15, "choreBeat": 10 },
+    "decayPerSec": 0.4,
+    "perfectDropPct": 2,
+    "alertPct": 70,
+    "faceStepsPct": [25, 50]
   },
   "bladder": {
     "startPct": 0,
@@ -142,31 +154,36 @@
   "difficulty": {
     "assistance": {
       "windowMultiplier": 1.5,
-      "hasInstinct": true
+      "hasInstinct": true,
+      "catastropheMultiplier": 0.5
     },
     "normal": {
       "windowMultiplier": 1,
-      "hasInstinct": true
+      "hasInstinct": true,
+      "catastropheMultiplier": 1
     },
     "experienced": {
       "windowMultiplier": 0.75,
-      "hasInstinct": false
+      "hasInstinct": false,
+      "catastropheMultiplier": 1.25
     }
   },
   "mama": {
-    "laughMaxPoints": 40,
-    "babyStateMaxPoints": 30,
-    "babyStateFixedPoints": 20,
+    "laughMaxPoints": 35,
+    "laughPerPerfectPoints": 1,
+    "laughPerSuccessPoints": 0.5,
+    "calmMaxPoints": 20,
+    "calmNoiseThresholdPct": 50,
+    "homeMaxPoints": 15,
     "baseScorePoints": 30,
     "sighMaxPoints": 15,
     "screamMaxPoints": 15,
     "starThresholdPoints": [20, 40, 60, 75, 90],
     "earlyWakePenaltyStars": 1,
-    "laughPerPerfectPoints": 1,
-    "sighPerPropOnFloorPoints": 5,
-    "sighPerBrokenPropPoints": 8,
-    "sighPerMischiefPoints": 3,
-    "screamPerNearMissPoints": 3
+    "sighPerPropOnFloorPoints": 2.5,
+    "sighPerBrokenPropPoints": 4,
+    "sighPerMischiefPoints": 1.5,
+    "screamPerNearMissPoints": 1.5
   },
   "physics": {
     "gravityMps2": 9.81,
@@ -212,7 +229,8 @@
     "tableObjectFall": {
       "pushImpulseNs": 0.72,
       "propReachDistM": 0.5
-    }
+    },
+    "debrisStepRadiusM": 0.25
   },
   "fx": {
     "shakeFrequencyHz": 14,
@@ -256,6 +274,10 @@
         "sizeM": 0.12
       }
     },
+    "dim": {
+      "lightsPct": 40,
+      "fadeMs": 400
+    },
     "photoCamera": { "yawDeg": 38, "pitchDeg": 30, "zoomPct": 0 },
     "perfectCamera": {
       "zoomPct": 18,
@@ -264,6 +286,16 @@
       "zoomInMs": 150,
       "refocusMs": 200
     }
+  },
+  "camera": {
+    "frameWidthM": 9.1,
+    "frameDepthM": 6.2,
+    "deadZoneWidthPct": 30,
+    "deadZoneHeightPct": 30,
+    "edgeMarginPct": 15,
+    "catchUpMs": 400,
+    "dampingRatio": 0.8,
+    "reducedCatchUpMs": 800
   },
   "music": {
     "tense": { "fadeInMs": 600, "fadeOutMs": 1500, "calmGainPct": 60 },

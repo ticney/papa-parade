@@ -9,6 +9,28 @@ import { z } from 'zod';
 /** A threshold in whole percent: the report compares integers (`hits * 100 >= minPct * count`). */
 const minPct = (description: string) => z.int().min(0).max(100).describe(description);
 
+/**
+ * The indicator « Le joueur simulé humain joue comme un humain » (GDD v2.3, story 3.14): `npm run sim --
+ * --compare <dir>` judges the `human` bot against the testers' journals with these two numbers.
+ */
+const HumanBotThresholdsSchema = z
+  .strictObject({
+    maxStarGap: z
+      .number()
+      .positive()
+      .describe(
+        "The bot's mean stars must stay within this many stars of the testers' median (strictly under).",
+      ),
+    maxPerfectExcessPct: z
+      .number()
+      .min(0)
+      .max(100)
+      .describe(
+        "How many points of perfect rate (in %) the bot may have above the testers' median rate.",
+      ),
+  })
+  .describe('The thresholds of the human-bot comparison (`npm run sim -- --compare`).');
+
 export const PlaytestSchema = z.strictObject({
   panelMinTesters: z
     .int()
@@ -32,6 +54,11 @@ export const PlaytestSchema = z.strictObject({
   laughedMinPct: minPct(
     'Indicator 5: share of testers (in %) who laugh at least once during a level.',
   ),
+  humanBot: HumanBotThresholdsSchema,
 });
 
-export type PlaytestThresholds = z.infer<typeof PlaytestSchema>;
+/** The whole file. */
+export type PlaytestFile = z.infer<typeof PlaytestSchema>;
+
+/** What `playtest:metrics` judges the testers by: the file without the human-bot block, which it does not read. */
+export type PlaytestThresholds = Omit<PlaytestFile, 'humanBot'>;

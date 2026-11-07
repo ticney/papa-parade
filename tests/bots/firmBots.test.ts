@@ -6,6 +6,7 @@ import {
   botSetup,
   FIRM_HOLD_UNTIL_MS,
   firmBotLevel,
+  legacyHuman,
   playBotGame,
   responses,
 } from '../support/botSupport.ts';
@@ -64,7 +65,7 @@ describe('perfect bot on a Firmness', () => {
 
 describe('human bot on a Firmness', () => {
   it('with no jitter it is the perfect bot', async () => {
-    const settings = { human: { reactionMs: 0, aimOffsetMs: 0, jitterSdMs: 0 } };
+    const settings = { human: legacyHuman({ reactionMs: 0, aimOffsetMs: 0, jitterSdMs: 0 }) };
     const { events } = await playBotGame('human', 1, { level: firmBotLevel(), settings });
     const answered = responses(events);
     expect(answered.length).toBeGreaterThanOrEqual(1);
@@ -155,7 +156,7 @@ describe('the one finger of a bot holding a Firmness', () => {
   it.each(['perfect', 'human'] as const)(
     'a Parry tap planned before the Firmness does not end it (%s, Parry listed first)',
     async (botId) => {
-      const settings = { human: { reactionMs: 0, aimOffsetMs: 0, jitterSdMs: 0 } };
+      const settings = { human: legacyHuman({ reactionMs: 0, aimOffsetMs: 0, jitterSdMs: 0 }) };
       const { events } = await playBotGame(botId, 1, {
         level: twoThreatsLevel([STAIRS, OUTLET]),
         settings,

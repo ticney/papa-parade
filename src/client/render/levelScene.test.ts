@@ -1,4 +1,4 @@
-import { STEP_MS } from '@shared/constants';
+import { ISO_YAW_DEG, STEP_MS } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type RealMs } from '@shared/time';
 import { createSim, type SimEvent, type World } from '@sim';
@@ -25,13 +25,13 @@ import {
 } from '../../../tests/support/testContent.ts';
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
 import {
+  GAG_DOWNSTAIRS_DROP_M,
   GAG_LIGHTS_DARK_MS,
   GAG_LIGHTS_FADE_MS,
   GAG_LIGHTS_MIN_PCT,
-  GAG_SLIDE_HOLD_MS,
+  GAG_SLIDE_BACK_MS,
   GAG_SLIDE_M,
   GAG_SLIDE_OUT_MS,
-  GAG_SLIDE_TOTAL_MS,
 } from './gags.ts';
 import { createLevelScene, eyelidsAmountAt, roomOf, type SceneBodies } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
@@ -42,15 +42,19 @@ const BODIES = {
   microSleepDefId: null,
   layDownDefIds: [] as string[],
   anchorThreatDefIds: [] as string[],
+  choreStations: [] as { xM: number; zM: number; missBrokenObjects: number }[],
   laidHeightM: 0.3,
   characters: {
-    crossFadeMs: 100,
-    turnRateDegPerSec: 720,
+    ...createTestFeedback().characters,
+    papaClipFacing: [
+      { clip: 'drink', facing: 'camera' },
+      { clip: 'coffee_kick', facing: 'camera' },
+      { clip: 'on_phone', facing: 'awayFromBaby' },
+    ],
     squash: [
       { event: 'PapaBlocked', character: 'papa', amountPct: -20, durationMs: 200 },
       { event: 'BabyWoke', character: 'baby', amountPct: 20, durationMs: 200 },
     ],
-    clipSpeeds: [],
   } as SceneBodies['characters'],
   door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
   render: createTestFeedback().render,
@@ -520,8 +524,14 @@ describe('createLevelScene', () => {
       papaClip: 'idle',
       babyClip: 'babble',
       papaMixerMs: 0,
+      papaBodyYawRad: 0,
+      papaSteamSwayDeg: 0,
+      papaBlablaTiltDeg: 0,
       doorOpenDeg: 0,
       dangerTintsShown: 0,
+      lightsFactor: 1,
+      mischiefDecals: 0,
+      choreShards: 0,
     });
   });
 
@@ -568,28 +578,72 @@ describe('createLevelScene', () => {
       expect(body.position.y).toBe(floorY);
     });
 
-    it('slides the baby from the stairs on the sim clock for the stairs gag, and puts it back', () => {
+    /** Runs `test` with the baby `downstairs` in the shared world, and puts him back after (also when it fails). */
+    const withBabyState = (state: World['baby']['state'], test: () => void): void => {
+      const before = effectsWorld.baby.state;
+      effectsWorld.baby.state = state;
+      try {
+        test();
+      } finally {
+        effectsWorld.baby.state = before;
+      }
+    };
+
+    it('puts the baby at the bottom of the stairs and keeps him there while the sim says downstairs, then brings him back (story 3.15)', () => {
       const { scene, fx, update } = build();
       const group = scene.getObjectByName('baby_group') as Object3D;
-      const world = fakeWorldAt(0);
-      update(world, 0);
+      const body = scene.getObjectByName('baby') as Mesh;
+      update(fakeWorldAt(0), 0);
       const home = group.position.clone();
-      fx.gag('stairs_slide', asSimMs(1000), false, 1, 0);
-      update(fakeWorldAt(1000 + GAG_SLIDE_OUT_MS + GAG_SLIDE_HOLD_MS / 2), 0);
-      expect(group.position.x).toBeCloseTo(home.x + GAG_SLIDE_M, 6);
-      expect(group.position.z).toBeCloseTo(home.z, 6);
-      update(fakeWorldAt(1000 + GAG_SLIDE_TOTAL_MS), 0);
-      expect(group.position.x).toBeCloseTo(home.x, 6);
+      const floorY = body.position.y;
+      withBabyState('downstairs', () => {
+        fx.gag('stairs_slide', asSimMs(1000), false, 1, 0);
+        // Long after the slide out: still there, lower than the floor.
+        update(fakeWorldAt(1000 + GAG_SLIDE_OUT_MS + 5000), 0);
+        expect(group.position.x).toBeCloseTo(home.x + GAG_SLIDE_M, 6);
+        expect(group.position.z).toBeCloseTo(home.z, 6);
+        expect(body.position.y).toBeCloseTo(floorY - GAG_DOWNSTAIRS_DROP_M, 6);
+      });
+      // He climbed back (or was carried up): out of `downstairs`, he comes back.
+      withBabyState('babble', () => {
+        const leftAt = 1000 + GAG_SLIDE_OUT_MS + 5000;
+        // The frame that sees him out of `downstairs` starts the way back; it is over BACK ms later.
+        update(fakeWorldAt(leftAt + 10), 0);
+        expect(group.position.x).toBeGreaterThan(home.x);
+        update(fakeWorldAt(leftAt + 10 + GAG_SLIDE_BACK_MS), 0);
+        expect(group.position.x).toBeCloseTo(home.x, 6);
+        expect(body.position.y).toBeCloseTo(floorY, 6);
+      });
     });
 
-    it('does not slide the baby when motion is reduced', () => {
+    it('shows the baby at the bottom of the stairs without the slide when motion is reduced', () => {
       const { scene, fx, update } = build();
       const group = scene.getObjectByName('baby_group') as Object3D;
       update(fakeWorldAt(0), 0);
       const home = group.position.clone();
-      fx.gag('stairs_slide', asSimMs(1000), true, 1, 0);
-      update(fakeWorldAt(1000 + GAG_SLIDE_OUT_MS), 0);
-      expect(group.position.x).toBe(home.x);
+      withBabyState('downstairs', () => {
+        fx.gag('stairs_slide', asSimMs(1000), true, 1, 0);
+        // The very next frame: no ease, he is already there.
+        update(fakeWorldAt(1010), 0);
+        expect(group.position.x).toBeCloseTo(home.x + GAG_SLIDE_M, 6);
+      });
+      withBabyState('babble', () => {
+        update(fakeWorldAt(1020), 0);
+        expect(group.position.x).toBeCloseTo(home.x, 6);
+      });
+    });
+
+    it('puts a baby found downstairs with no gag seen at the bottom at once (a restored game)', () => {
+      const { scene, update } = build();
+      const group = scene.getObjectByName('baby_group') as Object3D;
+      update(fakeWorldAt(0), 0);
+      const home = group.position.clone();
+      withBabyState('downstairs', () => {
+        update(fakeWorldAt(50), 0);
+        const movedM = Math.hypot(group.position.x - home.x, group.position.z - home.z);
+        expect(movedM).toBeCloseTo(GAG_SLIDE_M, 6);
+      });
+      withBabyState('babble', () => update(fakeWorldAt(60), 0));
     });
 
     it('slides the baby in place: its position vector and the scene are the same objects every frame', () => {
@@ -599,13 +653,99 @@ describe('createLevelScene', () => {
       const { position } = group;
       const children = [...scene.children];
       const babyChildren = [...group.children];
-      fx.gag('stairs_slide', asSimMs(1000), false, 0.6, 0.8);
-      for (let ms = 1000; ms <= 1000 + GAG_SLIDE_TOTAL_MS + 20; ms += 20) {
-        update(fakeWorldAt(ms), 0);
-        expect(group.position).toBe(position);
-      }
+      withBabyState('downstairs', () => {
+        fx.gag('stairs_slide', asSimMs(1000), false, 0.6, 0.8);
+        for (let ms = 1000; ms <= 1000 + GAG_SLIDE_OUT_MS + 20; ms += 20) {
+          update(fakeWorldAt(ms), 0);
+          expect(group.position).toBe(position);
+        }
+      });
+      withBabyState('babble', () => update(fakeWorldAt(3000), 0));
       expect(scene.children).toEqual(children);
       expect(group.children).toEqual(babyChildren);
+    });
+
+    it('draws the baby carried up in Papa arms like a carried baby, and not at the bottom of the stairs', () => {
+      const { scene, update } = build();
+      const body = scene.getObjectByName('baby') as Mesh;
+      update(fakeWorldAt(0), 0);
+      const floorY = body.position.y;
+      withBabyState('carriedUp', () => {
+        update(fakeWorldAt(100), 0);
+        expect(body.position.y).toBeGreaterThan(floorY);
+      });
+      withBabyState('babble', () => update(fakeWorldAt(200), 0));
+    });
+
+    it('fades only the 3D lights to feel.fx.dim.lightsPct over fadeMs while the sim holds the pénombre, and back after (story 3.15)', () => {
+      const { scene, update } = build();
+      const base = lights(scene).map((light) => light.intensity);
+      const { lightsPct, fadeMs } = effectsWorld.feel.fx.dim;
+      const wasUntil = effectsWorld.afterEffects.dimUntil;
+      try {
+        effectsWorld.afterEffects.dimUntil = asSimMs(100_000);
+        update(fakeWorldAt(0), 0);
+        update(fakeWorldAt(fadeMs / 2), 0);
+        const half = lights(scene).map((light) => light.intensity);
+        half.forEach((value, i) => {
+          expect(value).toBeLessThan(base[i] as number);
+          expect(value).toBeGreaterThan((base[i] as number) * (lightsPct / 100));
+        });
+        update(fakeWorldAt(fadeMs * 4), 0);
+        lights(scene).forEach((light, i) => {
+          expect(light.intensity).toBeCloseTo((base[i] as number) * (lightsPct / 100), 6);
+        });
+        // The sim ended it (dimUntil back to 0): the light comes back over fadeMs.
+        effectsWorld.afterEffects.dimUntil = asSimMs(0);
+        update(fakeWorldAt(fadeMs * 4 + 10), 0);
+        expect(lights(scene)[0]?.intensity).toBeGreaterThan(
+          (base[0] as number) * (lightsPct / 100),
+        );
+        update(fakeWorldAt(fadeMs * 10), 0);
+        expect(lights(scene).map((light) => light.intensity)).toEqual(base);
+      } finally {
+        effectsWorld.afterEffects.dimUntil = wasUntil;
+      }
+    });
+
+    it('keeps the outlet flash and the pénombre together: the room is as dark as the darker of the two', () => {
+      const { scene, fx, update } = build();
+      const base = lights(scene).map((light) => light.intensity);
+      const { lightsPct, fadeMs } = effectsWorld.feel.fx.dim;
+      const wasUntil = effectsWorld.afterEffects.dimUntil;
+      try {
+        effectsWorld.afterEffects.dimUntil = asSimMs(100_000);
+        update(fakeWorldAt(0), 0);
+        update(fakeWorldAt(fadeMs * 4), 0);
+        // The flash is darker than the pénombre (25 % < 40 %) while it lasts, and gives way after it.
+        fx.gag('outlet_hair', asSimMs(fadeMs * 4));
+        update(fakeWorldAt(fadeMs * 4 + GAG_LIGHTS_FADE_MS + GAG_LIGHTS_DARK_MS / 2), 0);
+        expect(lights(scene)[0]?.intensity).toBeCloseTo(
+          ((base[0] as number) * Math.min(GAG_LIGHTS_MIN_PCT, lightsPct)) / 100,
+          6,
+        );
+        update(fakeWorldAt(fadeMs * 4 + 5000), 0);
+        expect(lights(scene)[0]?.intensity).toBeCloseTo((base[0] as number) * (lightsPct / 100), 6);
+      } finally {
+        effectsWorld.afterEffects.dimUntil = wasUntil;
+      }
+    });
+
+    it('raises Papa hair for as long as he is electrified', () => {
+      const { scene, update } = build();
+      const hair = scene.getObjectByName('papa_hair') as Object3D;
+      const before = effectsWorld.papa.state;
+      try {
+        effectsWorld.papa.state = 'electrified';
+        update(fakeWorldAt(0), 0);
+        update(fakeWorldAt(5000), 0);
+        expect(hair.visible).toBe(true);
+        effectsWorld.papa.state = 'idle';
+        update(fakeWorldAt(5010), 0);
+        expect(hair.visible).toBe(false);
+      } finally {
+        effectsWorld.papa.state = before;
+      }
     });
 
     it('resetFx brings the lights, the hair and the baby back at once', () => {
@@ -1014,5 +1154,112 @@ describe('eyelidsAmountAt (story 1.19)', () => {
     // The micro-sleep after it in the list is still found.
     const sleepy = micro('telegraph', 1000, 2200);
     expect(eyelidsAmountAt(worldOf(duelLate, sleepy), 1600, MICRO)).toBeCloseTo(0.5, 12);
+  });
+});
+
+describe("the busy Papa's body (story 2.13)", () => {
+  const withState = (state: 'drink' | 'onPhone' | 'idle', simMs: number): World => {
+    const world = fakeWorldAt(simMs);
+    world.papa.state = state;
+    return world;
+  };
+  const CAMERA_YAW_RAD = (ISO_YAW_DEG * Math.PI) / 180;
+  const { busyProps } = BODIES.characters;
+
+  afterEach(() => {
+    effectsWorld.papa.state = 'idle';
+  });
+
+  it('sways the steam on the sim clock while he drinks: the same clock, the same sway, and a frozen sim clock holds it', () => {
+    const { update, realFxState } = build();
+    update(withState('drink', 0), 0);
+    const quarterMs = busyProps.steamPeriodMs / 4;
+    update(withState('drink', quarterMs), 0);
+    expect(realFxState().papaSteamSwayDeg).toBeCloseTo(busyProps.steamSwayDeg, 6);
+    update(withState('drink', quarterMs), 0);
+    expect(realFxState().papaSteamSwayDeg).toBeCloseTo(busyProps.steamSwayDeg, 6);
+    update(withState('drink', 3 * quarterMs), 0);
+    expect(realFxState().papaSteamSwayDeg).toBeCloseTo(-busyProps.steamSwayDeg, 6);
+    // No steam, no sway: he stopped drinking.
+    update(withState('idle', 3 * quarterMs), 0);
+    expect(realFxState().papaSteamSwayDeg).toBe(0);
+  });
+
+  it('wobbles the bubble while he is on the phone, and not otherwise', () => {
+    const { update, realFxState } = build();
+    update(withState('onPhone', busyProps.blablaPeriodMs / 4), 0);
+    expect(realFxState().papaBlablaTiltDeg).toBeCloseTo(busyProps.blablaTiltDeg, 6);
+    update(withState('drink', busyProps.blablaPeriodMs / 4), 0);
+    expect(realFxState().papaBlablaTiltDeg).toBe(0);
+  });
+
+  it('holds the steam and the bubble still under reduced motion, and keeps the clips and the turn', () => {
+    const level = createLevelScene(
+      {
+        id: 'test_room',
+        geometry: createTestLevelGeometry('test_room'),
+        model: buildModel(),
+        characters: createTestCharacters(),
+      },
+      { ...BODIES, isMotionReduced: () => true },
+    );
+    const quarterMs = busyProps.steamPeriodMs / 4;
+    level.update(withState('drink', 0), 0, asRealMs(0));
+    level.update(withState('drink', quarterMs), 0, asRealMs(0));
+    expect(level.realFxState().papaSteamSwayDeg).toBe(0);
+    expect(level.realFxState().papaClip).toBe('drink');
+    expect(level.realFxState().papaMixerMs).toBeGreaterThan(0);
+    // He still turns for the camera: a pose carries a state.
+    level.update(withState('drink', quarterMs + 1000), 0, asRealMs(0));
+    expect(level.realFxState().papaBodyYawRad).toBeCloseTo(CAMERA_YAW_RAD, 6);
+    level.update(withState('onPhone', 5000), 0, asRealMs(0));
+    expect(level.realFxState().papaBlablaTiltDeg).toBe(0);
+    expect(level.scene.getObjectByName('papa_blabla')?.visible).toBe(true);
+    level.dispose();
+  });
+
+  it('turns for the camera while he drinks, and turns his back to the baby on the phone', () => {
+    const { update, realFxState } = build();
+    update(withState('drink', 0), 0);
+    update(withState('drink', 1000), 0);
+    expect(realFxState().papaBodyYawRad).toBeCloseTo(CAMERA_YAW_RAD, 6);
+    const world = withState('onPhone', 2000);
+    update(world, 0);
+    update(withState('onPhone', 3000), 0);
+    const toBabyX = world.baby.xM - world.papa.xM;
+    const toBabyZ = world.baby.zM - world.papa.zM;
+    expect(Math.hypot(toBabyX, toBabyZ)).toBeGreaterThan(0.05);
+    expect(realFxState().papaBodyYawRad).toBeCloseTo(Math.atan2(-toBabyX, -toBabyZ), 6);
+  });
+
+  it('kicks and stretches him on CoffeeDrunk from the data, and holds the stretch under reduced motion', () => {
+    const bodies = {
+      ...BODIES,
+      characters: {
+        ...BODIES.characters,
+        squash: [{ event: 'CoffeeDrunk', character: 'papa', amountPct: 18, durationMs: 320 }],
+      } as SceneBodies['characters'],
+    };
+    const drunk: SimEvent = { type: 'CoffeeDrunk', t: asSimMs(1000), fatigue: 10 };
+    for (const isReduced of [false, true]) {
+      const level = createLevelScene(
+        {
+          id: 'test_room',
+          geometry: createTestLevelGeometry('test_room'),
+          model: buildModel(),
+          characters: createTestCharacters(),
+        },
+        { ...bodies, isMotionReduced: () => isReduced },
+      );
+      const body = level.scene.getObjectByName('papa') as Object3D;
+      level.update(fakeWorldAt(1000), 0, asRealMs(0));
+      level.fx.playCharacterEvent(drunk, fakeWorldAt(1000), isReduced);
+      level.update(fakeWorldAt(1100), 0, asRealMs(0));
+      // The kick is the pose: it plays either way. The stretch is a side effect: only without the setting.
+      expect(level.realFxState().papaClip, `reduced ${isReduced}`).toBe('coffee_kick');
+      if (isReduced) expect(body.scale.toArray()).toEqual([1, 1, 1]);
+      else expect(body.scale.y).toBeGreaterThan(1);
+      level.dispose();
+    }
   });
 });

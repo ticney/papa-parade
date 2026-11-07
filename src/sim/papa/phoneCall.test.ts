@@ -292,7 +292,8 @@ describe('answering the phone (story 1.20)', () => {
       expect.objectContaining({ type: 'ResponseResolved', quality: 'fail', reason: 'late' }),
     );
     expect(types(late)).not.toContain('PapaGlideStarted');
-    expect(sim.world.papa.state).toBe('onPhone');
+    // The gag's séquelle cuts the call short, as a nap does (story 3.15): he is electrified, not on the phone.
+    expect(sim.world.papa.state).toBe('electrified');
   });
 
   it('is cut short when a micro-sleep gags during the call: Papa falls asleep, and the fatigue added stays', async () => {

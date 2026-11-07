@@ -3,8 +3,8 @@ title: Papa Parade — Game Design Document
 game_type: Action chaotique à timing, solo (hybride Fighting / Party Game / Rhythm)
 platforms: [web, ios, android]
 created: 2026-10-26
-updated: 2026-10-29
-version: 2.2
+updated: 2026-11-03
+version: 2.3
 sources:
   - docs/Papa Parade — Game Design Doc.pdf (GDD v1, 2026-10-23)
   - _bmad-output/brainstorming/brainstorm-papa-parade-gameplay-2026-10-26/.memlog.md
@@ -13,7 +13,7 @@ sources:
 # Papa Parade — Game Design Document
 
 **Auteur :** Geo
-**Type de jeu :** Action chaotique à timing, solo. Vue isométrique fixe, 3D low poly.
+**Type de jeu :** Action chaotique à timing, solo. Vue isométrique, 3D low poly ; caméra fixe dans une petite pièce, qui suit papa dans le grand salon.
 **Plateformes cibles :** Navigateur (web), iOS et Android via Capacitor. Steam éventuellement plus tard.
 
 ---
@@ -61,7 +61,7 @@ Du point de vue du bébé, tout ce qui est dangereux est super cool. Du point de
 
 ### Contexte et intention
 
-Le GDD v1 (2026-10-23) posait le pitch, les piliers, la boucle, les 5 âges et la stack. Le brainstorming du 2026-10-26 (mode Creative Partner, Persona Journey puis Trait Transfer) a produit environ 70 idées. Il a fait évoluer la conception sur cinq points : le verbe central (« lire, puis répondre juste »), le rôle du son, la structure des niveaux autour de Maman, la note de fin et les contrôles mobiles. Ce document v2 intègre ces décisions ; le journal des décisions est dans `decision-log.md`. La v2.1 (2026-10-26) reporte trois décisions prises pendant l'architecture : les règles d'entrée (seuil unique de 0,4 s), la mesure des fenêtres en temps de jeu avec la règle de l'appui trop tôt, et les gestes sur le bébé. La v2.2 (2026-10-29) donne de vrais enjeux à chaque menace, après le constat de Geo sur le prototype : rater ne coûtait rien pendant la partie. Elle ajoute l'anneau-chrono autour de l'icône de menace, les séquelles des gags et la jauge de catastrophe, qui peut faire perdre le niveau (« Maman rentre ! »).
+Le GDD v1 (2026-10-23) posait le pitch, les piliers, la boucle, les 5 âges et la stack. Le brainstorming du 2026-10-26 (mode Creative Partner, Persona Journey puis Trait Transfer) a produit environ 70 idées. Il a fait évoluer la conception sur cinq points : le verbe central (« lire, puis répondre juste »), le rôle du son, la structure des niveaux autour de Maman, la note de fin et les contrôles mobiles. Ce document v2 intègre ces décisions ; le journal des décisions est dans `decision-log.md`. La v2.1 (2026-10-26) reporte trois décisions prises pendant l'architecture : les règles d'entrée (seuil unique de 0,4 s), la mesure des fenêtres en temps de jeu avec la règle de l'appui trop tôt, et les gestes sur le bébé. La v2.2 (2026-10-29) donne de vrais enjeux à chaque menace, après le constat de Geo sur le prototype : rater ne coûtait rien pendant la partie. Elle ajoute l'anneau-chrono autour de l'icône de menace, les séquelles des gags et la jauge de catastrophe, qui peut faire perdre le niveau (« Maman rentre ! »). La v2.3 (2026-11-03) répond au premier playtest de Geo : le bon moment ne se voyait pas, un papa occupé ne se lisait pas, deux menaces pouvaient être impossibles à traiter ensemble, et la note restait bloquée à 1 étoile. Elle ajoute la bulle d'activité de papa, la règle d'équité du directeur, une note de Maman sur cinq lignes, les tâches de la maison et un grand salon avec cuisine ouverte, filmé par une caméra qui suit papa.
 
 ---
 
@@ -71,7 +71,7 @@ Le GDD v1 (2026-10-23) posait le pitch, les piliers, la boucle, les 5 âges et l
 
 Quatre principes tranchent chaque décision. Une feature qui n'en sert aucun sort du scope.
 
-1. **Lire, puis répondre juste.** Chaque danger se lit grâce à un télégraphe et appelle une réponse au bon moment parmi cinq : **parer**, **fermeté**, **esquiver**, **attendre**, **ne rien faire**. La parade reste la réponse principale. Toute situation du jeu se ramène à ces cinq réponses. Pas de menu, pas de gestion lente.
+1. **Lire, puis répondre juste.** Chaque danger se lit grâce à un télégraphe et appelle une réponse au bon moment parmi cinq : **parer**, **fermeté**, **esquiver**, **attendre**, **ne rien faire**. La parade reste la réponse principale. Toute situation du jeu se ramène à ces cinq réponses, y compris les tâches de la maison, qui se jouent en parades. Pas de menu, pas de gestion lente.
 2. **Le chaos est un gag, pas une blessure.** Le bébé n'est jamais blessé et un échec déclenche toujours un gag. Mais un gag a un prix : il laisse une séquelle qui complique la suite, et trop de catastrophes font rentrer Maman, ce qui fait perdre le niveau dans un dernier gag. Pas de game over sec au premier raté : on perd en riant, et on veut rejouer.
 3. **Lisible en un coup d'œil… et d'oreille.** Chaque menace a un télégraphe clair (icône, halo, son), même quand l'écran déborde. Chaque signal sonore a un équivalent visuel et haptique, car beaucoup de joueurs mobiles jouent sans le son.
 4. **Un même geste change de sens avec l'âge.** Les contrôles restent les mêmes ; ce qu'ils signifient évolue du bébé à l'adulte. Le jeu enseigne progressivement la **retenue**, qui culmine au niveau Adulte.
@@ -90,6 +90,7 @@ Quatre principes tranchent chaque décision. Une feature qui n'en sert aucun sor
 
 - Les menaces s'empilent par vagues (escalade), avec des perturbations : téléphone, chien, casserole.
 - Les besoins de papa (fatigue, café, envie pressante) dérèglent ses réponses s'il les ignore.
+- Entre deux menaces, papa peut avancer les tâches de la maison (cuisine, lave-vaisselle) en parades au bon moment ; chaque tâche lui fait tourner le dos au bébé.
 - La jauge de bruit monte avec chaque cri et chaque objet qui tombe.
 - La jauge de catastrophe monte à chaque gag ; les séquelles s'additionnent et rendent les menaces suivantes plus dures. Pleine, elle fait rentrer Maman et le niveau est perdu.
 - Le combo grimpe à chaque réponse réussie et pendant que papa porte le bébé ; il ne s'encaisse qu'en déposant le bébé en lieu sûr.
@@ -165,7 +166,7 @@ Termes dérivés, tous ramenés aux cinq réponses :
 | Ralenti sur réponse parfaite | ×0,3 pendant 1,2 s |
 | Ralenti sur la dernière menace d'une vague | ×0,2 pendant 1,5 s |
 
-**3. Glissade freeflow.** Taper une menace fait glisser papa automatiquement jusqu'à elle (façon Batman Arkham) : il atteint n'importe quel point de la pièce en 0,6 s maximum. Le joueur choisit **quoi** traiter ; le jeu gère le **comment**.
+**3. Glissade freeflow.** Taper une menace fait glisser papa automatiquement jusqu'à elle (façon Batman Arkham) : il atteint n'importe quel point de la pièce en 0,6 s maximum. Dans le grand salon, la glissade garde sa vitesse et plafonne à 0,9 s. [ASSUMPTION: plafond du grand salon à régler au playtest.] Le joueur choisit **quoi** traiter ; le jeu gère le **comment**.
 
 **4. Combo à encaisser.** Le multiplicateur va de x1 à x8. Il augmente de 1 à chaque réponse réussie, et de 1 toutes les 10 s pendant lesquelles papa porte le bébé sans incident. Il ne s'ajoute au score que lorsque papa **dépose le bébé en lieu sûr** (parc, lit, transat) ; la dépose au ralenti est le moment où on l'encaisse. Une menace ratée avant la dépose remet le multiplicateur à x1. *(Livré avec le cycle du dodo, pas dans le prototype.)*
 
@@ -210,6 +211,8 @@ L'anneau n'apparaît que sur les réponses à timing : **Parer**, **Fermeté** (
 - L'anneau reflète les fenêtres réelles : réduites par la fatigue, élargies par l'instinct paternel ou le palier Assistance. La tolérance cachée n'est pas dessinée.
 - Silence suspect : un premier anneau apparaît sur le bord de l'écran, à côté de la bulle « … », et mesure les 5 s laissées pour trouver le bébé. Une fois le bébé trouvé, l'anneau habituel de la parade prend le relais (délai 2 s + fenêtre 300 ms).
 - Vibration courte quand le dernier arc s'allume, pour les joueurs sans le son (pilier 3).
+- **Menace hors cadre (v2.3) :** quand la caméra suit papa, une menace hors de l'écran est signalée par une **bulle d'info** collée au bord de l'écran, du côté de la menace : son icône, son anneau-chrono et une flèche qui pointe vers elle. Taper la bulle revient à taper la menace (papa glisse vers elle). Le silence suspect garde sa bulle « … » sans flèche (mécanique 8) : trouver le bébé reste le défi. Une fois le bébé trouvé, sa menace a la bulle habituelle.
+- **Priorité (playtest du 2026-11-03) :** sans anneau, Geo n'a réussi aucune réponse parfaite en plusieurs parties, alors que le joueur simulé humain en réussit 75 %. L'anneau passe avant tout nouveau contenu.
 - [NOTE FOR DESIGNER] Maintenant que l'anneau rend le délai lisible, faut-il allonger les délais de télégraphe (de 0,8–1,5 s vers 1,5–2,5 s) pour laisser monter la tension ? À trancher au playtest.
 
 **13. Séquelles des gags.** Chaque gag laisse une séquelle de jeu, en plus de son coût sur la note : le chaos s'empile, et un raté rend la menace suivante plus difficile. Une séquelle ne prive jamais papa de ses réponses plus de 2 s, glissade comprise (seule exception : la micro-sieste ratée, 3 s, qui sanctionne la fatigue ignorée), et l'instinct paternel reste le filet de sécurité. Pendant une séquelle qui l'occupe, papa ne peut répondre à aucune menace. Les séquelles qui occupent papa ne se cumulent pas : une nouvelle remplace celle en cours sans l'allonger ; les séquelles de décor (pénombre, débris, bazar) se cumulent. Les séquelles de chaque menace sont dans le catalogue des menaces. [ASSUMPTION: durées à régler au playtest.]
@@ -230,6 +233,32 @@ L'anneau n'apparaît que sur les réponses à timing : **Parer**, **Fermeté** (
 - Au-dessus de 70 %, la musique se tend et le visage de Maman passe à l'alerte, avec une vibration et un son d'alerte (pilier 3).
 - La jauge de catastrophe est distincte de la jauge de bruit : le bruit réveille Maman (−1 étoile), la catastrophe la fait rentrer (niveau perdu). Les deux coexistent dans les niveaux Sieste.
 
+**15. Bulle d'activité de papa.** Constat du playtest : on ne voyait pas que papa buvait son café ou téléphonait, et ses taps refusés passaient pour un jeu qui ne répond pas.
+
+- Quand papa est occupé (café 3 s, téléphone 5 s, toilettes, tâche de la maison, séquelle qui l'occupe), une bulle au-dessus de sa tête montre le pictogramme de l'action : tasse, combiné, porte, casserole, assiette, étoiles de vertige pour une séquelle. Un anneau autour de la bulle se vide jusqu'au moment où papa peut de nouveau répondre. Il reprend le visuel de l'anneau de maintien et n'a jamais la couleur d'une menace.
+- Chaque activité a une pose exagérée qui se lit sans la bulle. Téléphone : combiné énorme, bulle « bla bla » gribouillée, papa dos au bébé. Café : mug énorme, vapeur, « slurp », puis les yeux qui s'écarquillent pendant que la jauge de fatigue baisse.
+- Début et fin marqués : un petit écrasement au début ; à la fin, un « ding », un pop et une vibration courte (pilier 3).
+- Pendant une activité qui l'occupe, un tap sur une menace est refusé de façon visible (la bulle tremble, un son « occupé ») au lieu d'être ignoré en silence. Les tâches de la maison, elles, s'interrompent (mécanique 16).
+- [ASSUMPTION: pictogrammes et durée des poses à régler au playtest.]
+
+**16. Tâches de la maison.** Papa a des tâches qui ne concernent pas le bébé : faire cuire la purée, vider le lave-vaisselle. Elles sont facultatives et remplissent la ligne Maison de la note de Maman. Elles se jouent en mini-moments de Parer, pour rester dans le pilier 1.
+
+- Un tap sur le poste (plaque de cuisson, lave-vaisselle) : papa glisse et commence. La tâche est une suite de temps forts, chacun avec son anneau-chrono et sa fenêtre de 300 ms : remuer avant que ça attache, écraser les pommes de terre, couper le feu à temps, rattraper l'assiette qui glisse du panier.
+- Un temps fort réussi fait avancer la tâche, une parfaite fait rire comme ailleurs. Un temps fort raté donne un petit gag, qui fait monter la jauge de catastrophe de 10 % : assiette cassée (Soupir et bruit), purée qui attache (fumée).
+- La tâche s'interrompt à tout moment : un tap sur une menace ou au sol fait partir papa, et la progression est gardée. Pendant une tâche, papa tourne le dos au bébé : c'est le pari.
+- Les temps forts se mettent en attente pendant la fenêtre d'une menace : la menace a toujours priorité.
+- Une cuisson abandonnée plus de 30 s devient la perturbation « casserole sur le feu ». Un lave-vaisselle laissé ouvert devient une cible du bébé.
+- Prototype : deux tâches dans le grand salon, de 4 temps forts chacune, espacés de 1,5 à 3 s. [ASSUMPTION: nombre de temps forts, espacement, points et hausse de catastrophe à régler au playtest.]
+
+**17. Équité de trajet (directeur des vagues).** Constat du playtest : le bébé derrière le canapé (silence suspect) et une autre menace tombaient en même temps, et papa ne pouvait en sauver qu'une. Un dilemme sans issue n'est pas une décision intéressante.
+
+- Deux fenêtres de réponse ne s'ouvrent jamais à moins de « glissade max du niveau + 0,3 s » l'une de l'autre : 0,9 s dans une petite pièce, 1,2 s dans le grand salon. Des menaces « simultanées » sont donc actives en même temps, avec des fenêtres décalées.
+- La réponse au silence suspect compte comme une occupation : tant que papa cherche puis soulève le bébé, aucune autre fenêtre ne s'ouvre avant qu'il puisse l'atteindre une fois libre.
+- Un silence suspect actif compte pour deux menaces simultanées dans la vague : il n'apparaît donc qu'à partir de la vague 2.
+- Les séquelles ne sont pas protégées : elles sont le prix d'un raté et doivent rendre la suite plus difficile (mécanique 13). Les occupations choisies par le joueur (café, téléphone, tâche de la maison) non plus : décrocher, c'est accepter le risque.
+- Les bots vérifient la règle : en parties simulées, le joueur simulé parfait n'est jamais placé devant deux fenêtres impossibles à tenir.
+- [ASSUMPTION: marge de 0,3 s à régler au playtest.]
+
 **Traçabilité des mécaniques**
 
 | Mécanique | Pilier servi |
@@ -245,6 +274,10 @@ L'anneau n'apparaît que sur les réponses à timing : **Parer**, **Fermeté** (
 | Note et mémoire de Maman | 2 (envie de rejouer) |
 | Anneau-chrono | 3 (lisible d'un coup d'œil), 1 (le bon moment se voit) |
 | Séquelles des gags, jauge de catastrophe | 2 (le gag a un prix, la défaite reste un gag), 1 (choisir quoi traiter) |
+| Bulle d'activité de papa | 3 (papa occupé se voit d'un coup d'œil) |
+| Tâches de la maison | 1 (des parades de plus, choisir quoi traiter), 2 (l'assiette cassée est un gag) |
+| Équité de trajet | 1 (chaque situation a une bonne réponse), 2 (perdre reste juste) |
+| Caméra qui suit, bulle hors cadre | 3 (une menace hors cadre reste lisible) |
 
 ### Contrôles et entrées
 
@@ -256,10 +289,14 @@ L'anneau n'apparaît que sur les réponses à timing : **Parer**, **Fermeté** (
 | Esquiver | Swipe | Maj + direction | B + direction |
 | Retenir son souffle (infiltration uniquement) | Maintien n'importe où | E (maintien) | RT (maintien) |
 | Boire un café, décrocher le téléphone | Tap sur l'objet | Interaction contextuelle (Espace) | A contextuel |
+| Commencer une tâche de la maison | Tap sur le poste (plaque, lave-vaisselle) | Interaction contextuelle (Espace) | A contextuel |
+| Temps fort d'une tâche | Tap au bon moment sur le poste | Espace | A |
+| Aller vers une menace hors cadre | Tap sur sa bulle au bord de l'écran | Ciblage automatique, inchangé | Ciblage automatique, inchangé |
 | Prendre le bébé, le trouver (silence suspect) | Tap sur le bébé, hors menace en cours | Espace près du bébé | A près du bébé |
 | Renifler | Maintien de 1 s sur le bébé, hors menace en cours | Espace (maintien) près du bébé | A (maintien) près du bébé |
 
 - **Orientation :** paysage.
+- **Caméra :** fixe dans une petite pièce ; dans le grand salon, elle suit papa avec une zone morte (voir Cadre de level design).
 - **Retour haptique** sur mobile : vibration courte à chaque télégraphe et quand le dernier arc de l'anneau-chrono s'allume, vibration marquée sur une réponse parfaite, vibration d'alerte quand la jauge de catastrophe dépasse 70 %.
 - **Ciblage clavier/manette :** la menace la plus urgente dans la direction visée est sélectionnée automatiquement.
 - **Pause :** pause automatique quand l'app passe en arrière-plan ; reprise au même instant après un décompte de 3 s.
@@ -289,9 +326,22 @@ Section hybride : elle emprunte au Fighting (fenêtres chiffrées, boss, défens
 | Perturbation | Effet | Réponse |
 |---|---|---|
 | Chien | Vole la purée, aboie (bruit +10 %), fait tomber des objets | Parer : le détourner |
-| Casserole sur le feu (cuisine) | Déborde après 30 s si on l'oublie, bruit et bazar | Parer : baisser le feu |
+| Casserole sur le feu (cuisine) | Une cuisson de la tâche « cuisine » laissée seule déborde après 30 s : bruit et bazar | Parer : baisser le feu |
 
 [NOTE FOR DESIGNER: les catalogues de menaces des âges Enfance, Adolescence et Adulte sont à compléter avant l'epic E6.]
+
+**Nouvelles bêtises du grand salon (v2.3, candidates).** Elles réutilisent les réponses existantes : chacune coûte une fiche de menace, un gag, un point d'ancrage et une animation, pas un nouveau système.
+
+| Bêtise | Lieu | Réponse | Gag | Catastrophe |
+|---|---|---|---|---|
+| Tirer la nappe | Table à manger | Parer : rattraper la nappe | Vaisselle au sol (Soupir, bruit) | +20 % |
+| Placard bas | Cuisine | Parer : fermer le placard | Concert de casseroles (bruit +15 %) | +20 % |
+| Lave-vaisselle ouvert | Cuisine | Parer : refermer la porte | Bébé assis dans le panier, couverts au sol | +20 % |
+| Poubelle | Cuisine | Fermeté : « Non ! » | Épluchures partout (bazar) | +20 % |
+| Plante verte | Coin salon | Parer : détourner avec un jouet | Terre sur le tapis (bazar) | +20 % |
+| Tasse de papa posée trop bas | Table basse | Fermeté : « Non ! » | Café renversé (bazar) | +20 % |
+
+[NOTE FOR DESIGNER: liste à trier par Geo avant l'epic E9 ; chaque bêtise retenue déclare sa séquelle.]
 
 ### Séquences variées
 
@@ -431,17 +481,19 @@ Chaque âge garde les mêmes contrôles mais change ce que « répondre juste »
 | Coolitude des objets | Monnaie des échanges |
 | Étoiles | Débloquent l'âge suivant ; poussent à rejouer |
 
-**Note de Maman.** À l'ouverture de la porte, Maman réagit de trois façons, et l'état du bébé s'y ajoute :
+**Note de Maman.** À l'ouverture de la porte, Maman réagit de trois façons, et s'y ajoutent le calme du bébé et la maison :
 
 | Composante | Points | Ce qui la nourrit |
 |---|---|---|
-| **Rire** | 0 à 40 | Papa débordé avec style : dégaine (purée sur la joue, cheveux en pétard, t-shirt à l'envers), réponses parfaites, combos encaissés |
-| **État du bébé** | 0 à 30 | 10 points chacun : propre, nourri, reposé |
-| **Soupir** | 0 à −15 | Le bazar : objets au sol, dégâts |
-| **Hurlement** | 0 à −15 | Les presque-accidents, y compris ceux figés sur la photo de fin (bébé en haut de l'étagère). Jamais une blessure |
+| **Rire** | 0 à 35 | Papa débordé avec style : dégaine (purée sur la joue, cheveux en pétard, t-shirt à l'envers), réponses parfaites (1 point), réponses réussies (0,5 point), combos encaissés |
+| **Calme du bébé** | 0 à 20 | Jusqu'à l'epic E5 : la part du niveau passée sous 50 % de la jauge de bruit (Sieste) ou sans pleurs du bébé (Retour : bébé reposé trop tôt, réveil). Avec E5 : propre, nourri, reposé |
+| **Maison** | 0 à 15 | Les tâches de la maison finies : purée cuite, lave-vaisselle vidé (7,5 points chacune dans le prototype). Reste à 0 dans un niveau sans tâche |
+| **Soupir** | 0 à −15 | Le bazar : 2,5 points par objet au sol, 4 par objet cassé, 1,5 par bêtise surprise du silence suspect |
+| **Hurlement** | 0 à −15 | Les presque-accidents, 1,5 point chacun, y compris ceux figés sur la photo de fin (bébé en haut de l'étagère). Jamais une blessure |
 
 - **Presque-accident figé (story 3.6) :** à la fin du niveau, quelle que soit la façon dont il finit, le bébé (pas dans les bras de Papa) à moins de `feel.endOfLevel.frozenNearMissReachM` du point d'une menace dont le gag est un presque-accident compte pour un presque-accident de plus, comme s'il avait glissé, et la photo montre pourquoi Maman crie. Le jeu n'a pas de hauteur : « en haut de l'étagère » s'y lit « au haut de l'escalier ». L'état de la menace ne compte pas, seule la place du bébé.
-- **Score** = Rire + État du bébé + 30 − Soupir − Hurlement, sur 100.
+- **Score** = Rire + Calme du bébé + Maison + 30 − Soupir − Hurlement, sur 100.
+- **Pourquoi la v2.3 change la note (playtest du 2026-11-03) :** avec la v2.2, Geo finissait chaque partie à 20 points : Rire à 0 (aucune parfaite), État du bébé fixé à 20, Soupir et Hurlement au maximum après 3 objets au sol ou 5 ratés. Soit 1 étoile, quoi qu'il fasse. Les réussites nourrissent désormais le Rire, les pentes du Soupir et du Hurlement sont divisées par deux (il faut 10 presque-accidents pour atteindre −15 au Hurlement), et aucune ligne n'est une constante. [ASSUMPTION: pentes de départ, à régler au playtest et avec les bots.]
 - **Étoiles :** 1 étoile à partir de 20, 2 à 40, 3 à 60, 4 à 75, 5 à 90.
 - **Réveil anticipé de Maman** (niveau Sieste) : −1 étoile.
 - **Coût d'un gag :** des objets au sol (soupir), un presque-accident (hurlement), du bruit (jauge), un multiplicateur remis à x1, une séquelle immédiate et une hausse de la jauge de catastrophe.
@@ -455,14 +507,16 @@ Les réactions de Maman se souviennent des parties précédentes (« *Encore* l'
 
 ### Types de niveaux
 
-- **Une pièce par écran**, en caméra isométrique fixe. Le gameplay reste sur le plan du sol.
+- **Une pièce par niveau**, en vue isométrique. Le gameplay reste sur le plan du sol. Une petite pièce (la chambre) tient dans l'écran, avec une caméra fixe. Une grande pièce (le salon avec cuisine ouverte) est filmée par une **caméra qui suit papa** ; les menaces hors cadre sont signalées par une bulle d'info au bord de l'écran (mécanique 12).
+- **Grand salon avec cuisine ouverte (v2.3) :** il remplace le salon du prototype. Environ 13 à 14 m × 7 m (le salon actuel fait 9 × 6 m) : coin salon (canapé, table basse, escalier, prise), coin repas (table et nappe), cuisine ouverte (plaque de cuisson, lave-vaisselle, placards bas, poubelle). À l'écran, les personnages gardent leur taille actuelle. [ASSUMPTION: dimensions et plan à valider dans Blender.]
+- **Caméra qui suit :** zone morte autour de papa ; la caméra rattrape la glissade sans à-coup et ne tourne jamais, sauf la courte rotation d'une réponse parfaite. Pendant les ralentis et les cadrages serrés, elle cadre la menace jugée. [ASSUMPTION: taille de la zone morte et vitesse de rattrapage, réglables comme le reste du feeling.]
 - **Variante Sieste :** Maman dort dans la pièce voisine ; la jauge de bruit est l'enjeu principal. Adaptée aux âges bébé et petite enfance, et aux niveaux de nuit.
 - **Variante Retour :** Maman est sortie ; le chrono mène à son retour. Adaptée aux âges plus grands.
 - Les deux variantes partagent la même fin : porte, rush final, photo, note. Si la jauge de catastrophe est pleine, la porte s'ouvre sans rush final et le niveau est perdu.
 
 ### Progression des niveaux
 
-- v1 : un niveau par âge, soit 5 niveaux, chacun dans une pièce (salon, chambre, parc, cuisine…). [ASSUMPTION: nombre de niveaux par âge à confirmer après le prototype.]
+- v1 : un niveau par âge, soit 5 niveaux, chacun dans une pièce (grand salon avec cuisine ouverte, chambre, parc…). [ASSUMPTION: nombre de niveaux par âge à confirmer après le prototype.]
 - Chaque niveau combine des menaces de base, une ou deux séquences spéciales et des perturbations.
 - Le premier niveau sert de tutoriel implicite : une seule menace à la fois, verbes affichés, aucune explication textuelle.
 
@@ -474,11 +528,11 @@ Les réactions de Maman se souviennent des parties précédentes (« *Encore* l'
 
 Un cartoon 3D low poly, rond et exagéré, pensé pour rester cohérent quand il est produit avec l'aide de l'IA.
 
-- **Vue :** 3D low poly, caméra isométrique fixe, une pièce par écran.
+- **Vue :** 3D low poly, vue isométrique, une pièce par niveau ; caméra fixe dans une petite pièce, qui suit papa dans le grand salon.
 - **Personnages :** formes simples, bébé à tête énorme, expressions portées par les yeux. Squash and stretch pour compenser des animations courtes. La dégaine de papa se dégrade visiblement pendant le niveau.
 - **Rendu :** couleurs par sommet ou petite texture-palette partagée, rendu toon avec contours. Le rendu de l'outil de modélisation ne se transpose pas tel quel en jeu ; le style est défini côté jeu.
 - **Couleurs :** palette vive et limitée. Une teinte d'alerte est réservée aux dangers ; le bleu signale « parable », le rouge « esquive ».
-- **Effets de feeling :** hitstop, tremblement d'écran, particules. Sur réponse parfaite : ralenti, zoom et rotation de caméra. Sur la dernière réponse d'un niveau : célébration démesurée (chœur d'opéra, feu d'artifice, façon Peggle).
+- **Effets de feeling :** hitstop, tremblement d'écran, particules. Sur réponse parfaite : ralenti, zoom et courte rotation de caméra, qui revient ensuite à son angle de départ. Sur la dernière réponse d'un niveau : célébration démesurée (chœur d'opéra, feu d'artifice, façon Peggle).
 - **Cadrages parodiques :** chaque séquence spéciale emprunte la grammaire visuelle de sa référence (film d'action, infiltration, prise d'otage, désamorçage).
 - **Fin de niveau :** photo de fin figée, puis replay façon match de sport des meilleurs moments. Après un niveau perdu, le replay montre la cascade de catastrophes qui a fait rentrer Maman.
 
@@ -515,6 +569,7 @@ Le son est le système nerveux du jeu.
 - Pièces entières modélisées dans Blender, qui sert d'éditeur de niveaux. L'IA pilote via Blender MCP le blocage des pièces, les meubles et les scripts d'export. Le pipeline d'export est défini dans l'architecture.
 - Personnages, rig et animations faits à la main : papa, bébé (puis un enfant par âge), Maman, chien.
 - Audio : un son par télégraphe, un son par type de réponse, des pleurs typés, une musique adaptative par âge.
+- **Poids d'un niveau :** la pièce et l'audio d'un niveau tiennent aujourd'hui dans 3 Mio ; la géométrie du salon pèse 58 Kio et l'audio fait l'essentiel. Le grand salon peut relever ce plafond si ses nouveaux sons l'exigent (décision de Geo, 2026-11-03), tant qu'un niveau se charge en moins de 5 s en 4G.
 
 ---
 
@@ -527,15 +582,16 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 | # | Epic | Contenu | Phase |
 |---|---|---|---|
 | E1 | Prototype « Bébé à 4 pattes » en cubes | Boucle de base, 3 menaces, téléphone, silence suspect, fatigue, note de Maman, build web de playtest | Prototype |
-| E2 | Game feel et lisibilité | Sons cultes, haptique, verbes affichés, anneau-chrono, tolérance, calibration, instinct paternel, fichier de feeling | Prototype |
-| E3 | Bruit et Maman | Jauge de bruit, variante Sieste, séquelles des gags, jauge de catastrophe et niveau perdu (« Maman rentre ! »), porte, rush final, photo, réactions et étoiles, replay | Prototype (partiel) puis v1 |
+| E2 | Game feel et lisibilité | Sons cultes, haptique, verbes affichés, anneau-chrono, bulle d'activité de papa, tolérance, calibration, instinct paternel, fichier de feeling | Prototype |
+| E3 | Bruit et Maman | Jauge de bruit, variante Sieste, équité de trajet, note de Maman sur cinq lignes, joueur simulé humain réaliste, séquelles des gags, jauge de catastrophe et niveau perdu (« Maman rentre ! »), porte, rush final, photo, réactions et étoiles, replay | Prototype (partiel) puis v1 |
 | E4 | Cycle du dodo | Rester éveillé, 100 pas, duel du coucher, dépose-bombe, sortie en infiltration, combo encaissé, bras-bébé | Deuxième prototype |
 | E5 | Hygiène et état caché | Couche de Schrödinger, odeur, pleurs typés, change de couche boss, rhabillage, soins | v1 |
 | E6 | Âges suivants | Petite enfance, enfance, adolescence, adulte | v1 |
 | E7 | Production art et audio | Pipeline Blender, personnages, DA, musique | v1 |
 | E8 | Distribution | Capacitor iOS et Android, stores | v1 |
+| E9 | Grand salon et maison | Salon avec cuisine ouverte, caméra qui suit, bulles hors cadre, tâches de la maison, nouvelles bêtises | Troisième prototype |
 
-**Séquence :** E1 → E2 → E3 (partiel) → playtest → E4 → E5 → E6, avec E7 et E8 en parallèle à partir de E4.
+**Séquence :** E1 → E2 → E3 (partiel) → playtest → E4 → rattrapage de lisibilité v2.3 (stories ajoutées à E2 et E3) → playtest → E9 → E5 → E6, avec E7 et E8 en parallèle à partir de E4.
 
 **Scope du prototype.** Un seul niveau, « Bébé à 4 pattes », jouable en 3 minutes avec des formes géométriques. S'il est drôle avec des cubes, le concept tient.
 
@@ -546,6 +602,7 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 - La note de Maman en fin de partie.
 - **Ajouts issus du brainstorming :** le silence-télégraphe, la jauge de bruit avec la variante Sieste, les verbes affichés, un son culte par réponse et le rire du bébé, la tolérance cachée, les équivalents visuels et haptiques. Validés par Geo le 2026-10-26.
 - **Ajouts de la v2.2 :** l'anneau-chrono, les séquelles des gags et la jauge de catastrophe avec la fin « Maman rentre ! ». Validés par Geo le 2026-10-29, après le premier jeu du prototype (« le jeu n'a pas d'enjeux »).
+- **Ajouts de la v2.3, avant tout nouveau contenu :** l'anneau-chrono (pas encore livré), la bulle d'activité de papa, l'équité de trajet, la note de Maman sur cinq lignes (Maison reste à 0 sans tâche) et un joueur simulé humain réaliste, puis un playtest dans le salon actuel. Les séquelles et la jauge de catastrophe de la v2.2 ne sont pas encore livrées non plus. Le grand salon, les tâches et les nouvelles bêtises viennent ensuite (E9). Validés par Geo le 2026-11-03, après son premier playtest.
 - **Pas dans le prototype :** l'esquive (aucune menace rouge avant E5) et le combo à encaisser (livré avec E4).
 
 ---
@@ -570,6 +627,8 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 | Le chaos reste drôle | ≥ 4 testeurs sur 5 rient au moins une fois pendant un niveau |
 | Rater coûte quelque chose | ≥ 4 testeurs sur 5 disent avoir eu peur de rater une menace ; aucun ne juge la défaite « Maman rentre ! » injuste |
 | La défaite est possible sans être un mur | En parties simulées au palier Normal : un joueur simulé humain (réactions et erreurs réalistes) perd le niveau dans 10 à 30 % des parties ; un joueur simulé parfait ne le perd jamais ; un joueur simulé inactif le perd avant la fin du chrono. Le rythme des menaces se règle pour tenir ces cibles |
+| Le bon moment se voit | ≥ 4 testeurs sur 5 réussissent au moins une réponse parfaite voulue dès leur première partie |
+| Le joueur simulé humain joue comme un humain | Sur un même niveau, son score moyen reste à moins d'une étoile de la médiane des testeurs, et il ne réussit pas plus de parfaites qu'eux. Au playtest du 2026-11-03, il faisait 84 points et 4 étoiles quand Geo restait à 20 points et 1 étoile |
 
 [ASSUMPTION: seuils de départ, panel de 5 testeurs minimum.]
 
@@ -598,6 +657,7 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 
 - **Modèle économique :** jeu payant, gratuit avec publicité, ou démo + version complète ? À trancher avant l'epic E8.
 - **Dernier niveau :** reste-t-il drôle ou bascule-t-il vers l'émotion ? Le fil de la retenue est proposé comme structure, mais le ton n'est pas tranché.
+- **Nouvelles bêtises du grand salon :** la liste candidate est à trier par Geo avant l'epic E9.
 
 **Dépendances :**
 
@@ -615,6 +675,11 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 6. Appareils de référence pour les performances.
 7. Seuils des indicateurs de gameplay et taille du panel.
 8. Valeurs de la jauge de catastrophe (hausses, décroissance, multiplicateurs par palier) et durées des séquelles : valeurs de départ, à régler au playtest et avec les bots.
+9. Bulle d'activité de papa : pictogrammes et durée des poses.
+10. Tâches de la maison : nombre de temps forts, espacement, points de la ligne Maison.
+11. Équité de trajet : marge de 0,3 s.
+12. Grand salon : dimensions et plan ; zone morte et vitesse de la caméra.
+13. Pentes de la note de Maman v2.3 : Rire par réussite, Calme du bébé, Soupir, Hurlement.
 
 ---
 

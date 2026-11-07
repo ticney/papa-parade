@@ -109,6 +109,19 @@ describe('doorYawRadAt', () => {
   });
 });
 
+describe('doorOpenAngleDegAt: Mama come home early (story 3.16)', () => {
+  it('bursts the door fully open at once, with no rush and no swing', () => {
+    expect(doorOpenAngleDegAt(null, 0, LOOK, false, true)).toBe(LOOK.openAngleDeg);
+    expect(doorOpenAngleDegAt(null, 99_999, LOOK, false, true)).toBe(LOOK.openAngleDeg);
+    expect(doorOpenAngleDegAt(null, 4000, LOOK, true, true)).toBe(LOOK.openAngleDeg);
+  });
+
+  it('changes nothing for the other ends: the flag is off by default', () => {
+    expect(doorOpenAngleDegAt(null, 99_999, LOOK, false)).toBe(0);
+    expect(doorOpenAngleDegAt(null, 99_999, LOOK, false, false)).toBe(0);
+  });
+});
+
 describe('createDoorView', () => {
   it('stands one closed panel at the hinge, and turns it on update', () => {
     const parent = new Group();
@@ -122,6 +135,17 @@ describe('createDoorView', () => {
     view.update(null, 9000, false);
     expect(view.openAngleDeg).toBe(0);
     view.update(5000, 5000 + LOOK.openMs, false);
+    expect(view.openAngleDeg).toBe(LOOK.openAngleDeg);
+    expect(view.object.rotation.y).toBeCloseTo(doorYawRadAt(placement, LOOK.openAngleDeg), 10);
+    toon.dispose();
+  });
+
+  it('bursts open on a Mama come home, in the very first draw, with no rush start', () => {
+    const parent = new Group();
+    const toon = createToonMaterialCache(TOON_TONES);
+    const placement = doorPlacementOf(2.9, -2.8, -4.2, -3.2, 4.9, 3, LOOK.widthM);
+    const view = createDoorView(parent, toon, LOOK, placement);
+    view.update(null, 1234, false, true);
     expect(view.openAngleDeg).toBe(LOOK.openAngleDeg);
     expect(view.object.rotation.y).toBeCloseTo(doorYawRadAt(placement, LOOK.openAngleDeg), 10);
     toon.dispose();

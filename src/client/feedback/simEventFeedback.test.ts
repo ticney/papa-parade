@@ -7,7 +7,7 @@ import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
 import type { Haptics } from '@platform/platform';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
-import type { SimEvent, World } from '@sim';
+import type { PapaState, SimEvent, World } from '@sim';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   createTestResponseWindow,
@@ -67,7 +67,11 @@ function setup() {
 }
 
 /** A world with one threat of `defId`; Papa is gliding to it when `isGliding`. */
-function worldWith(defId: string, isGliding: boolean): World {
+function worldWith(
+  defId: string,
+  isGliding: boolean,
+  state: 'windowOpen' | 'resolved' = 'windowOpen',
+): World {
   return {
     time: { sim: asSimMs(1000) },
     papa: {
@@ -86,7 +90,7 @@ function worldWith(defId: string, isGliding: boolean): World {
         : null,
     },
     baby: { xM: 2, zM: 2 },
-    threats: [{ id: THREAT_ID, defId, xM: 1, zM: 1 }],
+    threats: [{ id: THREAT_ID, defId, xM: 1, zM: 1, state }],
   } as unknown as World;
 }
 
@@ -363,5 +367,123 @@ describe('playSimEventFeedback: the special sequence (story 4.4)', () => {
     playSimEventFeedback({ type: 'PapaSnored', t: asSimMs(1000) }, source, director);
     playSimEventFeedback({ type: 'BabyWoke', t: asSimMs(1000) }, source, director);
     expect(sounds).toEqual([soundOf('papa_snored'), soundOf('baby_woke')]);
+  });
+});
+
+describe('playSimEventFeedback: the chrono-ring vibration (story 2.11)', () => {
+  const opened = (): SimEvent => ({
+    type: 'WindowOpened',
+    t: asSimMs(1000),
+    threatId: THREAT_ID,
+  });
+
+  it('vibrates once, lightly and silently, when the window of a threat with a ring opens', () => {
+    const { sounds, pulses, director } = setup();
+    // The cue is the table's own: a light haptic and a UI visual twin, no audio.
+    expect(feedback.cues.chrono_arc_lit?.haptic).toBe('light');
+    expect(feedback.cues.chrono_arc_lit?.audio).toBeUndefined();
+    for (const defId of ['outlet', 'stairs', 'papa_microsleep']) {
+      pulses.length = 0;
+      playSimEventFeedback(opened(), sourceOf(worldWith(defId, false)), director);
+      expect(pulses, defId).toEqual(['light']);
+    }
+    expect(sounds).toEqual([]);
+  });
+
+  it('plays nothing new for a wait, a nothing, or a threat with a signal cue of its own', () => {
+    const { pulses, director } = setup();
+    for (const defId of ['bedtime_eyes', 'fake_sleep', 'false_alarm_sigh', 'bomb_drop_lay']) {
+      expect(liveThreats[defId], defId).toBeDefined();
+      playSimEventFeedback(opened(), sourceOf(worldWith(defId, false)), director);
+    }
+    expect(pulses).toEqual([]);
+  });
+
+  it('plays nothing outside a level, and nothing for the closing of a window', () => {
+    const { pulses, director } = setup();
+    playSimEventFeedback(opened(), null, director);
+    playSimEventFeedback(resolved('success'), sourceOf(worldWith('outlet', false)), director);
+    // The success cue's own haptic, and nothing else: the closing of a window adds no arc vibration.
+    expect(pulses).toEqual([feedback.cues.resp_parry?.haptic]);
+  });
+
+  it('does not add the arc vibration to a press buffered in the telegraph: one step, one vibration', () => {
+    const { pulses, director } = setup();
+    // The step that opens the window also resolves the buffered press: the world already shows it resolved.
+    const source = sourceOf(worldWith('outlet', false, 'resolved'));
+    playSimEventFeedback(opened(), source, director);
+    playSimEventFeedback(resolved('perfect'), source, director);
+    expect(pulses).toEqual([feedback.cues.resp_parry_perfect?.haptic]);
+  });
+});
+
+describe('playSimEventFeedback: the activity bubble (story 2.12)', () => {
+  const refused = (): SimEvent => ({ type: 'TapRefused', t: asSimMs(1000), threatId: THREAT_ID });
+  const changed = (from: PapaState, to: PapaState): SimEvent => ({
+    type: 'PapaStateChanged',
+    t: asSimMs(1000),
+    from,
+    to,
+  });
+
+  it('plays the « occupé » sound and a light vibration, once, for a refused tap', () => {
+    const { sounds, pulses, director } = setup();
+    playSimEventFeedback(refused(), sourceOf(worldWith('outlet', false)), director);
+    expect(sounds).toEqual([soundOf('papa_busy_refused')]);
+    expect(pulses).toEqual(['light']);
+    expect(feedback.cues.papa_busy_refused?.visual).toEqual({ kind: 'uiElement' });
+  });
+
+  it('plays it with no throttle: one cue per refused tap', () => {
+    const { sounds, director } = setup();
+    for (let i = 0; i < 3; i++) {
+      playSimEventFeedback(refused(), sourceOf(worldWith('outlet', false)), director);
+    }
+    expect(sounds).toEqual([
+      soundOf('papa_busy_refused'),
+      soundOf('papa_busy_refused'),
+      soundOf('papa_busy_refused'),
+    ]);
+  });
+
+  it.each(['drink', 'onPhone', 'onToilet', 'asleep'] as const)(
+    'plays the ding and a light vibration once when Papa goes from %s to idle',
+    (from) => {
+      const { sounds, pulses, director } = setup();
+      playSimEventFeedback(changed(from, 'idle'), sourceOf(worldWith('outlet', false)), director);
+      expect(sounds).toEqual([soundOf('papa_free')]);
+      expect(pulses).toEqual(['light']);
+      expect(feedback.cues.papa_free?.visual).toEqual({ kind: 'uiElement' });
+    },
+  );
+
+  it('plays the ding when a busy Papa is free into a walk or a glide, not only idle', () => {
+    const { sounds, director } = setup();
+    playSimEventFeedback(changed('drink', 'glide'), sourceOf(worldWith('outlet', false)), director);
+    expect(sounds).toEqual([soundOf('papa_free')]);
+  });
+
+  it('plays nothing for a busy → busy change (drink → asleep): a swap, not an end', () => {
+    const { sounds, pulses, director } = setup();
+    playSimEventFeedback(
+      changed('drink', 'asleep'),
+      sourceOf(worldWith('outlet', false)),
+      director,
+    );
+    expect(sounds).toEqual([]);
+    expect(pulses).toEqual([]);
+  });
+
+  it('plays nothing when Papa becomes busy, or walks', () => {
+    const { sounds, pulses, director } = setup();
+    for (const [from, to] of [
+      ['idle', 'drink'],
+      ['walkPath', 'idle'],
+      ['idle', 'glide'],
+    ] as const) {
+      playSimEventFeedback(changed(from, to), sourceOf(worldWith('outlet', false)), director);
+    }
+    expect(sounds).toEqual([]);
+    expect(pulses).toEqual([]);
   });
 });

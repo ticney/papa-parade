@@ -9,6 +9,7 @@ import type { EffectiveWindow } from '../timing/effectiveWindow.ts';
 import { firmHoldOutcome, holdEndAt } from '../timing/holdEnd.ts';
 import { judgePress } from '../timing/judge.ts';
 import type { ThreatInstance, World } from '../world.ts';
+import { runAfterEffects } from './afterEffects.ts';
 import { gagThreat, giveFeint, openWindow, rearmThreat, resolveThreat } from './threatFsm.ts';
 
 type SimLevelEntry = StepContext['level']['threats'][number];
@@ -23,7 +24,8 @@ function pressThreat(
 ): void {
   if (threat.state !== 'telegraph' && threat.state !== 'windowOpen') return;
   if (threat.press !== null || threat.responseWindow === null) return;
-  const def = (ctx.level.threats[index] as SimLevelEntry).def;
+  const entry = ctx.level.threats[index] as SimLevelEntry;
+  const def = entry.def;
   if (def.response === 'nothing') {
     // Aimed at a threat the player was to leave alone (story 4.9): a gag, whatever `earlyPress` says,
     // up to the end of the stretch, judged on the press's own `t`. Later than that it is nothing:
@@ -62,7 +64,12 @@ function pressThreat(
   }
   if (judgement.quality === 'early') {
     // `guard`: Papa has already set off (the glide is his system's); only a new press in the window counts.
-    if (ctx.feel.input.earlyPress === 'fail') {
+    // A pot on the stove (story 9.5, review) is always `guard`: its marker covers the station's, so a
+    // tap meant to go back to the cooking must not boil it over. So is the open door of a chore (story
+    // 9.6, review): its marker sits on the station's anchor, a tap meant to go back to the dishwasher
+    // must not let the baby in.
+    const isOnStationMarker = def.target === 'station' || entry.openChoreIndex !== -1;
+    if (ctx.feel.input.earlyPress === 'fail' && !isOnStationMarker) {
       gagThreat(world, ctx, threat, def, 'early', judgement.offsetMs);
     }
     return;
@@ -146,7 +153,20 @@ export function runThreats(world: World, ctx: StepContext): void {
       // ends in its gag (`late`), which is the cost of the coffee. `Release` still passes below.
       // At the step where `busyUntil` is reached he is awake already (`runPapa` only records it
       // later in the step), so a press then is judged, and it glides him.
-      if (isPapaBusy(world.papa) && now < world.papa.busyUntil) continue;
+      if (isPapaBusy(world.papa) && now < world.papa.busyUntil) {
+        // The refusal is an event (story 2.12): once per command, for a threat that could be answered.
+        for (let j = 0; j < threats.length; j++) {
+          const threat = threats[j] as ThreatInstance;
+          if (
+            threat.id === command.threatId &&
+            (threat.state === 'telegraph' || threat.state === 'windowOpen')
+          ) {
+            ctx.events.push({ type: 'TapRefused', t: asSimMs(now), threatId: threat.id });
+            break;
+          }
+        }
+        continue;
+      }
       for (let j = 0; j < threats.length; j++) {
         const threat = threats[j] as ThreatInstance;
         if (threat.id === command.threatId) pressThreat(world, ctx, threat, j, command.t);
@@ -268,4 +288,6 @@ export function runThreats(world: World, ctx: StepContext): void {
       rearmThreat(world, ctx, threat);
     }
   }
+  // The séquelles that end or are noticed on their own (story 3.15), after every gag of the step.
+  runAfterEffects(world, ctx);
 }

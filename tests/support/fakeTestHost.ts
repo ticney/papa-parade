@@ -16,6 +16,9 @@ import { createTestContent } from './testContent.ts';
 const NO_FX_STATE: FxState = {
   cameraZoom: 1,
   cameraYawDeg: 0,
+  cameraMode: 'fixed',
+  cameraCentreXM: 0,
+  cameraCentreZM: 0,
   shakeOffsetM: 0,
   particlesAlive: 0,
   stampCount: 0,
@@ -23,8 +26,14 @@ const NO_FX_STATE: FxState = {
   papaClip: null,
   babyClip: null,
   papaMixerMs: 0,
+  papaBodyYawRad: 0,
+  papaSteamSwayDeg: 0,
+  papaBlablaTiltDeg: 0,
   doorOpenDeg: 0,
   dangerTintsShown: 0,
+  lightsFactor: 1,
+  mischiefDecals: 0,
+  choreShards: 0,
 };
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */
@@ -109,6 +118,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     fxState: () => options.fxState ?? NO_FX_STATE,
     setPapaLook: () => {},
     threatScreenPoints: () => [],
+    pagePoint: (xM, _yM, zM) => ({ xPx: xM * 100, yPx: zM * 100 }),
     lastInputDevice: () => lastInput,
     auditionCue(cueId) {
       calls.push(`audition:${cueId}`);

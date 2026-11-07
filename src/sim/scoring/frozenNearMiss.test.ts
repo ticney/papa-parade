@@ -2,6 +2,7 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   CARRY,
   COFFEE_TABLE,
@@ -19,7 +20,8 @@ import { SYSTEMS } from '../step.ts';
 import { enterThreatState, type ThreatState } from '../threats/threatFsm.ts';
 import type { World } from '../world.ts';
 
-const CONTENT = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const CONTENT = createTestContentWithoutCatastrophe();
 const { frozenNearMissReachM: REACH_M } = CONTENT.feel.endOfLevel;
 const MAMA = CONTENT.feel.mama;
 const DURATION_MS = 3000;
@@ -149,6 +151,9 @@ async function play(scenario: Scenario = {}): Promise<Played> {
   if (scenario.reason === 'mamaWoke') {
     sim.enqueue({ type: 'SetNoise', t: asSimMs(sim.world.time.sim), pct: 100 });
   }
+  if (scenario.reason === 'mamaHome') {
+    sim.enqueue({ type: 'SetCatastrophe', t: asSimMs(sim.world.time.sim), pct: 100 });
+  }
   isCycleDone = scenario.reason === 'cycleDone';
   isResolved = scenario.resolved === true;
   for (let guard = 0; guard < 10 && !isOver(sim.world); guard++) stepOnce();
@@ -248,7 +253,7 @@ describe('recordFrozenNearMisses (story 3.6, D2)', () => {
     expect(world.score.nearMisses).toBe(2);
   });
 
-  it.each<LevelEndReason>(['timer', 'mamaWoke', 'cycleDone'])(
+  it.each<LevelEndReason>(['timer', 'mamaWoke', 'cycleDone', 'mamaHome'])(
     'counts on a %s end',
     async (reason) => {
       const { events, world } = await play({ reason, babyAt: JUST_INSIDE });
@@ -279,12 +284,17 @@ describe('recordFrozenNearMisses (story 3.6, D2)', () => {
     const away = await play({ babyAt: FAR_AT });
     const near = await play({ babyAt: JUST_INSIDE });
     const scoreOf = (events: readonly SimEvent[]) => of(events, 'LevelScored')[0];
-    const lostScreamPoints = Math.min(MAMA.screamPerNearMissPoints, MAMA.screamMaxPoints);
-    expect(scoreOf(near.events)?.screamPoints).toBe(
-      (scoreOf(away.events)?.screamPoints ?? 0) + lostScreamPoints,
-    );
+    // The row is rounded once over every near miss (story 3.12), so each side is computed from its count.
+    const screamOf = (nearMisses: number) =>
+      Math.round(Math.min(nearMisses * MAMA.screamPerNearMissPoints, MAMA.screamMaxPoints));
+    const awayScream = screamOf(away.world.score.nearMisses);
+    const nearScream = screamOf(near.world.score.nearMisses);
+    expect(near.world.score.nearMisses).toBe(away.world.score.nearMisses + 1);
+    expect(nearScream).toBeGreaterThan(awayScream);
+    expect(scoreOf(away.events)?.screamPoints).toBe(awayScream);
+    expect(scoreOf(near.events)?.screamPoints).toBe(nearScream);
     expect(scoreOf(near.events)?.scorePoints).toBe(
-      (scoreOf(away.events)?.scorePoints ?? 0) - lostScreamPoints,
+      (scoreOf(away.events)?.scorePoints ?? 0) - (nearScream - awayScream),
     );
   });
 });
@@ -293,6 +303,7 @@ describe('the end snapshot of a frozen world (story 3.6 AC 2)', () => {
   it.each<[string, Scenario, string]>([
     ['an ended world', { babyAt: JUST_INSIDE }, 'ended'],
     ['a mamaWoke world', { reason: 'mamaWoke' }, 'ended'],
+    ['a mamaHome world', { reason: 'mamaHome' }, 'ended'],
     ['a photo world, the timer ending a final rush', { rush: true }, 'photo'],
   ])('restores %s with the same hash', async (_name, scenario, flowState) => {
     const { sim } = await play(scenario);
@@ -301,7 +312,7 @@ describe('the end snapshot of a frozen world (story 3.6 AC 2)', () => {
     const snapshot = sim.snapshot();
     sim.restore(snapshot);
     expect(hashJson(sim.world)).toBe(hashBefore);
-    // This story adds no world field: the snapshot stays at the version 3.5 left.
-    expect(snapshot.version).toBe(28);
+    // Story 3.6 added no world field; the version is the current one (33 since story 9.6).
+    expect(snapshot.version).toBe(33);
   });
 });

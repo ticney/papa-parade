@@ -16,6 +16,9 @@ import {
   createTestLevel,
   FATIGUE_GAUGES,
   OUTLET,
+  TEST_COOKING,
+  TEST_OBJECTS,
+  TEST_STOVE,
   testWave,
 } from '../../tests/support/testContent.ts';
 import { installAutoplay } from './autoplay.ts';
@@ -103,6 +106,35 @@ describe('installAutoplay', () => {
       sim.drainEvents();
     }
     expect(sim.journal().entries.length).toBe(before);
+  });
+
+  it('gives the bot the stations of the level, so that it does the chores (story 9.4)', async () => {
+    const host = createFakeTestHost();
+    expect(installAutoplay(host, 'perfect').ok).toBe(true);
+    const seed = 6;
+    const level = () =>
+      createTestLevel({
+        objects: [...TEST_OBJECTS, TEST_STOVE],
+        chores: [TEST_COOKING],
+        durationMs: 60_000,
+      });
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: level(),
+      seed,
+      strictInvariants: true,
+    });
+    host.fireLevelStarted({ ...startedOf(sim, seed), level: level() });
+    const hook = host.stepHook;
+    for (let i = 0; i < 4000; i++) {
+      hook?.(sim);
+      sim.step();
+      sim.drainEvents();
+    }
+    // With no threat in the level the bot has the whole lull: it cooks.
+    expect(sim.world.chores[0]?.state).toBe('done');
+    sim.dispose();
   });
 
   it('keeps asking the bot while a special sequence runs: it is no end of the level (story 4.4)', async () => {

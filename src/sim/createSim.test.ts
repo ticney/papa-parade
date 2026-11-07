@@ -4,6 +4,7 @@ import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
   CARRY,
+  COFFEE_TABLE,
   createTestContent,
   createTestFalseAlarm,
   createTestGeometry,
@@ -11,8 +12,11 @@ import {
   FATIGUE_GAUGES,
   OUTLET,
   SILENCE,
+  STAIRS,
   stepN,
+  TEST_COOKING,
   TEST_OBJECTS,
+  TEST_STOVE,
   testPhoneEntry,
   testWave,
 } from '../../tests/support/testContent.ts';
@@ -23,6 +27,46 @@ import { SYSTEMS } from './step.ts';
 const content = createTestContent();
 const geometry = createTestGeometry();
 const level = createTestLevel();
+
+describe('createSim refuses an afterEffect that does not fit its gag (story 3.15)', () => {
+  const withEffect = (defId: string, afterEffect: Record<string, unknown>) => {
+    const level = createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])] });
+    const def = level.threats[defId];
+    if (def === undefined) throw new Error(`no ${defId}`);
+    return {
+      ...level,
+      threats: { ...level.threats, [defId]: { ...def, afterEffect } },
+    } as typeof level;
+  };
+
+  it('names the def, the gag and the expected kind', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: withEffect('outlet', { kind: 'asleep', busyMs: 1000 }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/"outlet".*"outlet_hair".*"electrified".*"asleep"/);
+  });
+
+  it('refuses every surprise gag of a silence that is not a mess', async () => {
+    await expect(
+      createSim({
+        content,
+        geometry,
+        level: withEffect('silence_mischief', { kind: 'none' }),
+        seed: 1,
+      }),
+    ).rejects.toThrow(/"silence_mischief".*"mess".*"none"/);
+  });
+
+  it('accepts the frozen defs as they are', async () => {
+    const level = createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])] });
+    const sim = await createSim({ content, geometry, level, seed: 1 });
+    expect(sim.world.threats).toHaveLength(4);
+  });
+});
 
 describe('createSim', () => {
   it('advances exactly 1000 ms in 100 steps', async () => {
@@ -253,6 +297,62 @@ describe('the level it plans', () => {
     );
   });
 
+  describe('the house chores it plans (story 9.4)', () => {
+    const objects = [...TEST_OBJECTS, TEST_STOVE];
+    const planned = createTestLevel({ objects, chores: [TEST_COOKING] });
+    const plan = (patch: Partial<typeof planned>) =>
+      createSim({ content, geometry, level: { ...planned, ...patch }, seed: 1 });
+    const withChores = (chores: typeof planned.level.chores) => ({
+      level: { ...planned.level, chores },
+    });
+
+    it('plans one chore per entry, with its station’s anchor', async () => {
+      const sim = await createSim({ content, geometry, level: planned, seed: 1 });
+      expect(sim.chores).toHaveLength(1);
+      expect(sim.chores[0]).toMatchObject({ objectId: 'stove' });
+      expect(sim.chores[0]?.def.id).toBe('cooking');
+    });
+
+    it('refuses a chore whose def is not loaded', async () => {
+      await expect(plan({ chores: [] })).rejects.toThrow(/chores\[0\].*cooking is not loaded/);
+    });
+
+    it('refuses a loaded def that is not the one the level names', async () => {
+      const other = { ...planned.chores![0]!, id: 'dishes' };
+      await expect(plan({ chores: [other] })).rejects.toThrow(
+        /chores\[0\].*the loaded chore is "dishes", not "cooking"/,
+      );
+    });
+
+    it('refuses a station object the level does not have', async () => {
+      await expect(plan(withChores([{ def: 'cooking', object: 'hob' }]))).rejects.toThrow(
+        /chores\[0\].*the object "hob" is not in the level objects/,
+      );
+    });
+
+    it('refuses an object of another kind than the chore’s station', async () => {
+      await expect(plan(withChores([{ def: 'cooking', object: 'phone' }]))).rejects.toThrow(
+        /played at a "stove", but the object "phone" has the kind "phone"/,
+      );
+    });
+
+    it('refuses an object that is the station of two chores', async () => {
+      await expect(
+        plan({
+          ...withChores([TEST_COOKING, TEST_COOKING]),
+          chores: [planned.chores![0]!, planned.chores![0]!],
+        }),
+      ).rejects.toThrow(/chores\[1\].*the object "stove" is already the station of another chore/);
+    });
+
+    it('refuses a station that no chore names', async () => {
+      const unnamed = createTestLevel({ objects });
+      await expect(createSim({ content, geometry, level: unnamed, seed: 1 })).rejects.toThrow(
+        /the stove "stove" is a station and no chore names it/,
+      );
+    });
+  });
+
   it('accepts a level with objects, and hashes them into the journal', async () => {
     const withObjects = createTestLevel({ objects: TEST_OBJECTS });
     const sim = await createSim({ content, geometry, level: withObjects, seed: 1 });
@@ -263,7 +363,7 @@ describe('the level it plans', () => {
   it('refuses a gag the sim does not know', async () => {
     const odd = { ...planning, threats: { outlet: { ...defOf(), gag: 'outlet_hairs' } } };
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles, arms_wail, baby_eyes_reopened, baby_sat_up, baby_woke_on_drop, baby_woke_by_touch, baby_woke_crying\)/,
+      /the threat "outlet" has the gag "outlet_hairs", which the sim does not know \(outlet_hair, stairs_slide, table_object_fall, papa_asleep, tissues_everywhere, crayon_scribbles, pot_boiled_over, baby_in_dishwasher, dishes_on_floor, pan_concert, peelings_everywhere, soil_on_rug, coffee_spilled, arms_wail, baby_eyes_reopened, baby_sat_up, baby_woke_on_drop, baby_woke_by_touch, baby_woke_crying\)/,
     );
   });
 
@@ -331,7 +431,12 @@ describe('the level it plans', () => {
       threats: [{ anchorId: 'outlet_01', firstWaveIndex: 0 }],
     });
     expect(sim.world.director).toEqual({ waveIndex: -1, nextAt: 0 });
-    expect(sim.world.flow).toEqual({ state: 'playing', enteredAt: 0, finalRushAt: null });
+    expect(sim.world.flow).toEqual({
+      state: 'playing',
+      enteredAt: 0,
+      finalRushAt: null,
+      endReason: null,
+    });
   });
 
   it('hashes the level into the journal and the snapshot', async () => {
@@ -621,7 +726,7 @@ describe('the level’s fatigue and objects (story 1.19)', () => {
       objects: [{ id: 'kettle', kind: 'kettle' as never, anchor: 'phone' }],
     });
     await expect(createSim({ content, geometry, level: odd, seed: 1 })).rejects.toThrow(
-      /objects\[0\]: the object "kettle" has the kind "kettle", which the sim has no action for \(coffee_machine, phone, toilet\)/,
+      /objects\[0\]: the object "kettle" has the kind "kettle", which the sim has no action for \(coffee_machine, phone, toilet, stove, dishwasher\)/,
     );
   });
 });
@@ -747,6 +852,22 @@ describe('the hidden-zone threat the level plans (story 1.21)', () => {
     await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
       /salon_crawler.*waves\[0\]\.threats\[0\].*"silence_mischief".*"outlet_01" must be a hidden zone/,
     );
+  });
+
+  it('refuses a wave that plans a silence while it allows one at a time: it counts for two (story 3.13)', async () => {
+    const wrong = createTestLevel({
+      waves: [
+        testWave([OUTLET], { maxSimultaneous: 1 }),
+        testWave([SILENCE], { fromMs: 60_000, maxSimultaneous: 1 }),
+      ],
+    });
+    await expect(createSim({ content, geometry, level: wrong, seed: 1 })).rejects.toThrow(
+      /salon_crawler.*waves\[1\]\.threats\[0\]: wave 1 plans the silence "silence_mischief".*counts for 2 against maxSimultaneous, but allows 1/,
+    );
+    const right = createTestLevel({
+      waves: [testWave([OUTLET]), testWave([SILENCE], { fromMs: 60_000, maxSimultaneous: 2 })],
+    });
+    await expect(createSim({ content, geometry, level: right, seed: 1 })).resolves.toBeDefined();
   });
 
   it('refuses an anchored threat planned at a zone: a zone is not an anchor', async () => {

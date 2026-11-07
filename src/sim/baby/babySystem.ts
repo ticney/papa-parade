@@ -61,10 +61,13 @@ function lockOnThreat(world: World, ctx: StepContext): void {
     const threat = world.threats[i] as ThreatInstance;
     if (!isThreatActive(threat) || threat.state === 'hidden') continue;
     // A threat on Papa (the micro-sleep, story 1.19) is not the baby's business, a silence is
-    // taken by `runSilence`, not locked on (story 1.21), and a threat on the baby himself (a stealth
-    // step's alert, story 4.9) is not something he walks to.
+    // taken by `runSilence`, not locked on (story 1.21), a threat on the baby himself (a stealth
+    // step's alert, story 4.9) is not something he walks to, and neither is the pot on the stove
+    // (story 9.5): it boils over by itself, the baby has no part in it.
     const target = ctx.level.threats[i]?.def.target;
-    if (target === 'papa' || target === 'hiddenZone' || target === 'baby') continue;
+    if (target === 'papa' || target === 'hiddenZone' || target === 'baby' || target === 'station') {
+      continue;
+    }
     baby.targetThreatId = threat.id;
     stopCrawling(world);
     gazeAt(baby, threat.xM, threat.zM);
@@ -95,6 +98,9 @@ export function runBaby(world: World, ctx: StepContext): void {
     runCarry(world, ctx);
     return;
   }
+  // Left at the bottom of the stairs, or carried back up (story 3.15): inert like a carried baby. His
+  // return is `runAfterEffects`' and `finishCarryUp`'s.
+  if (baby.state === 'downstairs' || baby.state === 'carriedUp') return;
   // The baby sleeps through a stealth step (story 4.9): inert like a carried one. His cry, above, still
   // runs, and `prevXM` was remembered, so the view has nothing to slide.
   if (isStealthStepRunning(world)) return;

@@ -10,6 +10,7 @@ import { replayRunFile } from '../../../tools/sim/replaySim.ts';
 import type { RunFile } from '../../../tools/sim/runFile.ts';
 import { runSim } from '../../../tools/sim/runSim.ts';
 import { renderReport } from '../../../tools/sim/simReport.ts';
+import { silenceCatastrophe } from '../../support/noCatastrophe.ts';
 import { createTestSimLevel, simArgs } from '../../support/simSupport.ts';
 
 async function reportOf(overrides: Parameters<typeof simArgs>[0]) {
@@ -35,6 +36,60 @@ describe('runSim', () => {
     const a = renderReport(await reportOf({ botId: 'human', seed: 3, runs: 2 }));
     const b = renderReport(await reportOf({ botId: 'human', seed: 3, runs: 2 }));
     expect(a).toBe(b);
+  });
+
+  describe('--chrono-ring (story 3.14)', () => {
+    /** The frozen level, with a human who reads the ring far better than a bare dial. */
+    const sharpWithRing = () => {
+      const loaded = createTestSimLevel();
+      const { human } = loaded.content.bots;
+      return {
+        ...loaded,
+        content: {
+          ...loaded.content,
+          bots: {
+            ...loaded.content.bots,
+            human: {
+              ...human,
+              readError: {
+                withChronoRing: { offsetMs: 0, sdMs: 10 },
+                withoutChronoRing: { offsetMs: 0, sdMs: 700 },
+              },
+            },
+          },
+        },
+      };
+    };
+    const playOn = async (overrides: Parameters<typeof simArgs>[0]) => {
+      const result = await runSim(simArgs({ runs: 6, seed: 20, ...overrides }), sharpWithRing());
+      if (!result.ok) throw new Error(result.error);
+      return result.value;
+    };
+
+    it('changes the games of the human bot: fewer perfects without the ring, on the same seeds', async () => {
+      const on = await playOn({ botId: 'human', chronoRing: 'on' });
+      const off = await playOn({ botId: 'human', chronoRing: 'off' });
+      expect(on.chronoRing).toBe('on');
+      expect(off.chronoRing).toBe('off');
+      expect(on.perfectPct).not.toBeNull();
+      expect(off.perfectPct).not.toBeNull();
+      expect((on.perfectPct ?? 0) - (off.perfectPct ?? 0)).toBeGreaterThan(20);
+      expect(on.hashes.bots).toBe(off.hashes.bots);
+      expect(on.runList.map((entry) => entry.worldHash)).not.toEqual(
+        off.runList.map((entry) => entry.worldHash),
+      );
+    });
+
+    it('does not change the games of the perfect bot, nor of the idle one', async () => {
+      for (const botId of ['perfect', 'idle'] as const) {
+        const on = await playOn({ botId, chronoRing: 'on' });
+        const off = await playOn({ botId, chronoRing: 'off' });
+        expect(
+          off.runList.map((entry) => entry.worldHash),
+          botId,
+        ).toEqual(on.runList.map((entry) => entry.worldHash));
+      }
+    });
   });
 
   it('shows the perfect bot perfect and the idle bot failing', async () => {
@@ -123,6 +178,8 @@ describe('runSim on the live content', () => {
 
   it('plays each idle game to LevelEnded: every wave telegraphs, none goes over its limit', async () => {
     const loaded = await load();
+    // This is about the waves, not the catastrophe (story 3.16 D14): an idle player's gags would bring Mama home first.
+    silenceCatastrophe(loaded.content.feel);
     const result = await runSim(simArgs({ botId: 'idle', runs: 5, untilSimMs: null }), loaded);
     if (!result.ok) throw new Error(result.error);
     const report = result.value;
@@ -180,6 +237,24 @@ describe('runSim on the live content', () => {
     expect(replayed.ok).toBe(true);
   }, 120_000);
 
+  it('records a game that ended on Mama come home early and replays it to the same state (story 3.16)', async () => {
+    const loaded = await load();
+    const games: RunFile[] = [];
+    const result = await runSim(simArgs({ botId: 'idle', untilSimMs: null }), loaded, {
+      onGame: (_name, game) => games.push(game),
+    });
+    if (!result.ok) throw new Error(result.error);
+    const [run] = result.value.runList;
+    expect(run?.endReason).toBe('mamaHome');
+    expect(run?.mamaHomeAtMs).toBeLessThan(loaded.level.level.durationMs);
+    expect(run?.catastrophePeakPct).toBe(100);
+    expect(result.value.endsByReason.mamaHome).toBe(1);
+    // The run stops with the level: the file's horizon is the end, not the level's duration.
+    expect(games[0]?.untilSimMs).toBeLessThanOrEqual(loaded.level.level.durationMs);
+    const replayed = await replayRunFile(games[0] as RunFile, loaded);
+    expect(replayed.ok).toBe(true);
+  }, 120_000);
+
   it('stops at --until-ms when that is sooner, and the game has not ended', async () => {
     const loaded = await load();
     const result = await runSim(simArgs({ botId: 'idle', untilSimMs: 5000 }), loaded);
@@ -220,6 +295,8 @@ describe('runSim on the live content', () => {
         holdMinMs: feel.input.holdMinMs,
         responses: botResponsesOf(loaded.level.threats),
         releaseDefIds: releaseDefIdsOf(loaded.level.threats),
+        choreObjectIds: [],
+        isChronoRingShown: true,
         safeSpot: null,
         settings: loaded.content.bots,
       });

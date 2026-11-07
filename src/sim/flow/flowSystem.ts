@@ -8,6 +8,7 @@ import { dropProps } from '../physics/dropProps.ts';
 import { recordFrozenNearMisses } from '../scoring/frozenNearMiss.ts';
 import { scoreLevel } from '../scoring/mamaScore.ts';
 import { endSequenceForLevelEnd } from '../sequences/sequenceEnd.ts';
+import { endAfterEffects } from '../threats/afterEffects.ts';
 import type { World } from '../world.ts';
 import { enterFlowState, isFlowLive } from './flowFsm.ts';
 
@@ -15,9 +16,10 @@ import { enterFlowState, isFlowLive } from './flowFsm.ts';
  * The end of the level, shared by every way in: a sequence under way is closed first
  * (`SequenceEnded{levelEnded}`, story 4.4), then a phone still ringing
  * (`PhoneRingEnded{levelEnded}`), then an open silence (`SilenceEnded{levelEnded}`), Fatherly
- * Instinct (`InstinctEnded{levelEnded}`, story 2.9), the flow goes to `ended` (to `photo` when the
- * timer ends a level with a final rush, story 3.5, D2), `MamaWoke` (a woken Mama only),
- * `LevelEnded{reason}`, the near misses frozen on the photo (`recordFrozenNearMisses`, story 3.6) and
+ * Instinct (`InstinctEnded{levelEnded}`, story 2.9), the séquelles that have an end (`endAfterEffects`,
+ * story 3.15: Papa is freed, the baby comes back up, the pénombre ends), the flow goes to `ended` (to `photo` when the
+ * timer ends a level with a final rush, story 3.5, D2), `flow.endReason` (story 3.16), `MamaWoke` (a woken
+ * Mama only: a Mama come home early, `mamaHome`, wakes no one), `LevelEnded{reason}`, the near misses frozen on the photo (`recordFrozenNearMisses`, story 3.6) and
  * Mama's note in the same step (`scoreLevel`, story 1.22).
  */
 function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void {
@@ -25,7 +27,9 @@ function endLevel(world: World, ctx: StepContext, reason: LevelEndReason): void 
   endRingingPhones(world, ctx);
   endSilence(world, ctx);
   endInstinct(world, ctx);
+  endAfterEffects(world, ctx);
   enterFlowState(world, reason === 'timer' && ctx.level.hasFinalRush ? 'photo' : 'ended');
+  world.flow.endReason = reason;
   if (reason === 'mamaWoke') ctx.events.push({ type: 'MamaWoke', t: world.time.sim });
   ctx.events.push({ type: 'LevelEnded', t: world.time.sim, reason });
   // The near misses the photo shows (story 3.6, D2) count before the note is computed.
@@ -60,12 +64,14 @@ function startFinalRush(world: World, ctx: StepContext): void {
 }
 
 /**
- * System: the level's flow, last of `SYSTEMS`. It has three ways to end the level. At the first step where the
+ * System: the level's flow, last of `SYSTEMS`. It has four ways to end the level. At the first step where the
+ * catastrophe gauge is at 100 % (`GAUGE_MAX_POINTS`, read after `runGauges`, story 3.16), Mama comes home
+ * early: `LevelEnded{reason: 'mamaHome'}`, no `MamaWoke`, no rush. At the first step where the
  * noise gauge of a level with noise is at 100 % (`GAUGE_MAX_POINTS`, read after `runGauges`, story
  * 3.2), Mama wakes: `MamaWoke`, then `LevelEnded{reason: 'mamaWoke'}`. In the step the bedtime cycle
  * is completed (story 4.10), `LevelEnded{reason: 'cycleDone'}`. At the first step where the sim clock
  * reaches the level's `durationMs` (story 1.18), `LevelEnded{reason: 'timer'}`. In that order: on a
- * tie the noise goes first (D2), then the cycle. After that `step()` no longer runs this
+ * tie the catastrophe goes first (3.16 D5), then the noise (D2), then the cycle. After that `step()` no longer runs this
  * system (nor any gameplay one, see `ENDED_SYSTEMS`), so the event comes exactly once. Mama's note
  * follows `LevelEnded` in the same step: the world is frozen from then on, so it matches the room
  * left on screen. A level without noise keeps `noisePct` at 0 and never ends on Mama.
@@ -78,6 +84,11 @@ function startFinalRush(world: World, ctx: StepContext): void {
 export function runFlow(world: World, ctx: StepContext): void {
   // A sequence (story 4.4) and the rush (story 3.5) do not suspend the level's end: the timer and the noise still end it.
   if (!isFlowLive(world)) return;
+  // The catastrophe first (story 3.16 D5): Mama comes home early, with no final rush, no `MamaWoke`.
+  if (world.gauges.catastrophePct >= GAUGE_MAX_POINTS) {
+    endLevel(world, ctx, 'mamaHome');
+    return;
+  }
   if (ctx.level.hasNoise && world.gauges.noisePct >= GAUGE_MAX_POINTS) {
     endLevel(world, ctx, 'mamaWoke');
     return;

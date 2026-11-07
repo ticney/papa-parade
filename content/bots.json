@@ -1,6 +1,19 @@
 {
   "$schema": "./_schemas/bots.schema.json",
   "tapMs": 80,
-  "human": { "reactionMs": 250, "aimOffsetMs": 0, "jitterSdMs": 60 },
+  "chores": { "isEnabled": true, "quietMinMs": 1500 },
+  "human": {
+    "reactionMeanMs": 250,
+    "reactionSdMs": 50,
+    "reactionMinMs": 150,
+    "readError": {
+      "withChronoRing": { "offsetMs": 0, "sdMs": 90 },
+      "withoutChronoRing": { "offsetMs": 0, "sdMs": 400 }
+    },
+    "aimOffsetMs": 0,
+    "jitterSdMs": 60,
+    "missWhileBusyPct": 10,
+    "backTurnedSdMs": 150
+  },
   "random": { "actionsPerSec": 2, "floorReachM": 3, "maxHoldMs": 800 }
 }

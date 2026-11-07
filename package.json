@@ -20,8 +20,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "golden:update": "GOLDEN_UPDATE=1 vitest run tests/golden",
-    "e2e": "playwright test",
-    "e2e:dist": "tsx tools/build/runDistE2e.ts",
+    "e2e": "bash tools/ci/heavyLock.sh playwright test",
+    "e2e:dist": "bash tools/ci/heavyLock.sh tsx tools/build/runDistE2e.ts",
     "content:check": "tsx tools/content/checkContent.ts",
     "content:schemas": "tsx tools/content/emitSchemas.ts",
     "sim": "tsx tools/sim/runSim.ts",
@@ -35,8 +35,9 @@
     "assets:audio": "tsx tools/audio/makePlaceholderAudio.ts",
     "story:new": "bash tools/git/newStoryWorktree.sh",
     "ci:fast": "npm run typecheck && npm run lint && npm run content:check && npm run test",
-    "ci:story": "npm run ci:fast && playwright test --project=chromium",
-    "ci": "npm run typecheck && npm run lint && npm run content:check && npm run test:coverage && npm run e2e && npm run build:playtest && npm run dist:check -- --flavor playtest && npm run e2e:dist && npm run build && npm run dist:check -- --flavor prod"
+    "ci:story": "npm run ci:fast && npm run e2e -- --project=chromium",
+    "ci": "npm run typecheck && npm run lint && npm run content:check && bash tools/ci/heavyLock.sh npm run ci:heavy",
+    "ci:heavy": "npm run test:coverage && npm run e2e && npm run build:playtest && npm run dist:check -- --flavor playtest && npm run e2e:dist && npm run build && npm run dist:check -- --flavor prod"
   },
   "dependencies": {
     "@dimforge/rapier3d-deterministic-compat": "0.21.0",

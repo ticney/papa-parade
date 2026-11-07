@@ -57,7 +57,10 @@ function setup() {
   const clock = { realToSim: (ms: number) => asSimMs(ms - 1000) };
   const sim = {
     enqueue: (command: SimCommand) => commands.push(command),
+    // The level's stations (story 9.4), index-aligned with `world.chores`: none unless a test sets some.
+    chores: [] as { objectId: string }[],
     world: {
+      chores: [] as { state: string }[],
       time: { sim: asSimMs(777) },
       flow: { state: 'playing' as 'playing' | 'ended' | 'sequence' | 'finalRush' },
       sequence: {
@@ -84,8 +87,11 @@ function setup() {
   const taps: [number, number][] = [];
   let nowAtReal = 2000;
   let visualOffsetMs = 0;
+  let babySlide = { xM: 0, zM: 0 };
   const pressedIds: number[] = [];
   let targets: ThreatTargets | null = null;
+  // The off-screen bubbles' pick (story 9.3): no bubble unless a test sets one.
+  let bubblePick: (clientX: number, clientY: number) => number | null = () => null;
   const moveIntent = createMoveIntent({
     camera,
     input: { stickDeadzonePct: 20, stickAngleStepDeg: 5 },
@@ -128,11 +134,13 @@ function setup() {
     onPadPresence: (isPresent, family) => padPresence.push([isPresent, family]),
     moveIntent,
     getThreatTargets: () => targets,
+    pickOffscreenBubble: (clientX, clientY) => bubblePick(clientX, clientY),
     touchRadiusPx: TOUCH_RADIUS_PX,
     objectTouchRadiusPx: OBJECT_TOUCH_RADIUS_PX,
     babyBodyRadiusM: BABY_RADIUS_M,
     babyCarriedHeightM: BABY_CARRIED_HEIGHT_M,
     babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
+    getBabySlideM: () => babySlide,
     onThreatPressed: (id) => pressedIds.push(id),
     showTapMarker: (x, z) => markers.push([x, z]),
     onTap: (x, z) => taps.push([x, z]),
@@ -146,6 +154,9 @@ function setup() {
     padButtons,
     padPresence,
     setObjects: (next: ObjectTarget[]) => (objects = next),
+    setBabySlide: (xM: number, zM: number) => {
+      babySlide = { xM, zM };
+    },
     state,
     commands,
     held,
@@ -154,6 +165,8 @@ function setup() {
     camera,
     pressedIds,
     setTargets: (next: ThreatTargets | null) => (targets = next),
+    setBubblePick: (next: (clientX: number, clientY: number) => number | null) =>
+      (bubblePick = next),
     setActive: (next: ActiveLevel | null) => (active = next),
     newSim: () => {
       const other = {
@@ -530,6 +543,80 @@ describe('createInputMapper: threats', () => {
     state.pause = 'paused';
     mapper.handlePointerDown(click(iconPx.x, iconPx.y));
     expect(commands).toEqual([]);
+  });
+});
+
+describe('createInputMapper: an off-screen bubble (story 9.3, D4, AC 5)', () => {
+  const ICON = {
+    threatId: 4,
+    xM: -3,
+    yM: 0.3,
+    zM: 0.5,
+    icon: 'bolt' as const,
+    followsPapa: false,
+    verb: '',
+    iconShape: 'circle' as const,
+    color: 'parry' as const,
+    verbWidthPx: 0,
+    verbHeightPx: 0,
+    verbOffsetPx: 0,
+  };
+  /** A bubble for threat 9 around the page point (100, 100), 37 px across its radius. */
+  const bubbleAt = (clientX: number, clientY: number): number | null =>
+    Math.hypot(clientX - 100, clientY - 100) <= 37 ? 9 : null;
+
+  function withBubble() {
+    const env = setup();
+    env.setTargets({
+      threats: [{ id: 4, state: 'windowOpen' } as never, { id: 9, state: 'windowOpen' } as never],
+      entries: [ICON, { ...ICON, threatId: 9, xM: 30, zM: 30 }],
+    });
+    env.setBubblePick(bubbleAt);
+    return env;
+  }
+
+  it('turns a press on the bubble into the PressThreat of its threat, and its Release follows', () => {
+    const { mapper, commands, markers, taps, pressedIds } = withBubble();
+    mapper.handlePointerDown(click(110, 95, { pointerId: 3 }));
+    mapper.handlePointerUp(click(600, 400, { pointerId: 3, timeStamp: 1300 }));
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 234, threatId: 9 },
+      { type: 'Release', t: 300 },
+    ]);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+    expect(pressedIds).toEqual([9]);
+  });
+
+  it('wins over a world threat or the floor under it', () => {
+    const { mapper, commands, camera, setBubblePick } = withBubble();
+    const probe = new Vector3(ICON.xM, ICON.yM, ICON.zM).project(camera);
+    const iconPx = {
+      x: RECT.left + ((probe.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - probe.y) / 2) * RECT.height,
+    };
+    // The bubble over the threat 4's icon: the bubble's threat is pressed.
+    setBubblePick((x, y) => (Math.hypot(x - iconPx.x, y - iconPx.y) <= 37 ? 9 : null));
+    mapper.handlePointerDown(click(iconPx.x, iconPx.y));
+    expect(commands).toEqual([{ type: 'PressThreat', t: 234, threatId: 9 }]);
+  });
+
+  it('still sends the press when Papa is busy, to be refused by the sim, with no highlight mark', () => {
+    const { mapper, sim, commands, pressedIds } = withBubble();
+    sim.world.papa.state = 'drink';
+    mapper.handlePointerDown(click(100, 100, { pointerId: 2 }));
+    mapper.handlePointerUp(click(0, 0, { pointerId: 2, timeStamp: 1300 }));
+    expect(commands).toEqual([
+      { type: 'PressThreat', t: 234, threatId: 9 },
+      { type: 'Release', t: 300 },
+    ]);
+    expect(pressedIds).toEqual([]);
+  });
+
+  it('is the usual tap off the bubble', () => {
+    const { mapper, commands } = withBubble();
+    mapper.handlePointerDown(click(RECT.left + 400, RECT.top + 300));
+    expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
   });
 });
 
@@ -1262,22 +1349,81 @@ describe('createInputMapper: touching an object (story 1.19)', () => {
   });
 
   describe('while Papa is busy (drinking, asleep or on the phone)', () => {
-    it.each(['drink', 'asleep', 'onPhone'])(
-      'drops a press, an object tap, a floor tap and a Move (%s)',
+    it.each(['drink', 'asleep', 'onPhone', 'onToilet'])(
+      'drops an object tap, a floor tap, a Move and an action with no threat up (%s)',
       (state) => {
-        const { mapper, sim, commands, held, camera, setObjects, setTargets } = setup();
+        const { mapper, sim, commands, held, markers, camera, setObjects } = setup();
         setObjects([COFFEE]);
-        setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
         sim.world.papa.state = state;
         const at = pxOf(camera, COFFEE);
-        mapper.handlePointerDown(click(at.x, at.y)); // a threat and an object
+        mapper.handlePointerDown(click(at.x, at.y)); // an object
         mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10)); // the floor
         held.add('KeyD');
         mapper.onKeysChanged(1500);
         mapper.handleAction('down', 1500, 'keyboard');
         expect(commands).toEqual([]);
+        expect(markers).toEqual([]);
       },
     );
+
+    it.each(['drink', 'asleep', 'onPhone', 'onToilet'])(
+      'sends the PressThreat of a tap on a threat, without a marker or a highlight mark (%s, story 2.12)',
+      (state) => {
+        const { mapper, sim, commands, markers, taps, pressedIds, camera, setObjects, setTargets } =
+          setup();
+        setObjects([COFFEE]);
+        setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+        sim.world.papa.state = state;
+        const at = pxOf(camera, COFFEE);
+        mapper.handlePointerDown(click(at.x, at.y));
+        expect(commands).toEqual([{ type: 'PressThreat', t: 234, threatId: 4 }]);
+        expect(markers).toEqual([]);
+        expect(taps).toEqual([]);
+        expect(pressedIds).toEqual([]);
+      },
+    );
+
+    it('sends the Release of a busy press, so a refused tap never becomes a hold (D2)', () => {
+      const { mapper, sim, commands, camera, setTargets } = setup();
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      sim.world.papa.state = 'drink';
+      const at = pxOf(camera, COFFEE);
+      mapper.handlePointerDown(click(at.x, at.y, { pointerId: 7 }));
+      mapper.handlePointerUp(click(0, 0, { pointerId: 7, timeStamp: 1300 }));
+      expect(commands).toEqual([
+        { type: 'PressThreat', t: 234, threatId: 4 },
+        { type: 'Release', t: 300 },
+      ]);
+    });
+
+    it('drops a tap on the floor while busy even with a threat up elsewhere', () => {
+      const { mapper, sim, commands, markers, setTargets } = setup();
+      setTargets({ threats: [{ id: 4, state: 'windowOpen' } as never], entries: [ICON] });
+      sim.world.papa.state = 'onPhone';
+      mapper.handlePointerDown(click(RECT.left + 10, RECT.top + 10));
+      expect(commands).toEqual([]);
+      expect(markers).toEqual([]);
+    });
+
+    it('Space / A with a threat up sends the PressThreat while busy, without a highlight mark', () => {
+      const { mapper, sim, commands, pressedIds } = setup();
+      sim.world.threats = [
+        {
+          id: 1,
+          state: 'windowOpen',
+          xM: 1,
+          zM: 1,
+          windowOpenAt: 1000,
+          responseWindow: { windowMs: 600, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+        },
+      ];
+      sim.world.papa.state = 'drink';
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat']);
+      expect(pressedIds).toEqual([]);
+      mapper.handleAction('up', 1600, 'keyboard');
+      expect(commands.map((c) => c.type)).toEqual(['PressThreat', 'Release']);
+    });
 
     it('control: the same inputs with Papa idle do send commands (so the drops above are the busy gate)', () => {
       const { mapper, sim, commands, held, camera, setObjects, setTargets } = setup();
@@ -1988,6 +2134,116 @@ describe('createInputMapper: the toilet (story 4.3)', () => {
   });
 });
 
+describe('createInputMapper: a chore’s station (story 9.4)', () => {
+  const STOVE = { id: 'stove', kind: 'stove' as const, xM: 1, yM: 1, zM: 0 };
+  const COFFEE_NEAR = {
+    id: 'coffee_machine',
+    kind: 'coffee_machine' as const,
+    xM: 0.5,
+    yM: 1,
+    zM: 0,
+  };
+  const pxOfPoint = (
+    camera: Parameters<typeof Vector3.prototype.project>[0],
+    o: { xM: number; yM: number; zM: number },
+  ) => {
+    const v = new Vector3(o.xM, o.yM, o.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+  /** Papa works at the stove: the world says so, as the sim does. */
+  function working(sim: ReturnType<typeof setup>['sim']): void {
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'working' }] });
+    sim.world.papa.state = 'chore';
+  }
+
+  it('sends TapObject and shows the tap marker where Papa will stand, when he is free', () => {
+    const { mapper, sim, commands, markers, camera, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'untouched' }] });
+    Object.assign(sim.world.baby, { xM: 40, zM: 40, state: 'babble' });
+    const at = pxOfPoint(camera, STOVE);
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'stove' }]);
+    expect(markers).toEqual([[STOVE.xM, STOVE.zM]]);
+  });
+
+  it('is still a TapObject while Papa works there, the beat’s press, but shows no marker and no tap', () => {
+    const { mapper, sim, commands, markers, taps, camera, setObjects } = setup();
+    setObjects([STOVE]);
+    working(sim);
+    Object.assign(sim.world.baby, { xM: 40, zM: 40, state: 'babble' });
+    const at = pxOfPoint(camera, STOVE);
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'stove' }]);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+  });
+
+  it('sends the command but no marker while the baby is carried: the sim refuses it', () => {
+    const { mapper, sim, commands, markers, taps, camera, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried', gazeX: -1, gazeZ: 0 });
+    const at = pxOfPoint(camera, STOVE);
+    mapper.handlePointerDown(click(at.x, at.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'stove' }]);
+    expect(markers).toEqual([]);
+    expect(taps).toEqual([]);
+  });
+
+  it('lets Space put a carried baby down beside the stove: the station is no object in reach then', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+  });
+
+  it('still reaches another object past the stove while the baby is carried', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE, COFFEE_NEAR]);
+    Object.assign(sim.world.baby, { xM: 0, zM: 0, state: 'carried' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'coffee_machine' }]);
+  });
+
+  it('lets Space take a free baby beside a stove whose chore is done: a done station is inert', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'done' }] });
+    // Papa stands at the stove (distance 0 to it), the baby a metre away: the station used to win.
+    Object.assign(sim.world.papa, { xM: STOVE.xM, zM: STOVE.zM });
+    Object.assign(sim.world.baby, { xM: STOVE.xM + 1, zM: STOVE.zM, state: 'babble' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapBaby', t: 500 }]);
+  });
+
+  it('still lets Space reach a stove whose chore is not done, beside a free baby', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    Object.assign(sim, { chores: [{ objectId: 'stove' }] });
+    Object.assign(sim.world, { chores: [{ state: 'paused' }] });
+    Object.assign(sim.world.papa, { xM: STOVE.xM, zM: STOVE.zM });
+    Object.assign(sim.world.baby, { xM: STOVE.xM + 1, zM: STOVE.zM, state: 'babble' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'stove' }]);
+  });
+
+  it('sends Space near the stove as the beat’s press when the baby is free', () => {
+    const { mapper, sim, commands, setObjects } = setup();
+    setObjects([STOVE]);
+    working(sim);
+    Object.assign(sim.world.baby, { xM: 40, zM: 40, state: 'babble' });
+    mapper.handleAction('down', 1500, 'keyboard');
+    expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'stove' }]);
+  });
+});
+
 describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
   const MUG = { id: 'mug_01', xM: 0.8, yM: 0.05, zM: 0.2, isMess: true };
   const BOOK = { id: 'book_01', xM: 3.4, yM: 0.02, zM: -0.5, isMess: true };
@@ -2143,6 +2399,118 @@ describe('createInputMapper: tidying in the final rush (story 3.5)', () => {
       sim.world.flow.state = 'playing';
       mapper.handleAction('down', 1500, 'keyboard');
       expect(commands).toEqual([]);
+    });
+  });
+});
+
+describe('createInputMapper: the debris of the coffee table (story 3.15)', () => {
+  const MUG = {
+    id: 'mug_01',
+    xM: 0.8,
+    yM: 0.05,
+    zM: 0.2,
+    isMess: true,
+    debrisPickUpMs: 1500,
+  };
+  const CUSHION = { id: 'cushion_01', xM: -1.4, yM: 0.05, zM: -1, isMess: true };
+  const pxOfPoint = (
+    camera: Parameters<typeof Vector3.prototype.project>[0],
+    o: { xM: number; yM: number; zM: number },
+  ) => {
+    const v = new Vector3(o.xM, o.yM, o.zM).project(camera);
+    return {
+      x: RECT.left + ((v.x + 1) / 2) * RECT.width,
+      y: RECT.top + ((1 - v.y) / 2) * RECT.height,
+    };
+  };
+
+  function playing(props: unknown[] = [MUG, CUSHION]) {
+    const harness = setup();
+    (harness.sim.world.props as unknown[]).push(...props.map((prop) => ({ ...(prop as object) })));
+    return harness;
+  }
+
+  it('taps a debris during the level, and only a debris: a mess without the mark is just floor', () => {
+    const { mapper, commands, markers, camera } = playing();
+    const mug = pxOfPoint(camera, MUG);
+    mapper.handlePointerDown(click(mug.x, mug.y));
+    expect(commands).toEqual([{ type: 'TapObject', t: 234, objectId: 'mug_01' }]);
+    expect(markers).toEqual([[MUG.xM, MUG.zM]]);
+    commands.length = 0;
+    const cushion = pxOfPoint(camera, CUSHION);
+    mapper.handlePointerDown(click(cushion.x, cushion.y));
+    expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+  });
+
+  describe('Space / A', () => {
+    it('walks to the nearest debris within contextReachM, and ignores a mess that is no debris', () => {
+      const { mapper, commands } = playing();
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'mug_01' }]);
+      const none = playing([{ ...CUSHION, xM: 0.5, zM: 0 }]);
+      none.mapper.handleAction('down', 1500, 'keyboard');
+      expect(none.commands).toEqual([]);
+    });
+
+    it('lets the baby come first while he is in the arms (put down) or at the bottom of the stairs (fetch)', () => {
+      for (const state of ['carried', 'downstairs']) {
+        const { mapper, sim, commands } = playing();
+        Object.assign(sim.world.baby, { xM: 0.1, zM: 0, state });
+        mapper.handleAction('down', 1500, 'keyboard');
+        expect(commands, state).toEqual([{ type: 'TapBaby', t: 500 }]);
+      }
+    });
+
+    it('picks the debris up with a free baby in reach, as it does with none', () => {
+      const { mapper, sim, commands } = playing();
+      Object.assign(sim.world.baby, { xM: 0.1, zM: 0, state: 'babble' });
+      mapper.handleAction('down', 1500, 'keyboard');
+      expect(commands).toEqual([{ type: 'TapObject', t: 500, objectId: 'mug_01' }]);
+    });
+  });
+
+  describe('the baby at the bottom of the stairs', () => {
+    const BABY = { xM: -1, zM: 0.5 };
+    const SLIDE = { xM: -2, zM: 0.8 };
+
+    it('is aimed where he is drawn (slid away from his sim point), not at his sim point', () => {
+      const { mapper, sim, commands, setBabySlide, camera } = playing([]);
+      Object.assign(sim.world.baby, { ...BABY, state: 'downstairs' });
+      setBabySlide(SLIDE.xM, SLIDE.zM);
+      const drawn = pxOfPoint(camera, {
+        xM: BABY.xM + SLIDE.xM,
+        yM: BABY_RADIUS_M,
+        zM: BABY.zM + SLIDE.zM,
+      });
+      mapper.handlePointerDown(click(drawn.x, drawn.y));
+      expect(commands).toEqual([{ type: 'TapBaby', t: 234 }]);
+    });
+
+    it('is not aimed at his sim point once he is drawn elsewhere', () => {
+      const { mapper, sim, commands, setBabySlide, camera } = playing([]);
+      Object.assign(sim.world.baby, { ...BABY, state: 'downstairs' });
+      setBabySlide(SLIDE.xM, SLIDE.zM);
+      const sim_ = pxOfPoint(camera, { ...BABY, yM: BABY_RADIUS_M });
+      const drawn = pxOfPoint(camera, {
+        xM: BABY.xM + SLIDE.xM,
+        yM: BABY_RADIUS_M,
+        zM: BABY.zM + SLIDE.zM,
+      });
+      // Only meaningful if the two points are farther apart than the touch radius.
+      expect(Math.hypot(sim_.x - drawn.x, sim_.y - drawn.y)).toBeGreaterThan(
+        OBJECT_TOUCH_RADIUS_PX,
+      );
+      mapper.handlePointerDown(click(sim_.x, sim_.y));
+      expect(commands.map((c) => c.type)).toEqual(['TapFloor']);
+    });
+
+    it('ignores the slide for a baby who is not downstairs', () => {
+      const { mapper, sim, commands, setBabySlide, camera } = playing([]);
+      Object.assign(sim.world.baby, { ...BABY, state: 'babble' });
+      setBabySlide(SLIDE.xM, SLIDE.zM);
+      const at = pxOfPoint(camera, { ...BABY, yM: BABY_RADIUS_M });
+      mapper.handlePointerDown(click(at.x, at.y));
+      expect(commands).toEqual([{ type: 'TapBaby', t: 234 }]);
     });
   });
 });

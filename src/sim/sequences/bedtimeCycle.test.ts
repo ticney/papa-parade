@@ -236,7 +236,8 @@ describe('a refused start', () => {
       waves: [
         {
           fromMs: 0,
-          maxSimultaneous: 1,
+          // Two: a silence counts for two against `maxSimultaneous` (story 3.13).
+          maxSimultaneous: 2,
           gapMinMs: 0,
           gapMaxMs: 0,
           lullMs: 0,

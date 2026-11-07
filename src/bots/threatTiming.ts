@@ -1,3 +1,4 @@
+import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { SilenceSlice, SimCommand, ThreatInstance, World } from '@sim';
 import type { BotResponse } from './bot.ts';
@@ -47,17 +48,39 @@ export function fingerPlanFor(response: BotResponse, tapMs: number): FingerPlan 
 }
 
 /**
+ * Which responses the player is shown a chrono-ring on (story 2.11, D1 of story 3.14): the bot's own copy
+ * of the client's `HAS_CHRONO_RING`, which `src/bots` may not import (`tests/bots/hasChronoRing.test.ts`
+ * pins the two equal). A `firm` with a `release` (the bomb drop) has one too. Exhaustive on `BotResponse`:
+ * a new response fails to typecheck here until the bots decide whether it shows a ring.
+ */
+export const HAS_CHRONO_RING: Readonly<Record<BotResponse, boolean>> = {
+  parry: true,
+  firm: true,
+  wait: false,
+  nothing: false,
+};
+
+/**
  * The one finger of a bot while it holds a Firmness (story 1.23 D7). `Release` names no threat, so
  * any other tap would end the hold: while one is under way the bot presses nothing else, and a
- * Firmness is never pressed before the `Release` of a tap already planned.
+ * Firmness is never pressed before the `Release` of a tap planned to be down when it is pressed.
  */
 export interface FirmHold {
   /** True from the moment a Firmness press is planned until its `Release` has been sent. */
   readonly isHolding: boolean;
   /** Sim ms when the last tap planned so far lets go (0 if none): the finger is free from then on. */
   readonly tapUntil: number;
-  /** The bot has planned a tap whose `Release` falls at `releaseAt`. */
-  noteTap(releaseAt: number): void;
+  /**
+   * The bot has planned a tap whose `Release` falls at `releaseAt`. `pressAt` is when it goes down
+   * (omitted: before anything, so that it always counts).
+   */
+  noteTap(releaseAt: number, pressAt?: number): void;
+  /**
+   * Sim ms when the last tap that goes down no later than `at` lets go (0 if none): the earliest a
+   * Firmness pressed at `at` can go down. A tap planned for later does not hold it back: the bot plans
+   * a threat when it sees it, not in the order of their windows (story 9.7: a Firmness in a wave).
+   */
+  tapUntilAt(at: number): number;
   /** The bot has planned a press on this threat that it will hold. */
   begin(threatId: number): void;
   /**
@@ -68,11 +91,16 @@ export interface FirmHold {
   update(threats: readonly Readonly<ThreatInstance>[], now: number, out: SimCommand[]): void;
 }
 
+/** How many taps a `FirmHold` remembers (a wave allows a handful of threats at once). */
+const MAX_REMEMBERED_TAPS = 8;
+
 export function createFirmHold(): FirmHold {
   let threatId: number | null = null;
   // False until the sim has taken the press: the press is planned ahead of its step.
   let isPressed = false;
   let tapUntil = 0;
+  // The taps planned, as (press, release): a few at most are ever alive, the rest are dropped.
+  const taps: { pressAt: number; releaseAt: number }[] = [];
   return {
     get isHolding() {
       return threatId !== null;
@@ -80,8 +108,15 @@ export function createFirmHold(): FirmHold {
     get tapUntil() {
       return tapUntil;
     },
-    noteTap(releaseAt) {
+    noteTap(releaseAt, pressAt = 0) {
       tapUntil = Math.max(tapUntil, releaseAt);
+      taps.push({ pressAt, releaseAt });
+      if (taps.length > MAX_REMEMBERED_TAPS) taps.shift();
+    },
+    tapUntilAt(at) {
+      let until = 0;
+      for (const tap of taps) if (tap.pressAt <= at) until = Math.max(until, tap.releaseAt);
+      return until;
     },
     begin(id) {
       threatId = id;
@@ -117,11 +152,11 @@ export function schedulePress(
   const plan = fingerPlanFor(response, tapMs);
   // A `nothing` is left alone (story 4.9): a bot never presses it, so this is a guard, not a path.
   if (plan.kind === 'none') return;
-  const at = plan.kind === 'tap' ? pressAt : Math.max(pressAt, hold.tapUntil);
+  const at = plan.kind === 'tap' ? pressAt : Math.max(pressAt, hold.tapUntilAt(pressAt));
   scheduler.schedule({ type: 'PressThreat', t: asSimMs(at), threatId: threat.id });
   if (plan.kind === 'tap') {
     scheduler.schedule({ type: 'Release', t: asSimMs(at + plan.holdMs) });
-    hold.noteTap(at + plan.holdMs);
+    hold.noteTap(at + plan.holdMs, at);
   } else {
     hold.begin(threat.id);
   }
@@ -145,7 +180,7 @@ export function scheduleDrop(
   const releaseT = Math.max(releaseAt, at + 1);
   scheduler.schedule({ type: 'PressThreat', t: asSimMs(at), threatId: threat.id });
   scheduler.schedule({ type: 'Release', t: asSimMs(releaseT) });
-  hold.noteTap(releaseT);
+  hold.noteTap(releaseT, at);
 }
 
 /** What a bot asks of a threat def it knows, else `undefined` (the bot leaves that threat alone). */
@@ -334,7 +369,9 @@ export function planTidy(
   const now = world.time.sim;
   if (now < finalRushAt + waitMs) return;
   const { papa } = world;
-  if (papa.state !== 'idle' || isAnswerUp(world.threats, responses)) return;
+  // Papa at a station (story 9.4) tidies too: a tap on a prop is a moving command, which pauses his chore.
+  if ((papa.state !== 'idle' && papa.state !== 'chore') || isAnswerUp(world.threats, responses))
+    return;
   let nearestId: string | null = null;
   let nearestSq = Number.POSITIVE_INFINITY;
   for (let i = 0; i < world.props.length; i++) {
@@ -351,4 +388,140 @@ export function planTidy(
   if (nearestId === null) return;
   memory.sentAtById.set(nearestId, now);
   out.push({ type: 'TapObject', t: asSimMs(now), objectId: nearestId });
+}
+
+/** A station is not tapped twice within this long: a tap that came to nothing must not fill the journal (a bot's habit). */
+const CHORE_RETRY_MS = 1000;
+
+/** What a bot remembers of the house chores (story 9.4): see {@link planChore} and {@link planChoreBeat}. */
+export interface ChoreMemory {
+  /** The last instant a threat was active (hidden, announced or open): chores wait for a lull after it. */
+  lastThreatActiveAt: number;
+  /** When a station was last tapped; null before the first tap. */
+  sentAt: number | null;
+  /** Which chore that tap was for (story 9.6), -1 before the first tap: the walk skips it if it did nothing. */
+  sentIndex: number;
+  /** The press planned for the beat in play, keyed by the instant its window opens (unique per announcement). */
+  beat: { key: number; atMs: number; isSent: boolean } | null;
+}
+
+export function createChoreMemory(): ChoreMemory {
+  return { lastThreatActiveAt: 0, sentAt: null, sentIndex: -1, beat: null };
+}
+
+/** A threat is active when it is hidden, announced or open (the director's own definition). */
+function isAnyThreatActive(world: Readonly<World>): boolean {
+  for (let i = 0; i < world.threats.length; i++) {
+    const { state } = world.threats[i] as Readonly<ThreatInstance>;
+    if (state === 'hidden' || state === 'telegraph' || state === 'windowOpen') return true;
+  }
+  return false;
+}
+
+/**
+ * Starts or resumes a house chore (story 9.4), shared by `perfect` and `human`: Papa idle with the baby
+ * on the floor, nothing of the bot's to answer (`isFree`), no threat active for `quietMinMs`, and a
+ * chore not done: one `TapObject` on a station, stamped `now`, then none for {@link CHORE_RETRY_MS}.
+ * It draws nothing and remembers nothing in a level with no station, or when `isEnabled` is false, so
+ * the games of a level without one are untouched. `choreObjectIds` is index-aligned with `world.chores`.
+ *
+ * The walk (story 9.6): a `paused` chore is resumed before an `untouched` one is started (a paused
+ * dishwasher is an open door, a paused cooking calls a pot), in index order within each group. A station
+ * whose last tap did not put Papa to work (its chore has not changed state since the tap) is left for the
+ * next one at this try, and comes back at the one after: a station that refuses him cannot block the
+ * others. With no other station left to try it is tapped all the same, as it always was.
+ */
+export function planChore(
+  world: Readonly<World>,
+  choreObjectIds: readonly string[],
+  chores: { readonly isEnabled: boolean; readonly quietMinMs: number },
+  isFree: boolean,
+  out: SimCommand[],
+  memory: ChoreMemory,
+): void {
+  if (!chores.isEnabled || choreObjectIds.length === 0) return;
+  const now = world.time.sim;
+  if (isAnyThreatActive(world)) memory.lastThreatActiveAt = now;
+  if (!isFree || world.flow.state !== 'playing' || world.papa.state !== 'idle') return;
+  if (world.baby.state === 'carried') return;
+  // Never in the middle of a threat, whatever the lull asked for (a `quietMinMs` of 0 included).
+  if (isAnyThreatActive(world) || now - memory.lastThreatActiveAt < chores.quietMinMs) return;
+  if (memory.sentAt !== null && now - memory.sentAt < CHORE_RETRY_MS) return;
+  // The station tapped last time did nothing if its chore has not changed state since the tap.
+  const refused =
+    memory.sentAt !== null && isUnmovedSince(world, memory.sentIndex, memory.sentAt)
+      ? memory.sentIndex
+      : -1;
+  let fallback = -1;
+  for (const wanted of ['paused', 'untouched'] as const) {
+    for (let i = 0; i < world.chores.length; i++) {
+      if ((world.chores[i] as Readonly<World['chores'][number]>).state !== wanted) continue;
+      if (choreObjectIds[i] === undefined) continue;
+      if (i === refused) {
+        fallback = i;
+        continue;
+      }
+      tapChore(i, now, choreObjectIds, out, memory);
+      return;
+    }
+  }
+  if (fallback >= 0) tapChore(fallback, now, choreObjectIds, out, memory);
+}
+
+/** Whether the chore at `index` has not changed state since `sentAt`: the tap meant for it started nothing. */
+function isUnmovedSince(world: Readonly<World>, index: number, sentAt: number): boolean {
+  const chore = world.chores[index];
+  return chore !== undefined && chore.state !== 'done' && chore.enteredAt < sentAt;
+}
+
+function tapChore(
+  index: number,
+  now: number,
+  choreObjectIds: readonly string[],
+  out: SimCommand[],
+  memory: ChoreMemory,
+): void {
+  memory.sentAt = now;
+  memory.sentIndex = index;
+  out.push({ type: 'TapObject', t: asSimMs(now), objectId: choreObjectIds[index] as string });
+}
+
+/**
+ * The press of a beat (story 9.4), shared by `perfect` and `human`: while Papa works and a beat is
+ * announced, one `TapObject` on the station at the instant `aimAt` says. `aimAt` is called once per
+ * announcement (a beat held or missed is announced again with a new window, hence a new plan), so a
+ * bot that draws for its aim draws once per beat. A plan whose beat was withdrawn is dropped. Nothing
+ * happens, and nothing is drawn, in a level with no station.
+ */
+export function planChoreBeat(
+  world: Readonly<World>,
+  choreObjectIds: readonly string[],
+  out: SimCommand[],
+  memory: ChoreMemory,
+  aimAt: (chore: Readonly<World['chores'][number]>) => number,
+): void {
+  if (choreObjectIds.length === 0) return;
+  const index = world.chores.findIndex((chore) => chore.state === 'working');
+  const chore = world.chores[index];
+  if (chore === undefined || chore.beatState !== 'telegraph' || world.papa.state !== 'chore') {
+    memory.beat = null;
+    return;
+  }
+  const now = world.time.sim;
+  if (memory.beat?.key !== chore.beatWindowOpenAt) {
+    memory.beat = {
+      key: chore.beatWindowOpenAt,
+      atMs: Math.max(Math.round(aimAt(chore)), now),
+      isSent: false,
+    };
+  }
+  const objectId = choreObjectIds[index];
+  if (objectId === undefined || memory.beat.isSent || memory.beat.atMs >= now + STEP_MS) return;
+  memory.beat.isSent = true;
+  out.push({ type: 'TapObject', t: asSimMs(memory.beat.atMs), objectId });
+}
+
+/** The centre of the response window of the beat announced now, in sim ms: where a tap is `perfect`. */
+export function choreCentreOf(chore: Readonly<World['chores'][number]>): number {
+  return chore.beatWindowOpenAt + chore.responseWindow.windowMs / 2;
 }

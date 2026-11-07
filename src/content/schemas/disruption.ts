@@ -12,8 +12,9 @@ const idSchema = (description: string) =>
 
 /**
  * What a disruption is, hence how the sim handles it: one handler per kind (a
- * `Record<DisruptionKind, …>`, so a kind with no handler does not compile). The E6 dog and pot join
- * the phone here.
+ * `Record<DisruptionKind, …>`, so a kind with no handler does not compile). The E6 dog joins the
+ * phone here; the pot left on the fire (story 9.5) does not: it is parried, so it is a threat on a chore
+ * station (`target: "station"`), not a disruption (nobody parries a disruption).
  */
 export const DISRUPTION_KINDS = ['phone'] as const;
 export type DisruptionKind = (typeof DISRUPTION_KINDS)[number];

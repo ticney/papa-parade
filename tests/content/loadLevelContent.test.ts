@@ -110,6 +110,53 @@ describe('loadLevelContent', () => {
     ]);
   });
 
+  it('loads the chores a level declares, in the order of the level (story 9.4)', async () => {
+    const result = await loadLevelContent(memorySource(), 'salon_kitchen');
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    const declared = result.value.level.chores ?? [];
+    expect(declared.length).toBeGreaterThan(0);
+    // Index-aligned with `level.chores`: the sim and the bots pair them by index.
+    expect(result.value.chores?.map((def) => def.id)).toEqual(declared.map((entry) => entry.def));
+    expect(result.value.chores?.[0]?.station).toBe('stove');
+  });
+
+  it('has no `chores` key at all for a level that declares none (the level keeps its hash)', async () => {
+    for (const levelId of ['salon_crawler', 'chambre_night']) {
+      const result = await loadLevelContent(memorySource(), levelId);
+      expect(result, levelId).toMatchObject({ ok: true });
+      if (result.ok) expect(Object.hasOwn(result.value, 'chores'), levelId).toBe(false);
+    }
+  });
+
+  it('names the level and the path of a chore whose file cannot be read', async () => {
+    expect(await problemsOf({ 'chores/cooking.json': null }, 'salon_kitchen')).toEqual([
+      expect.objectContaining({
+        file: 'content/levels/salon_kitchen.json',
+        jsonPath: 'chores[0].def',
+        message: expect.stringContaining('chore "cooking"'),
+      }),
+    ]);
+  });
+
+  it('names a chore file that breaks its schema or whose id is not its file name', async () => {
+    const cooking = JSON.parse(readReal('chores/cooking.json'));
+    expect(
+      await problemsOf(
+        { 'chores/cooking.json': JSON.stringify({ ...cooking, homePoints: 7.3 }) },
+        'salon_kitchen',
+      ),
+    ).toEqual([
+      expect.objectContaining({ file: 'content/chores/cooking.json', jsonPath: 'homePoints' }),
+    ]);
+    expect(
+      await problemsOf(
+        { 'chores/cooking.json': JSON.stringify({ ...cooking, id: 'frying' }) },
+        'salon_kitchen',
+      ),
+    ).toEqual([expect.objectContaining({ file: 'content/chores/cooking.json', jsonPath: 'id' })]);
+  });
+
   it('loads the sequence the live level names, once, keyed by id (story 4.4)', async () => {
     const result = await loadLevelContent(memorySource(), 'salon_crawler');
     expect(result).toMatchObject({ ok: true });

@@ -24,7 +24,7 @@ const pct = (description: string) => z.number().min(0).max(100).describe(descrip
 const points = (description: string) => z.number().min(0).describe(description);
 const multiplier = (description: string) => z.number().min(0).describe(description);
 
-/** Points of Mama's note that are shown and summed as they are: whole, so the four rows add up to the score. */
+/** Points of Mama's note that are shown and summed as they are: whole, so the five rows add up to the score. */
 const wholePoints = (description: string) => z.int().min(0).describe(description);
 const timeScale = (description: string) =>
   z.number().min(MIN_TIME_SCALE).max(1).describe(description);
@@ -47,6 +47,9 @@ const difficultyTier = (description: string) =>
     .strictObject({
       windowMultiplier: multiplier('Multiplier applied to every response window of the tier.'),
       hasInstinct: z.boolean().describe('Whether Fatherly Instinct (GDD §9) is available.'),
+      catastropheMultiplier: multiplier(
+        'Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay.',
+      ),
     })
     .describe(description);
 
@@ -141,6 +144,14 @@ const MovementSchema = z
   })
   .describe('Papa movement (GDD §3).');
 
+const DirectorSchema = z
+  .strictObject({
+    fairnessMarginMs: delayMs(
+      'Margin added to `movement.glideMaxMs`: two windows of the director never open closer than their sum (FR75, ADR-011), in ms. 0 keeps the glide alone.',
+    ),
+  })
+  .describe('Wave director (GDD mechanic 17, ADR-011).');
+
 const BabySchema = z
   .strictObject({
     crawlSpeedMps: z
@@ -228,7 +239,6 @@ const FatigueSchema = z
     microSleepMaxMs: delayMs('Longest delay between two micro-sleeps above the threshold, in ms.'),
     coffeeReductionPoints: points('Fatigue removed by a coffee, in points.'),
     coffeeDurationMs: durationMs('Time Papa spends drinking a coffee, in ms.'),
-    asleepMs: durationMs('How long Papa sleeps after a missed micro-sleep, in ms.'),
   })
   .refine((fatigue) => fatigue.microSleepMinMs <= fatigue.microSleepMaxMs, {
     path: ['microSleepMinMs'],
@@ -339,6 +349,9 @@ const NoiseSourcesSchema = z
     floorCreak: noisePctSource('A creaking floorboard (story 4.9): GDD +3 %.'),
     breathReleased: noisePctSource('Breath released too early (story 4.9): GDD +5 %.'),
     sniff: noisePctSource('Sniffing (story 5.3): GDD +3 %.'),
+    debrisStep: noisePctSource(
+      'Papa walking onto a debris on the floor (story 3.15, `DebrisSteppedOn`): GDD +3 %.',
+    ),
     snore: noisePctSource(
       'Papa snoring after a missed micro-sleep in a sequence (story 4.4): GDD +15 %.',
     ),
@@ -353,6 +366,7 @@ export const NOISE_SOURCE_IDS = [
   'floorCreak',
   'breathReleased',
   'sniff',
+  'debrisStep',
   'snore',
 ] as const;
 
@@ -365,6 +379,48 @@ const NoiseSchema = z
     sources: NoiseSourcesSchema,
   })
   .describe('The noise gauge of the Sieste levels (FR18, GDD rule 7).');
+
+const CatastropheSchema = z
+  .strictObject({
+    risePct: z
+      .strictObject({
+        nearMiss: pct('Catastrophe added by a near-miss gag (outlet, stairs), in % of the gauge.'),
+        mess: pct(
+          'Catastrophe added by a mess gag (table object, silence mischief), in % of the gauge.',
+        ),
+        microSleep: pct('Catastrophe added by a micro-sleep gag, in % of the gauge.'),
+        choreBeat: pct(
+          'Catastrophe added by a missed chore beat (stories 9.4 / 9.5), in % of the gauge.',
+        ),
+      })
+      .describe(
+        'The rise of one gag by its category, before the tier multiplier (GDD mechanic 14).',
+      ),
+    decayPerSec: points(
+      'Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s; tuned to 0.4 by Geo, story 3.16 option D).',
+    ),
+    perfectDropPct: pct(
+      'Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %; tuned to 2 by Geo, story 3.16 option D).',
+    ),
+    alertPct: pct(
+      'Above this catastrophe Mama is alarmed: the client plays the alert, tightens the music, in % of the gauge.',
+    ),
+    faceStepsPct: z
+      .array(pct('A threshold of the face, in % of the gauge.'))
+      .length(2)
+      .describe(
+        "The two thresholds between Mama's faces, in % of the gauge: she frowns from the first and is worried from the second (strictly ascending, below `alertPct`).",
+      ),
+  })
+  .refine((catastrophe) => catastrophe.faceStepsPct[0] < catastrophe.faceStepsPct[1], {
+    path: ['faceStepsPct'],
+    error: 'faceStepsPct must be strictly ascending',
+  })
+  .refine((catastrophe) => catastrophe.faceStepsPct[1] < catastrophe.alertPct, {
+    path: ['faceStepsPct'],
+    error: 'faceStepsPct must stay below alertPct',
+  })
+  .describe('The catastrophe gauge (FR73, GDD mechanic 14): at 100 % Mama comes home early.');
 
 const BladderSchema = z
   .strictObject({
@@ -469,10 +525,8 @@ const DifficultySchema = z
 const MamaSchema = z
   .strictObject({
     laughMaxPoints: wholePoints('Most points the baby laughs can give, in points.'),
-    babyStateMaxPoints: wholePoints('Most points the baby state can give, in points.'),
-    babyStateFixedPoints: wholePoints(
-      'Baby-state points used by the prototype instead of the real computation, in points.',
-    ),
+    calmMaxPoints: wholePoints('Most points the baby staying calm can give, in points.'),
+    homeMaxPoints: wholePoints('Most points the house chores can give, in points.'),
     baseScorePoints: wholePoints('Base points added to every score, in points.'),
     sighMaxPoints: wholePoints('Most points a sigh can take off, in points.'),
     screamMaxPoints: wholePoints('Most points a scream can take off, in points.'),
@@ -499,6 +553,12 @@ const MamaSchema = z
     laughPerPerfectPoints: points(
       'Laugh points each perfect response gives (held to `laughMaxPoints`), in points per perfect.',
     ),
+    laughPerSuccessPoints: points(
+      'Laugh points each success (not perfect) gives (held to `laughMaxPoints`), in points per success.',
+    ),
+    calmNoiseThresholdPct: pct(
+      'The baby counts as calm while the noise gauge is strictly below this level, in % of the gauge.',
+    ),
     sighPerPropOnFloorPoints: points(
       'Sigh points each unbroken prop lying on the floor at the end takes off, in points per prop.',
     ),
@@ -510,24 +570,24 @@ const MamaSchema = z
       'Scream points each near miss takes off (held to `screamMaxPoints`), in points per near miss.',
     ),
   })
-  .refine((mama) => mama.babyStateFixedPoints <= mama.babyStateMaxPoints, {
-    path: ['babyStateFixedPoints'],
-    error: 'babyStateFixedPoints must not exceed babyStateMaxPoints',
-  })
   .refine(
     (mama) =>
-      mama.laughMaxPoints + mama.babyStateMaxPoints + mama.sighMaxPoints + mama.screamMaxPoints ===
+      mama.laughMaxPoints +
+        mama.calmMaxPoints +
+        mama.homeMaxPoints +
+        mama.sighMaxPoints +
+        mama.screamMaxPoints ===
       MAMA_SCORE_MAX_POINTS,
     {
       path: ['laughMaxPoints'],
       error:
-        'laughMaxPoints + babyStateMaxPoints + sighMaxPoints + screamMaxPoints must be 100: the note is out of 100',
+        'laughMaxPoints + calmMaxPoints + homeMaxPoints + sighMaxPoints + screamMaxPoints must be 100: the note is out of 100',
     },
   )
   .refine((mama) => mama.baseScorePoints === mama.sighMaxPoints + mama.screamMaxPoints, {
     path: ['baseScorePoints'],
     error:
-      'baseScorePoints must equal sighMaxPoints + screamMaxPoints, so that the four rows add up to the score',
+      'baseScorePoints must equal sighMaxPoints + screamMaxPoints, so that the five rows add up to the score',
   })
   .describe("Mama's note (GDD, economy › Mama's note).");
 
@@ -598,6 +658,9 @@ const GagsSchema = z
         ),
       })
       .describe('The gag of the object on the coffee table (story 1.16).'),
+    debrisStepRadiusM: positive(
+      'Papa steps on a debris (`DebrisSteppedOn`, +`noise.sources.debrisStep`) when he comes within this distance of it, in metres (story 3.15).',
+    ),
   })
   .describe(
     'Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key.',
@@ -667,6 +730,22 @@ const FxSchema = z
       })
       .describe('Juice of a perfect response: shake, sparks and the stamp.'),
     gag: fxPreset('Juice of a gag: the « pouf ».'),
+    dim: z
+      .strictObject({
+        lightsPct: z
+          .number()
+          .min(0)
+          .max(100)
+          .describe('Level the 3D lights fade to while the room is dim, in % (100 = no dimming).'),
+        fadeMs: z
+          .int()
+          .min(0)
+          .max(2000)
+          .describe('Time to fade the lights to that level, and back, in **sim** ms.'),
+      })
+      .describe(
+        'The pénombre of the outlet gag (story 3.15): only the 3D lights fade, the world UI never does.',
+      ),
     photoCamera: z
       .strictObject({
         yawDeg: z
@@ -720,6 +799,79 @@ const FxSchema = z
   })
   .describe(
     'On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only.',
+  );
+
+const CameraSchema = z
+  .strictObject({
+    frameWidthM: z
+      .number()
+      .min(3)
+      .max(30)
+      .describe(
+        "Width of the floor box the follow camera fits, in metres (story 9.2): the same fit as the fixed camera on a room this size, so it sets the characters' scale on screen.",
+      ),
+    frameDepthM: z
+      .number()
+      .min(3)
+      .max(30)
+      .describe('Depth of the floor box the follow camera fits, in metres.'),
+    deadZoneWidthPct: z
+      .number()
+      .min(0)
+      .max(80)
+      .describe(
+        "Width of the centred dead zone, in % of the frame's width: Papa moves inside it without moving the camera.",
+      ),
+    deadZoneHeightPct: z
+      .number()
+      .min(0)
+      .max(80)
+      .describe("Height of the centred dead zone, in % of the frame's height."),
+    edgeMarginPct: z
+      .number()
+      .min(0)
+      .max(40)
+      .describe(
+        "Papa's drawn point never comes nearer an edge of the frame than this, in % of the frame's size on that axis (a hard limit, even during a glide), except where the view would leave the room: the walls win, near a wall or across a room narrower than the frame.",
+      ),
+    catchUpMs: z
+      .number()
+      .min(50)
+      .max(3000)
+      .describe(
+        'Time the camera takes to cover 95 % of a sudden jump of its goal, in **sim** ms (a pause holds it, a slow-mo slows it).',
+      ),
+    dampingRatio: z
+      .number()
+      .min(0.5)
+      .max(1)
+      .describe(
+        'Damping of the catch-up spring: 1 = no overshoot; below, a slight bounce (0.8 = about 1.5 %).',
+      ),
+    reducedCatchUpMs: z
+      .number()
+      .min(50)
+      .max(5000)
+      .describe(
+        'The catch-up time under « Réduire les animations », in **sim** ms, with no overshoot at all (a damping of 1). Not below `catchUpMs`.',
+      ),
+  })
+  .refine((camera) => camera.deadZoneWidthPct / 2 + camera.edgeMarginPct < 50, {
+    path: ['deadZoneWidthPct'],
+    error:
+      'deadZoneWidthPct / 2 + edgeMarginPct must stay below 50: the dead zone sits inside the edge margin',
+  })
+  .refine((camera) => camera.deadZoneHeightPct / 2 + camera.edgeMarginPct < 50, {
+    path: ['deadZoneHeightPct'],
+    error:
+      'deadZoneHeightPct / 2 + edgeMarginPct must stay below 50: the dead zone sits inside the edge margin',
+  })
+  .refine((camera) => camera.reducedCatchUpMs >= camera.catchUpMs, {
+    path: ['reducedCatchUpMs'],
+    error: 'reducedCatchUpMs must not be below catchUpMs: the reduced catch-up is the slower one',
+  })
+  .describe(
+    'The follow camera of a level with `camera: "follow"` (story 9.2): its frame, dead zone, edge margin and catch-up. Client only.',
   );
 
 const MusicSchema = z
@@ -855,11 +1007,13 @@ export const FeelSchema = z
     timing: TimingSchema,
     input: InputSchema,
     movement: MovementSchema,
+    director: DirectorSchema,
     baby: BabySchema,
     fatigue: FatigueSchema,
     carry: CarrySchema,
     combo: ComboSchema,
     noise: NoiseSchema,
+    catastrophe: CatastropheSchema,
     bladder: BladderSchema,
     sequences: SequencesSchema,
     endOfLevel: EndOfLevelSchema,
@@ -870,6 +1024,7 @@ export const FeelSchema = z
     physics: PhysicsSchema,
     gags: GagsSchema,
     fx: FxSchema,
+    camera: CameraSchema,
     music: MusicSchema,
     calibration: CalibrationSchema,
   })

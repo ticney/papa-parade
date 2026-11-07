@@ -21,9 +21,13 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 // presets) and `count` (a particle count).
 // Story 2.7 adds `Taps` (`minValidTaps`: a count of taps) and the exact key `bpm` (a tempo; the unit
 // is the name).
+// Story 3.16 adds the exact keys of `catastrophe.risePct` (`nearMiss`, `mess`, `microSleep`,
+// `choreBeat`): the group name `risePct` carries the unit, like `fatigue.perSec`.
 // Story 4.1 adds `OffsetM` (`putDownOffsetM`) and the exact key `reachM` (lengths in metres, spelled out).
+// Story 9.2 adds `WidthM` and `DepthM` (`frameWidthM`: lengths in metres, spelled out) and the exact key
+// `dampingRatio` (a spring's damping ratio has no unit; the key says what it is).
 const UNIT_SUFFIX =
-  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM)$/;
+  /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|WidthM|DepthM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM|dampingRatio|nearMiss|mess|microSleep|choreBeat)$/;
 
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
@@ -61,6 +65,12 @@ describe('content/feel.json', () => {
   it.each<[string, [string, unknown][], string[]]>([
     ['an unknown key', [['timing.bogusMs', 1]], ['timing.bogusMs']],
     ['a string where a number is expected', [['timing.windowMs', 'x']], ['timing.windowMs']],
+    [
+      'a negative fairness margin (story 3.13)',
+      [['director.fairnessMarginMs', -1]],
+      ['director.fairnessMarginMs'],
+    ],
+    ['an unknown director key (story 3.13)', [['director.bogusMs', 1]], ['director.bogusMs']],
     [
       'perfectMs above windowMs',
       [
@@ -133,15 +143,11 @@ describe('content/feel.json', () => {
     ['a missing carry.reachM', [['carry.reachM', undefined]], ['carry.reachM']],
     ['a reach of 0 (nothing would ever be in it)', [['carry.reachM', 0]], ['carry.reachM']],
     ['a negative carry.putDownOffsetM', [['carry.putDownOffsetM', -1]], ['carry.putDownOffsetM']],
-    [
-      'a fixed baby state above its maximum',
-      // The maximum stays as it is: the maxima must still add up to 100 (story 1.22).
-      [['mama.babyStateFixedPoints', (real.mama?.babyStateMaxPoints as number) + 1]],
-      ['mama.babyStateFixedPoints'],
-    ],
     ...(
       [
         'laughPerPerfectPoints',
+        'laughPerSuccessPoints',
+        'calmNoiseThresholdPct',
         'sighPerPropOnFloorPoints',
         'sighPerBrokenPropPoints',
         'sighPerMischiefPoints',
@@ -161,11 +167,37 @@ describe('content/feel.json', () => {
       [['mama.baseScorePoints', (real.mama?.baseScorePoints as number) + 1]],
       ['mama.baseScorePoints'],
     ],
+    ['a missing mama.calmMaxPoints', [['mama.calmMaxPoints', undefined]], ['mama.calmMaxPoints']],
+    ['a missing mama.homeMaxPoints', [['mama.homeMaxPoints', undefined]], ['mama.homeMaxPoints']],
     [
-      'a fractional fixed baby state: the rows are whole numbers that add up to the score',
-      [['mama.babyStateFixedPoints', 20.5]],
-      ['mama.babyStateFixedPoints'],
+      'maxima of the note that do not add up to 100 through the calm row (story 3.12)',
+      [['mama.calmMaxPoints', (real.mama?.calmMaxPoints as number) + 1]],
+      ['mama.laughMaxPoints'],
     ],
+    [
+      'maxima of the note that do not add up to 100 through the home row (story 3.12)',
+      [['mama.homeMaxPoints', (real.mama?.homeMaxPoints as number) - 1]],
+      ['mama.laughMaxPoints'],
+    ],
+    [
+      'a fractional calm maximum: the rows are whole numbers that add up to the score',
+      [['mama.calmMaxPoints', 20.5]],
+      ['mama.calmMaxPoints'],
+    ],
+    ['a fractional home maximum', [['mama.homeMaxPoints', 15.5]], ['mama.homeMaxPoints']],
+    [
+      'a calm noise threshold above 100 %',
+      [['mama.calmNoiseThresholdPct', 120]],
+      ['mama.calmNoiseThresholdPct'],
+    ],
+    // The prototype's fixed baby state is gone (story 3.12): the file is strict.
+    ...(['babyStateMaxPoints', 'babyStateFixedPoints'] as const).map(
+      (key): [string, [string, unknown][], string[]] => [
+        `the removed mama.${key}`,
+        [[`mama.${key}`, 20]],
+        [`mama.${key}`],
+      ],
+    ),
     ['a fractional sigh maximum', [['mama.sighMaxPoints', 15.5]], ['mama.sighMaxPoints']],
     [
       'a wake penalty above the five stars (story 3.2)',
@@ -356,6 +388,10 @@ describe('feel unit suffixes', () => {
     expect(UNIT_SUFFIX.test('propReachDistM')).toBe(true);
     expect(UNIT_SUFFIX.test('minValidTaps')).toBe(true);
     expect(UNIT_SUFFIX.test('bpm')).toBe(true);
+    expect(UNIT_SUFFIX.test('frameWidthM')).toBe(true);
+    expect(UNIT_SUFFIX.test('dampingRatio')).toBe(true);
+    expect(UNIT_SUFFIX.test('ratio')).toBe(false);
+    expect(UNIT_SUFFIX.test('frameM')).toBe(false);
     expect(UNIT_SUFFIX.test('taps')).toBe(false);
     expect(UNIT_SUFFIX.test('mass')).toBe(false);
     expect(UNIT_SUFFIX.test('impulse')).toBe(false);
@@ -479,6 +515,131 @@ describe('feel.fx.photoCamera and feel.endOfLevel.frozenNearMissReachM (story 3.
     ['a reach of 0', [[reach, 0]], [reach]],
     ['a negative reach', [[reach, -1]], [reach]],
     ['a missing reach', [[reach, undefined]], [reach]],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+});
+
+describe('feel.camera (story 9.2)', () => {
+  const p = (path: string) => `camera.${path}`;
+
+  it('accepts the bounds themselves', () => {
+    expect(
+      mutated(
+        [p('frameWidthM'), 3],
+        [p('frameDepthM'), 3],
+        [p('deadZoneWidthPct'), 0],
+        [p('deadZoneHeightPct'), 0],
+        [p('edgeMarginPct'), 0],
+        [p('catchUpMs'), 50],
+        [p('dampingRatio'), 0.5],
+        [p('reducedCatchUpMs'), 50],
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      mutated(
+        [p('frameWidthM'), 30],
+        [p('frameDepthM'), 30],
+        [p('deadZoneWidthPct'), 18],
+        [p('deadZoneHeightPct'), 18],
+        [p('edgeMarginPct'), 40],
+        [p('catchUpMs'), 3000],
+        [p('dampingRatio'), 1],
+        [p('reducedCatchUpMs'), 5000],
+      ),
+    ).toMatchObject({ ok: true });
+    // The widest dead zone, with no edge margin.
+    expect(
+      mutated([p('deadZoneWidthPct'), 80], [p('deadZoneHeightPct'), 80], [p('edgeMarginPct'), 0]),
+    ).toMatchObject({ ok: true });
+  });
+
+  it('accepts a reduced catch-up equal to the normal one', () => {
+    expect(mutated([p('catchUpMs'), 600], [p('reducedCatchUpMs'), 600])).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a frame under 3 m wide', [[p('frameWidthM'), 2.9]], [p('frameWidthM')]],
+    ['a frame over 30 m wide', [[p('frameWidthM'), 31]], [p('frameWidthM')]],
+    ['a frame under 3 m deep', [[p('frameDepthM'), 2.9]], [p('frameDepthM')]],
+    ['a frame over 30 m deep', [[p('frameDepthM'), 31]], [p('frameDepthM')]],
+    ['a negative dead zone', [[p('deadZoneWidthPct'), -1]], [p('deadZoneWidthPct')]],
+    ['a negative dead zone height', [[p('deadZoneHeightPct'), -1]], [p('deadZoneHeightPct')]],
+    [
+      'a dead zone over 80 % wide',
+      [
+        [p('deadZoneWidthPct'), 81],
+        [p('edgeMarginPct'), 0],
+      ],
+      [p('deadZoneWidthPct')],
+    ],
+    [
+      'a dead zone over 80 %',
+      [
+        [p('deadZoneHeightPct'), 81],
+        [p('edgeMarginPct'), 0],
+      ],
+      [p('deadZoneHeightPct')],
+    ],
+    ['a negative edge margin', [[p('edgeMarginPct'), -1]], [p('edgeMarginPct')]],
+    [
+      'an edge margin over 40 %',
+      [
+        [p('edgeMarginPct'), 41],
+        [p('deadZoneWidthPct'), 0],
+        [p('deadZoneHeightPct'), 0],
+      ],
+      [p('edgeMarginPct')],
+    ],
+    ['a catch-up under 50 ms', [[p('catchUpMs'), 49]], [p('catchUpMs')]],
+    [
+      'a catch-up over 3000 ms',
+      [
+        [p('catchUpMs'), 3001],
+        [p('reducedCatchUpMs'), 5000],
+      ],
+      [p('catchUpMs')],
+    ],
+    ['a damping under 0.5', [[p('dampingRatio'), 0.49]], [p('dampingRatio')]],
+    ['a damping over 1', [[p('dampingRatio'), 1.01]], [p('dampingRatio')]],
+    ['a reduced catch-up over 5000 ms', [[p('reducedCatchUpMs'), 5001]], [p('reducedCatchUpMs')]],
+    [
+      // Its bound, and the refine: no catch-up is under 50 ms, so the reduced one is below it too.
+      'a reduced catch-up under 50 ms',
+      [
+        [p('catchUpMs'), 50],
+        [p('reducedCatchUpMs'), 49],
+      ],
+      [p('reducedCatchUpMs'), p('reducedCatchUpMs')],
+    ],
+    [
+      'a dead zone that reaches into the edge margin across',
+      [
+        [p('deadZoneWidthPct'), 40],
+        [p('edgeMarginPct'), 30],
+      ],
+      [p('deadZoneWidthPct')],
+    ],
+    [
+      'a dead zone that reaches into the edge margin up and down',
+      [
+        [p('deadZoneHeightPct'), 70],
+        [p('edgeMarginPct'), 15],
+      ],
+      [p('deadZoneHeightPct')],
+    ],
+    [
+      'a reduced catch-up faster than the normal one',
+      [
+        [p('catchUpMs'), 600],
+        [p('reducedCatchUpMs'), 599],
+      ],
+      [p('reducedCatchUpMs')],
+    ],
+    ['a missing camera block', [['camera', undefined]], ['camera']],
+    ['an unknown key', [[p('zoomPct'), 10]], [p('zoomPct')]],
   ])('refuses %s, at its path', (_name, changes, paths) => {
     expect(failedPaths(mutated(...changes))).toEqual(paths);
   });
@@ -694,5 +855,64 @@ describe('feel.bladder (story 4.3)', () => {
   it('refuses a missing group and an unknown key', () => {
     expect(failedPaths(mutated(['bladder', undefined]))).toEqual(['bladder']);
     expect(failedPaths(mutated(['bladder.bogusPct', 1]))).toEqual(['bladder.bogusPct']);
+  });
+});
+
+describe('feel.catastrophe (story 3.16)', () => {
+  const TIERS = ['assistance', 'normal', 'experienced'] as const;
+
+  it.each<[string, [string, unknown][], string[]]>([
+    ['a missing catastrophe block', [['catastrophe', undefined]], ['catastrophe']],
+    ['a missing rise row', [['catastrophe.risePct.mess', undefined]], ['catastrophe.risePct.mess']],
+    ['an unknown rise row', [['catastrophe.risePct.bogus', 1]], ['catastrophe.risePct.bogus']],
+    ['a rise above 100', [['catastrophe.risePct.nearMiss', 101]], ['catastrophe.risePct.nearMiss']],
+    ['a negative rise', [['catastrophe.risePct.mess', -1]], ['catastrophe.risePct.mess']],
+    ['a negative decayPerSec', [['catastrophe.decayPerSec', -0.5]], ['catastrophe.decayPerSec']],
+    [
+      'a perfectDropPct above 100',
+      [['catastrophe.perfectDropPct', 101]],
+      ['catastrophe.perfectDropPct'],
+    ],
+    ['an alertPct above 100', [['catastrophe.alertPct', 101]], ['catastrophe.alertPct']],
+    [
+      'faceStepsPct that are not ascending',
+      [['catastrophe.faceStepsPct', [50, 25]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    [
+      'faceStepsPct that are equal',
+      [['catastrophe.faceStepsPct', [30, 30]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    [
+      'a last face step at alertPct',
+      [['catastrophe.faceStepsPct', [25, 70]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    [
+      'a last face step above alertPct',
+      [['catastrophe.faceStepsPct', [25, 80]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    [
+      'three face steps',
+      [['catastrophe.faceStepsPct', [10, 25, 50]]],
+      ['catastrophe.faceStepsPct'],
+    ],
+    ['an unknown key', [['catastrophe.bogusPct', 1]], ['catastrophe.bogusPct']],
+  ])('refuses %s, at its path', (_name, changes, paths) => {
+    expect(failedPaths(mutated(...changes))).toEqual(paths);
+  });
+
+  it('accepts the bounds themselves', () => {
+    expect(mutated(['catastrophe.faceStepsPct', [0, 69]])).toMatchObject({ ok: true });
+    expect(mutated(['catastrophe.decayPerSec', 0])).toMatchObject({ ok: true });
+    expect(mutated(['catastrophe.risePct.nearMiss', 100])).toMatchObject({ ok: true });
+  });
+
+  it.each(TIERS)('requires a catastropheMultiplier on the %s tier', (tier) => {
+    const path = `difficulty.${tier}.catastropheMultiplier`;
+    expect(failedPaths(mutated([path, undefined]))).toEqual([path]);
+    expect(failedPaths(mutated([path, -1]))).toEqual([path]);
   });
 });

@@ -4,9 +4,12 @@ import { cloneJson } from '@shared/hash';
 import { createRng, type RngState } from '@shared/rng';
 import { asSimMs, type SimMs } from '@shared/time';
 import type { BabyState } from './baby/babyFsm.ts';
+import type { ChoreBeatState, ChoreState } from './chores/choreFsm.ts';
 import type { DisruptionState } from './disruptions/disruptionFsm.ts';
+import type { LevelEndReason } from './events.ts';
 import type { FlowState } from './flow/flowFsm.ts';
 import type { PapaIntent, PapaState } from './papa/papaFsm.ts';
+import type { GagId } from './threats/gags.ts';
 import type { ThreatState } from './threats/threatFsm.ts';
 import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
@@ -32,7 +35,10 @@ export interface PapaSlice {
   dirZ: number;
   /** A direction walk that cannot move at all. */
   isBlocked: boolean;
-  /** The glide towards a threat that was pressed; non-null exactly in `glide`. Choreography only (P3). */
+  /**
+   * The glide towards a threat that was pressed, or towards a chore's station (story 9.4, then
+   * `threatId` is null and `objectId` names the station); non-null exactly in `glide`. Choreography only (P3).
+   */
   glide: PapaGlide | null;
   /**
    * The object the current walk goes to (`TapObject`), or null: arriving there runs its action (story 1.19).
@@ -44,7 +50,10 @@ export interface PapaSlice {
    * put him down in a safe zone. `'none'` outside `walkPath`.
    */
   intent: PapaIntent;
-  /** When `drink` / `asleep` / `onPhone` / `onToilet` ends, in sim time; 0 in any other state. */
+  /**
+   * When `drink` / `asleep` / `onPhone` / `onToilet` / `electrified` / `carryingUp` / `pickingUp`
+   * ends, in sim time; 0 in any other state.
+   */
   busyUntil: SimMs;
 }
 
@@ -67,9 +76,12 @@ export interface ComboSlice {
   carryTickAt: SimMs | null;
 }
 
-/** Papa's glide to a pressed threat: it ends by `arriveAt` and never decides a judgement. */
+/**
+ * Papa's glide to a pressed threat, or to a chore's station (story 9.4, `threatId` null, `papa.objectId`
+ * set): it ends by `arriveAt` and never decides a judgement.
+ */
 export interface PapaGlide {
-  threatId: number;
+  threatId: number | null;
   toXM: number;
   toZM: number;
   startedAt: SimMs;
@@ -113,6 +125,11 @@ export interface BabySlice {
   cryStartedAt: SimMs | null;
   /** When the current cry ends, in sim time (a gag during a cry pushes it); null while not crying. */
   cryEndsAt: SimMs | null;
+  /**
+   * When a baby left at the bottom of the stairs climbs back by himself (story 3.15), in sim time;
+   * non-null exactly in `downstairs`.
+   */
+  downstairsUntil: SimMs | null;
 }
 
 /** A response that was judged `perfect` or `success` and waits to be classified (Parry or Firmness). */
@@ -180,6 +197,40 @@ export interface DisruptionInstance {
   nextRingingAt: SimMs;
 }
 
+/**
+ * One house chore of the level (story 9.4): created at `createSim`, one per entry of the level's
+ * `chores`. The def and the station object stay in `ctx.level.chores`, index-aligned with
+ * `world.chores`. `beatsDone` is the progress, kept when Papa leaves; the beat fields describe the
+ * beat being played (`beatState` is `none` outside `working`).
+ */
+export interface ChoreInstance {
+  state: ChoreState;
+  /** Sim time of the last state change; 0 while `untouched`. */
+  enteredAt: SimMs;
+  /** Beats caught so far; the next to play is this one. Equals the beat count exactly when `done`. */
+  beatsDone: number;
+  beatState: ChoreBeatState;
+  /** When the current beat was announced, in sim time; 0 unless `telegraph`. */
+  beatTelegraphAt: SimMs;
+  /** The announcement plus `telegraphDelayMs`; 0 unless `telegraph`. May be off the step grid. */
+  beatWindowOpenAt: SimMs;
+  /** Frozen when the beat is announced (the threats' rule); zeros unless `telegraph`. */
+  responseWindow: EffectiveWindow;
+  /**
+   * Beats missed so far (story 9.6), `early` and `late` alike: +1 for every `ChoreBeatJudged{fail}`,
+   * never decreased. A def with `missBrokenObjects` breaks that many objects per miss (Mama's Soupir
+   * counts them, the client draws their shards).
+   */
+  beatsMissed: number;
+  /**
+   * The station's door is open (story 9.6): true only for a def with `openThreat` and only in `working`
+   * or `paused`. `startChore` opens it, the last beat caught closes it, and so does a caught open-door
+   * threat, whatever the chore's state. The director draws the open-door threat only while it is
+   * `paused` and open.
+   */
+  isOpen: boolean;
+}
+
 /** A free object (`PROP_*`): its pose mirrors its Rapier body at the end of each step (story 1.15). */
 export interface PropSlice {
   /** The geometry id (`mug_01`); `world.props[i]` is `geometry.props[i]`. */
@@ -212,6 +263,29 @@ export interface PropSlice {
   isBroken: boolean;
   /** Sim time of the last `PropImpact`; null before the first. */
   lastImpactAt: SimMs | null;
+  /**
+   * How long Papa is busy picking this prop up, in sim ms, when the coffee table's gag pushed it
+   * (story 3.15); 0 = not a debris. It is a debris only while `isMess`; the mark is cleared by
+   * `tidyProp` (picked up, or the final rush) and when the prop breaks.
+   */
+  debrisPickUpMs: number;
+}
+
+/** One mess a silence's mischief left (story 3.15): drawn on the floor to the end of the level and on the photo. */
+export interface MischiefMark {
+  gag: GagId;
+  xM: number;
+  zM: number;
+}
+
+/** What the gags leave behind (story 3.15), besides Papa's and the baby's own states: the décor séquelles. */
+export interface AfterEffectsSlice {
+  /** The room is dim until this sim time; 0 = not dim. Several pénombres end at the latest one. */
+  dimUntil: SimMs;
+  /** The index in `world.props` of the debris Papa stands on, or -1 (one `DebrisSteppedOn` per entry). */
+  steppedDebrisIndex: number;
+  /** The mischiefs left by the suspicious silence, never removed. */
+  mischiefMarks: MischiefMark[];
 }
 
 /**
@@ -240,14 +314,17 @@ export interface SilenceSlice {
 }
 
 /**
- * Mama's note (story 1.22, GDD › economy): four integer rows and their sum, out of 100. The rows
- * always add up: `scorePoints = laugh + babyState + (sighMax − sigh) + (screamMax − scream)`.
+ * Mama's note (story 1.22, revised in 3.12, GDD › economy): five integer rows and their sum, out of
+ * 100. The rows always add up:
+ * `scorePoints = laugh + calm + home + (sighMax − sigh) + (screamMax − scream)`.
  */
 export interface MamaScore {
-  /** Rire: the perfect responses, held to `laughMaxPoints`. */
+  /** Rire: the perfects, the successes and the combo points cashed in, held to `laughMaxPoints`. */
   laughPoints: number;
-  /** État du bébé: `babyStateFixedPoints` until E5 computes it. */
-  babyStatePoints: number;
+  /** Calme du bébé: the share of the played time the baby was calm, times `calmMaxPoints` (E5 changes how). */
+  calmPoints: number;
+  /** Maison: the house chores, held to `homeMaxPoints`; 0 until E9 (story 9.4). */
+  homePoints: number;
   /** Soupir, taken off: props on the floor, broken props and mischiefs, held to `sighMaxPoints`. */
   sighPoints: number;
   /** Hurlement, taken off: the near misses, held to `screamMaxPoints`. */
@@ -270,12 +347,19 @@ export interface MamaScore {
 export interface ScoreSlice {
   /** `ResponseResolved{perfect}`, the micro-sleep's included. */
   perfects: number;
+  /** `ResponseResolved{success}` (a response in time but not perfect), counted where perfects are (story 3.12). */
+  successes: number;
   /** `NearMiss` events, plus the `NearMissFrozen` ones the end of the level adds (story 3.6). */
   nearMisses: number;
   /** The sum of the points of every combo cashed in (story 4.2), not rounded; points not cashed when the level ends are lost. */
   comboPoints: number;
   /** Props Papa put back in the final rush (`PropTidied`, story 3.5). */
   propsTidied: number;
+  /**
+   * Sim time the baby was calm, in ms, whole steps (story 3.12, `tickCalm`): the noise gauge strictly
+   * below `calmNoiseThresholdPct`, or the baby not crying in a level with no noise gauge.
+   */
+  calmMs: number;
   /** The note, from the step the level ended; null while it plays. */
   final: MamaScore | null;
 }
@@ -301,6 +385,11 @@ export interface GaugesSlice {
   microSleepAt: SimMs | null;
   /** The noise, in % of the gauge (0-100); stays 0 in a level with no noise gauge (story 3.1). */
   noisePct: number;
+  /**
+   * The catastrophe, in % of the gauge (0-100), in every level (story 3.16), written only by
+   * `addCatastrophe` and `decayCatastrophe`. At 100 Mama comes home early; frozen in the final rush.
+   */
+  catastrophePct: number;
   /** The pressing need, in % of the gauge (0-100); stays 0 in a level with no need gauge (story 4.3). */
   bladderPct: number;
   /** Whether `bladderPct` has reached `feel.bladder.slowFromPct`: Papa's walks are slower then (the crossing is an event). */
@@ -325,6 +414,11 @@ export interface FlowSlice {
    * `photo`, and in `ended` after a `mamaWoke` in the rush. The door's animation is a function of it.
    */
   finalRushAt: SimMs | null;
+  /**
+   * Why the level ended (story 3.16), the reason of `LevelEnded`; null while the level is live, so it
+   * is non-null exactly in `ended` and `photo`. The client reads it for the door and the result.
+   */
+  endReason: LevelEndReason | null;
 }
 
 /**
@@ -598,11 +692,15 @@ export interface World {
   director: DirectorSlice;
   /** One per planned disruption, in the level's order (the waves', flattened). */
   disruptions: DisruptionInstance[];
+  /** One per house chore of the level (story 9.4), index-aligned with `ctx.level.chores`; `[]` in a level with no station. */
+  chores: ChoreInstance[];
   flow: FlowSlice;
   gauges: GaugesSlice;
   /** One per prop of the level's geometry, index-aligned with `geometry.props` (their bodies live in Rapier, beside `World`). */
   props: PropSlice[];
   mess: MessSlice;
+  /** The décor séquelles of the gags (story 3.15). */
+  afterEffects: AfterEffectsSlice;
   /** The suspicious silence under way, if any (story 1.21). */
   silence: SilenceSlice;
   /** Carrying the baby (story 4.1). */
@@ -708,16 +806,19 @@ export function createWorld({
       approachSpeedMps: 0,
       cryStartedAt: null,
       cryEndsAt: null,
+      downstairsUntil: null,
     },
     threats: [],
     director: { waveIndex: -1, nextAt: asSimMs(0) },
     disruptions: [],
-    flow: { state: 'playing', enteredAt: asSimMs(0), finalRushAt: null },
+    chores: [],
+    flow: { state: 'playing', enteredAt: asSimMs(0), finalRushAt: null, endReason: null },
     gauges: {
       fatigue: fatiguePoints,
       isFatigueAbove: false,
       microSleepAt: null,
       noisePct: 0,
+      catastrophePct: 0,
       bladderPct,
       isBladderFull: false,
       propNoiseAt: props.map(() => null),
@@ -743,7 +844,9 @@ export function createWorld({
       isMess: false,
       isBroken: false,
       lastImpactAt: null,
+      debrisPickUpMs: 0,
     })),
+    afterEffects: { dimUntil: asSimMs(0), steppedDebrisIndex: -1, mischiefMarks: [] },
     mess: { propsOnFloor: 0, propsBroken: 0, mischiefs: 0 },
     silence: { threatId: null, zoneEnteredAt: null, startedAt: null },
     carry: { armsCryAt: null },
@@ -763,7 +866,15 @@ export function createWorld({
     cycle: { index: 0, nextAt: null, completedAt: null },
     combo: { multiplier: feel.combo.minMultiplier, basePoints: 0, carryTickAt: null },
     instinct: { state: 'ready', enteredAt: asSimMs(0), untilAt: asSimMs(0), missAts: [] },
-    score: { perfects: 0, nearMisses: 0, comboPoints: 0, propsTidied: 0, final: null },
+    score: {
+      perfects: 0,
+      successes: 0,
+      nearMisses: 0,
+      comboPoints: 0,
+      propsTidied: 0,
+      calmMs: 0,
+      final: null,
+    },
     input: { lagMs: 0 },
     difficultyTier: DEFAULT_DIFFICULTY_TIER,
     feel: cloneJson(feel),

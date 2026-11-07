@@ -26,6 +26,7 @@ function propAt(overrides: Partial<PropSlice> = {}): PropSlice {
     isMess: false,
     isBroken: false,
     lastImpactAt: null,
+    debrisPickUpMs: 0,
     ...overrides,
   };
 }

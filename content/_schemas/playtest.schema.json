@@ -47,6 +47,28 @@
       "minimum": 0,
       "maximum": 100,
       "description": "Indicator 5: share of testers (in %) who laugh at least once during a level."
+    },
+    "humanBot": {
+      "type": "object",
+      "properties": {
+        "maxStarGap": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The bot's mean stars must stay within this many stars of the testers' median (strictly under)."
+        },
+        "maxPerfectExcessPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "How many points of perfect rate (in %) the bot may have above the testers' median rate."
+        }
+      },
+      "required": [
+        "maxStarGap",
+        "maxPerfectExcessPct"
+      ],
+      "additionalProperties": false,
+      "description": "The thresholds of the human-bot comparison (`npm run sim -- --compare`)."
     }
   },
   "required": [
@@ -56,7 +78,8 @@
     "identifiedMinPct",
     "firstEncounterSuccessMinPct",
     "touchVsKeyboardMinPct",
-    "laughedMinPct"
+    "laughedMinPct",
+    "humanBot"
   ],
   "additionalProperties": false
 }
