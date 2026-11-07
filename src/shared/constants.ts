@@ -382,6 +382,13 @@ export const NEUTRAL_WINDOW_MODIFIER = 1;
  */
 export const BOT_SEED_SALT = 0xb07b07b0;
 
+/**
+ * XORed with the level's seed to seed the local stream that breaks a tie between Mama's lines (story 3.8, D6):
+ * the choice of a line draws nothing from `world.rng` (it would move every golden), and must not share the world's
+ * sfc32 stream either.
+ */
+export const MAMA_LINES_SEED_SALT = 0x4d414d41;
+
 /** The longest game `npm run sim --until-ms` accepts, in sim ms (one hour): a larger value is a typo, not a test. */
 export const SIM_CLI_MAX_UNTIL_MS = 3_600_000;
 
@@ -619,7 +626,7 @@ export const VOLUME_STEP_PCT = 5;
 export const VOLUME_MAX_PCT = 100;
 
 /** The version of the save the game writes. Every bump adds a migration `v{n-1} → v{n}` (story 2.7). */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /**
  * The activity bubble above a busy Papa (story 2.12; DESIGN.md › activity-bubble). Every size is a

@@ -9,16 +9,18 @@ import type { Save, Settings } from '../../../src/content/schemas/save.ts';
 export const SAVE_STORAGE_KEY = 'papa-parade.save';
 
 /**
- * A valid v3 save with a calibration (story 2.8: it also holds the default settings, the normal
- * tier, which sends no command, so no timing moves; story 2.10: both comfort switches off). `overrides` change the calibration and
- * `settings` the settings, for what a spec cares about.
+ * A valid v4 save with a calibration (story 2.8: it also holds the default settings, the normal
+ * tier, which sends no command, so no timing moves; story 2.10: both comfort switches off; story 3.8:
+ * Mama remembers nothing). `overrides` change the calibration, `settings` the settings and `counts`
+ * the games in which each gag happened, for what a spec cares about.
  */
 export function calibratedSave(
   overrides: Partial<NonNullable<Save['calibration']>> = {},
   settings: Partial<Settings> = {},
+  counts: Record<string, number> = {},
 ): Save {
   return {
-    version: 3,
+    version: 4,
     calibration: {
       visualOffsetMs: 0,
       audioOffsetMs: 0,
@@ -35,6 +37,7 @@ export function calibratedSave(
       largeVerbs: false,
       ...settings,
     },
+    mamaMemory: { counts },
   };
 }
 
@@ -42,7 +45,8 @@ export function calibratedSave(
 export const calibratedSaveValue = (
   overrides: Partial<NonNullable<Save['calibration']>> = {},
   settings: Partial<Settings> = {},
-): string => JSON.stringify(calibratedSave(overrides, settings));
+  counts: Record<string, number> = {},
+): string => JSON.stringify(calibratedSave(overrides, settings, counts));
 
 /** A Playwright `storageState` that holds the calibrated save for the page served at `baseURL`. */
 export function calibratedStorageState(baseURL: string) {

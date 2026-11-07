@@ -172,7 +172,7 @@ Unless a source is cited, every string's wording is `[ASSUMPTION]`.
 | « Sûr ? Le niveau sera perdu. » | Armed label of "Quitter vers le frigo" | `[ASSUMPTION]` |
 | « 3 » « 2 » « 1 » | Resume countdown | `[ASSUMPTION]` |
 | « Manette débranchée. Rebranche-la pour reprendre. » | Pause panel after a gamepad-disconnect auto-pause | `[ASSUMPTION]` |
-| « *Encore* l'étagère ?! » | mum-bubble example (Mama remembers past runs). Mama's lines are content-driven (`mama-lines.json`; the most specific line wins, story 3.8), so the mockup's use of this line is illustrative only | GDD |
+| « *Encore* l'escalier ?! » | mum-bubble example (Mama remembers past runs; in the game the shelf is the stairs, story 3.8). Mama's lines are content-driven (`mama-lines.json`; the most specific line wins), so the mockup's use of this line is illustrative only | GDD |
 | « Maman s'est réveillée ! » | Result header when Mama woke | `[ASSUMPTION]` |
 | « Maman est rentrée plus tôt ! » | Result header after an early end (catastrophe at 100%) (v2.3) | GDD v2.3, story 3.16 |
 | « Nouvel âge débloqué ! » | Result header when the next age unlocks | `[ASSUMPTION]` |

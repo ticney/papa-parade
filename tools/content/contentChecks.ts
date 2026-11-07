@@ -12,6 +12,7 @@ import {
   FEEL_FILE,
   LEVEL_GEOMETRY_PATTERN,
   LEVEL_PATTERN,
+  MAMA_LINES_FILE,
   matchContentPattern,
   SEQUENCE_DEF_PATTERN,
   STRINGS_FILE,
@@ -28,10 +29,12 @@ import type { FeedbackCue, FeedbackTable } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
 import type { Level } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import type { MamaLines } from '@content/schemas/mamaLines';
 import type { SequenceDef } from '@content/schemas/sequence';
 import { type ThreatDef, ThreatGagIds } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
 import {
+  MAMA_REACTIONS,
   MS_PER_S,
   PHONE_RINGING_EVERY_MS,
   PHYSICS_BOUNDS_WALL_THICKNESS_M,
@@ -46,6 +49,7 @@ import {
   duelLimitsOf,
   finalRushProblems,
   GAG_IDS,
+  LEVEL_END_REASONS,
   OBJECT_ACTION_KINDS,
   openSafeCentreCountOf,
   openThreatAnchorProblem,
@@ -1341,6 +1345,52 @@ function checkLevelChores(
 }
 
 /**
+ * The references Mama's lines make (story 3.8, FR36): a `when.tag` is a gag of the sim, a `when.endReason` a
+ * level end reason, ids are unique, and each of her reactions has a generic line (no `when`), so
+ * `chooseMamaLines` always finds one. The schema checks the text rules.
+ */
+function checkMamaLineReferences(mamaLines: MamaLines): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const file = `content/${MAMA_LINES_FILE.file}`;
+  const seen = new Set<string>();
+  mamaLines.lines.forEach((line, i) => {
+    if (seen.has(line.id)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['lines', i, 'id']),
+        message: `two lines share the id "${line.id}"`,
+      });
+    }
+    seen.add(line.id);
+    const { tag, endReason } = line.when ?? {};
+    if (tag !== undefined && !(GAG_IDS as readonly string[]).includes(tag)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['lines', i, 'when', 'tag']),
+        message: `line "${line.id}": "${tag}" is not a gag of the sim (${GAG_IDS.join(', ')}; a tag is a gag id)`,
+      });
+    }
+    if (endReason !== undefined && !(LEVEL_END_REASONS as readonly string[]).includes(endReason)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['lines', i, 'when', 'endReason']),
+        message: `line "${line.id}": "${endReason}" is not a way a level ends (${LEVEL_END_REASONS.join(', ')})`,
+      });
+    }
+  });
+  for (const reaction of MAMA_REACTIONS) {
+    if (!mamaLines.lines.some((line) => line.reaction === reaction && line.when === undefined)) {
+      problems.push({
+        file,
+        jsonPath: 'lines',
+        message: `no generic line (without \`when\`) for her ${reaction}: she would have nothing to say when no other line holds`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
  * The references a level file makes: it has its geometry beside it, each threat of each wave is a
  * threat file whose gag the sim knows, each anchor (of a threat or an object) is an anchor of that
  * geometry, object ids are unique, and its `feelOverrides` merge into a valid feel. A file that
@@ -1711,6 +1761,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   let feedback: FeedbackTable | undefined;
   let feel: Feel | undefined;
   let bots: BotSettings | undefined;
+  let mamaLines: MamaLines | undefined;
   const families: ParsedFamilies = {
     threats: new Map(),
     disruptions: new Map(),
@@ -1781,6 +1832,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
     if (entry === FEEDBACK_FILE) feedback = result.value as FeedbackTable;
     if (entry === FEEL_FILE) feel = result.value as Feel;
     if (entry === BOTS_FILE) bots = result.value as BotSettings;
+    if (entry === MAMA_LINES_FILE) mamaLines = result.value as MamaLines;
   }
 
   const present = new Set(await listContentFiles(rootDir));
@@ -1825,6 +1877,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   problems.push(...checkLevelChores(families, present, feel));
   problems.push(...checkSequenceReferences(families, present, feedback, feel));
 
+  if (mamaLines !== undefined) problems.push(...checkMamaLineReferences(mamaLines));
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));
   if (feel !== undefined) {
     problems.push(...checkPropReferences(families.geometries, feel));

@@ -1,6 +1,7 @@
 import {
   type CalibrationResult,
   createDefaultSave,
+  type MamaMemory,
   type Save,
   SaveSchema,
   type Settings,
@@ -25,9 +26,10 @@ export interface SaveMigration {
  * `v{n-1} → v{n}`, in order. `v1 → v2` (story 2.8) adds the settings, with their defaults, and keeps
  * the calibration. `v2 → v3` (story 2.10) adds the two comfort switches, off, and keeps every other
  * setting (a switch already there is kept); a v2 save with no usable `settings` is not repaired, so
- * the schema still refuses it. Pure: the input is not changed. Each step writes the literal shape of
- * its own version, never `createDefaultSettings()`, so a later change of the defaults cannot alter
- * the path of an old save.
+ * the schema still refuses it. `v3 → v4` (story 3.8) adds Mama's memory, empty, and keeps the
+ * calibration and every setting. Pure: the input is not changed. Each step writes the literal shape of
+ * its own version, never `createDefaultSettings()` or `createDefaultSave()`, so a later change of the
+ * defaults cannot alter the path of an old save.
  */
 export const SAVE_MIGRATIONS: readonly SaveMigration[] = [
   {
@@ -56,6 +58,10 @@ export const SAVE_MIGRATIONS: readonly SaveMigration[] = [
         },
       };
     },
+  },
+  {
+    from: 3,
+    migrate: (save) => ({ ...save, version: 4, mamaMemory: { counts: {} } }),
   },
 ];
 
@@ -145,6 +151,12 @@ export interface SaveStore {
    * tick, so a failing storage warns once until a write succeeds again.
    */
   setSettings(settings: Settings): Promise<void>;
+  /**
+   * Replaces what Mama remembers (story 3.8): memory at once, then the write. Same failure path as
+   * `setSettings`: a failing storage warns once, a save from the future is not written, and the
+   * memory still grows in memory, so « Encore » works within a read-only session.
+   */
+  recordMamaMemory(memory: MamaMemory): Promise<void>;
 }
 
 export interface CreateSaveStoreOptions {
@@ -241,6 +253,10 @@ export function createSaveStore(
     },
     async setSettings(settings) {
       save = { ...save, settings };
+      await write();
+    },
+    async recordMamaMemory(mamaMemory) {
+      save = { ...save, mamaMemory };
       await write();
     },
   };

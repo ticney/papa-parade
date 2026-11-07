@@ -6,7 +6,8 @@ import {
   STAR_COUNT_MAX,
 } from '@shared/constants';
 import { log } from '@shared/log';
-import type { LevelEndReason, MamaReaction, MamaScore } from '@sim';
+import type { LevelEndReason, MamaReactionLine, MamaScore } from '@sim';
+import { appendEmphasizedText } from '../emphasis.ts';
 import type { OverlayScreen } from '../overlayScreen.ts';
 import { bindPressButton } from '../pressButton.ts';
 import { formatString, type Translator } from '../strings.ts';
@@ -76,11 +77,12 @@ export interface ResultScreenOptions {
    */
   photo: ResultPhoto | null;
   /**
-   * Mama's reactions to the game, in the order they play (`mamaReactionsOf`, story 3.7): each shows its
-   * line in the bubble, its value, her face and her animation for `reactionHoldMs`. Boot always passes
-   * at least one; an empty list simply plays no `mama` phase.
+   * Mama's reactions to the game, in the order they play (`mamaReactionsOf`, story 3.7), each with the
+   * line she says (`chooseMamaLines`, story 3.8): it shows the line in the bubble (`*word*` in italics),
+   * its value, her face and her animation for `reactionHoldMs`. Boot passes at least one once the level
+   * is scored; an empty list simply plays no `mama` phase.
    */
-  reactions: readonly MamaReaction[];
+  reactions: readonly MamaReactionLine[];
   scheduler: ResultScheduler;
   /** Real ms, for the count-up. */
   now(): number;
@@ -108,7 +110,7 @@ export interface ResultScreenOptions {
    */
   copyLog?: () => Promise<CopyLogOutcome>;
   /** Makes the elements (the browser's `document`; a double in tests). */
-  doc?: Pick<Document, 'createElement' | 'createElementNS'>;
+  doc?: Pick<Document, 'createElement' | 'createElementNS' | 'createTextNode'>;
 }
 
 const SKIP_KEYS = new Set(['Enter', 'NumpadEnter', 'Space']);
@@ -224,7 +226,7 @@ interface Row {
  * included), Enter, Space or a pad's A skips to the end (panel shown, Mama at rest on her last reaction, rows at their totals, stars
  * placed silently, the header at rest, buttons up) without
  * pressing « Rejouer ». A press that starts within `inputGraceMs` of the screen coming up, or of the
- * buttons coming up, does neither: it is a tap still meant for the game. Mama's fixed lines are placeholders for story 3.8, and the 3.11 buttons come later.
+ * buttons coming up, does neither: it is a tap still meant for the game. Her lines come with the reactions (story 3.8: `chooseMamaLines`, from `content/mama-lines.json`), and the 3.11 buttons come later.
  */
 export function createResultScreen(options: ResultScreenOptions): OverlayScreen {
   const { t, score, maxima, timings, scheduler, doc = document } = options;
@@ -307,13 +309,6 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   // when there is a photo and alone in the column when there is none. Invisible until her first reaction, but
   // not `hidden`: her live region is in the page from the start, so that the first line is announced.
   const { reactions } = options;
-  const lineKeyOf = (reaction: MamaReactionId): string => {
-    if (reaction === 'laugh') return 'result.mama_line_laugh';
-    if (reaction === 'sigh') return 'result.mama_line_sigh';
-    if (options.endReason === 'mamaWoke') return 'result.mama_line_scream_woke';
-    if (options.endReason === 'mamaHome') return 'result.mama_line_scream_home';
-    return 'result.mama_line_scream';
-  };
   const mama = make('div', 'pp-result-mama pp-result-mama-waiting');
   const bubble = make('div', 'pp-mum-bubble pp-type-body');
   bubble.setAttribute('role', 'status');
@@ -353,9 +348,12 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   };
   /** Shows reaction number `index`: her line, her value, her face; `isAtRest` leaves her without animation. */
   const showReaction = (index: number, isAtRest: boolean): void => {
-    const { reaction, points } = reactions[index] as MamaReaction;
+    const { reaction, points, text } = reactions[index] as MamaReactionLine;
     bubble.className = `pp-mum-bubble pp-type-body pp-mum-bubble--${reaction}`;
-    bubbleText.textContent = t(lineKeyOf(reaction));
+    // The live region stays in the page: its text is replaced, `*word*` becomes an `em` (never `innerHTML`),
+    // and a reader hears the line without the asterisks (story 3.8).
+    bubbleText.textContent = '';
+    appendEmphasizedText(bubbleText, text, doc);
     // What she takes off or gives, with the sign: nothing for a reaction worth 0 (the Laugh of a game with nothing in it).
     reactionChip.hidden = points <= 0;
     reactionChip.className = `pp-mum-chip pp-type-numeric pp-mum-chip--${reaction}`;
@@ -711,7 +709,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   const startRows = (): void => {
     // Her last reaction is over: she stays on it, at rest, as after a skip.
     if (reactions.length > 0)
-      shapeFigures((reactions[reactions.length - 1] as MamaReaction).reaction, true);
+      shapeFigures((reactions[reactions.length - 1] as MamaReactionLine).reaction, true);
     showPanel();
     mountHeader(true);
     enter('rows');
@@ -737,7 +735,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     enter('mama');
     const play = (index: number): void => {
       showReaction(index, false);
-      options.onMamaReaction((reactions[index] as MamaReaction).reaction);
+      options.onMamaReaction((reactions[index] as MamaReactionLine).reaction);
       const next = index + 1 < reactions.length ? () => play(index + 1) : startRows;
       if (timings.reactionHoldMs === 0) next();
       else later(next, timings.reactionHoldMs);

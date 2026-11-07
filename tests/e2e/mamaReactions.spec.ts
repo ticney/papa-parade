@@ -23,6 +23,7 @@ import {
   ppFreeze,
   ppFx,
   ppLoadLevel,
+  ppMamaLines,
   ppSend,
   ppSetFeel,
   ppWorld,
@@ -126,12 +127,23 @@ async function expectedReactions(
   return { reactions: mamaReactionsOf(final, reason), reason };
 }
 
-const lineKeyOf = (reaction: MamaReaction['reaction'], reason: LevelEndReason): string => {
-  if (reaction !== 'scream') return `result.mama_line_${reaction}`;
-  if (reason === 'mamaWoke') return 'result.mama_line_scream_woke';
-  if (reason === 'mamaHome') return 'result.mama_line_scream_home';
-  return 'result.mama_line_scream';
-};
+/** What a reader gets from a line: its words with no asterisk (the emphasis is an `em` in the bubble, story 3.8). */
+const spokenOf = (text: string): string => text.replaceAll('*', '');
+
+/**
+ * The lines the page chose for this Result (`__PP__.mamaLines()`, story 3.8): one per reaction, in the same
+ * order. The bubble is asserted against them, so this spec does not copy how the product picks a line; the
+ * lines a case must give are pinned by id and text in the test that cares.
+ */
+async function chosenLines(
+  page: Page,
+  reactions: readonly MamaReaction[],
+): Promise<NonNullable<Awaited<ReturnType<typeof ppMamaLines>>>> {
+  const lines = await ppMamaLines(page);
+  if (lines === null) throw new Error('__PP__.mamaLines() is null: no level was scored');
+  expect(lines.map(({ reaction, points }) => ({ reaction, points }))).toEqual(reactions);
+  return lines;
+}
 
 /** The chip as the player reads it: « +5 », « −3,5 », nothing for a reaction worth 0. */
 const chipOf = ({ reaction, points }: MamaReaction): string | null =>
@@ -171,9 +183,16 @@ test.describe('Mama’s reactions', () => {
     const { reactions, reason } = await expectedReactions(page);
     expect(reason).toBe('timer');
     expect(reactions).toEqual([{ reaction: 'laugh', points: 0 }]);
+    const lines = await chosenLines(page, reactions);
+    // Nothing happened but, at most, the micro-sleep of the fatigue gauge: the generic line or its own (story 3.8).
+    const [only] = lines;
+    expect(['laugh_any', 'asleep_first']).toContain(only?.lineId);
+    expect(only?.text).toBe(
+      only?.lineId === 'laugh_any' ? 'Ha ha ! Tous les deux, alors…' : 'Tu dormais debout ?',
+    );
     const shots = await bubbleShots(page);
     expect(shots).toHaveLength(1);
-    expect(shots[0]).toMatchObject({ text: STRINGS['result.mama_line_laugh'], chip: null });
+    expect(shots[0]).toMatchObject({ text: spokenOf(only?.text ?? ''), chip: null });
     expect(shots[0]?.bubbleClass).toContain('pp-mum-bubble--laugh');
     expect(shots[0]?.phase).toBe('mama');
     expect((await mirrorWrites(page)).map(({ value }) => value)).toEqual([
@@ -195,12 +214,11 @@ test.describe('Mama’s reactions', () => {
     const problems = collectProblems(page);
     await openEnd(page, 'idleGame');
     await waitForActions(page);
-    const { reactions, reason } = await expectedReactions(page);
+    const { reactions } = await expectedReactions(page);
     expect(reactions.length).toBeGreaterThanOrEqual(1);
+    const lines = await chosenLines(page, reactions);
     const shots = await bubbleShots(page);
-    expect(shots.map(({ text }) => text)).toEqual(
-      reactions.map(({ reaction }) => STRINGS[lineKeyOf(reaction, reason)]),
-    );
+    expect(shots.map(({ text }) => text)).toEqual(lines.map(({ text }) => spokenOf(text)));
     expect(shots.map(({ chip }) => chip)).toEqual(reactions.map(chipOf));
     for (const [index, shot] of shots.entries()) {
       const { reaction } = reactions[index] as MamaReaction;
@@ -227,8 +245,14 @@ test.describe('Mama’s reactions', () => {
     const { reactions, reason } = await expectedReactions(page);
     expect(reason).toBe('mamaWoke');
     expect(reactions.map(({ reaction }) => reaction)).toContain('scream');
+    // Nothing but the noise happened: her line for a woken Mama, pinned by id and text (story 3.8).
+    const lines = await chosenLines(page, reactions);
+    expect(lines.at(-1)).toMatchObject({
+      lineId: 'scream_woke',
+      text: 'Qui fait tout ce bruit ?!',
+    });
     const shots = await bubbleShots(page);
-    expect(shots.at(-1)?.text).toBe(STRINGS['result.mama_line_scream_woke']);
+    expect(shots.at(-1)?.text).toBe('Qui fait tout ce bruit ?!');
     const cues = (await ppCueLog(page)).map((record) => record.cueId);
     expect(cues.indexOf(mamaCueOf('scream'))).toBeGreaterThan(cues.indexOf('photo_taken'));
     expect(cues.indexOf('mama_woke')).toBeGreaterThan(cues.lastIndexOf(mamaCueOf('scream')));
@@ -244,10 +268,15 @@ test.describe('Mama’s reactions', () => {
     await recordBubble(page);
     await openEnd(page, 'mamaHome');
     await waitForActions(page);
-    const { reason } = await expectedReactions(page);
+    const { reactions, reason } = await expectedReactions(page);
     expect(reason).toBe('mamaHome');
+    const lines = await chosenLines(page, reactions);
+    expect(lines.at(-1)).toMatchObject({
+      lineId: 'scream_home',
+      text: "Mais qu'est-ce qui s'est passé ici ?!",
+    });
     const shots = await bubbleShots(page);
-    expect(shots.at(-1)?.text).toBe(STRINGS['result.mama_line_scream_home']);
+    expect(shots.at(-1)?.text).toBe("Mais qu'est-ce qui s'est passé ici ?!");
     expect(shots.at(-1)?.bubbleClass).toContain('pp-mum-bubble--scream');
     const cues = (await ppCueLog(page)).map((record) => record.cueId);
     expect(cues.indexOf(mamaCueOf('scream'))).toBeGreaterThanOrEqual(0);
@@ -265,7 +294,8 @@ test.describe('Mama’s reactions', () => {
     await expect(html(page)).toHaveAttribute('data-pp-result', 'mama', {
       timeout: SEQUENCE_TIMEOUT_MS,
     });
-    const { reactions, reason } = await expectedReactions(page);
+    const { reactions } = await expectedReactions(page);
+    const lines = await chosenLines(page, reactions);
     const cuesBefore = await cueCount(page);
     // No wait for the grace: the photo's hold already outlasted it, and every extra millisecond is taken
     // from the first reaction's hold, which a game with a single reaction has no room for.
@@ -279,7 +309,7 @@ test.describe('Mama’s reactions', () => {
     expect(await cueCount(page)).toBeLessThanOrEqual(cuesBefore + reactions.length);
     const last = reactions.at(-1) as MamaReaction;
     await expect(page.locator(`${BUBBLE} .pp-mum-bubble-text`)).toHaveText(
-      STRINGS[lineKeyOf(last.reaction, reason)] as string,
+      spokenOf(lines.at(-1)?.text ?? ''),
     );
     await expect(page.locator(SHOWN)).toHaveClass(new RegExp(`pp-mama--${last.reaction}`));
     await expect(page.locator(SHOWN)).toHaveClass(/pp-mama--rest/);
@@ -311,17 +341,19 @@ test.describe('Mama’s reactions', () => {
     await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
       timeout: SEQUENCE_TIMEOUT_MS,
     });
-    const { reactions, reason } = await expectedReactions(page);
+    const { reactions } = await expectedReactions(page);
+    const lines = await chosenLines(page, reactions);
     const cuesBefore = await cueCount(page);
     await page.setViewportSize(PORTRAIT);
     await expect(page.locator('.pp-portrait-screen')).toBeVisible();
     await page.setViewportSize(LANDSCAPE);
     await expect(page.locator(PANEL)).toBeVisible();
     await expect(html(page)).toHaveAttribute('data-pp-result', 'actions');
-    const last = reactions.at(-1) as MamaReaction;
     await expect(page.locator(`${BUBBLE} .pp-mum-bubble-text`)).toHaveText(
-      STRINGS[lineKeyOf(last.reaction, reason)] as string,
+      spokenOf(lines.at(-1)?.text ?? ''),
     );
+    // The same lines, chosen once: the rebuilt screen does not choose again (story 3.8).
+    expect(await ppMamaLines(page)).toEqual(lines);
     await expect(page.locator(SHOWN)).toHaveCSS('animation-name', 'none');
     expect(await cueCount(page)).toBe(cuesBefore);
   });

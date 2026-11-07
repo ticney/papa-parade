@@ -93,6 +93,14 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
   );
 
 /**
+ * The lines Mama says on the current Result screen (`__PP__.mamaLines()`, story 3.8), or `null` before the
+ * first level is scored and after the next one starts loading. Specs assert the bubble against it and pin
+ * known lines by text, so they never copy the choice the product makes.
+ */
+export const ppMamaLines = (page: Page): Promise<ReturnType<PPTestApi['mamaLines']>> =>
+  page.evaluate(() => window.__PP__?.mamaLines() ?? null);
+
+/**
  * Where a world point is on the page now, in px (`__PP__.pagePoint`, story 9.2): the live game camera,
  * so it holds on a camera that follows Papa (`pagePointOf` in `game.ts` is the fixed camera's).
  */

@@ -526,6 +526,36 @@ describe('perf()', () => {
   });
 });
 
+describe('mamaLines (story 3.8)', () => {
+  const LINES = [
+    { reaction: 'laugh', points: 0, lineId: 'laugh_any', text: 'Ha ha !' },
+    { reaction: 'scream', points: 3, lineId: 'stairs_again', text: "*Encore* l'escalier ?!" },
+  ] as const;
+
+  it('is null before a level is scored', () => {
+    expect(createTestApi(createFakeTestHost()).mamaLines()).toBeNull();
+  });
+
+  it('reads the host at call time and gives the lines, with their ids and their raw text', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    host.setMamaLines(LINES);
+    expect(api.mamaLines()).toEqual(LINES);
+    host.setMamaLines(null);
+    expect(api.mamaLines()).toBeNull();
+  });
+
+  it('hands out a copy: changing it changes nothing in the app', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    host.setMamaLines(LINES);
+    const copy = api.mamaLines() as unknown as { text: string }[];
+    (copy[0] as { text: string }).text = 'changed';
+    expect(api.mamaLines()).toEqual(LINES);
+    expect(api.mamaLines()).not.toBe(api.mamaLines());
+  });
+});
+
 describe('installTestApi', () => {
   it('sets __PP__ once, and a second call is a no-op with a warning', async () => {
     const host = createFakeTestHost();
@@ -543,6 +573,7 @@ describe('installTestApi', () => {
         'fx',
         'journal',
         'loadLevel',
+        'mamaLines',
         'pagePoint',
         'perf',
         'send',

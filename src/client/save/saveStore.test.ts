@@ -13,7 +13,7 @@ const SETTINGS = {
   reducedMotion: false,
   largeVerbs: false,
 } as const;
-const DEFAULTS = { version: 3, calibration: null, settings: SETTINGS };
+const DEFAULTS = { version: 4, calibration: null, settings: SETTINGS, mamaMemory: { counts: {} } };
 
 const CALIBRATION = {
   visualOffsetMs: 80,
@@ -199,7 +199,7 @@ describe('createSaveStore', () => {
 
   describe('a save from a newer game (story 2.8)', () => {
     const FUTURE = {
-      version: 4,
+      version: 5,
       calibration: CALIBRATION,
       settings: SETTINGS,
       somethingNew: true,
@@ -437,9 +437,10 @@ describe('the v2 → v3 migration (story 2.10)', () => {
     const storage = fakeStorage();
     storage.items.set(SAVE_KEY, { version: 2, calibration: CALIBRATION, settings: V2_SETTINGS });
     const expected = {
-      version: 3,
+      version: 4,
       calibration: CALIBRATION,
       settings: { ...V2_SETTINGS, reducedMotion: false, largeVerbs: false },
+      mamaMemory: { counts: {} },
     };
     expect(await createSaveStore(storage).load()).toEqual(expected);
     expect(storage.items.get(SAVE_KEY)).toEqual(expected);
@@ -490,12 +491,134 @@ describe('the v2 → v3 migration (story 2.10)', () => {
     expect(SaveSchema.safeParse(migrated).success).toBe(false);
   });
 
-  it('brings a v1 save to a valid v3 one with the calibration kept (trap 2)', async () => {
+  it('brings a v1 save to a valid v4 one with the calibration kept (trap 2)', async () => {
     const storage = fakeStorage();
     storage.items.set(SAVE_KEY, { version: 1, calibration: CALIBRATION });
     const store = createSaveStore(storage);
     expect(await store.load()).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
     expect(SaveSchema.safeParse(storage.items.get(SAVE_KEY)).success).toBe(true);
     expect(storage.items.has(SAVE_INVALID_KEY)).toBe(false);
+  });
+});
+
+describe('the v3 → v4 migration (story 3.8)', () => {
+  const V3_SETTINGS = {
+    tier: 'experienced',
+    volumes: { music: 40, sfx: 55, voice: 70, ui: 85 },
+    haptics: false,
+    reducedMotion: true,
+    largeVerbs: true,
+  };
+  const step = SAVE_MIGRATIONS.find((migration) => migration.from === 3);
+
+  it('is in the table, after the two before it, and the table ends at the current version', () => {
+    expect(SAVE_MIGRATIONS.map((migration) => migration.from)).toEqual([1, 2, 3]);
+    expect(step).toBeDefined();
+  });
+
+  it('keeps the calibration and every setting, and adds an empty memory, written back', async () => {
+    const storage = fakeStorage();
+    storage.items.set(SAVE_KEY, { version: 3, calibration: CALIBRATION, settings: V3_SETTINGS });
+    const expected = {
+      version: 4,
+      calibration: CALIBRATION,
+      settings: V3_SETTINGS,
+      mamaMemory: { counts: {} },
+    };
+    expect(await createSaveStore(storage).load()).toEqual(expected);
+    expect(storage.items.get(SAVE_KEY)).toEqual(expected);
+    expect(storage.items.has(SAVE_INVALID_KEY)).toBe(false);
+  });
+
+  it('writes its literal shape, and is pure: the input is not changed, each call has its own memory', () => {
+    const v3 = Object.freeze({ version: 3, calibration: null, settings: V3_SETTINGS });
+    const a = step?.migrate(v3);
+    const b = step?.migrate(v3);
+    expect(v3).toEqual({ version: 3, calibration: null, settings: V3_SETTINGS });
+    expect(a).toEqual({
+      version: 4,
+      calibration: null,
+      settings: V3_SETTINGS,
+      mamaMemory: { counts: {} },
+    });
+    expect((a?.mamaMemory as object) === (b?.mamaMemory as object)).toBe(false);
+  });
+
+  it('brings a v1 save to v4 in one load, through 1 → 2 → 3 → 4', async () => {
+    const storage = fakeStorage();
+    storage.items.set(SAVE_KEY, { version: 1, calibration: CALIBRATION });
+    const store = createSaveStore(storage);
+    expect(await store.load()).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
+    expect(storage.items.get(SAVE_KEY)).toEqual({ ...DEFAULTS, calibration: CALIBRATION });
+    expect(SaveSchema.safeParse(storage.items.get(SAVE_KEY)).success).toBe(true);
+  });
+
+  it('does not repair a v3 save without settings: it is set aside as it was', async () => {
+    const storage = fakeStorage();
+    const stored = { version: 3, calibration: null };
+    storage.items.set(SAVE_KEY, stored);
+    expect(await createSaveStore(storage).load()).toEqual(DEFAULTS);
+    expect(storage.items.get(SAVE_INVALID_KEY)).toEqual(stored);
+  });
+});
+
+describe('recordMamaMemory (story 3.8)', () => {
+  let storage: FakeStorage;
+  let warnedBefore: number;
+  beforeEach(() => {
+    storage = fakeStorage();
+    warnedBefore = warnings().length;
+  });
+  const newWarnings = (): string[] => warnings().slice(warnedBefore);
+  const REMEMBERED = { counts: { stairs_slide: 1, outlet_hair: 2 } };
+
+  it('writes the memory under the save key and keeps it in memory, the rest untouched', async () => {
+    const store = createSaveStore(storage);
+    await store.load();
+    await store.setCalibration(CALIBRATION);
+    await store.recordMamaMemory(REMEMBERED);
+    expect(store.current().mamaMemory).toEqual(REMEMBERED);
+    expect(storage.items.get(SAVE_KEY)).toEqual({
+      ...DEFAULTS,
+      calibration: CALIBRATION,
+      mamaMemory: REMEMBERED,
+    });
+    expect(newWarnings()).toEqual([]);
+  });
+
+  it('is in memory before the write lands, so the next read sees it at once', async () => {
+    const store = createSaveStore(storage);
+    await store.load();
+    const pending = store.recordMamaMemory(REMEMBERED);
+    expect(store.current().mamaMemory).toEqual(REMEMBERED);
+    await pending;
+  });
+
+  it('survives a reload: the next session reads what was recorded', async () => {
+    const first = createSaveStore(storage);
+    await first.load();
+    await first.recordMamaMemory(REMEMBERED);
+    const second = createSaveStore(storage);
+    expect((await second.load()).mamaMemory).toEqual(REMEMBERED);
+  });
+
+  it('warns once while the storage keeps failing, and keeps the memory', async () => {
+    const store = createSaveStore(storage);
+    await store.load();
+    storage.failing.add('set');
+    await store.recordMamaMemory({ counts: { stairs_slide: 1 } });
+    await store.recordMamaMemory({ counts: { stairs_slide: 2 } });
+    expect(store.current().mamaMemory).toEqual({ counts: { stairs_slide: 2 } });
+    expect(newWarnings()).toEqual(['the save could not be written']);
+  });
+
+  it('writes nothing in a read-only session (a save from the future), but the memory still grows', async () => {
+    const future = { version: 5, calibration: null, settings: SETTINGS, somethingNew: true };
+    storage.items.set(SAVE_KEY, future);
+    const store = createSaveStore(storage);
+    await store.load();
+    await store.recordMamaMemory(REMEMBERED);
+    expect(store.current().mamaMemory).toEqual(REMEMBERED);
+    expect(storage.items.get(SAVE_KEY)).toBe(future);
   });
 });

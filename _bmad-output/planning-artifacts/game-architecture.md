@@ -293,7 +293,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
   - `calibration` : `{ visualOffsetMs, audioOffsetMs, audioSkipped, measuredAt, device }` ;
   - `settings` : `{ tier, volumes: { music, sfx, voice, ui }, haptics, reducedMotion, largeVerbs }` ;
   - `progress` : `{ bestStars: { [levelId]: number }, seenUnlocks: LevelId[], failStreak: { [levelId]: number } }` ;
-  - `mamaMemory` : `{ counts: { [tagId]: number } }`.
+  - `mamaMemory` : `{ counts: { [tagId]: number } }`. **Sauvegarde v4 (story 3.8, D1) :** `counts` compte les **parties** où chaque gag s'est produit (un tag est un `GagId`), pas les occurrences ; le client y ajoute les tags de la partie à chaque fin de niveau (`LevelScored`), jamais pour un niveau quitté avant sa fin ni sous `?autoplay`. La migration `v3 → v4` ajoute `{ counts: {} }`.
 - Un échec d'écriture reste silencieux pour le joueur (`warn` dans les logs).
 
 ### Télémétrie de playtest
@@ -840,10 +840,10 @@ sim.enqueue({ type: 'PressThreat', threatId: hit.id, t });
 - **Détection :** `highlights.ts` (client) note chaque `SimEvent` à fort score : réponse parfaite (3), gag avec bazar ≥ 2 objets (2), presque-accident (2), dernière menace d'une vague (1). En fin de niveau, il retient les 3 meilleurs moments, espacés d'au moins 5 s.
 - **Replay :** pour un moment à l'instant `t`, on restaure le snapshot qui précède `t − 2 s` (World + Rapier) dans une **sim de replay séparée**, on rejoue les commandes du journal jusqu'à `t + 1,5 s`, et on rend le tout avec une caméra de replay (cadrage serré, bandeau « REPLAY »).
 - **Photo de fin :** le snapshot final, rendu sans simulation, avec une caméra et un filtre « photo ».
-- **Mémoire de Maman :** `save.mamaMemory = { counts: { [tagId]: number } }`, incrémenté à chaque fin de niveau à partir des tags des gags et des presque-accidents. `mama-lines.json` liste des répliques conditionnelles. La plus spécifique dont la condition est satisfaite l'emporte, avec un tirage par le PRNG en cas d'égalité.
+- **Mémoire de Maman (story 3.8, D1) :** `save.mamaMemory = { counts: { [tagId]: number } }`, incrémenté à chaque fin de niveau (`LevelScored`) à partir des tags des gags et des presque-accidents : **un tag est un `GagId`** (le `gag` de chaque `GagTriggered`, `NearMiss` et `NearMissFrozen`), compté **une fois par partie** (D2, D3). `mama-lines.json` liste des répliques conditionnelles. **Le choix est une fonction pure de `@sim`** (`chooseMamaLines`, `src/sim/scoring/mamaMemory.ts`) que le client appelle à `LevelScored` avec la mémoire **d'avant** la partie, les tags de la partie et la graine du niveau ; ce n'est ni un état du monde ni une option de `createSim` (ni commande, ni événement, ni version de snapshot, ni changement de journal ou de golden). La ligne la plus spécifique dont la condition est satisfaite l'emporte (plus de conditions `tag` / `endReason`, puis plus grand `minPrevious`) ; en cas d'égalité, un tirage dans un flux **local** initialisé par la graine du niveau (jamais `world.rng`) ; à défaut, la réplique générique de la réaction (D6). `content:check` vérifie les tags (`GAG_IDS`), les fins de niveau (`LEVEL_END_REASONS`), l'unicité des ids et une réplique générique par réaction.
 
 ```json
-{ "id": "shelf_again", "when": { "tag": "shelf_climb", "minPrevious": 1 }, "reaction": "scream", "text": "*Encore* l'étagère ?!" }
+{ "id": "stairs_again", "when": { "tag": "stairs_slide", "minPrevious": 1 }, "reaction": "scream", "text": "*Encore* l'escalier ?!" }
 ```
 
 ### Patterns de communication
@@ -1021,9 +1021,9 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | Niveau (gameplay) | `content/levels/<id>.json` | `LevelSchema` | L'IA | sim, client |
 | Niveau (géométrie) | `content/levels/<id>.geometry.json` | `LevelGeometrySchema` | `tools/assets/extractLevelGeometry.ts` (généré) | sim (colliders, nav, ancres, zones) |
 | Table de retours | `content/feedback.json` | `FeedbackTableSchema` | L'IA, Geo | client |
-| Répliques de Maman | `content/mama-lines.json` | `MamaLinesSchema` | L'IA, Geo | sim (sélection), client (affichage) |
+| Répliques de Maman | `content/mama-lines.json` | `MamaLinesSchema` | L'IA, Geo | sim (sélection, fonction pure appelée par le client), client (affichage) (story 3.8, D1) |
 | Textes de l'UI | `content/strings.fr.json` | `StringsSchema` | L'IA, Geo | client (`t(key)`) |
-| Sauvegarde | `StoragePort`, clé `papa-parade.save` | `SaveSchema` (versionné) | client | client, sim (mémoire de Maman passée à `createSim`) |
+| Sauvegarde | `StoragePort`, clé `papa-parade.save` | `SaveSchema` (versionné) | client | client (la mémoire de Maman est lue au `LevelScored`, story 3.8, D1) |
 | Journal de partie | export manuel en JSON | `JournalSchema` | client | sim (replay), `tools/sim/` |
 
 **Relations :**
@@ -1066,7 +1066,7 @@ Il n'y a pas d'API réseau. Les contrats sont internes et typés :
 
 ```ts
 // src/sim/index.ts — seule API publique de la sim
-export async function createSim(opts: { content: ContentBundle; seed: number; mamaMemory?: MamaMemory; journal?: Journal }): Promise<Sim>;
+export async function createSim(opts: { content: ContentBundle; seed: number; journal?: Journal }): Promise<Sim>;  // pas de mamaMemory (story 3.8, D1)
 export interface Sim {
   enqueue(cmd: SimCommand): void;         // commande horodatée en simTime
   step(): void;                           // un pas de STEP_MS

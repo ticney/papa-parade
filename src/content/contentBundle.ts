@@ -4,6 +4,7 @@ import type { DisruptionDef } from './schemas/disruption.ts';
 import type { FeedbackTable } from './schemas/feedback.ts';
 import type { Feel } from './schemas/feel.ts';
 import type { Level } from './schemas/level.ts';
+import type { MamaLines } from './schemas/mamaLines.ts';
 import type { SequenceDef } from './schemas/sequence.ts';
 import type { Strings } from './schemas/strings.ts';
 import type { ThreatDef } from './schemas/threat.ts';
@@ -16,6 +17,11 @@ export interface ContentBundle {
   /** The sim ignores it too (outside every hash): only the bots and the autoplay read it. */
   bots: BotSettings;
   strings: Strings;
+  /**
+   * Story 3.8. Client-only through `chooseMamaLines` (`@sim`), outside every hash: choosing a line happens
+   * after `LevelScored` and draws nothing from the world.
+   */
+  mamaLines: MamaLines;
 }
 
 /**

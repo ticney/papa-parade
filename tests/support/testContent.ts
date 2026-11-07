@@ -20,9 +20,10 @@ import type {
   LevelWaveThreat,
 } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
+import type { MamaLines } from '@content/schemas/mamaLines';
 import { type SequenceDef, SequenceDefSchema } from '@content/schemas/sequence';
 import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
-import { SILENCE_SIMULTANEOUS_WEIGHT } from '@shared/constants';
+import { MAMA_REACTIONS, SILENCE_SIMULTANEOUS_WEIGHT } from '@shared/constants';
 import type { Sim } from '@sim';
 
 const FEEL_FIXTURE = 'tests/support/testFeel.json';
@@ -193,6 +194,18 @@ export function createTestContent(): ContentBundle {
     feedback: createTestFeedback(),
     bots: createTestBots(),
     strings: {},
+    mamaLines: createTestMamaLines(),
+  };
+}
+
+/** One generic line per reaction (story 3.8): the sim never reads it, a client test may. */
+export function createTestMamaLines(): MamaLines {
+  return {
+    lines: MAMA_REACTIONS.map((reaction) => ({
+      id: `${reaction}_any`,
+      reaction,
+      text: `Ligne de test (${reaction}).`,
+    })),
   };
 }
 

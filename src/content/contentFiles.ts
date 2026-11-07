@@ -7,6 +7,7 @@ import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
 import { type Level, LevelSchema } from './schemas/level.ts';
 import { type LevelGeometry, LevelGeometrySchema } from './schemas/levelGeometry.ts';
+import { type MamaLines, MamaLinesSchema } from './schemas/mamaLines.ts';
 import { type PlaytestFile, PlaytestSchema } from './schemas/playtest.ts';
 import { type SequenceDef, SequenceDefSchema } from './schemas/sequence.ts';
 import { type Strings, StringsSchema } from './schemas/strings.ts';
@@ -44,6 +45,13 @@ export const STRINGS_FILE: ContentFile<Strings> = {
   schema: StringsSchema,
 };
 
+/** What Mama says on the Result screen and when (story 3.8, FR36). Client-only, outside every hash. */
+export const MAMA_LINES_FILE: ContentFile<MamaLines> = {
+  file: 'mama-lines.json',
+  schemaName: 'mamaLines',
+  schema: MamaLinesSchema,
+};
+
 /**
  * The thresholds of `npm run playtest:metrics`. A tool-only file: registered below so that
  * `content:check` validates it and `content:schemas` emits its JSON Schema, but `loadContent` does
@@ -57,7 +65,7 @@ export const PLAYTEST_FILE: ContentFile<PlaytestFile> = {
 
 /**
  * Registry of the files `content:check` and `content:schemas` know. `loadContent` loads the first
- * four by name (a story that adds a game content file adds its entry here and a field to
+ * five by name (a story that adds a game content file adds its entry here and a field to
  * `ContentBundle`); a tool-only file such as `PLAYTEST_FILE` is registered but not loaded.
  */
 export const CONTENT_FILES: readonly ContentFile<unknown>[] = [
@@ -65,6 +73,7 @@ export const CONTENT_FILES: readonly ContentFile<unknown>[] = [
   FEEDBACK_FILE,
   BOTS_FILE,
   STRINGS_FILE,
+  MAMA_LINES_FILE,
   PLAYTEST_FILE,
 ];
 

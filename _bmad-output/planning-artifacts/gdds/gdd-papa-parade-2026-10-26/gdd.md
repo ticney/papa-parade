@@ -501,7 +501,7 @@ Chaque âge garde les mêmes contrôles mais change ce que « répondre juste »
 - **Coût d'un gag :** des objets au sol (soupir), un presque-accident (hurlement), du bruit (jauge), un multiplicateur remis à x1, une séquelle immédiate et une hausse de la jauge de catastrophe.
 - **Niveau perdu** (jauge de catastrophe pleine) : 0 étoile, quel que soit le score.
 
-Les réactions de Maman se souviennent des parties précédentes (« *Encore* l'étagère ?! »).
+Les réactions de Maman se souviennent des parties précédentes (« *Encore* l'escalier ?! »). **Règle (story 3.8) :** chaque réplique a une réaction (rire, soupir, cri) et, au besoin, des conditions (un gag survenu dans la partie, un nombre de parties précédentes où il est déjà survenu, la façon dont le niveau s'est fini). La mémoire compte les **parties** où chaque gag s'est produit, pas ses occurrences. La réplique **la plus spécifique** dont les conditions sont remplies l'emporte, un tirage départage les égalités, et une réplique générique de la réaction sert de repli. Dans ce jeu, « l'étagère » du GDD est l'escalier : le bébé au bord de la marche du haut.
 
 ---
 

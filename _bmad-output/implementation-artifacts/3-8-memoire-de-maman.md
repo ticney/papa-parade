@@ -4,7 +4,7 @@ baseline_commit: d8709a1
 
 # Story 3.8: Mémoire de Maman
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -104,26 +104,26 @@ Requirements: FR36 `[V1]` (« les répliques de Maman se souviennent des parties
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Memory and lines, pure (AC: 1, 2, 7)
-  - [ ] `MAMA_LINES_SEED_SALT` in `shared/constants.ts`; `src/sim/scoring/mamaMemory.ts` (`mamaTagOf`, `addRunToMamaMemory`, `chooseMamaLines`, `MamaReactionLine`) and its test; export from `src/sim/index.ts`
-- [ ] Task 2: Content (AC: 6, 8, 11)
-  - [ ] `src/content/schemas/mamaLines.ts`; export `StringValueSchema`; `MAMA_LINES_FILE`; `ContentBundle.mamaLines`; `loadContent`; `createTestContent` (`tests/support/testContent.ts:183`) gets a small fixture with one generic line per reaction
-  - [ ] `content/mama-lines.json`; drop the five `result.mama_line_*` keys; `npm run content:schemas`
-  - [ ] `checkMamaLineReferences` and its tests in `tests/content/checkContent.test.ts`; a schema test file `tests/content/mamaLinesSchema.test.ts`
-- [ ] Task 3: Save v4 (AC: 3, 4)
-  - [ ] `SAVE_VERSION` 4, `MamaMemorySchema`, `createDefaultSave`; `{ from: 3 }` migration; `recordMamaMemory`
-  - [ ] `saveStore.test.ts` (a v3 → v4 describe beside L424, v1 → v4 in one load, `recordMamaMemory` write / warn-once / read-only), `save.test.ts` (refuses 3 and 5, a bad count, a non-snake key), `calibratedSave.ts` → v4 with `mamaMemory` (a third parameter `counts`), `tests/content/calibratedSave.test.ts`
-- [ ] Task 4: Boot and the Result screen (AC: 5, 9, 10, 12)
-  - [ ] `runMamaTags`, `resultMamaLines`, the `LevelScored` order, the `?autoplay` guard, the rebuild reuse
-  - [ ] The emphasis helper and its unit test (no `innerHTML`, asterisks gone, accessible text); `ui.css` `em`
-  - [ ] `resultScreen.ts`: `MamaReactionLine`, no `lineKeyOf`; `resultScreen.test.ts` passes lines with text (an emphasized one too) and keeps its other assertions
-  - [ ] `__PP__.mamaLines()` in `testHost.ts`, `debug/testApi.ts` (+ test), `fakeTestHost.ts`, `tests/e2e/support/testApi.ts`
-- [ ] Task 5: Integration and e2e (AC: 13 and all)
-  - [ ] A headless two-game test with the live content (`tests/bots/mamaMemoryLive.test.ts`, see Testing)
-  - [ ] `tests/e2e/mamaMemory.spec.ts`; adapt `mamaReactions.spec.ts` (its `lineKeyOf` and `STRINGS['result.mama_line_*']` go, the bubble is checked against `mamaLines()`)
-  - [ ] Screenshots in `_bmad-output/implementation-artifacts/3-8-screenshots/`: the first-time and « Encore » bubbles (with the `em`) at 844 × 390 and 750 × 340
-- [ ] Task 6: Docs (AC: 14)
-  - [ ] `npm run ci:fast` after each task, plus the touched specs on Chromium
+- [x] Task 1: Memory and lines, pure (AC: 1, 2, 7)
+  - [x] `MAMA_LINES_SEED_SALT` in `shared/constants.ts`; `src/sim/scoring/mamaMemory.ts` (`mamaTagOf`, `addRunToMamaMemory`, `chooseMamaLines`, `MamaReactionLine`) and its test; export from `src/sim/index.ts`
+- [x] Task 2: Content (AC: 6, 8, 11)
+  - [x] `src/content/schemas/mamaLines.ts`; export `StringValueSchema`; `MAMA_LINES_FILE`; `ContentBundle.mamaLines`; `loadContent`; `createTestContent` (`tests/support/testContent.ts:183`) gets a small fixture with one generic line per reaction
+  - [x] `content/mama-lines.json`; drop the five `result.mama_line_*` keys; `npm run content:schemas`
+  - [x] `checkMamaLineReferences` and its tests in `tests/content/checkContent.test.ts`; a schema test file `tests/content/mamaLinesSchema.test.ts`
+- [x] Task 3: Save v4 (AC: 3, 4)
+  - [x] `SAVE_VERSION` 4, `MamaMemorySchema`, `createDefaultSave`; `{ from: 3 }` migration; `recordMamaMemory`
+  - [x] `saveStore.test.ts` (a v3 → v4 describe beside L424, v1 → v4 in one load, `recordMamaMemory` write / warn-once / read-only), `save.test.ts` (refuses 3 and 5, a bad count, a non-snake key), `calibratedSave.ts` → v4 with `mamaMemory` (a third parameter `counts`), `tests/content/calibratedSave.test.ts`
+- [x] Task 4: Boot and the Result screen (AC: 5, 9, 10, 12)
+  - [x] `runMamaTags`, `resultMamaLines`, the `LevelScored` order, the `?autoplay` guard, the rebuild reuse
+  - [x] The emphasis helper and its unit test (no `innerHTML`, asterisks gone, accessible text); `ui.css` `em`
+  - [x] `resultScreen.ts`: `MamaReactionLine`, no `lineKeyOf`; `resultScreen.test.ts` passes lines with text (an emphasized one too) and keeps its other assertions
+  - [x] `__PP__.mamaLines()` in `testHost.ts`, `debug/testApi.ts` (+ test), `fakeTestHost.ts`, `tests/e2e/support/testApi.ts`
+- [x] Task 5: Integration and e2e (AC: 13 and all)
+  - [x] A headless two-game test with the live content (`tests/bots/mamaMemoryLive.test.ts`, see Testing)
+  - [x] `tests/e2e/mamaMemory.spec.ts`; adapt `mamaReactions.spec.ts` (its `lineKeyOf` and `STRINGS['result.mama_line_*']` go, the bubble is checked against `mamaLines()`)
+  - [x] Screenshots in `_bmad-output/implementation-artifacts/3-8-screenshots/`: the first-time and « Encore » bubbles (with the `em`) at 844 × 390 and 750 × 340
+- [x] Task 6: Docs (AC: 14)
+  - [x] `npm run ci:fast` after each task, plus the touched specs on Chromium
 
 ## Dev Notes
 
@@ -297,10 +297,44 @@ It follows the layers and aliases. `content/mama-lines.json` is kebab-case like 
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (`claude-sonnet-5-5`).
+
 ### Debug Log References
+
+- `npm run ci:fast`: typecheck, lint (90 warnings, the same count as on `main`: none is new), `content:check` (38 files), 450 test files, 9 926 tests passed, 60 skipped. Run after each task and once more after the docs.
+- Specs run on Chromium: `mamaMemory.spec.ts` and `mamaReactions.spec.ts` (37 passed, 2 skipped: the screenshot tests, which run only with `PP_SCREENSHOTS_DIR`); then `reducedMotion`, `calibration`, `fakeSleep`, `settings`, `testApi`, `result`, `photo`, `mamaWoke` and `instinct` (112 passed, 6 failed). The 6 were assertions pinned to the old save version and API: `calibration.spec.ts:119` and `settings.spec.ts:373, 831, 862` expected `version` 3, `settings.spec.ts:875` seeded « a save from a newer game » at version 4 (now 5, so it is still from the future), and `testApi.spec.ts` listed fourteen `__PP__` methods (now fifteen, with `mamaLines`). Fixed, and `calibration`, `settings` and `testApi` rerun alone: 46 passed.
+- Nothing moved in the sim's behaviour: no snapshot version, no journal change, no golden regenerated (`npm run golden:update` was not run).
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- **Pure sim (AC 1, 2, 7).** `src/sim/scoring/mamaMemory.ts` holds `mamaTagOf`, `addRunToMamaMemory`, `chooseMamaLines` and `MamaReactionLine`, exported from `@sim`. Specificity is compared by `compareSpecificity` (number of conditions, then `minPrevious`); a tie draws from `createRng((seed ^ MAMA_LINES_SEED_SALT) >>> 0)` only when two or more lines tie. `MAMA_LINES_SEED_SALT` is `0x4d414d41` (« MAMA » in ASCII): an arbitrary constant, like `BOT_SEED_SALT`. The function has no world, no event and no state.
+- **Content (AC 6, 8, 11).** `MamaLinesSchema` (`src/content/schemas/mamaLines.ts`) reuses the now exported `StringValueSchema`, caps `text` at 60 characters (`MAMA_LINE_MAX_CHARS`, `[ASSUMPTION]`) and requires an even number of `*`; `when` needs a key, and `minPrevious` needs `tag`. `content:check` has `checkMamaLineReferences` (unknown tag, unknown end reason, duplicate id, a reaction with no generic line). `content/mama-lines.json` holds 13 lines: 3.7's five (moved), the neutral `scream_any`, `stairs_again` / `outlet_again` / `tablecloth_again` / `plant_again` (« *Encore* … »), and `outlet_first`, `asleep_first`, `dishwasher_first`. The five `result.mama_line_*` strings are gone with every reference. The longest live line is `scream_home` (37 characters); its fit at 844 × 390, 667 × 375 and 750 × 340 is pinned by the existing `mamaReactions.spec.ts` FITS.
+- **Save v4 (AC 3, 4).** `SAVE_VERSION` 4, `MamaMemorySchema` (strict, snake-id keys, counts ≥ 1), `createDefaultSave` with an empty memory, a `{ from: 3 }` migration that writes its literal shape, and `saveStore.recordMamaMemory` (memory first, then `write()`: warn once, nothing written when read-only, memory still grows). `calibratedSave` is v4 and takes `counts` as a third parameter.
+- **Boot and the Result screen (AC 5, 9, 10, 12).** `boot.ts` keeps `runMamaTags` and `levelSeed`; at `LevelScored` it chooses with the memory **before** the game, then records, then the screen reads `resultMamaLines` (a rebuilt screen reuses it and never counts again). `?autoplay` chooses from an empty memory and records nothing. `client/ui/emphasis.ts` builds text nodes and `em` elements (never `innerHTML`); the bubble keeps its live region (its text is emptied and refilled), and `ui.css` makes `em` italic only. `createResultScreen` takes `MamaReactionLine[]`; `lineKeyOf` is gone, and its `doc` option now also needs `createTextNode`. `__PP__.mamaLines()` goes through `TestHost`, `testApi.ts`, `fakeTestHost.ts` and `tests/e2e/support/testApi.ts`; it returns a copy.
+- **Tests.** Unit: `mamaMemory.test.ts` (21 cases), `mamaLinesSchema.test.ts`, the new `checkContent` describe, `loadContent`, `save.test.ts`, `saveStore.test.ts` (v3 → v4, v1 → v4 in one load, `recordMamaMemory`), `emphasis.test.ts`, `resultScreen.test.ts` (lines, an emphasized one, the live region kept; its `FakeElement` now has a DOM-like `textContent` and the fake `doc` a `createTextNode`), `testApi.test.ts`. Headless proof on the live `salon_crawler` (`tests/bots/mamaMemoryLive.test.ts`): the `idle` bot, the first of seeds 1 to 20 that ends on the timer with a stair slide and a Scream, gives `stairs_first` with an empty memory, then `stairs_again` once the first game is recorded. E2E: `tests/e2e/mamaMemory.spec.ts` covers AC 13 a to e, plus « a game counts once », « a level left before its end counts nothing » and `mamaLines()` being `null` before and after; `mamaReactions.spec.ts` now asserts the bubble against `mamaLines()` and pins the woken and home-early lines by id and text, so the `lineKeyOf` copy is gone (3.7 Review › Defer).
+- **Screenshots** (`3-8-screenshots/`, written by `PP_SCREENSHOTS_DIR=<dir> npm run e2e -- tests/e2e/mamaMemory.spec.ts --project=chromium -g screenshots`): `first-time` and `encore` at 844 × 390 and 750 × 340, on `salon_crawler`, Result at rest. **What I saw:** « Encore » is legible in italics in the same ink as the rest, no asterisk is shown, and the bubble sits inside the left column at both sizes without touching the panel. At 750 × 340 « Pas si près de l'escalier ! » wraps with the « ! » alone on a second line (the bubble is 230 px wide, as in 3.7): cosmetic, left for Geo (`text-wrap: balance` on the bubble would fix it). **Not captured:** the other reactions' lines, the `mamaWoke` / `mamaHome` ends, a rebuilt (portrait) screen and WebKit.
+- **Docs (AC 14).** Architecture (persistance, P7 with `stairs_slide`, the data table, the `createSim` contract), `project-context.md` (a v4 save, the storageState line, a new « Mama's memory (story 3.8) » bullet, and the 3.7 bullet's pointers), GDD › Note de Maman and `decision-log.md` (D1, D2/D3, D6), EXPERIENCE L175 (L237 already said it; L589 stays illustrative), `deferred-work.md` (the lines part of L1163 and L1171 closed).
+- **Decisions kept from the story, not re-opened:** D1 (the choice is a pure `@sim` function the client calls), D2 (tags are gag ids), D3 (games, not occurrences), D6 (specificity, then a seeded draw). Open point 4 stands: a woken Mama who also saw a stair slide picks one of the two lines at random; add a both-conditions line to force one.
+- **Not run, by design:** `npm run ci:story` and `npm run ci` (the review runs the gate before the merge), WebKit, `sim:balance`, `e2e:dist` and `perf.spec.ts`.
 
 ### File List
+
+**New**
+- `src/sim/scoring/mamaMemory.ts`, `src/sim/scoring/mamaMemory.test.ts`
+- `src/content/schemas/mamaLines.ts`, `content/mama-lines.json`, `content/_schemas/mamaLines.schema.json` (generated)
+- `src/client/ui/emphasis.ts`, `src/client/ui/emphasis.test.ts`
+- `tests/content/mamaLinesSchema.test.ts`, `tests/bots/mamaMemoryLive.test.ts`, `tests/e2e/mamaMemory.spec.ts`
+- `_bmad-output/implementation-artifacts/3-8-screenshots/` (`first-time-844x390.png`, `first-time-750x340.png`, `encore-844x390.png`, `encore-750x340.png`)
+
+**Modified**
+- Sim and shared: `src/sim/index.ts`, `src/shared/constants.ts`
+- Content: `src/content/contentBundle.ts`, `src/content/contentFiles.ts`, `src/content/loadContent.ts`, `src/content/schemas/save.ts`, `src/content/schemas/save.test.ts`, `src/content/schemas/strings.ts`, `content/strings.fr.json`
+- Client: `src/client/boot.ts`, `src/client/app/testHost.ts`, `src/client/save/saveStore.ts`, `src/client/save/saveStore.test.ts`, `src/client/ui/screens/resultScreen.ts`, `src/client/ui/screens/resultScreen.test.ts`, `src/client/ui/styles/ui.css`
+- Debug: `src/debug/testApi.ts`, `src/debug/testApi.test.ts`
+- Tools: `tools/content/contentChecks.ts`
+- Tests: `tests/content/calibratedSave.test.ts`, `tests/content/checkContent.test.ts`, `tests/content/loadContent.test.ts`, `tests/content/stringsSchema.test.ts`, `tests/support/fakeTestHost.ts`, `tests/support/testContent.ts`, `tests/e2e/mamaReactions.spec.ts`, `tests/e2e/calibration.spec.ts`, `tests/e2e/settings.spec.ts`, `tests/e2e/testApi.spec.ts` (save version and method list), `tests/e2e/support/calibratedSave.ts`, `tests/e2e/support/testApi.ts`
+- Docs and tracking: `_bmad-output/planning-artifacts/game-architecture.md`, `_bmad-output/project-context.md`, `_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/gdd.md`, `_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/decision-log.md`, `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`, `_bmad-output/implementation-artifacts/deferred-work.md`, `_bmad-output/implementation-artifacts/sprint-status.yaml`, `_bmad-output/implementation-artifacts/3-8-memoire-de-maman.md`
+
+### Change Log
+
+- 2026-11-07: Story 3.8 implemented. Mama's lines come from `content/mama-lines.json` through the pure `chooseMamaLines`; the save is v4 with `mamaMemory.counts` (games per gag); the Result bubble shows `*word*` in italics; `__PP__.mamaLines()` added. No golden, snapshot or journal change.

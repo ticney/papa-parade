@@ -2392,3 +2392,106 @@ describe('checkContent on the house chores (story 9.4)', () => {
     );
   });
 });
+
+describe("checkContent on Mama's lines (story 3.8, FR36)", () => {
+  type LineJson = { id: string; reaction: string; text: string; when?: Record<string, unknown> };
+  const editLines = (change: (lines: LineJson[]) => void) =>
+    mutateJson('content/mama-lines.json', (json) => change(json.lines as LineJson[]));
+  const reportedOn = async () =>
+    (await checkContent(root)).filter((problem) => problem.file === 'content/mama-lines.json');
+
+  it('accepts the live lines', async () => {
+    expect(await reportedOn()).toEqual([]);
+  });
+
+  it('reports a tag that is not a gag of the sim, with the id and the path of the line', async () => {
+    await editLines((lines) => {
+      lines.push({
+        id: 'ghost_again',
+        reaction: 'sigh',
+        text: '*Encore* le fantôme ?!',
+        when: { tag: 'ghost_appears', minPrevious: 1 },
+      });
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: expect.stringMatching(/^lines\[\d+\]\.when\.tag$/),
+        message: expect.stringContaining('line "ghost_again": "ghost_appears" is not a gag'),
+      }),
+    ]);
+  });
+
+  it('reports an end reason the sim does not know', async () => {
+    await editLines((lines) => {
+      lines.push({
+        id: 'scream_late',
+        reaction: 'scream',
+        text: 'Il est tard !',
+        when: { endReason: 'bedtime' },
+      });
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: expect.stringMatching(/^lines\[\d+\]\.when\.endReason$/),
+        message: expect.stringContaining('line "scream_late": "bedtime" is not a way a level ends'),
+      }),
+    ]);
+  });
+
+  it('reports two lines that share an id', async () => {
+    await editLines((lines) => {
+      lines.push({ id: 'sigh_any', reaction: 'sigh', text: 'Encore un soupir.' });
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: expect.stringMatching(/^lines\[\d+\]\.id$/),
+        message: 'two lines share the id "sigh_any"',
+      }),
+    ]);
+  });
+
+  it('reports a reaction with no generic line', async () => {
+    await editLines((lines) => {
+      lines.splice(
+        lines.findIndex((line) => line.id === 'scream_any'),
+        1,
+      );
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: 'lines',
+        message: expect.stringContaining('no generic line (without `when`) for her scream'),
+      }),
+    ]);
+  });
+
+  it('does not take a conditional line for the generic one', async () => {
+    await editLines((lines) => {
+      for (const line of lines) {
+        if (line.id === 'laugh_any') line.when = { endReason: 'timer' };
+      }
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({ message: expect.stringContaining('for her laugh') }),
+    ]);
+  });
+
+  it('reports the failures of the text rules at the line, from the schema', async () => {
+    await editLines((lines) => {
+      lines.push({ id: 'odd_star', reaction: 'sigh', text: '*Encore ma plante ?!' });
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: expect.stringMatching(/^lines\[\d+\]\.text$/),
+        message: expect.stringContaining('pairs'),
+      }),
+    ]);
+  });
+
+  it('reports a stale schema', async () => {
+    await writeFile(join(root, 'content/_schemas/mamaLines.schema.json'), '{}\n');
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: 'content/_schemas/mamaLines.schema.json' }),
+    );
+  });
+});
