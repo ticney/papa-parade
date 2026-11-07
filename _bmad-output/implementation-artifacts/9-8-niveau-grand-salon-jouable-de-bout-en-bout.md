@@ -4,7 +4,7 @@ baseline_commit: 533975d
 
 # Story 9.8: Niveau grand salon jouable de bout en bout
 
-Status: review
+Status: done
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -103,7 +103,7 @@ so that I can hand it to the playtest of the third prototype.
 
 ### Review Findings
 
-Code review of 2026-11-07, group 1 of 2 (`src/`, `tools/`, `content/`, docs, unit / golden / architecture tests; the e2e specs, group 2, are reviewed next). Layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor, all three completed.
+Code review of 2026-11-07, group 1 of 2, fixed in `07a7c37` (`src/`, `tools/`, `content/`, docs, unit / golden / architecture tests; the e2e specs, group 2, are reviewed next). Layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor, all three completed.
 
 - [x] [Review][Patch] (Geo's call: floor the response at `seenAt` when `sight !== null`, fixed levels untouched) A `wait` response ignores `seenAt` in a follow level — a `wait` threat (the sequences' steps) first seen through a bubble, or entering the frame mid-window, is pressed at `max(windowOpenAt + reaction + aim, now)`: no `bubbleReadMs`, and ~0 ms reaction when it enters the frame late, against the header's « the reaction floor is `seenAt + reaction` ». Options: floor it at `seenAt` when `sight !== null` (fixed levels untouched; sequences are debug starts in `salon_kitchen`, so the balance does not move), or keep it and say in the header that `wait` is exempt.
 - [x] [Review][Patch] (Geo's call: remove the knob from the schema, `playtest.json` and the generated schema; the line becomes 0 fail, 0 gag) `perfectMaxFails > 0` is a dead knob — `perfectMaxFails` passes line 1, but line 2 (« perfect never loses ») requires `perfect.gags.total === 0`, and a failed threat gags; the unit test only passes with `gags: 0`. Line 1's bounds string also advertises « 0 gag » it does not check. Options: remove the knob (schema, `playtest.json`, generated schema), or make line 2's gag bound follow `perfectMaxFails`.
@@ -119,6 +119,20 @@ Code review of 2026-11-07, group 1 of 2 (`src/`, `tools/`, `content/`, docs, uni
 - [x] [Review][Patch] `balanceCheck` rounds `lostPct` to one decimal before the inclusive bounds: with `runs` 3000, 299/3000 = 9.967 % rounds to 10.0 and passes `min: 10`. Compare the exact fraction (`mamaHome * 100 >= min * runs`) [tools/sim/balanceCheck.ts:63-70]
 - [x] [Review][Patch] `choresLive.test.ts`: `open.closed === open.telegraphed` is now `0 === 0` for `perfect` (the `telegraphed > 0` assertion was removed), so « shuts every one it meets » is no longer tested; assert it on `human`, or drop the vacuous line and its comment [tests/tools/sim/choresLive.test.ts]
 - [x] [Review][Patch] `audioAssets.test.ts` `statSync`s `${id}.glb` for every level JSON: a level committed before its `.glb` fails with a bare `ENOENT`; fail with « level <id> has no glb » instead [tests/architecture/audioAssets.test.ts]
+
+
+Group 2 of 2 (`tests/e2e`, `tests/e2e-dist`; Blind Hunter, and a combined Acceptance + Edge Case pass that grepped the worktree; no e2e was run, every point is analysis). No `decision_needed`.
+
+- [x] [Review][Patch] The dist specs that use the e2e helpers play the old salon, not the big room — `openGame` / `startLevel` call `appUrl`, so « the FPS counter », « no test API and no FPS counter » and « a human start works with no test API, audio on » load `/?debug=1&level=salon_crawler` on the built playtest. Go bare in `dist.spec.ts` (`page.goto` + the start tap) for these three and assert `data-pp-level` is `salon_kitchen` in the human start (AC 1, AC 13) [tests/e2e-dist/dist.spec.ts:166,178,189]
+- [x] [Review][Patch] `freezeSalon` still does a bare `page.goto('/')`: the app boots on the big room and swaps to the salon afterwards (five salon specs: `characters`, `reducedMotion`); use `appUrl('/')`, which also makes the doc comment of `appUrl` (« every `page.goto` of a spec goes through it ») true (AC 2) [tests/e2e/support/busyPapa.ts:46]
+- [x] [Review][Patch] The « the bot's screen is data, not the canvas » test runs at 844 × 390, which is `bots.json › human.view` itself, so a bot fed the live canvas would pass; set a different viewport (1280 × 720) before the `goto`, keep the CLI hash comparison, and give the test its own `test.setTimeout` (the 60 s poll and the 60 s `spawnSync`) (AC 6) [tests/e2e/firstLevel.spec.ts:89-120]
+- [x] [Review][Patch] The HUD-row guard measures with a second unguarded `evaluate` after a poll that only waits for layout (a HUD still popping in gives NaN or a wrong value, and the ±2 px band is also run on WebKit): poll on `|measured − hudBottomPx| ≤ 2` itself, assert `data-pp-surface` is `compact` at that size (the bot's `isCompact`), use `FIRST_LEVEL` instead of the `salon_kitchen` literal, and correct the file header (« these are the ones that do not [name their room] ») (AC 6) [tests/e2e/firstLevel.spec.ts:15-17,57-87]
+- [x] [Review][Patch] `cameraMode` is read once, three frames after `data-pp-state=running`, which is already true while the level loads (see `adaptiveMusic.spec.ts`): `expect.poll` it [tests/e2e/firstLevel.spec.ts:38-39]
+- [x] [Review][Patch] No e2e for « a restart reloads the level that was played » on a start with no `?level=` (AC 1): every restart / « Rejouer » spec now runs on the salon through `appUrl`, and only `levelSession.test.ts` covers it. Add a short case to `firstLevel.spec.ts`: start bare, restart, expect `data-pp-level` `salon_kitchen` again [tests/e2e/firstLevel.spec.ts]
+- [x] [Review][Patch] The mistyped-id test now asserts `data-pp-level` equals `DEFAULT_LEVEL_ID`, the constant the app itself falls back to, so it passes whatever the constant says; assert the literal `salon_kitchen` [tests/e2e/chambreNight.spec.ts:~103]
+- [x] [Review][Patch] `perf.spec.ts` never asserts the level it measured (a bare URL is meant to be the big room, `PP_PERF_LEVEL=''` falls back silently with a warn): assert `data-pp-level` is `PP_PERF_LEVEL` or `salon_kitchen`. Its timeout and frame floor read `LEVEL_DURATION_MS` from `salon_crawler.json`, which equals the big room's 180 s by coincidence: say so in the comment [tests/e2e-dist/perf.spec.ts:37-46]
+
+Group 2 dismissed: `appUrl` fixing the salon for about fifty specs (AC 2 asks for it); `appUrl` and `#` fragments or `openGame` queries that start with `&` (no caller does); the `'salon_crawler'` literals beside `TEST_ROOM_ID` and the specs' own `LEVEL` constants (all read the same files, no drift today); the two human games of `firstLevel.spec.ts` (different assertions, about 45 s); `allowedErrors: OWN_WARNINGS` (harmless); a test title in `characters.spec.ts`; the production build starting on the big room being covered by unit tests only (prod ships no `data-pp-*`).
 
 Dismissed as noise or handled elsewhere (not listed above): the `surface.ts` / `levelScene.ts` exports (typecheck is green, no other importer); `humanMustFailDefs` ids not cross-checked against the level (`sim:balance` already names the def that never failed); `createBot` without `view` (the type requires it); tests that pin `glideMaxMs 900` and the wave maxima (AC 3 asks for them); `BotView`'s shape (AC 4 variance already in the Completion Notes); `DEFAULT_LEVEL_ID`'s third reader (`balanceCheck`, by design); unreachable `?? Infinity`, unpruned `sightings`, `neverSeen` bookkeeping at the end of a level; the seed range with `runs`; hard-coded `argsFor` fields; `botSight.test.ts` reading `content/` from the cwd; the Debug Log's placement.
 

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { ISO_YAW_DEG, STEP_MS } from '../../../src/shared/constants.ts';
-import { WALK_BOUND_MS, waitFrames } from './game.ts';
+import { appUrl, WALK_BOUND_MS, waitFrames } from './game.ts';
 import {
   ppAdvance,
   ppFreeze,
@@ -43,7 +43,7 @@ export const wrapRad = (angleRad: number): number =>
 
 /** The salon on a frozen sim at the test seed: the sim moves only when a test advances it. */
 export async function freezeSalon(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, SALON, SEED);

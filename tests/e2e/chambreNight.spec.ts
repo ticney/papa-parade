@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, type Page, test } from '@playwright/test';
 import { JournalSchema } from '../../src/content/schemas/journal.ts';
-import { DEFAULT_LEVEL_ID, STEP_MS } from '../../src/shared/constants.ts';
+import { STEP_MS } from '../../src/shared/constants.ts';
 import { advanceTo, cueIds, shot, typesOf } from './support/duel.ts';
 import {
   appUrl,
@@ -100,8 +100,9 @@ test.describe('Chambre de nuit', () => {
     });
     await startLevel(page, '?level=chambre_nuit');
     await expect.poll(() => warnings.join()).toContain('ignoring ?level=chambre_nuit');
-    // The default level (story 9.8: the big room), not the old salon: a mistyped link plays the game’s first level.
-    await expect(html(page)).toHaveAttribute('data-pp-level', DEFAULT_LEVEL_ID);
+    // The game's first level (story 9.8: the big room), not the old salon: a mistyped link plays it. The id is
+    // typed here on purpose: the constant would pass whatever it holds.
+    await expect(html(page)).toHaveAttribute('data-pp-level', 'salon_kitchen');
     await expect(html(page)).not.toHaveAttribute('data-pp-app', 'error');
   });
 

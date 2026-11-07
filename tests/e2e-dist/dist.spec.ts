@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { RESUME_COUNTDOWN_MS } from '../../src/shared/constants.ts';
 import { cspProblems } from '../../tools/deploy/checkDeployment.ts';
 import { headersFor, parseHeaders } from '../../tools/serve/headers.ts';
@@ -10,8 +10,6 @@ import {
   LEVEL_DURATION_MS,
   LEVEL_REAL_TIME_FACTOR_MAX,
   OVERRUN_MARGIN_MS,
-  openGame,
-  startLevel,
   waitForResultActions,
   waitFrames,
 } from '../e2e/support/game.ts';
@@ -32,6 +30,26 @@ const SPEED = 4;
 const VIBRATE_WITHOUT_TAP = /Blocked call to navigator\.vibrate/;
 /** Slack for a cold network start (the host, 4G): the level fetch, Rapier's wasm, the audio decode. */
 const LOAD_MARGIN_MS = 30_000;
+
+/** The room a tester's link plays: the game's first level, the big room (story 9.8). */
+const FIRST_LEVEL = 'salon_kitchen';
+
+/** Opens the build as a tester does, with no `?level=`, and waits for the start screen. */
+async function openFirstLevel(page: Page, query = ''): Promise<void> {
+  await page.goto(`/${query}`);
+  await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
+}
+
+/** Opens the build with no `?level=`, taps the start screen and waits for the big room to run. */
+async function startFirstLevel(page: Page, query = ''): Promise<void> {
+  await openFirstLevel(page, query);
+  await page.locator('.pp-start-screen').click();
+  await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
+  await expect(html(page)).toHaveAttribute('data-pp-state', 'running', {
+    timeout: RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS,
+  });
+  await expect(html(page)).toHaveAttribute('data-pp-level', FIRST_LEVEL);
+}
 
 /** The CSP `public/_headers` promises for `/`: the host must send exactly it. */
 function expectedCsp(): string {
@@ -163,7 +181,7 @@ test.describe('the built playtest bundle', () => {
 
   test('?debug=1 shows the FPS counter once the level runs', async ({ page }) => {
     const problems = collectProblems(page);
-    await startLevel(page, '?debug=1');
+    await startFirstLevel(page, '?debug=1');
     const counter = page.locator('.pp-debug-perf');
     await expect(counter).toBeVisible();
     await waitFrames(page, 10);
@@ -175,7 +193,7 @@ test.describe('the built playtest bundle', () => {
 
   test('without ?debug=1 there is no test API and no FPS counter', async ({ page }) => {
     const problems = collectProblems(page);
-    await openGame(page);
+    await openFirstLevel(page);
     await waitFrames(page, 30);
     expect(await page.evaluate(() => window.__PP__)).toBeUndefined();
     await expect(page.locator('.pp-debug-perf')).toHaveCount(0);
@@ -186,7 +204,7 @@ test.describe('the built playtest bundle', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await startLevel(page);
+    await startFirstLevel(page);
     expect(await page.evaluate(() => window.__PP__)).toBeUndefined();
     expect(await audioState(page)).toBe('running');
     expect(problems).toEqual([]);
