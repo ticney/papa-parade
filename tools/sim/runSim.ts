@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Bot, BotSetup } from '@bots/bot';
 import { botResponsesOf, releaseDefIdsOf, safeSpotOf } from '@bots/botResponses';
+import { botViewOf, createVisibilityCounters } from '@bots/botView';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import { UINT32_RANGE } from '@shared/constants';
@@ -131,6 +132,15 @@ export async function runSim(
   const responses = botResponsesOf(level.threats);
   const releaseDefIds = releaseDefIdsOf(level.threats);
   const safeSpot = safeSpotOf(geometry);
+  // What the human bot sees of a follow-camera level (story 9.8): its screen is data (`bots.json`), the same
+  // for every run and for the browser's autoplay; null in a fixed-camera level.
+  const view = botViewOf({
+    camera: level.level.camera,
+    geometry,
+    threats: level.threats,
+    babyBodyRadiusM: content.feel.baby.bodyRadiusM,
+    screen: content.bots.human.view,
+  });
   // A game lasts the level's duration unless a cap says less (or more: the flow ends it anyway).
   const untilSimMs = args.untilSimMs ?? level.level.durationMs;
   const summaries: RunSummary[] = [];
@@ -145,6 +155,8 @@ export async function runSim(
       choreObjectIds: (level.level.chores ?? []).map((chore) => chore.object),
       safeSpot,
       isChronoRingShown: args.chronoRing === 'on',
+      view,
+      visibilityCounters: createVisibilityCounters(),
       settings: content.bots,
     };
     const bot = createBot(args.botId, setup);
@@ -172,6 +184,9 @@ export async function runSim(
           : withSequenceStart(bot.value, args.sequenceId, args.sequenceAtMs);
       playGame(sim, player, untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
+      // Only the human bot has a sight to count (story 9.8); a fixed-camera level has no view to see through.
+      if (args.botId === 'human' && view !== null)
+        summary.visibility = setup.visibilityCounters ?? null;
       summaries.push(summary);
       // The sim drops a refused start with no event (Papa busy, a silence, a phone ringing) and the
       // wrapper sends it once: say so, or a run that validated nothing looks like one that did.

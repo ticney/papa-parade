@@ -8,7 +8,7 @@ import {
   OFFSCREEN_BUBBLE_PADDING_PX,
   OFFSCREEN_BUBBLE_STACK_GAP_PX,
 } from '@shared/constants';
-import { compareUrgency } from '../../input/urgency.ts';
+import { compareUrgency } from '@shared/urgency';
 
 // Where the off-screen bubbles of a follow level sit (story 9.3, D3), as pure maths: no DOM, no
 // `three`. Bubble centres live on a U-shaped track inside the HUD insets: up the left edge from just

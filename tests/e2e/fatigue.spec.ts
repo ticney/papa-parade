@@ -3,6 +3,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
 import { HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   liveFeel,
@@ -51,7 +52,7 @@ const CHUNK_STEPS = 25;
 const NEAR_PAPA_PX = 90;
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

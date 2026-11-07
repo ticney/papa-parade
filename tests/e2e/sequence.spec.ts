@@ -6,6 +6,7 @@ import {
   STEP_MS,
 } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   hapticPatternOfCue,
   html,
@@ -395,7 +396,7 @@ test.describe('a win', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto('/?autoplay=perfect&seed=7&speed=4');
+    await page.goto(appUrl('/?autoplay=perfect&seed=7&speed=4'));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level', { timeout: 15_000 });
     await expect(html(page)).toHaveAttribute('data-pp-state', 'running', { timeout: 15_000 });

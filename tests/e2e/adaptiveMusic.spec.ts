@@ -3,6 +3,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { AUDIO_LOAD_TIMEOUT_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { PARRY_RELEASE_AFTER_MS } from '../support/timeEffects.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   liveFeel,
@@ -72,7 +73,7 @@ test.describe('the music follows the game (story 2.6)', () => {
       await new Promise((resolve) => setTimeout(resolve, LATE_STEMS_MS));
       await route.continue();
     });
-    await page.goto('/?debug=1');
+    await page.goto(appUrl('/?debug=1'));
     await page.locator('.pp-start-screen').click();
     // Not `data-pp-state`: it already reads `running` while the level loads.
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level', { timeout: LATE_STEMS_MS });
@@ -85,7 +86,7 @@ test.describe('the music follows the game (story 2.6)', () => {
   }) => {
     test.setTimeout(AUTOPLAY_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page);
-    await page.goto(`/?autoplay=perfect&seed=${AUTOPLAY_SEED}&speed=${SPEED}`);
+    await page.goto(appUrl(`/?autoplay=perfect&seed=${AUTOPLAY_SEED}&speed=${SPEED}`));
     await waitForTestApi(page);
     // An autoplay run has no start gesture, so no audio context: the game is silent and
     // `data-pp-music` stays `off`. The mood mirrors report the intent all the same.

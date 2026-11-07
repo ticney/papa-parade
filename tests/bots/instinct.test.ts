@@ -50,6 +50,7 @@ async function play(
       releaseDefIds: releaseDefIdsOf(level.threats),
       choreObjectIds: [],
       isChronoRingShown: true,
+      view: null,
       safeSpot: null,
       settings: bots,
     });

@@ -12,6 +12,7 @@ import {
   createFollowFrame,
   createFollowState,
   fitFollowFrame,
+  roomOf,
   snapFollow,
   viewUM,
   viewVM,
@@ -19,7 +20,6 @@ import {
 import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createIsoCamera, fitFollowCamera, fitIsoCamera, type RoomSize } from './isoCamera.ts';
-import { roomOf } from './levelScene.ts';
 
 const ROOM: RoomSize = { widthM: 8, depthM: 6, heightM: 2.5 };
 // The real living room: off-centre because its stairs stick out of the +x edge.

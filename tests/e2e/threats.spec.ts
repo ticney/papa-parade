@@ -3,6 +3,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
 import { DRAW_CALLS_MAX, STEP_MS, VERB_MIN_FONT_PX } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   GEOMETRY_URL,
   liveThreat,
@@ -113,7 +114,7 @@ test.describe('the three threats', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);
@@ -268,7 +269,7 @@ const shownVerbs = (page: Page): Promise<ShownVerb[]> =>
 
 /** Opens a frozen level with no start gesture: silent, as an agent's run is. */
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { DRAW_CALLS_MAX, TRIANGLES_MAX } from '../../src/shared/constants.ts';
 import { shot, typesOf } from './support/duel.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   OWN_WARNINGS,
@@ -68,7 +69,7 @@ async function walkToKitchen(page: Page, each?: () => Promise<void>): Promise<vo
 }
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto(`/${QUERY}`);
+  await page.goto(appUrl(`/${QUERY}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -131,7 +132,7 @@ test.describe('Grand salon avec cuisine', () => {
         assetWarnings.push(message.text());
       }
     });
-    await page.goto(`/${QUERY}&autoplay=perfect&seed=${SEED}&speed=4&debug=1`);
+    await page.goto(appUrl(`/${QUERY}&autoplay=perfect&seed=${SEED}&speed=4&debug=1`));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-level', LEVEL);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {

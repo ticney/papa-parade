@@ -28,7 +28,9 @@ test.describe.configure({ mode: 'serial' });
 test('a full level at speed 1 holds the frame, draw-call and triangle budgets', async ({
   page,
 }, testInfo) => {
-  // Real time: the level's duration is sim time, and the parries' slow-motion stretches it.
+  // Real time: the level's duration is sim time, and the parries' slow-motion stretches it. `LEVEL_DURATION_MS`
+  // comes from `salon_crawler.json` (the e2e test room): the big room's 180 s is the same by coincidence, so
+  // a retuned big room needs its own constant here.
   const levelMs =
     LEVEL_DURATION_MS * LEVEL_REAL_TIME_FACTOR_MAX +
     RESUME_COUNTDOWN_MS +
@@ -37,10 +39,13 @@ test('a full level at speed 1 holds the frame, draw-call and triangle budgets', 
   test.setTimeout(levelMs + 30_000);
   const problems = collectProblems(page);
 
-  // `PP_PERF_LEVEL` measures another level by hand (story 4.10); CI keeps the salon, so its time does not grow.
+  // With no level it measures the game's first level, the big room, which is what the playtest plays (story 9.8).
+  // `PP_PERF_LEVEL` measures another one by hand (story 4.10): `salon_crawler` for the old salon.
   const level = process.env.PP_PERF_LEVEL;
   const levelQuery = level === undefined ? '' : `&level=${level}`;
   await page.goto(`/?autoplay=human&seed=1&speed=1&debug=1${levelQuery}`);
+  // What is measured is the level the comment above says, not whichever one a regression would load.
+  await expect(html(page)).toHaveAttribute('data-pp-level', level ?? 'salon_kitchen');
   await expect(html(page)).toHaveAttribute('data-pp-app', 'result', { timeout: levelMs });
 
   const report = await ppPerf(page);

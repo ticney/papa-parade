@@ -1,7 +1,8 @@
 """Exports a level from Blender to a .glb, after checking the naming conventions.
 
 Run headless:   blender -b assets-src/blender/salon_crawler.blend -P tools/blender/export_level.py -- --out public/assets/levels/salon_crawler.glb
-Run via MCP:    exec(open("tools/blender/export_level.py").read())   (the blend is already open)
+Run via MCP:    import sys; sys.argv = ["blender", "--", "--out", "public/assets/levels/<id>.glb"]; exec(open("tools/blender/export_level.py").read())   (the blend is already open;
+                --out is required, there is no default level since story 9.8)
 
 The rules below are written a second time in TypeScript (src/content/levelNodeNames.ts), which the
 extractor uses. tests/architecture/blenderConventions.test.ts reads this file as text and fails when
@@ -27,8 +28,6 @@ SNAKE_ID = re.compile(r"^[a-z][a-z0-9_]*$")
 PROP_SHAPE = re.compile(r"^PROP_([a-z][a-z0-9_]*)_(\d{2})$")
 # A name that looks like a gameplay node must be one: "col_sofa" or "ANCHORS_x" is a mistake.
 RESERVED_LOOKING = re.compile(r"^(?:col|nav|anchors?|props?|zones?)(?![a-z0-9])", re.IGNORECASE)
-
-DEFAULT_OUT = "public/assets/levels/salon_crawler.glb"
 
 
 def classify(name):
@@ -103,7 +102,8 @@ def check_scene(objects):
 
 
 def parse_args(argv):
-    """Arguments after `--` (Blender keeps its own before it). Only `--out <path>`."""
+    """Arguments after `--` (Blender keeps its own before it). Only `--out <path>`, required: there is no
+    default level to write (a bare run would rewrite a frozen room's .glb, story 9.8)."""
     out = None
     rest = argv[argv.index("--") + 1:] if "--" in argv else []
     i = 0
@@ -113,22 +113,16 @@ def parse_args(argv):
             i += 2
         else:
             raise ValueError("unknown argument %r (usage: -- --out <file.glb>)" % rest[i])
+    if out is None:
+        raise ValueError("no output given (usage: -- --out <file.glb>)")
     return out
-
-
-def repo_root():
-    blend = bpy.data.filepath
-    if blend:
-        return os.path.abspath(os.path.join(os.path.dirname(blend), "..", ".."))
-    return os.getcwd()
 
 
 def export(out):
     problems = check_scene(list(bpy.context.scene.objects))
     if problems:
         raise RuntimeError("level export refused:\n  - " + "\n  - ".join(problems))
-    path = out if out else os.path.join(repo_root(), DEFAULT_OUT)
-    path = os.path.abspath(path)
+    path = os.path.abspath(out)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     result = bpy.ops.export_scene.gltf(
         filepath=path,

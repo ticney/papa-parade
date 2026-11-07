@@ -26,6 +26,7 @@
     "content:schemas": "tsx tools/content/emitSchemas.ts",
     "sim": "tsx tools/sim/runSim.ts",
     "sim:replay": "tsx tools/sim/replaySim.ts",
+    "sim:balance": "tsx tools/sim/balanceCheck.ts",
     "playtest:metrics": "tsx tools/playtest/playtestMetrics.ts",
     "assets:export": "tsx tools/assets/exportLevel.ts",
     "assets:extract": "tsx tools/assets/extractLevelGeometry.ts",
@@ -37,7 +38,7 @@
     "ci:fast": "npm run typecheck && npm run lint && npm run content:check && npm run test",
     "ci:story": "npm run ci:fast && npm run e2e -- --project=chromium",
     "ci": "npm run typecheck && npm run lint && npm run content:check && bash tools/ci/heavyLock.sh npm run ci:heavy",
-    "ci:heavy": "npm run test:coverage && npm run e2e && npm run build:playtest && npm run dist:check -- --flavor playtest && npm run e2e:dist && npm run build && npm run dist:check -- --flavor prod"
+    "ci:heavy": "npm run test:coverage && npm run sim:balance && npm run e2e && npm run build:playtest && npm run dist:check -- --flavor playtest && npm run e2e:dist && npm run build && npm run dist:check -- --flavor prod"
   },
   "dependencies": {
     "@dimforge/rapier3d-deterministic-compat": "0.21.0",

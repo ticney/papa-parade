@@ -1,3 +1,4 @@
+import type { RoomBox } from '@shared/followCamera';
 import type { SimCommand, SimEvent, World } from '@sim';
 
 export const BOT_IDS = ['perfect', 'human', 'random', 'idle'] as const;
@@ -41,6 +42,14 @@ export interface BotOptions {
     missWhileBusyPct: number;
     /** Extra standard deviation of its aim at a window while Papa works at a chore's station, in ms (story 9.4). */
     backTurnedSdMs: number;
+    /** The screen it plays a follow-camera level on, and what a bubble costs to read (story 9.8). */
+    view: {
+      widthPx: number;
+      heightPx: number;
+      /** The bottom of the HUD row, in px from the top of the canvas. */
+      hudBottomPx: number;
+      bubbleReadMs: number;
+    };
   };
   random: {
     /** Actions started per second of sim time, on average. */
@@ -85,7 +94,66 @@ export interface BotSetup {
    * `releaseDefIds`; `perfect`, `random` and `idle` ignore it.
    */
   isChronoRingShown: boolean;
+  /**
+   * What the `human` bot can see of a follow-camera level (story 9.8), built by `botViewOf`. Required like
+   * `isChronoRingShown`: `null` says « fixed camera, every active threat is seen », and the bot then plays
+   * exactly as it did before the big room. `perfect`, `random` and `idle` ignore it.
+   */
+  view: BotView | null;
+  /**
+   * Where the `human` bot counts what it sees (story 9.8), for the sim report; absent: it counts into a
+   * private object nobody reads. Filled by the bot, read by the runner after the game, never during it.
+   */
+  visibilityCounters?: VisibilityCounters;
   settings: BotOptions;
+}
+
+/** What a threat's marker stands on, as the client's `def.target` tells it (story 9.3). */
+export type BotMarkerTarget = 'anchor' | 'papa' | 'baby' | 'station' | 'hiddenZone';
+
+/**
+ * The follow-camera level as the `human` bot sees it (story 9.8): the room's box, its screen, and the
+ * points the markers stand on, from which it rebuilds the client's frame (`followCamera.ts`,
+ * `followVisibility.ts`) with `feel.camera` read live from the world. Plain data, built by `botViewOf`.
+ */
+export interface BotView {
+  /** The camera box of the room (`roomOf` of its geometry). */
+  readonly room: RoomBox;
+  /** The bot's screen: the canvas the client would measure. */
+  readonly screen: {
+    readonly widthPx: number;
+    readonly heightPx: number;
+    /** A phone-sized surface (the client's icon and bubble sizes). */
+    readonly isCompact: boolean;
+    readonly hudBottomPx: number;
+  };
+  /** Extra time to read a threat first seen through an off-screen bubble, in ms. */
+  readonly bubbleReadMs: number;
+  /** The level's anchors, by id: `positionM`, the point an anchored marker stands on. */
+  readonly anchors: Readonly<Record<string, readonly [number, number, number]>>;
+  /** What each threat def's marker stands on, by def id. A def the map lacks is anchored. */
+  readonly targets: Readonly<Record<string, BotMarkerTarget>>;
+  /** The height of the marker of a threat on the baby (a silence, a stealth alert), in metres. */
+  readonly babyMarkerYM: number;
+}
+
+/**
+ * How the `human` bot's sight went over a game, summed (story 9.8, the sim report's `visibility`). The bot
+ * writes them, a runner reads them after the game: no event is read to count them.
+ */
+export interface VisibilityCounters {
+  /** Threats telegraphed (cycles that were active while the bot played). */
+  telegraphs: number;
+  /** Threats first seen through an off-screen bubble. */
+  seenOffscreen: number;
+  /** Σ time a threat waited, in ms, for a bubble behind the cap of three. */
+  cappedMs: number;
+  /** Threats whose window closed before the bot saw them. */
+  neverSeen: number;
+  /** Threats seen after their telegraph began (late, or through a bubble). */
+  seenLate: number;
+  /** Σ over those of `seenAt − enteredAt`, in ms. */
+  seenLateDelayMs: number;
 }
 
 export interface Bot {

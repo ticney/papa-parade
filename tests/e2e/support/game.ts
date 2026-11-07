@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { Vector3 } from 'three';
 import { createIsoCamera, fitIsoCamera } from '../../../src/client/render/isoCamera.ts';
-import { roomOf } from '../../../src/client/render/levelScene.ts';
 import { feedbackClips } from '../../../src/content/feedbackClips.ts';
 import type { FeedbackTable } from '../../../src/content/schemas/feedback.ts';
 import type { LevelGeometry } from '../../../src/content/schemas/levelGeometry.ts';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../../src/shared/constants.ts';
+import { roomOf } from '../../../src/shared/followCamera.ts';
 import { ppAdvance, ppEvents, ppWorld } from './testApi.ts';
 
 // The live room and feel, read here and never copied: Geo re-exports the room and retunes the feel freely.
@@ -311,11 +311,28 @@ export async function emulateReducedMotion(page: Page): Promise<void> {
 }
 
 /**
+ * The room the e2e suite plays in (story 9.8). The first level of the game is the big room, but about fifty
+ * specs were written against the salon (its geometry, its waves, its fixed camera): they keep it, explicitly.
+ * The big room has its own specs, which name it.
+ */
+export const TEST_ROOM_ID = 'salon_crawler';
+
+/**
+ * `url` ("/", "/?autoplay=perfect&seed=1"…) with `level=salon_crawler` added when it names no level. Every
+ * `page.goto` of a spec goes through it, so that no spec moves to the game's first level by accident; a URL
+ * that names its level is left as it is, and the specs of the first level itself use `page.goto` bare.
+ */
+export function appUrl(url: string): string {
+  if (/[?&]level=/.test(url)) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}level=${TEST_ROOM_ID}`;
+}
+
+/**
  * Opens the app and waits until it shows the start screen. `data-pp-app` and `data-pp-state` are
  * written by the composition root in dev and playtest builds only, once everything is up.
  */
 export async function openGame(page: Page, query = ''): Promise<void> {
-  await page.goto(`/${query}`);
+  await page.goto(appUrl(`/${query}`));
   await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
 }
 

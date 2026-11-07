@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { RESUME_COUNTDOWN_MS, SCREEN_FLASH_MIN_INTERVAL_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   FIRST_TELEGRAPH_MAX_MS,
   FIRST_WAVE_RESPONSE_MAX_MS,
@@ -58,7 +59,7 @@ test.describe('a muted game (story 2.4)', () => {
     test.setTimeout(PLANNED_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page);
     await recordVibrations(page);
-    await page.goto(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`);
+    await page.goto(appUrl(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`));
     await waitForTestApi(page);
 
     // The game is muted for real: no gesture, so no audio context and nothing decoded.
@@ -161,7 +162,7 @@ test.describe('a muted game (story 2.4)', () => {
     test.setTimeout(FIRST_GAG_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page);
     await recordVibrations(page);
-    await page.goto(`/?autoplay=idle&seed=${SEED}&speed=${SPEED}`);
+    await page.goto(appUrl(`/?autoplay=idle&seed=${SEED}&speed=${SPEED}`));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-audio', 'none');
 

@@ -23,6 +23,7 @@ async function play(botId: BotId, seed: number) {
     releaseDefIds: releaseDefIdsOf(level.threats),
     choreObjectIds: [],
     isChronoRingShown: true,
+    view: null,
     safeSpot: safeSpotOf(geometry),
     settings: createTestBots(),
   });
@@ -81,6 +82,7 @@ describe('the bedtime cycle, played by the bots (story 4.10)', () => {
       releaseDefIds: releaseDefIdsOf(level.threats),
       choreObjectIds: [],
       isChronoRingShown: true,
+      view: null,
       safeSpot: spot,
       settings: createTestBots(),
     });

@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { DEFAULT_LEVEL_ID } from '@shared/constants';
 import { log } from '@shared/log';
+import { levelIdArg } from './levelIdArg.ts';
 import { blendPath, exportScriptPath, glbPath } from './paths.ts';
 
 const MACOS_BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender';
@@ -41,7 +41,13 @@ function run(
 }
 
 async function main(): Promise<void> {
-  const id = process.argv[2] ?? DEFAULT_LEVEL_ID;
+  const parsedId = levelIdArg(process.argv.slice(2), 'assets:export');
+  if (!parsedId.ok) {
+    log.error('assets', parsedId.error);
+    process.exitCode = 1;
+    return;
+  }
+  const id = parsedId.value;
   const blender = await findBlender();
   if (blender === null) {
     log.error(

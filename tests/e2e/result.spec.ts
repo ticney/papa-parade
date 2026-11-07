@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import {
   advanceToEnd,
   appHistory,
+  appUrl,
   canvasPoint,
   collectProblems,
   cueCount,
@@ -55,7 +56,7 @@ interface Scored {
 /** Opens the game on a frozen level, optionally with a feel patch (a journaled `SetFeel`, applied at the first step), and steps it to its end. */
 async function openResult(page: Page, patch?: Parameters<typeof ppSetFeel>[1]): Promise<Scored> {
   // No threat: a level nobody plays would wake Mama before its end (the table's props make noise, story 3.5).
-  await page.goto(`/${THREATS_OFF}`);
+  await page.goto(appUrl(`/${THREATS_OFF}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import {
   advanceToEnd,
+  appUrl,
   collectProblems,
   cueCount,
   emulateReducedMotion,
@@ -54,7 +55,7 @@ const hasVibrate = (): boolean => test.info().project.name === 'chromium';
  */
 async function openLoud(page: Page): Promise<{ cues: number; vibrationCount: number }> {
   await recordVibrations(page);
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -274,7 +275,7 @@ test.describe('Mama wakes', () => {
 
   test('a timer end has no header, no lost star and the reason timer', async ({ page }) => {
     // No threat: a level nobody plays would wake Mama before its end (the table's props make noise, story 3.5).
-    await page.goto(`/${THREATS_OFF}`);
+    await page.goto(appUrl(`/${THREATS_OFF}`));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);

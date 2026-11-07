@@ -69,6 +69,87 @@
       ],
       "additionalProperties": false,
       "description": "The thresholds of the human-bot comparison (`npm run sim -- --compare`)."
+    },
+    "simulated": {
+      "type": "object",
+      "properties": {
+        "runs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "description": "Games per bot (the GDD says 200 seeds): run i uses seed + i."
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": "The seed of the first game."
+        },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "assistance",
+            "normal",
+            "experienced"
+          ],
+          "description": "The difficulty tier the games are played at (the GDD says Normal)."
+        },
+        "humanLossPct": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Fewest games the `human` bot may lose, in % (inclusive)."
+            },
+            "max": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Most games the `human` bot may lose, in % (inclusive)."
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "additionalProperties": false,
+          "description": "The share of games, in %, the `human` bot loses (Mama came home early: `endsByReason.mamaHome`): a loss is possible without being a wall."
+        },
+        "humanMustFailDefs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "description": "Threat defs the `human` bot must fail at least once over the games (a threat nobody can fail is not a threat): the big room’s new mischiefs. A def the games never met counts as not failed."
+        },
+        "humanOpenDoorMustGag": {
+          "type": "boolean",
+          "description": "True: over the games the baby gets into the open dishwasher at least once (`chores.open.gagged` above 0) with the `human` bot."
+        },
+        "perfectChoresEveryRun": {
+          "type": "boolean",
+          "description": "True: the `perfect` bot finishes every house chore of the level in every game."
+        },
+        "idleLosesBeforeTimer": {
+          "type": "boolean",
+          "description": "True: the `idle` bot loses every game, before the level’s timer runs out."
+        }
+      },
+      "required": [
+        "runs",
+        "seed",
+        "tier",
+        "humanLossPct",
+        "humanMustFailDefs",
+        "humanOpenDoorMustGag",
+        "perfectChoresEveryRun",
+        "idleLosesBeforeTimer"
+      ],
+      "additionalProperties": false,
+      "description": "The simulated-games targets of the first level (`npm run sim:balance`, part of `npm run ci`)."
     }
   },
   "required": [
@@ -79,7 +160,8 @@
     "firstEncounterSuccessMinPct",
     "touchVsKeyboardMinPct",
     "laughedMinPct",
-    "humanBot"
+    "humanBot",
+    "simulated"
   ],
   "additionalProperties": false
 }

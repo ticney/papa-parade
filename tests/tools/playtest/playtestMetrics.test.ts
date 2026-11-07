@@ -50,6 +50,7 @@ async function playHumanGame(
       releaseDefIds: releaseDefIdsOf(level.threats),
       choreObjectIds: [],
       isChronoRingShown: true,
+      view: null,
       safeSpot: null,
       settings: content.bots,
     });

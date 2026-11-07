@@ -114,6 +114,12 @@ The director's fairness (story 3.13, FR75) adds \`fairnessViolations\` (the dire
 drawn while a silence was under way: 0 when the director is right, checked on the events alone), \`stretchedTelegraphs\` (the
 threats whose window opened later than their telegraph delay: how often the director waits) and \`meanStretchMs\` (how much
 later, on average; null when none). The waves' \`peakSimultaneous\` and \`overLimitRuns\` count a silence for two.
+What the human bot sees (story 9.8): in a level with a follow camera it only reacts to a threat once it is in the frame it rebuilds from
+Papa's position and \`feel.camera\` on the screen of \`bots.json\` › \`human.view\`, or has an off-screen bubble (at most three, the most
+urgent). The report then holds a \`visibility\` block (null for the other bots and in a fixed-camera level): \`telegraphs\` (the threats
+telegraphed), \`seenOffscreen\` (first seen through a bubble), \`cappedMs\` (the time threats waited for a bubble behind the cap of
+three), \`neverSeen\` (closed before they were seen: they gag) and \`meanSeenDelayMs\` (the mean time between the telegraph and
+the sight, over the threats seen late; null when none).
 `;
 
 const DIGITS = /^\d+$/;

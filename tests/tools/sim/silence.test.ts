@@ -35,6 +35,7 @@ describe('the suspicious silence of the live salon_crawler', () => {
       releaseDefIds: releaseDefIdsOf(level.threats),
       choreObjectIds: [],
       isChronoRingShown: true,
+      view: null,
       safeSpot: null,
       settings: content.bots,
     });
