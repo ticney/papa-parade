@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -58,8 +58,10 @@ describe('the committed audio clips', () => {
     const budget = Object.hasOwn(LEVEL_PAYLOAD_MAX_BYTES_BY_ID, id)
       ? (LEVEL_PAYLOAD_MAX_BYTES_BY_ID[id] as number)
       : LEVEL_PAYLOAD_MAX_BYTES;
+    const glb = join(levelsDir, `${id}.glb`);
+    expect(existsSync(glb), `level ${id} has no ${id}.glb in content/levels`).toBe(true);
     const total =
-      statSync(join(levelsDir, `${id}.glb`)).size +
+      statSync(glb).size +
       clips.reduce((sum, clip) => sum + statSync(join(audioDir, `${clip}.m4a`)).size, 0);
     expect(total).toBeLessThanOrEqual(budget);
   });

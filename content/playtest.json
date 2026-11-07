@@ -22,7 +22,6 @@
       "papa_mug_low"
     ],
     "humanOpenDoorMustGag": true,
-    "perfectMaxFails": 0,
     "perfectChoresEveryRun": true,
     "idleLosesBeforeTimer": true
   }

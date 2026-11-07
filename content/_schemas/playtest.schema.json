@@ -129,12 +129,6 @@
           "type": "boolean",
           "description": "True: over the games the baby gets into the open dishwasher at least once (`chores.open.gagged` above 0) with the `human` bot."
         },
-        "perfectMaxFails": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "The most threats the `perfect` bot may fail over all the games (0: it never loses a point)."
-        },
         "perfectChoresEveryRun": {
           "type": "boolean",
           "description": "True: the `perfect` bot finishes every house chore of the level in every game."
@@ -151,7 +145,6 @@
         "humanLossPct",
         "humanMustFailDefs",
         "humanOpenDoorMustGag",
-        "perfectMaxFails",
         "perfectChoresEveryRun",
         "idleLosesBeforeTimer"
       ],

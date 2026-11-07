@@ -78,12 +78,6 @@ const SimulatedTargetsSchema = z
       .describe(
         'True: over the games the baby gets into the open dishwasher at least once (`chores.open.gagged` above 0) with the `human` bot.',
       ),
-    perfectMaxFails: z
-      .int()
-      .min(0)
-      .describe(
-        'The most threats the `perfect` bot may fail over all the games (0: it never loses a point).',
-      ),
     perfectChoresEveryRun: z
       .boolean()
       .describe('True: the `perfect` bot finishes every house chore of the level in every game.'),

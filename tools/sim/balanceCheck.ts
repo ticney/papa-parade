@@ -64,7 +64,9 @@ export function balanceVerdict(
   const { min, max } = targets.humanLossPct;
   line(
     'human loses the level',
-    lostPct >= min && lostPct <= max,
+    // On the exact share, not the rounded one printed: 299/3000 is 9.97 %, not the 10 % it rounds to.
+    human.endsByReason.mamaHome * 100 >= min * human.runs &&
+      human.endsByReason.mamaHome * 100 <= max * human.runs,
     `${lostPct} % (${human.endsByReason.mamaHome}/${human.runs})`,
     `${min}..${max} %`,
   );
@@ -88,12 +90,7 @@ export function balanceVerdict(
     );
   }
   const perfectFails = failsOf(perfect);
-  line(
-    'perfect fails no threat',
-    perfectFails <= targets.perfectMaxFails,
-    `${perfectFails} fail(s), ${perfect.gags.total} gag(s)`,
-    `<= ${targets.perfectMaxFails} fail(s), 0 gag`,
-  );
+  line('perfect fails no threat', perfectFails === 0, `${perfectFails} fail(s)`, '0 fail');
   line(
     'perfect never loses and the director is fair',
     perfect.gags.total === 0 &&

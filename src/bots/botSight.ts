@@ -33,12 +33,20 @@ import type { BotView, VisibilityCounters } from './bot.ts';
 // it, which are the ones the client gives a bubble. Pure maths on the world: no draw, no clock.
 //
 // It follows Papa only: the client also aims at a judged threat during a slow-mo (D4, deferred), and
-// zooms and leans on a perfect; none of that is in the bot's frame.
+// zooms and leans on a perfect; none of that is in the bot's frame. It is also a little optimistic about
+// the bubbles: every one of the three most urgent threats outside the frame gets one, whereas the client
+// drops the least urgent one when they cannot all be packed on a crowded small screen
+// (`layoutOffscreen`).
 
 /** One cycle of one threat, as the sight remembers it. */
 interface Sighting {
   /** The cycle: the threat's `windowOpenAt`, fixed at its telegraph. */
   readonly cycle: number;
+  /**
+   * The telegraph of the cycle, as of the step the sight first met it (`enteredAt` moves at every
+   * transition, so the window opening would hide the time spent unseen).
+   */
+  readonly telegraphAt: number;
   /** The first sim time the bot could act on it (a bubble's reading included), or null while unseen. */
   seenAt: number | null;
   /** The threat is outside the frame as of the last step (the hysteresis). */
@@ -111,14 +119,14 @@ export function createSight(view: BotView, counters: VisibilityCounters): Sight 
   const marker = { uM: 0, vM: 0 };
 
   /** The step at which a threat is first seen: its telegraph if the bot was there for it, else now. */
-  const firstSightAt = (now: number, threat: Readonly<ThreatInstance>): number =>
-    now < threat.enteredAt + STEP_MS ? threat.enteredAt : now;
+  const firstSightAt = (now: number, sighting: Sighting): number =>
+    now < sighting.telegraphAt + STEP_MS ? sighting.telegraphAt : now;
 
-  const see = (sighting: Sighting, threat: Readonly<ThreatInstance>, atMs: number): void => {
+  const see = (sighting: Sighting, atMs: number): void => {
     sighting.seenAt = atMs;
-    if (atMs > threat.enteredAt) {
+    if (atMs > sighting.telegraphAt) {
       counters.seenLate++;
-      counters.seenLateDelayMs += atMs - threat.enteredAt;
+      counters.seenLateDelayMs += atMs - sighting.telegraphAt;
     }
   };
 
@@ -166,6 +174,7 @@ export function createSight(view: BotView, counters: VisibilityCounters): Sight 
           if (sighting !== undefined) closeIfUnseen(sighting);
           sighting = {
             cycle: threat.windowOpenAt,
+            telegraphAt: threat.enteredAt,
             seenAt: null,
             wasOutside: false,
             isClosed: false,
@@ -197,7 +206,7 @@ export function createSight(view: BotView, counters: VisibilityCounters): Sight 
         }
         sighting.wasOutside = !isInside;
         if (isInside) {
-          if (sighting.seenAt === null) see(sighting, threat, firstSightAt(now, threat));
+          if (sighting.seenAt === null) see(sighting, firstSightAt(now, sighting));
           continue;
         }
         // Outside the frame: it has a bubble if it is among the most urgent such threats.
@@ -230,14 +239,14 @@ export function createSight(view: BotView, counters: VisibilityCounters): Sight 
         outsideCount++;
       }
       for (let rank = 0; rank < outsideCount; rank++) {
-        const { sighting, threat } = outside[rank] as OutsideCandidate;
+        const { sighting } = outside[rank] as OutsideCandidate;
         if (sighting.seenAt !== null) continue;
         if (rank >= OFFSCREEN_BUBBLE_MAX_COUNT) {
           counters.cappedMs += STEP_MS;
           continue;
         }
         counters.seenOffscreen++;
-        see(sighting, threat, firstSightAt(now, threat) + view.bubbleReadMs);
+        see(sighting, firstSightAt(now, sighting) + view.bubbleReadMs);
       }
     },
     seenAt(threat) {

@@ -81,8 +81,9 @@ const FETCH_RETRY_MS = 1000;
  * the frame, or, outside it, among the three most urgent such threats, which have an off-screen bubble? The
  * first step it is seen (`seenAt`) replaces the telegraph in everything above: the reaction floor is
  * `seenAt + reaction` (a threat first seen through a bubble also waits `view.bubbleReadMs` to be read), the
- * `missWhileBusyPct` decision is taken at `seenAt`. A threat closed before it was seen is never answered (it
- * gags). It adds no draw and removes none: the same draws, in the same order, later. In a level with a fixed
+ * `missWhileBusyPct` decision is taken at the step it is first seen (whatever a bubble's reading adds to
+ * `seenAt`). A `wait` response, a reaction to the signal, starts from the later of the window opening and
+ * `seenAt`. A threat closed before it was seen is never answered (it gags). It adds no draw and removes none: the same draws, in the same order, later. In a level with a fixed
  * camera (`view` is null) `seenAt` is the telegraph, and it plays exactly as before. The silence's find and
  * the chore beats keep their own rules (the `…` bubble shows when a silence starts; the station is in the
  * frame while Papa works there).
@@ -275,7 +276,11 @@ export function createHumanBot(setup: BotSetup): Bot {
         if (response === 'wait') {
           // A reaction to the signal, not an aim at the centre: the jitter is on the reaction, so
           // it can be late. One draw, like the other responses.
-          const reactionAt = aimOf(response, threat.windowOpenAt + drawReactionMs());
+          // In a follow level, a signal seen late (a bubble, or the frame reached mid-window) is reacted to
+          // from the step it was seen; with a fixed camera it is the window opening, as before.
+          const signalAt =
+            sight === null ? threat.windowOpenAt : Math.max(threat.windowOpenAt, seenAt);
+          const reactionAt = aimOf(response, signalAt + drawReactionMs());
           const pressAt = Math.max(Math.round(reactionAt), now);
           schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
           continue;

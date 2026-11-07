@@ -66,9 +66,9 @@ describe('the chores of the live salon_kitchen', () => {
     expect(report.endsByReason.mamaHome).toBe(0);
     expect(report.chores.meanObjectsBroken).toBe(0);
     expect(byDef.unload_dishwasher?.meanBeatsMissed).toBe(0);
-    // It shuts every open door it meets. Story 9.8: the first wave is calm enough for it to finish both chores
-    // before the baby has a door to choose (0 telegraphed in the 200 games of `sim:balance`), so none is asked.
-    expect(open.closed).toBe(open.telegraphed);
+    // Story 9.8: the first wave is calm enough for it to finish both chores before the baby has a door to
+    // choose (0 telegraphed in the 200 games of `sim:balance`), so none is asked, and none can gag.
+    // `human` below is the one that meets the open door.
     expect(open.gagged).toBe(0);
     expect(report.meanScore).toBeGreaterThan(SCORE_WITH_COOKING_ONLY);
   });
@@ -88,6 +88,8 @@ describe('the chores of the live salon_kitchen', () => {
     // 200 games (story 9.6's deferred item: the live gag; `sim:balance` asks for it too).
     expect(open.telegraphed).toBeGreaterThan(0);
     expect(open.closed + open.gagged).toBeLessThanOrEqual(open.telegraphed);
+    // It does shut some of the doors it meets: the stations are wired to its setup.
+    expect(open.closed).toBeGreaterThan(0);
     expect(open.gagged).toBeGreaterThan(0);
   }, 120_000);
 

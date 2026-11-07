@@ -2,8 +2,8 @@ import type { FollowFrame } from './followCamera.ts';
 
 // Whether a point of the room is inside the follow camera's frame (story 9.3, D2), as pure maths: no
 // `three`, no DOM. The client decides with it which threats get an off-screen bubble; the `human` bot
-// of story 9.8 will decide with the very same test which threats it may react to, from the frame it
-// rebuilds with `followCamera.ts`.
+// (`bots/botSight.ts`, story 9.8) decides with the very same test which threats it may react to, from
+// the frame it rebuilds with `followCamera.ts`.
 //
 // The frame is the follow's own view at zoom 1 (its centre in the view plane and its half size): the
 // perfect's zoom, lean and turn and the sequence framing are not in it. Screen points are CSS px from

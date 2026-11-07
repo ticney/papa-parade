@@ -18,7 +18,6 @@ function validFile(): PlaytestFile {
       humanLossPct: { min: 10, max: 30 },
       humanMustFailDefs: ['outlet'],
       humanOpenDoorMustGag: true,
-      perfectMaxFails: 0,
       perfectChoresEveryRun: true,
       idleLosesBeforeTimer: true,
     },

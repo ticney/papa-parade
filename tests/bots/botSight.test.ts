@@ -153,6 +153,26 @@ describe('the sight of the human bot', () => {
     expect(sight.seenAt(far[0] as ThreatInstance)).toBe(1000 + 2 * STEP_MS + view().bubbleReadMs);
   });
 
+  it('measures the wait of a late sighting from the telegraph, not from the last transition', () => {
+    const { sight, counters } = newSight();
+    const read = view().bubbleReadMs;
+    const windows = [900, 500, 600, 700];
+    const far = FAR_ANCHORS.slice(0, 4).map((id, i) => threat(id, 1000, windows[i] as number));
+    sight.update(worldOf(1000, SOFA_END, far));
+    const waiting = far[0] as ThreatInstance;
+    expect(sight.seenAt(waiting)).toBeNull();
+    const delayOfTheThree = counters.seenLateDelayMs;
+    expect(delayOfTheThree).toBe(3 * read);
+
+    // The three others are gone; the fourth opened its window at 1600 (its `enteredAt` moved with it).
+    const open = { ...waiting, state: 'windowOpen', enteredAt: asSimMs(1600) } as ThreatInstance;
+    const gone = far.slice(1).map((other) => ({ ...other, state: 'idle' }) as ThreatInstance);
+    sight.update(worldOf(2000, SOFA_END, [open, ...gone]));
+    expect(sight.seenAt(open)).toBe(2000 + read);
+    // It waited from its telegraph at 1000, not from the 1600 of the window opening.
+    expect(counters.seenLateDelayMs - delayOfTheThree).toBe(1000 + read);
+  });
+
   it('counts a threat whose window closed before it was ever seen, and never gives it a sighting', () => {
     const { sight, counters } = newSight();
     const far = FAR_ANCHORS.slice(0, 4).map((id, i) =>
@@ -246,15 +266,20 @@ describe('the sight of the human bot', () => {
   it('follows a retuned frame size (a SetFeel), refitting on its own', () => {
     const { sight } = newSight();
     const far = threat('stove', 1000, 600);
+    sight.update(worldOf(1000, SOFA_END, [far]));
+    // With the normal frame the stove is outside it: a bubble, read later.
+    expect(sight.seenAt(far)).toBe(1000 + view().bubbleReadMs);
+
     const wide = {
       ...camera,
       frameWidthM: camera.frameWidthM * 3,
       frameDepthM: camera.frameDepthM * 3,
     };
-    const world = worldOf(1000, SOFA_END, [far]);
+    const later = threat('dishwasher', 2000, 600);
+    const world = worldOf(2000, SOFA_END, [far, later]);
     (world as { feel: { camera: FollowParams } }).feel.camera = wide;
     sight.update(world);
-    // A frame three times wider holds the whole room: the stove is in it.
-    expect(sight.seenAt(far)).toBe(1000);
+    // A frame three times wider holds the whole room: the dishwasher is in it, seen at its telegraph.
+    expect(sight.seenAt(later)).toBe(2000);
   });
 });

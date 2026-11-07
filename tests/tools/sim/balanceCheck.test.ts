@@ -18,7 +18,6 @@ const TARGETS: BalanceTargets = {
   humanLossPct: { min: 10, max: 30 },
   humanMustFailDefs: ['outlet', 'stairs'],
   humanOpenDoorMustGag: true,
-  perfectMaxFails: 0,
   perfectChoresEveryRun: true,
   idleLosesBeforeTimer: true,
 };
@@ -119,6 +118,21 @@ describe('balanceVerdict', () => {
     }
   });
 
+  it('judges the loss range on the exact share, not on the rounded one', () => {
+    const targets = { ...TARGETS, runs: 3000 };
+    const lost = (mamaHome: number) =>
+      koNames(
+        { ...good(), human: report({ runs: 3000, mamaHome, fails: { outlet: 1 } }) },
+        targets,
+      ).includes('human loses the level');
+    // 299/3000 = 9.967 % rounds to 10.0 on one decimal, and is still under the 10 % minimum.
+    expect(lost(299)).toBe(true);
+    expect(lost(300)).toBe(false);
+    expect(lost(900)).toBe(false);
+    // 901/3000 = 30.033 % rounds to 30.0 and is over the maximum.
+    expect(lost(901)).toBe(true);
+  });
+
   it('goes KO on a human who never fails a threat, or never lets the baby into the dishwasher', () => {
     expect(
       koNames({ ...good(), human: report({ mamaHome: 40, fails: { outlet: 3, stairs: 0 } }) }),
@@ -141,14 +155,6 @@ describe('balanceVerdict', () => {
     ]);
     expect(koNames({ ...good(), perfect: report({ fairnessViolations: 1 }) })).toEqual([
       'perfect never loses and the director is fair',
-    ]);
-  });
-
-  it('allows the perfect bot as many fails as the target says', () => {
-    const reports = { ...good(), perfect: report({ fails: { outlet: 2 } }) };
-    expect(koNames(reports, { ...TARGETS, perfectMaxFails: 2 })).toEqual([]);
-    expect(koNames(reports, { ...TARGETS, perfectMaxFails: 1 })).toEqual([
-      'perfect fails no threat',
     ]);
   });
 
