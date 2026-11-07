@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   hapticPatternOf,
   html,
@@ -76,7 +77,7 @@ async function serveOutletAsFirm(page: Page): Promise<void> {
  * warn that the context is still suspended (not what this spec is about).
  */
 async function openFrozenSilent(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

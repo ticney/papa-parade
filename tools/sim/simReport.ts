@@ -1,3 +1,4 @@
+import type { VisibilityCounters } from '@bots/bot';
 import { NOISE_SOURCE_IDS } from '@content/schemas/feel';
 import {
   type DifficultyTierId,
@@ -186,6 +187,11 @@ export interface RunSummary {
   toiletVisits: number;
   /** The house chores of the run (story 9.4): the beats by quality, the chores finished and what they paid. */
   chores: ChoreCounts;
+  /**
+   * What the `human` bot saw of the run (story 9.8): null for every other bot and in a fixed-camera level. Filled
+   * by the runner from the bot's counters, never by the recorder (it reads no bot).
+   */
+  visibility: VisibilityCounters | null;
   /** The special sequences started (`SequenceStarted`, story 4.4): 0 unless `--sequence` starts one. */
   sequencesStarted: number;
   /** The sequences won (`SequenceEnded{succeeded}`). */
@@ -653,6 +659,7 @@ export function createRunRecorder(
           ),
           open: { ...chores.open },
         },
+        visibility: null,
         sequencesStarted,
         sequencesSucceeded,
         sequencesFailed,
@@ -690,6 +697,45 @@ export function createRunRecorder(
         rows: scored?.rows ?? null,
       };
     },
+  };
+}
+
+/** The `visibility` block of the report (story 9.8). */
+export interface VisibilityReport {
+  telegraphs: number;
+  seenOffscreen: number;
+  cappedMs: number;
+  neverSeen: number;
+  /** Mean `seenAt − enteredAt` over the threats seen after their telegraph, in ms to one decimal; null if none was. */
+  meanSeenDelayMs: number | null;
+}
+
+/** Sums the runs' counters into the report block; null unless every run has some (a `human` game of a follow level). */
+export function summarizeVisibility(runs: readonly RunSummary[]): VisibilityReport | null {
+  if (runs.length === 0) return null;
+  const total: VisibilityCounters = {
+    telegraphs: 0,
+    seenOffscreen: 0,
+    cappedMs: 0,
+    neverSeen: 0,
+    seenLate: 0,
+    seenLateDelayMs: 0,
+  };
+  for (const run of runs) {
+    if (run.visibility === null) return null;
+    total.telegraphs += run.visibility.telegraphs;
+    total.seenOffscreen += run.visibility.seenOffscreen;
+    total.cappedMs += run.visibility.cappedMs;
+    total.neverSeen += run.visibility.neverSeen;
+    total.seenLate += run.visibility.seenLate;
+    total.seenLateDelayMs += run.visibility.seenLateDelayMs;
+  }
+  return {
+    telegraphs: total.telegraphs,
+    seenOffscreen: total.seenOffscreen,
+    cappedMs: total.cappedMs,
+    neverSeen: total.neverSeen,
+    meanSeenDelayMs: total.seenLate === 0 ? null : round(total.seenLateDelayMs / total.seenLate, 1),
   };
 }
 
@@ -840,6 +886,13 @@ export interface SimReport {
     /** The open-door threats of the chores over the runs (story 9.6): telegraphed, closed in time, gagged. */
     open: OpenDoorCounts;
   };
+  /**
+   * What the `human` bot saw of the big room over the runs (story 9.8): the threats telegraphed, the ones first seen
+   * through an off-screen bubble, the time spent waiting for a bubble behind the cap of three, the ones closed before
+   * they were seen, and the mean delay of the ones seen after their telegraph. Null for the other bots, in a
+   * fixed-camera level, and with no run.
+   */
+  visibility: VisibilityReport | null;
   /** The special sequences started, won and lost, over the runs (story 4.4). */
   sequencesStarted: number;
   sequencesSucceeded: number;
@@ -1277,6 +1330,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
       meanObjectsBroken: runs.length === 0 ? 0 : round(choreObjectsBroken / runs.length, 2),
       open: choreOpen,
     },
+    visibility: summarizeVisibility(runs),
     sequencesStarted,
     sequencesSucceeded,
     sequencesFailed,

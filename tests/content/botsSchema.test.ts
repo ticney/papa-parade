@@ -30,7 +30,7 @@ function mutated(path: string, value: unknown) {
 }
 
 // Every numeric key carries its unit, as in the other content files.
-const UNIT_SUFFIX = /(?:Ms|M|PerSec|Pct)$/;
+const UNIT_SUFFIX = /(?:Ms|M|PerSec|Pct|Px)$/;
 
 function numericKeys(node: unknown, path = ''): string[] {
   if (typeof node === 'number') return [path];

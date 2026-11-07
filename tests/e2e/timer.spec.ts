@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { HUD_MAX_DOM_NODES, MS_PER_S, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   CHUNK_STEPS,
   collectProblems,
   html,
@@ -35,7 +36,7 @@ const START_CLOCK = clock(Math.ceil(LEVEL_DURATION_MS / MS_PER_S));
 
 async function openFrozen(page: Page): Promise<void> {
   // No threat: a level nobody plays would wake Mama before its end (the table's props make noise, story 3.5).
-  await page.goto(`/${THREATS_OFF}`);
+  await page.goto(appUrl(`/${THREATS_OFF}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

@@ -7,15 +7,16 @@ import type {
 import {
   HOLD_RING_OUTLINE_PX,
   HOLD_RING_STROKE_PX,
+  THREAT_MARKER_OFFSET_M,
   VERB_MAX_WIDTH_PCT,
   VERB_STACK_GAP_PX,
   VERB_STROKE_PX,
 } from '@shared/constants';
 import { log } from '@shared/log';
+import { threatCloseAt } from '@shared/urgency';
 import { holdEndAt, type ThreatInstance } from '@sim';
 import { type Camera, type Scene, Vector3 } from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { threatCloseAt } from '../../input/urgency.ts';
 import { PAPA_HEIGHT_M } from '../../render/views/papaView.ts';
 import type { Translator } from '../strings.ts';
 import { svgElement } from '../svg.ts';
@@ -44,9 +45,6 @@ import {
   type VerbStack,
 } from './verbLayout.ts';
 import { createBrowserVerbMetrics, type VerbMetrics, verbTopMinPx } from './verbMetrics.ts';
-
-/** An icon floats this far above the top of the body it marks (Papa's cube, the baby's), in metres. */
-const PAPA_MARKER_OFFSET_M = 0.3;
 
 /**
  * The icon point of one threat: where its marker stands and where the hit test aims, in metres.
@@ -316,7 +314,7 @@ export function threatMarkerEntries(
       return {
         threatId: threat.id,
         xM: threat.xM,
-        yM: PAPA_HEIGHT_M + PAPA_MARKER_OFFSET_M,
+        yM: PAPA_HEIGHT_M + THREAT_MARKER_OFFSET_M,
         zM: threat.zM,
         followsPapa: true,
         ...look,
@@ -328,7 +326,7 @@ export function threatMarkerEntries(
       return {
         threatId: threat.id,
         xM: threat.xM,
-        yM: babyBodyRadiusM * 2 + PAPA_MARKER_OFFSET_M,
+        yM: babyBodyRadiusM * 2 + THREAT_MARKER_OFFSET_M,
         zM: threat.zM,
         followsPapa: false,
         followsBaby: true,
@@ -341,7 +339,7 @@ export function threatMarkerEntries(
       return {
         threatId: threat.id,
         xM: threat.xM,
-        yM: babyBodyRadiusM * 2 + PAPA_MARKER_OFFSET_M,
+        yM: babyBodyRadiusM * 2 + THREAT_MARKER_OFFSET_M,
         zM: threat.zM,
         followsPapa: false,
         ...look,

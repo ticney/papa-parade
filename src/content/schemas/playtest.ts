@@ -1,3 +1,4 @@
+import { DIFFICULTY_TIER_IDS, UINT32_RANGE } from '@shared/constants';
 import { z } from 'zod';
 
 // Every key of content/playtest.json lives here: the thresholds `npm run playtest:metrics` judges
@@ -31,6 +32,63 @@ const HumanBotThresholdsSchema = z
   })
   .describe('The thresholds of the human-bot comparison (`npm run sim -- --compare`).');
 
+/**
+ * The indicator « La défaite est possible sans être un mur » (GDD gameplay indicators, story 9.8): what
+ * `npm run sim:balance` demands of the first level's rhythm over simulated games, each bot with the same seeds.
+ */
+const SimulatedTargetsSchema = z
+  .strictObject({
+    runs: z
+      .int()
+      .min(1)
+      .max(10_000)
+      .describe('Games per bot (the GDD says 200 seeds): run i uses seed + i.'),
+    seed: z
+      .int()
+      .min(0)
+      .max(UINT32_RANGE - 1)
+      .describe('The seed of the first game.'),
+    tier: z
+      .enum(DIFFICULTY_TIER_IDS)
+      .describe('The difficulty tier the games are played at (the GDD says Normal).'),
+    humanLossPct: z
+      .strictObject({
+        min: z
+          .number()
+          .min(0)
+          .max(100)
+          .describe('Fewest games the `human` bot may lose, in % (inclusive).'),
+        max: z
+          .number()
+          .min(0)
+          .max(100)
+          .describe('Most games the `human` bot may lose, in % (inclusive).'),
+      })
+      .refine((range) => range.min <= range.max, { message: 'min must not be above max' })
+      .describe(
+        'The share of games, in %, the `human` bot loses (Mama came home early: `endsByReason.mamaHome`): a loss is possible without being a wall.',
+      ),
+    humanMustFailDefs: z
+      .array(z.string().regex(/^[a-z][a-z0-9_]*$/))
+      .describe(
+        'Threat defs the `human` bot must fail at least once over the games (a threat nobody can fail is not a threat): the big room’s new mischiefs. A def the games never met counts as not failed.',
+      ),
+    humanOpenDoorMustGag: z
+      .boolean()
+      .describe(
+        'True: over the games the baby gets into the open dishwasher at least once (`chores.open.gagged` above 0) with the `human` bot.',
+      ),
+    perfectChoresEveryRun: z
+      .boolean()
+      .describe('True: the `perfect` bot finishes every house chore of the level in every game.'),
+    idleLosesBeforeTimer: z
+      .boolean()
+      .describe('True: the `idle` bot loses every game, before the level’s timer runs out.'),
+  })
+  .describe(
+    'The simulated-games targets of the first level (`npm run sim:balance`, part of `npm run ci`).',
+  );
+
 export const PlaytestSchema = z.strictObject({
   panelMinTesters: z
     .int()
@@ -55,10 +113,11 @@ export const PlaytestSchema = z.strictObject({
     'Indicator 5: share of testers (in %) who laugh at least once during a level.',
   ),
   humanBot: HumanBotThresholdsSchema,
+  simulated: SimulatedTargetsSchema,
 });
 
 /** The whole file. */
 export type PlaytestFile = z.infer<typeof PlaytestSchema>;
 
-/** What `playtest:metrics` judges the testers by: the file without the human-bot block, which it does not read. */
-export type PlaytestThresholds = Omit<PlaytestFile, 'humanBot'>;
+/** What `playtest:metrics` judges the testers by: the file without the human-bot and simulated-games blocks, which it does not read. */
+export type PlaytestThresholds = Omit<PlaytestFile, 'humanBot' | 'simulated'>;

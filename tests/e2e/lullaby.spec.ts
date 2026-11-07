@@ -6,6 +6,7 @@ import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { beatTimelineOf } from '../../src/sim/index.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
+  appUrl,
   collectProblems,
   hapticPatternOfCue,
   html,
@@ -348,7 +349,7 @@ test.describe('autoplay', () => {
   test('the perfect bot walks it to the end: outcome succeeded', async ({ page }) => {
     test.setTimeout(120_000);
     const problems = collectProblems(page);
-    await page.goto('/?autoplay=perfect&seed=42&speed=4');
+    await page.goto(appUrl('/?autoplay=perfect&seed=42&speed=4'));
     await waitForTestApi(page);
     // The app goes start → loading → level by itself; the level is up once the world is there.
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level', { timeout: 20_000 });

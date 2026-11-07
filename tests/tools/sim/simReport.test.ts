@@ -1,3 +1,4 @@
+import type { VisibilityCounters } from '@bots/bot';
 import { asSimMs } from '@shared/time';
 import type { SimEvent } from '@sim';
 import { createSim } from '@sim';
@@ -64,6 +65,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     seed,
     worldHash: `hash${seed}`,
     responses: 0,
+    visibility: null,
     gags: 0,
     nearMisses: 0,
     microSleeps: 0,
@@ -1699,5 +1701,69 @@ describe('createRunRecorder › the dishwasher (story 9.6)', () => {
       reason: 'late',
     });
     expect(recorder.finish().chores.open).toEqual({ telegraphed: 3, closed: 2, gagged: 1 });
+  });
+});
+
+describe('summarizeRuns › visibility (story 9.8)', () => {
+  const sight = (patch: Partial<VisibilityCounters>): VisibilityCounters => ({
+    telegraphs: 0,
+    seenOffscreen: 0,
+    cappedMs: 0,
+    neverSeen: 0,
+    seenLate: 0,
+    seenLateDelayMs: 0,
+    ...patch,
+  });
+
+  it('sums the human bot’s counters over the runs, and averages the delay over the threats seen late', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        visibility: sight({
+          telegraphs: 10,
+          seenOffscreen: 2,
+          cappedMs: 150,
+          neverSeen: 1,
+          seenLate: 2,
+          seenLateDelayMs: 200,
+        }),
+      }),
+      run(2, {
+        visibility: sight({
+          telegraphs: 6,
+          seenOffscreen: 1,
+          cappedMs: 0,
+          neverSeen: 0,
+          seenLate: 1,
+          seenLateDelayMs: 130,
+        }),
+      }),
+    ]);
+    expect(report.visibility).toEqual({
+      telegraphs: 16,
+      seenOffscreen: 3,
+      cappedMs: 150,
+      neverSeen: 1,
+      meanSeenDelayMs: 110,
+    });
+  });
+
+  it('has no mean delay when nothing was seen late', () => {
+    const report = summarizeRuns(INPUT, [run(1, { visibility: sight({ telegraphs: 4 }) })]);
+    expect(report.visibility).toEqual({
+      telegraphs: 4,
+      seenOffscreen: 0,
+      cappedMs: 0,
+      neverSeen: 0,
+      meanSeenDelayMs: null,
+    });
+  });
+
+  it('is null for a bot with no sight, in a fixed level, and with no run at all', () => {
+    expect(summarizeRuns(INPUT, [run(1), run(2)]).visibility).toBeNull();
+    expect(summarizeRuns(INPUT, []).visibility).toBeNull();
+    // Mixed runs cannot happen in one batch; a missing block is never read as zeros.
+    expect(
+      summarizeRuns(INPUT, [run(1, { visibility: sight({ telegraphs: 1 }) }), run(2)]).visibility,
+    ).toBeNull();
   });
 });

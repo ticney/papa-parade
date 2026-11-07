@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { DRAW_CALLS_MAX } from '../../src/shared/constants.ts';
-import { collectProblems } from './support/game.ts';
+import { appUrl, collectProblems } from './support/game.ts';
 import {
   ppAdvance,
   ppEvents,
@@ -29,7 +29,7 @@ test.describe('props', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);
@@ -75,7 +75,7 @@ test.describe('props', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto('/?threats=off');
+    await page.goto(appUrl('/?threats=off'));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);

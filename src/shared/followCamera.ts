@@ -8,8 +8,8 @@ import {
 } from './constants.ts';
 
 // The follow camera of the big room (story 9.2), as pure maths: no `three`, no content, no clock but
-// the one passed in. The client moves its `three` camera with it; the `human` bot of story 9.8 will
-// rebuild the same frame from Papa's position and `feel.camera` (bots import `shared`, never `three`).
+// the one passed in. The client moves its `three` camera with it; the `human` bot of story 9.8
+// rebuilds the same frame from Papa's position and `feel.camera` (bots import `shared`, never `three`).
 //
 // Everything happens in the view plane of the iso camera: a world point projects to `u` along the
 // camera's right `(cos yaw, 0, −sin yaw)` and `v` along its up
@@ -48,6 +48,34 @@ export interface FollowBox {
   readonly floorYM?: number;
   readonly centerXM?: number;
   readonly centerZM?: number;
+}
+
+/** The part of a level's geometry the camera box is taken from (a `LevelGeometry` fits). */
+export interface RoomBounds {
+  readonly boundsMinM: readonly [number, number, number];
+  readonly boundsMaxM: readonly [number, number, number];
+}
+
+/** A `FollowBox` with every field set, as `roomOf` returns it (the client's `RoomSize` fits). */
+export type RoomBox = Required<FollowBox>;
+
+/**
+ * The camera box of a level: its bounds, down to the lowest point below the floor (y = 0) if
+ * something such as a stairwell goes there. The one definition for the client's camera and the
+ * `human` bot's frame (story 9.8).
+ */
+export function roomOf(geometry: RoomBounds): RoomBox {
+  const [minX, minY, minZ] = geometry.boundsMinM;
+  const [maxX, maxY, maxZ] = geometry.boundsMaxM;
+  const floorYM = Math.min(0, minY);
+  return {
+    widthM: maxX - minX,
+    depthM: maxZ - minZ,
+    heightM: maxY - floorYM,
+    floorYM,
+    centerXM: (minX + maxX) / 2,
+    centerZM: (minZ + maxZ) / 2,
+  };
 }
 
 /**

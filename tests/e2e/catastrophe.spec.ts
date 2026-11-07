@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { STEP_MS } from '../../src/shared/constants.ts';
 import { mamaReactionsOf } from '../../src/sim/scoring/mamaReactions.ts';
 import {
+  appUrl,
   collectProblems,
   cueCount,
   emulateReducedMotion,
@@ -311,7 +312,7 @@ test.describe('the gauge in the final rush', () => {
     page,
   }) => {
     const rushAtMs = 2000;
-    await page.goto(`/${THREATS_OFF}`);
+    await page.goto(appUrl(`/${THREATS_OFF}`));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);

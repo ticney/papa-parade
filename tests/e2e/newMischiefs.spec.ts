@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { shot, typesOf } from './support/duel.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   OWN_WARNINGS,
@@ -71,7 +72,7 @@ type ThreatView = World['threats'][number];
 
 async function open(page: Page): Promise<void> {
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.goto(`/?level=${LEVEL}`);
+  await page.goto(appUrl(`/?level=${LEVEL}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

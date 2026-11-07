@@ -50,6 +50,7 @@ async function play(seed: number, isQuiet: boolean): Promise<Outcome> {
     releaseDefIds: releaseDefIdsOf(level.threats),
     choreObjectIds: [],
     isChronoRingShown: true,
+    view: null,
     safeSpot: safeSpotOf(geometry),
     settings: createTestBots(),
   });

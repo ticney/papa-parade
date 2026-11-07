@@ -1,4 +1,5 @@
 import { ISO_YAW_DEG, STEP_MS } from '@shared/constants';
+import { roomOf } from '@shared/followCamera';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type RealMs } from '@shared/time';
 import { createSim, type SimEvent, type World } from '@sim';
@@ -33,7 +34,7 @@ import {
   GAG_SLIDE_M,
   GAG_SLIDE_OUT_MS,
 } from './gags.ts';
-import { createLevelScene, eyelidsAmountAt, roomOf, type SceneBodies } from './levelScene.ts';
+import { createLevelScene, eyelidsAmountAt, type SceneBodies } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
 
 const BODIES = {
@@ -130,32 +131,6 @@ function names(scene: { children: Object3D[] }): string[] {
   scene.children.forEach(walk);
   return found;
 }
-
-describe('roomOf', () => {
-  it('takes the box from the bounds, down to what goes below the floor (y = 0)', () => {
-    const geometry = createTestLevelGeometry();
-    geometry.boundsMinM = [-4.2, -0.8, -3.2];
-    geometry.boundsMaxM = [4.9, 2.5, 3];
-    const room = roomOf(geometry);
-    expect(room.widthM).toBeCloseTo(9.1, 9);
-    expect(room.depthM).toBeCloseTo(6.2, 9);
-    expect(room.floorYM).toBe(-0.8);
-    expect(room.heightM).toBeCloseTo(3.3, 9);
-    expect(room.centerXM).toBeCloseTo(0.35, 9);
-    expect(room.centerZM).toBeCloseTo(-0.1, 9);
-  });
-});
-
-describe('roomOf, a level that stays above the floor', () => {
-  it('starts the box at y = 0, not at the lowest visual', () => {
-    const geometry = createTestLevelGeometry();
-    geometry.boundsMinM = [-4, 0.3, -3];
-    geometry.boundsMaxM = [4, 2.5, 3];
-    const room = roomOf(geometry);
-    expect(room.floorYM).toBe(0);
-    expect(room.heightM).toBe(2.5);
-  });
-});
 
 describe('createLevelScene', () => {
   it('removes the collision, navigation, zone and anchor nodes and keeps the visuals; props are drawn by pooled views at world.props poses', () => {

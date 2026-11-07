@@ -1,16 +1,11 @@
-import { asSimMs } from '@shared/time';
-import type { ThreatInstance } from '@sim';
 import { describe, expect, it } from 'vitest';
-import { compareUrgency, isMoreUrgent, threatCloseAt } from './urgency.ts';
+import { asSimMs } from './time.ts';
+import { compareUrgency, isMoreUrgent, type ThreatWindow, threatCloseAt } from './urgency.ts';
 
-function threat(
-  windowOpenAt: number,
-  windowMs: number | null,
-): Pick<ThreatInstance, 'windowOpenAt' | 'responseWindow'> {
+function threat(windowOpenAt: number, windowMs: number | null): ThreatWindow {
   return {
     windowOpenAt: asSimMs(windowOpenAt),
-    responseWindow:
-      windowMs === null ? null : { windowMs, perfectMs: 100, toleranceMs: 30, bufferMs: 100 },
+    responseWindow: windowMs === null ? null : { windowMs },
   };
 }
 

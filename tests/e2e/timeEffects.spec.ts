@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { STEP_MS } from '../../src/shared/constants.ts';
 import { PARRY_RELEASE_AFTER_MS } from '../support/timeEffects.ts';
-import { collectProblems, stepToFirstTelegraph } from './support/game.ts';
+import { appUrl, collectProblems, stepToFirstTelegraph } from './support/game.ts';
 import {
   ppAdvance,
   ppEvents,
@@ -30,7 +30,7 @@ const stepsTo = (fromMs: number, toMs: number): number => Math.ceil((toMs - from
 test.describe('slow-mo on a perfect response', () => {
   test('starts at the judgement, holds, and gives the scale back to its base', async ({ page }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);

@@ -274,8 +274,8 @@ export const LEVEL_PAYLOAD_MAX_BYTES_BY_ID: Readonly<Record<string, number>> = {
   salon_kitchen: 5 * 1024 * 1024,
 };
 
-/** The level the prototype loads, until story 1.10 gives the level JSON its own `id`. */
-export const DEFAULT_LEVEL_ID = 'salon_crawler';
+/** The first level of the game (story 9.8): the one a start with no `?level=`, a production build and `npm run sim` without `--level` play. The old salon stays a level (`?level=salon_crawler`). */
+export const DEFAULT_LEVEL_ID = 'salon_kitchen';
 
 /** How long one flavour line of the loading screen stays up before the next, in real ms. */
 export const LOADING_LINE_INTERVAL_MS = 2000;
@@ -664,6 +664,9 @@ export const THREAT_ICON_COMPACT_PX = 56;
 
 /** ...and on the regular surface, in CSS px. */
 export const THREAT_ICON_REGULAR_PX = 64;
+
+/** A threat icon floats this far above the top of the body it marks (Papa's cube, the baby's), in metres: the client's marker and the `human` bot's frame test (story 9.8) both read it. */
+export const THREAT_MARKER_OFFSET_M = 0.3;
 
 /**
  * The off-screen bubble of a follow level (story 9.3; DESIGN.md › offscreen-bubble, UX-DR30): a paper

@@ -84,6 +84,8 @@ describe('npm run sim', () => {
       const report = join(dir, 'report.json');
       const games = join(dir, 'games');
       const played = run('runSim', [
+        '--level',
+        'salon_crawler',
         '--bot',
         'human',
         '--seed',
@@ -138,6 +140,8 @@ describe('npm run sim --compare (story 3.14)', () => {
     () => {
       const report = join(dir, 'compare.json');
       const done = run('runSim', [
+        '--level',
+        'salon_crawler',
         '--bot',
         'idle',
         '--runs',

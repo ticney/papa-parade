@@ -297,6 +297,7 @@ describe('runSim on the live content', () => {
         releaseDefIds: releaseDefIdsOf(loaded.level.threats),
         choreObjectIds: [],
         isChronoRingShown: true,
+        view: null,
         safeSpot: null,
         settings: loaded.content.bots,
       });

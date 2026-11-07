@@ -12,7 +12,7 @@ import {
   wrapRad,
   YAW_TOLERANCE_RAD,
 } from './support/busyPapa.ts';
-import { html, sceneShot, startLevel, waitFrames } from './support/game.ts';
+import { appUrl, html, sceneShot, startLevel, waitFrames } from './support/game.ts';
 import {
   ppAdvance,
   ppEvents,
@@ -71,7 +71,7 @@ test('the clips follow the sim: Papa walks, the baby crawls, and carrying change
 });
 
 test('the mixers run on the sim clock: a hitstop holds them, and a pause too', async ({ page }) => {
-  await page.goto('/?autoplay=perfect&seed=42&speed=4');
+  await page.goto(appUrl('/?autoplay=perfect&seed=42&speed=4'));
   await waitForTestApi(page);
   await page.evaluate((max) => {
     const samples: [number, number][] = [];
@@ -161,7 +161,7 @@ for (const query of ['', '&level=chambre_night']) {
         warnings.push(message.text());
       }
     });
-    await page.goto(`/?autoplay=human&seed=1&speed=4${query}`);
+    await page.goto(appUrl(`/?autoplay=human&seed=1&speed=4${query}`));
     await waitForTestApi(page);
     const papaClips = new Set<string>();
     const babyClips = new Set<string>();

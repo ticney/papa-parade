@@ -40,6 +40,8 @@ describe('createBot', () => {
   const human = (patch: Partial<BotOptions['human']>): Partial<BotOptions> => ({
     human: { ...createTestBots().human, ...patch },
   });
+  const humanView = (patch: Partial<BotOptions['human']['view']>): Partial<BotOptions> =>
+    human({ view: { ...createTestBots().human.view, ...patch } });
   const readError = (mode: 'withChronoRing' | 'withoutChronoRing', patch: object) =>
     human({ readError: { ...createTestBots().human.readError, [mode]: patch } });
   it.each([
@@ -90,6 +92,19 @@ describe('createBot', () => {
     ['human.backTurnedSdMs', human({ backTurnedSdMs: -1 })],
     ['human.backTurnedSdMs', human({ backTurnedSdMs: Number.NaN })],
     ['human.backTurnedSdMs', human({ backTurnedSdMs: 25_000 })],
+    // The screen the human bot plays a follow level on (story 9.8).
+    ['human.view.widthPx', humanView({ widthPx: 0 })],
+    ['human.view.widthPx', humanView({ widthPx: 843.5 })],
+    ['human.view.widthPx', humanView({ widthPx: 9000 })],
+    ['human.view.heightPx', humanView({ heightPx: -1 })],
+    ['human.view.heightPx', humanView({ heightPx: Number.NaN })],
+    ['human.view must be a landscape screen', humanView({ widthPx: 390, heightPx: 390 })],
+    ['human.view must be a landscape screen', humanView({ widthPx: 390, heightPx: 844 })],
+    ['human.view.hudBottomPx', humanView({ hudBottomPx: -1 })],
+    ['human.view.hudBottomPx', humanView({ hudBottomPx: 55.5 })],
+    ['human.view.bubbleReadMs', humanView({ bubbleReadMs: -1 })],
+    ['human.view.bubbleReadMs', humanView({ bubbleReadMs: Number.NaN })],
+    ['human.view.bubbleReadMs', humanView({ bubbleReadMs: 25_000 })],
     ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: -1 } }],
     ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: Number.NaN } }],
     ['chores.quietMinMs', { chores: { isEnabled: true, quietMinMs: 25_000 } }],
@@ -106,6 +121,8 @@ describe('createBot', () => {
       { missWhileBusyPct: 100 },
       { reactionSdMs: 0, reactionMinMs: 0 },
       { backTurnedSdMs: 0 },
+      { view: { ...createTestBots().human.view, hudBottomPx: 0, bubbleReadMs: 0 } },
+      { view: { ...createTestBots().human.view, widthPx: 391, heightPx: 390 } },
     ]) {
       expect(createBot('human', botSetup(1, human(patch))).ok).toBe(true);
     }

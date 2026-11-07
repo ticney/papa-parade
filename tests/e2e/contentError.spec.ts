@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openGame } from './support/game.ts';
+import { appUrl, openGame } from './support/game.ts';
 
 // Dev server only: the error screen is not part of any build. Vite serves each content file as a
 // JS module (`/content/feel.json?import&raw`), so a broken file is a replaced module.
@@ -13,7 +13,7 @@ test('shows a detailed error screen when a content file is invalid', async ({ pa
     }),
   );
 
-  await page.goto('/');
+  await page.goto(appUrl('/'));
 
   const screen = page.locator('.pp-content-error');
   await expect(screen).toBeVisible();

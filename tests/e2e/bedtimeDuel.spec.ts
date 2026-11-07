@@ -16,6 +16,7 @@ import {
   untilTelegraphed,
 } from './support/duel.ts';
 import {
+  appUrl,
   collectProblems,
   hapticPatternOfCue,
   html,
@@ -311,7 +312,7 @@ test.describe('autoplay', () => {
   test('the perfect bot wins the duel: outcome succeeded', async ({ page }) => {
     test.setTimeout(120_000);
     const problems = collectProblems(page);
-    await page.goto('/?autoplay=perfect&seed=42&speed=4');
+    await page.goto(appUrl('/?autoplay=perfect&seed=42&speed=4'));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level', { timeout: 20_000 });
     await expect.poll(async () => (await ppState(page)) !== null).toBe(true);

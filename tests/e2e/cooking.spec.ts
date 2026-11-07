@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { cueIds, typesOf } from './support/duel.ts';
-import { collectProblems, OWN_WARNINGS, THREATS_OFF, waitFrames } from './support/game.ts';
+import { appUrl, collectProblems, OWN_WARNINGS, THREATS_OFF, waitFrames } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
 import {
   ppAdvance,
@@ -67,7 +67,7 @@ async function expectUnderHudRow(page: Page, verb: ReturnType<Page['locator']>):
 
 async function open(page: Page): Promise<void> {
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.goto(`/${THREATS_OFF}&level=${LEVEL}`);
+  await page.goto(appUrl(`/${THREATS_OFF}&level=${LEVEL}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

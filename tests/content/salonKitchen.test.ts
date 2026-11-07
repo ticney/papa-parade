@@ -4,7 +4,7 @@ import { parseContentFile } from '@content/parseContentFile';
 import { FeelSchema } from '@content/schemas/feel';
 import { LevelSchema } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
-import { STEP_MS } from '@shared/constants';
+import { DEFAULT_LEVEL_ID, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { createSim } from '@sim';
 import { describe, expect, it } from 'vitest';
@@ -178,11 +178,15 @@ describe('the five new mischiefs of the big salon (story 9.7)', () => {
   if (!parsed.ok) throw new Error(`the live level is invalid: ${JSON.stringify(parsed.error)}`);
   const level = parsed.value;
 
-  /** Where each is planned: the wave that enters it (0 or 1) and its anchor. */
+  /**
+   * Where each is planned: the wave that enters it (0 or 1) and its anchor. Story 9.8 moved the cabinet and the
+   * plant to the second wave when it balanced the level (a first wave of four leaves `perfect` the lulls to
+   * finish both chores); where a threat enters is the rhythm Geo tunes, the anchor is what the room fixes.
+   */
   const PLAN = [
     { def: 'tablecloth_pull', anchor: 'dining_table', wave: 0 },
-    { def: 'low_cabinet_open', anchor: 'low_cabinet', wave: 0 },
-    { def: 'plant_dig', anchor: 'plant', wave: 0 },
+    { def: 'low_cabinet_open', anchor: 'low_cabinet', wave: 1 },
+    { def: 'plant_dig', anchor: 'plant', wave: 1 },
     { def: 'bin_rummage', anchor: 'bin', wave: 1 },
     { def: 'papa_mug_low', anchor: 'papa_mug', wave: 1 },
   ] as const;
@@ -344,5 +348,88 @@ describe('the live salon_kitchen dishwasher (story 9.6)', () => {
     } finally {
       sim.dispose();
     }
+  });
+});
+
+describe('the live salon_kitchen as a complete level (story 9.8, AC 3)', () => {
+  async function loaded() {
+    const result = await loadSimLevel(
+      fileURLToPath(new URL('../../content', import.meta.url)),
+      'salon_kitchen',
+    );
+    if (!result.ok) throw new Error(result.error);
+    return result.value;
+  }
+
+  it('is the game’s first level, with the follow camera, the nap variant and the room’s glide', async () => {
+    const { level, content } = await loaded();
+    expect(DEFAULT_LEVEL_ID).toBe('salon_kitchen');
+    expect(level.level.camera).toBe('follow');
+    expect(level.level.variant).toBe('nap');
+    expect(content.feel.movement.glideMaxMs).toBe(900);
+  });
+
+  it('shapes three waves by FR31: one threat at a time, then two, then three, the phone in the last', async () => {
+    const { level } = await loaded();
+    const { waves } = level.level;
+    expect(waves.map((wave) => wave.maxSimultaneous)).toEqual([1, 2, 3]);
+    expect(waves[2]?.disruptions).toContainEqual(expect.objectContaining({ def: 'phone' }));
+    expect(waves[0]?.disruptions ?? []).toEqual([]);
+    expect(waves[1]?.disruptions ?? []).toEqual([]);
+    // The waves keep growing: each starts after the one before it, the first at the start.
+    const starts = waves.map((wave) => wave.fromMs);
+    expect(starts).toEqual([...starts].sort((a, b) => a - b));
+    expect(starts[0]).toBe(0);
+  });
+
+  it('plans every wave threat of its threat files once: the salon’s and the six new mischiefs', async () => {
+    const { level } = await loaded();
+    const planned = level.level.waves.flatMap((wave) => wave.threats.map((threat) => threat.def));
+    expect(new Set(planned).size).toBe(planned.length);
+    for (const defId of [
+      'outlet',
+      'stairs',
+      'coffee_table_object',
+      'silence_mischief',
+      'dishwasher_open',
+      'tablecloth_pull',
+      'low_cabinet_open',
+      'plant_dig',
+      'bin_rummage',
+      'papa_mug_low',
+    ]) {
+      expect(planned, defId).toContain(defId);
+    }
+    // A threat def of the level that no wave plans is one that something else spawns: the micro-sleep, the
+    // cry in the arms, the pot of the cooking, the sequences’ threats.
+    const spawnedByOthers = new Set<string | undefined>([
+      level.level.gauges?.fatigue?.microSleepDef,
+      level.level.carry?.armsCryDef,
+      ...(level.chores ?? []).map((chore) => chore.abandonedThreat?.def),
+      ...Object.values(level.sequences).flatMap((sequence) =>
+        sequence.steps.flatMap((step) => {
+          if (step.kind === 'duel') return [step.threatDef];
+          if (step.kind === 'stealth') return [step.falseAlarmDef, step.realWakeDef];
+          return [];
+        }),
+      ),
+    ]);
+    for (const defId of Object.keys(level.threats)) {
+      expect(planned.includes(defId) || spawnedByOthers.has(defId), defId).toBe(true);
+    }
+  });
+
+  it('has both chores, the pot on the stove, the five sequences with no cycle, and the final rush', async () => {
+    const { level } = await loaded();
+    expect((level.level.chores ?? []).map((chore) => chore.def)).toEqual([
+      'cooking',
+      'unload_dishwasher',
+    ]);
+    expect(level.chores?.[0]?.abandonedThreat?.def).toBe('pot_on_stove');
+    expect([...level.level.sequences].sort()).toEqual(
+      ['bedtime_duel', 'bomb_drop', 'lullaby_walk', 'stay_awake', 'stealth_exit'].sort(),
+    );
+    expect(level.level.cycle).toBeUndefined();
+    expect(level.level.finalRush).toBeDefined();
   });
 });

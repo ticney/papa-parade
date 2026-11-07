@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { DEBUG_TIMELINE_ROWS, RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   liveFeedback,
@@ -59,7 +60,7 @@ const CELL_VERTICES = 6;
 
 /** Opens the app with the test API and starts the level frozen at sim time 0. */
 async function openFrozenLevel(page: Page, seed = SEED): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, seed);
@@ -228,7 +229,7 @@ test.describe('the debug overlay › opening', () => {
 test.describe('the debug overlay › performance and views', () => {
   test('shows FPS, the loop timings, draw calls and triangles while open', async ({ page }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await page.keyboard.press('F1');
@@ -390,7 +391,7 @@ test.describe('the debug overlay › the timing timeline', () => {
 test.describe('the debug overlay › time controls and cheats', () => {
   test('pauses, steps and resumes through the level session', async ({ page }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await page.keyboard.press('F1');
@@ -415,7 +416,7 @@ test.describe('the debug overlay › time controls and cheats', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await page.keyboard.press('F1');
@@ -614,7 +615,7 @@ test.describe('the debug overlay › time controls and cheats', () => {
   test('a skip leaves nothing frozen: the next level runs', async ({ page }) => {
     test.setTimeout(SKIP_TIMEOUT_MS + RESUME_COUNTDOWN_MS + 30_000);
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await page.keyboard.press('F1');

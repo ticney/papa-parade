@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { HUD_MAX_DOM_NODES } from '../../src/shared/constants.ts';
 import { typesOf } from './support/duel.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   OWN_WARNINGS,
@@ -47,7 +48,7 @@ type ThreatView = Awaited<ReturnType<typeof ppWorld>>['threats'][number];
 
 async function openFrozen(page: Page, width: number, height: number): Promise<void> {
   await page.setViewportSize({ width, height });
-  await page.goto(`/?level=${LEVEL}`);
+  await page.goto(appUrl(`/?level=${LEVEL}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

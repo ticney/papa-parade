@@ -6,6 +6,7 @@ import { JournalSchema } from '../../src/content/schemas/journal.ts';
 import { STEP_MS } from '../../src/shared/constants.ts';
 import { advanceTo, cueIds, shot, typesOf } from './support/duel.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   OWN_WARNINGS,
@@ -57,7 +58,7 @@ const geometry = JSON.parse(readFileSync(`content/levels/${LEVEL}.geometry.json`
 const CRIB = geometry.zones.find((zone) => zone.kind === 'safe')?.centerM ?? [0, 0, 0];
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto(`/${QUERY}`);
+  await page.goto(appUrl(`/${QUERY}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -78,7 +79,7 @@ async function stepUntil(
 }
 
 test.describe('Chambre de nuit', () => {
-  test('?level= shows the room; a mistyped id plays the salon and says so', async ({
+  test('?level= shows the room; a mistyped id plays the first level and says so', async ({
     page,
   }, testInfo) => {
     const problems = collectProblems(page, { allowedErrors: OWN_WARNINGS });
@@ -101,14 +102,16 @@ test.describe('Chambre de nuit', () => {
     });
     await startLevel(page, '?level=chambre_nuit');
     await expect.poll(() => warnings.join()).toContain('ignoring ?level=chambre_nuit');
-    await expect(html(page)).toHaveAttribute('data-pp-level', 'salon_crawler');
+    // The game's first level (story 9.8: the big room), not the old salon: a mistyped link plays it. The id is
+    // typed here on purpose: the constant would pass whatever it holds.
+    await expect(html(page)).toHaveAttribute('data-pp-level', 'salon_kitchen');
     await expect(html(page)).not.toHaveAttribute('data-pp-app', 'error');
   });
 
   test('the perfect bot chains the five sequences and the Result says so', async ({ page }) => {
     test.setTimeout(AUTOPLAY_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page, { allowedErrors: OWN_WARNINGS });
-    await page.goto(`/${QUERY}&autoplay=perfect&seed=${SEED}&speed=4&debug=1`);
+    await page.goto(appUrl(`/${QUERY}&autoplay=perfect&seed=${SEED}&speed=4&debug=1`));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-end-reason', 'cycleDone', {
       timeout: AUTOPLAY_TIMEOUT_MS,
@@ -143,7 +146,7 @@ test.describe('Chambre de nuit', () => {
 
   test('the idle bot never gets there, and the Result shows no such line', async ({ page }) => {
     test.setTimeout(AUTOPLAY_TIMEOUT_MS + 30_000);
-    await page.goto(`/${QUERY}&autoplay=idle&seed=${SEED}&speed=4&debug=1`);
+    await page.goto(appUrl(`/${QUERY}&autoplay=idle&seed=${SEED}&speed=4&debug=1`));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
       timeout: AUTOPLAY_TIMEOUT_MS,
@@ -342,7 +345,7 @@ test.describe('Chambre de nuit', () => {
         });
       });
     }
-    await page.goto(`/${QUERY}&autoplay=idle&seed=${SEED}&speed=4&debug=1`);
+    await page.goto(appUrl(`/${QUERY}&autoplay=idle&seed=${SEED}&speed=4&debug=1`));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
       timeout: AUTOPLAY_TIMEOUT_MS,

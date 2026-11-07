@@ -30,6 +30,7 @@ describe('the phone of the live salon_crawler, with the idle bot', () => {
       releaseDefIds: [],
       choreObjectIds: [],
       isChronoRingShown: true,
+      view: null,
       safeSpot: null,
       settings: content.bots,
     });

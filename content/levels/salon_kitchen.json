@@ -7,25 +7,25 @@
     {
       "fromMs": 0,
       "maxSimultaneous": 1,
-      "gapMinMs": 4000,
-      "gapMaxMs": 7000,
+      "gapMinMs": 4500,
+      "gapMaxMs": 7500,
       "lullMs": 3000,
       "threats": [
         { "def": "outlet", "anchor": "outlet_01" },
         { "def": "stairs", "anchor": "stairs_top" },
         { "def": "dishwasher_open", "anchor": "dishwasher" },
-        { "def": "tablecloth_pull", "anchor": "dining_table" },
-        { "def": "low_cabinet_open", "anchor": "low_cabinet" },
-        { "def": "plant_dig", "anchor": "plant" }
+        { "def": "tablecloth_pull", "anchor": "dining_table" }
       ]
     },
     {
-      "fromMs": 60000,
+      "fromMs": 75000,
       "maxSimultaneous": 2,
-      "gapMinMs": 1000,
-      "gapMaxMs": 3000,
+      "gapMinMs": 800,
+      "gapMaxMs": 2500,
       "lullMs": 3000,
       "threats": [
+        { "def": "low_cabinet_open", "anchor": "low_cabinet" },
+        { "def": "plant_dig", "anchor": "plant" },
         { "def": "coffee_table_object", "anchor": "coffee_table" },
         { "def": "silence_mischief", "anchor": "behind_sofa" },
         { "def": "bin_rummage", "anchor": "bin" },
@@ -35,8 +35,8 @@
     {
       "fromMs": 120000,
       "maxSimultaneous": 3,
-      "gapMinMs": 500,
-      "gapMaxMs": 2000,
+      "gapMinMs": 1000,
+      "gapMaxMs": 3000,
       "lullMs": 3000,
       "threats": [],
       "disruptions": [{ "def": "phone", "object": "phone", "atMs": 125000 }]

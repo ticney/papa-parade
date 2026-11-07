@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { hashJson } from '../../src/shared/hash.ts';
 import {
+  appUrl,
   collectProblems,
   FIRST_TELEGRAPH_MAX_MS,
   FIRST_WAVE_RESPONSE_MAX_MS,
@@ -44,7 +45,7 @@ test.describe('autoplay', () => {
   }) => {
     const problems = collectProblems(page);
     await recordMirrorWrites(page, ['data-pp-app']);
-    await page.goto(AUTOPLAY);
+    await page.goto(appUrl(AUTOPLAY));
     await waitForTestApi(page);
 
     await expect
@@ -66,7 +67,7 @@ test.describe('autoplay', () => {
   test("is the same game as the headless one: a frozen frame has the CLI's world hash for its sim time", async ({
     page,
   }) => {
-    await page.goto(AUTOPLAY);
+    await page.goto(appUrl(AUTOPLAY));
     await waitForTestApi(page);
     await expect
       .poll(async () => (await ppEvents(page)).some(isGood), {
@@ -82,6 +83,9 @@ test.describe('autoplay', () => {
       [
         'tsx',
         'tools/sim/runSim.ts',
+        // The browser plays the test room (`appUrl`), not the CLI's default, the first level (story 9.8).
+        '--level',
+        'salon_crawler',
         '--bot',
         'perfect',
         '--seed',
@@ -102,7 +106,7 @@ test.describe('autoplay', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto(AUTOPLAY);
+    await page.goto(appUrl(AUTOPLAY));
     await waitForTestApi(page);
     // The autoplay level is loading: `loadLevel` would be ignored. Its countdown has not ended yet,
     // so nothing has been played when the freeze lands.
@@ -139,7 +143,7 @@ test.describe('autoplay', () => {
     page.on('console', (message) => {
       if (message.type() === 'warning') warnings.push(message.text());
     });
-    await page.goto('/?autoplay=nobody');
+    await page.goto(appUrl('/?autoplay=nobody'));
     await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
     await waitFrames(page, 30);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
@@ -157,7 +161,7 @@ test.describe('autoplay', () => {
     page.on('console', (message) => {
       if (message.type() === 'warning') warnings.push(message.text());
     });
-    await page.goto('/?autoplay=idle&seed=abc&speed=99');
+    await page.goto(appUrl('/?autoplay=idle&seed=abc&speed=99'));
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level', {
       timeout: OVERRUN_MARGIN_MS * 3,
     });

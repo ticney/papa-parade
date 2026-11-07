@@ -15,7 +15,7 @@ Une fiche par testeur. Un testeur est un **pseudonyme** que tu choisis (`T1`, `T
 
 ## La grille
 
-Les menaces du prototype (`threatId`) : `outlet`, `stairs`, `coffee_table_object`, `silence_mischief`, `papa_microsleep`.
+Les menaces du prototype (`threatId`) : `outlet`, `stairs`, `coffee_table_object`, `silence_mischief`, `papa_microsleep`, et, dans le grand salon (le premier niveau depuis la story 9.8) : `dishwasher_open`, `tablecloth_pull`, `low_cabinet_open`, `plant_dig`, `bin_rummage`, `papa_mug_low`, `pot_on_stove` (la casserole oubliée sur le feu). Ses deux tâches de la maison, à noter comme une menace chacune (« a compris qu'il fallait la faire » : O/N) : `cooking` (la cuisine, au fourneau) et `unload_dishwasher` (vider le lave-vaisselle).
 
 ### Une ligne par menace rencontrée
 

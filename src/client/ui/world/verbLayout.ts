@@ -1,5 +1,5 @@
 import { VERB_MIN_FONT_PX } from '@shared/constants';
-import { compareUrgency } from '../../input/urgency.ts';
+import { compareUrgency } from '@shared/urgency';
 
 // The pure half of the verb label (story 2.2): how big a verb is, and where it goes when the verbs of
 // several threats would overlap. No DOM, no camera, no allocation after `createVerbStack`.

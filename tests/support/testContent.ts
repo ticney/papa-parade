@@ -169,6 +169,7 @@ export function createTestBots(): BotSettings {
       jitterSdMs: 60,
       missWhileBusyPct: 0,
       backTurnedSdMs: 150,
+      view: { widthPx: 844, heightPx: 390, hudBottomPx: 56, bubbleReadMs: 100 },
     },
     random: { actionsPerSec: 2, floorReachM: 3, maxHoldMs: 800 },
   };

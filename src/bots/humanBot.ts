@@ -4,6 +4,8 @@ import { asSimMs } from '@shared/time';
 import { isPapaBusy, type SimCommand, type ThreatInstance, type World } from '@sim';
 import type { Bot, BotResponse, BotSetup } from './bot.ts';
 import { botSeed } from './botSeed.ts';
+import { createSight } from './botSight.ts';
+import { createVisibilityCounters } from './botView.ts';
 import { createCommandScheduler } from './commandScheduler.ts';
 import { nextGaussian } from './gaussian.ts';
 import {
@@ -73,6 +75,19 @@ const FETCH_RETRY_MS = 1000;
  * is aimed at with `backTurnedSdMs × N(0, 1)` more on top of the aim: a spread, so that the cost grows smoothly
  * with the value (a delay on the reaction floor would only bind past the window's centre and be a cliff).
  *
+ * **What it sees (story 9.8).** In a level with a follow camera (`setup.view` is not null) it does not react
+ * to a threat before a player could see it. It rebuilds the client's frame from Papa's position and
+ * `world.feel.camera` (`botSight.ts`) and asks the client's question of each active threat: is its icon in
+ * the frame, or, outside it, among the three most urgent such threats, which have an off-screen bubble? The
+ * first step it is seen (`seenAt`) replaces the telegraph in everything above: the reaction floor is
+ * `seenAt + reaction` (a threat first seen through a bubble also waits `view.bubbleReadMs` to be read), the
+ * `missWhileBusyPct` decision is taken at the step it is first seen (whatever a bubble's reading adds to
+ * `seenAt`). A `wait` response, a reaction to the signal, starts from the later of the window opening and
+ * `seenAt`. A threat closed before it was seen is never answered (it gags). It adds no draw and removes none: the same draws, in the same order, later. In a level with a fixed
+ * camera (`view` is null) `seenAt` is the telegraph, and it plays exactly as before. The silence's find and
+ * the chore beats keep their own rules (the `…` bubble shows when a silence starts; the station is in the
+ * frame while Papa works there).
+ *
  * The order of the draws, which AC 6 of story 3.14 pins on the frozen settings: the attention (only when busy
  * and `missWhileBusyPct` is above 0), then the reaction (only when `reactionSdMs` is above 0), then the aim,
  * then the back-turned error (only while Papa is in `chore` and `backTurnedSdMs` is above 0).
@@ -86,6 +101,11 @@ export function createHumanBot(setup: BotSetup): Bot {
     ? readError.withChronoRing
     : readError.withoutChronoRing;
   const rng = createRng(botSeed(setup.seed));
+  // The sight (story 9.8): null in a fixed-camera level, where every active threat is seen at its telegraph.
+  const sight =
+    setup.view === null
+      ? null
+      : createSight(setup.view, setup.visibilityCounters ?? createVisibilityCounters());
   const scheduler = createCommandScheduler();
   const cycles = createCycleMemory();
   const silences = createSilenceMemory();
@@ -156,6 +176,7 @@ export function createHumanBot(setup: BotSetup): Bot {
     id: 'human',
     act(world: Readonly<World>, out: SimCommand[]) {
       const now = world.time.sim;
+      sight?.update(world);
       const { beat } = world.sequence;
       if (beatTap !== null && beat.nextBeatAt !== beatTap.beatAt) beatTap = null;
       if (beat.isRunning && beat.nextBeatAt !== null && beat.nextBeatAt !== lastBeatAt) {
@@ -213,6 +234,10 @@ export function createHumanBot(setup: BotSetup): Bot {
         if (!isPressable(threat)) continue;
         const response = responseOf(setup.responses, threat.defId);
         if (response === undefined) continue;
+        // When it saw this cycle (story 9.8): the telegraph in a fixed-camera level, the first step it was in
+        // the frame or had a bubble in a follow one. Not seen yet: nothing is decided, nothing drawn.
+        const seenAt = sight === null ? threat.enteredAt : sight.seenAt(threat);
+        if (seenAt === null) continue;
         // Seen for the first time in its cycle: busy or not, missed or not. It is decided even while a
         // Firmness is held (the answer waits for the finger, as before), so before the `continue` below.
         if (isMissed(world, threat, now)) continue;
@@ -223,7 +248,7 @@ export function createHumanBot(setup: BotSetup): Bot {
           // and lets go around the end of the window, `aimOffsetMs + jitterSdMs × N(0, 1)` away: one draw,
           // so it sometimes lets go too early and gasps.
           if (breaths.isNew(threat) && threat.responseWindow !== null) {
-            const holdAt = Math.max(Math.round(threat.enteredAt + drawReactionMs()), now);
+            const holdAt = Math.max(Math.round(seenAt + drawReactionMs()), now);
             const endAt = threat.windowOpenAt + threat.responseWindow.windowMs;
             const releaseAt = aimOf(response, endAt);
             scheduler.schedule({ type: 'HoldAnywhere', t: asSimMs(holdAt) });
@@ -243,7 +268,7 @@ export function createHumanBot(setup: BotSetup): Bot {
           // The bomb drop (story 4.8): it aims at what is visible (the lowering), so it needs no signal.
           // It presses a reaction after the telegraph and lets go around the centre of the window, with
           // the error of a ring: one aim draw, like the other responses.
-          const pressAt = Math.max(Math.round(threat.enteredAt + drawReactionMs()), now);
+          const pressAt = Math.max(Math.round(seenAt + drawReactionMs()), now);
           const aim = aimOf(response, centreOf(threat));
           scheduleDrop(scheduler, firmHold, threat, pressAt, Math.round(aim));
           continue;
@@ -251,7 +276,11 @@ export function createHumanBot(setup: BotSetup): Bot {
         if (response === 'wait') {
           // A reaction to the signal, not an aim at the centre: the jitter is on the reaction, so
           // it can be late. One draw, like the other responses.
-          const reactionAt = aimOf(response, threat.windowOpenAt + drawReactionMs());
+          // In a follow level, a signal seen late (a bubble, or the frame reached mid-window) is reacted to
+          // from the step it was seen; with a fixed camera it is the window opening, as before.
+          const signalAt =
+            sight === null ? threat.windowOpenAt : Math.max(threat.windowOpenAt, seenAt);
+          const reactionAt = aimOf(response, signalAt + drawReactionMs());
           const pressAt = Math.max(Math.round(reactionAt), now);
           schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);
           continue;
@@ -265,7 +294,7 @@ export function createHumanBot(setup: BotSetup): Bot {
             ? backTurnedSdMs * nextGaussian(rng)
             : 0;
         const aim = aimOf(response, centreOf(threat)) + backTurnedErrorMs;
-        const reacted = threat.enteredAt + reactionMs;
+        const reacted = seenAt + reactionMs;
         // `now` is a floor too: a command never goes into the past.
         const pressAt = Math.max(Math.round(Math.max(reacted, aim)), now);
         schedulePress(scheduler, firmHold, threat, response, pressAt, setup.settings.tapMs);

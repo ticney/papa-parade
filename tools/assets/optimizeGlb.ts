@@ -2,9 +2,9 @@ import { spawn } from 'node:child_process';
 import { readFile, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { DEFAULT_LEVEL_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { parseGlb } from './glb.ts';
+import { levelIdArg } from './levelIdArg.ts';
 import { glbPath, ROOT } from './paths.ts';
 
 const GLTFPACK_CLI = join(ROOT, 'node_modules', 'gltfpack', 'cli.js');
@@ -41,7 +41,13 @@ export function runGltfpack(args: string[]): Promise<{ code: number | null; outp
 }
 
 async function main(): Promise<void> {
-  const id = process.argv[2] ?? DEFAULT_LEVEL_ID;
+  const parsedId = levelIdArg(process.argv.slice(2), 'assets:optimize');
+  if (!parsedId.ok) {
+    log.error('assets', parsedId.error);
+    process.exitCode = 1;
+    return;
+  }
+  const id = parsedId.value;
   const target = glbPath(id);
   const bytes = await readFile(target).catch((cause: unknown) => {
     log.error('assets', `cannot read ${target}: run \`npm run assets:export\` first`, cause);
