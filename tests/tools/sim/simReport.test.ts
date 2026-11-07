@@ -122,6 +122,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     finalRushes: 0,
     propsTidied: 0,
     frozenNearMisses: 0,
+    lookParts: 0,
     fairnessViolations: 0,
     stretchedTelegraphs: 0,
     stretchSumMs: 0,
@@ -528,6 +529,18 @@ describe('summarizeRuns', () => {
     expect(summarizeRuns(INPUT, []).frozenNearMisses).toBe(0);
   });
 
+  it('adds the parts of Papa’s look up, with the mean per run (story 3.7)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, { lookParts: 3 }),
+      run(6, { lookParts: 0 }),
+      run(7, { lookParts: 1 }),
+    ]);
+    expect(report.lookParts).toBe(4);
+    expect(report.meanLookPartsPerRun).toBe(1.33);
+    expect(summarizeRuns(INPUT, []).lookParts).toBe(0);
+    expect(summarizeRuns(INPUT, []).meanLookPartsPerRun).toBe(0);
+  });
+
   it('adds the micro-sleeps and the coffees up, and counts the runs where Papa fell asleep', () => {
     const report = summarizeRuns(INPUT, [
       run(5, { microSleeps: 3, coffees: 1, asleepGags: 2 }),
@@ -874,6 +887,9 @@ describe('createRunRecorder', () => {
     recorder.onEvent({ type: 'NearMiss', t: asSimMs(0), threatId, gag: 'stairs_slide' });
     // The photo's near miss is counted on its own, never as one of play (story 3.6).
     recorder.onEvent({ type: 'NearMissFrozen', t: asSimMs(0), threatId, gag: 'stairs_slide' });
+    // Two parts of the look, one event each (story 3.7).
+    recorder.onEvent({ type: 'PapaLookChanged', t: asSimMs(0), part: 'hairOnEnd', threatId });
+    recorder.onEvent({ type: 'PapaLookChanged', t: asSimMs(0), part: 'mashOnCheek', threatId });
     const summary = recorder.finish();
     expect(summary).toMatchObject({
       seed: 1,
@@ -881,6 +897,7 @@ describe('createRunRecorder', () => {
       gags: 1,
       nearMisses: 1,
       frozenNearMisses: 1,
+      lookParts: 2,
       commands: 0,
       byGag: { outlet_hair: 1 },
     });

@@ -1,17 +1,23 @@
 import type { ResultScreenTimings } from '@content/schemas/feedback';
-import { COUNT_UP_FRAME_MS, JOURNAL_COPY_TIMEOUT_MS, STAR_COUNT_MAX } from '@shared/constants';
+import {
+  COUNT_UP_FRAME_MS,
+  JOURNAL_COPY_TIMEOUT_MS,
+  type MamaReactionId,
+  STAR_COUNT_MAX,
+} from '@shared/constants';
 import { log } from '@shared/log';
-import type { LevelEndReason, MamaScore } from '@sim';
+import type { LevelEndReason, MamaReaction, MamaScore } from '@sim';
 import type { OverlayScreen } from '../overlayScreen.ts';
 import { bindPressButton } from '../pressButton.ts';
 import { formatString, type Translator } from '../strings.ts';
 import { svgElement } from '../svg.ts';
 
 /**
- * Where the sequence is: the end photo drops in and holds (story 3.6, only with a photo), the rows
- * count up, then the stars stamp (the lost ones last), then the buttons are up.
+ * Where the sequence is: the end photo drops in and holds (story 3.6, only with a photo), Mama
+ * reacts (story 3.7), the rows count up, then the stars stamp (the lost ones last), then the buttons
+ * are up.
  */
-export type ResultPhase = 'photo' | 'rows' | 'stars' | 'actions';
+export type ResultPhase = 'photo' | 'mama' | 'rows' | 'stars' | 'actions';
 
 /**
  * The end photo as the screen gets it (story 3.6): the 2D canvas boot took at `LevelScored`, which
@@ -69,12 +75,20 @@ export interface ResultScreenOptions {
    * its sequence starts at `rows`, exactly as before the photo existed.
    */
   photo: ResultPhoto | null;
+  /**
+   * Mama's reactions to the game, in the order they play (`mamaReactionsOf`, story 3.7): each shows its
+   * line in the bubble, its value, her face and her animation for `reactionHoldMs`. Boot always passes
+   * at least one; an empty list simply plays no `mama` phase.
+   */
+  reactions: readonly MamaReaction[];
   scheduler: ResultScheduler;
   /** Real ms, for the count-up. */
   now(): number;
   keyTarget: ResultKeyTarget;
   /** The photo dropped in, once, when the `photo` phase starts (never on a rebuild, nor with no photo). */
   onPhoto(): void;
+  /** One of Mama's reactions comes up, once each, in order (never on a rebuild, nor after a skip; story 3.7). */
+  onMamaReaction(reaction: MamaReactionId): void;
   /** A star is stamped; `isLast` for the last earned one. Never called for a skipped or done star. */
   onStar(isLast: boolean): void;
   /** The header of a woken Mama comes up, once, when the rows start (never on a rebuild or a skip). */
@@ -132,6 +146,57 @@ const CHIP_ICONS: Readonly<Record<RowKind, readonly [string, Record<string, stri
   ],
 };
 
+type SvgPart = readonly [string, Record<string, string>];
+
+/**
+ * The provisional 2D Mama of the reactions (story 3.7, D5), after the mockup's `#mama-sigh` and `#mama-woke`:
+ * a head, hair and a dress in a 60 x 100 box, drawn in tokens only (the classes colour them), with one
+ * face and one pose per reaction. E7 replaces her with a model.
+ */
+const MAMA_VIEW_BOX = '0 0 60 100';
+const MAMA_DRAWINGS: Readonly<Record<MamaReactionId, readonly SvgPart[]>> = {
+  // Eyes shut in two arches, an open smile, hands up at her sides.
+  laugh: [
+    ['path', { d: 'M17 28q0 -18 13 -18q13 0 13 18z', class: 'pp-mama-hair' }],
+    ['path', { d: 'M20 46h20l4 48h-28z', class: 'pp-mama-dress' }],
+    ['path', { d: 'M20 50l-9 -7M40 50l9 -7', class: 'pp-mama-line' }],
+    ['circle', { cx: '30', cy: '30', r: '12', class: 'pp-mama-skin' }],
+    [
+      'path',
+      { d: 'M18 28q2 -16 12 -16q10 0 12 16q-6 -6 -12 -6q-6 0 -12 6z', class: 'pp-mama-hair' },
+    ],
+    ['path', { d: 'M22 30q3 -4 6 0M32 30q3 -4 6 0', class: 'pp-mama-line' }],
+    ['path', { d: 'M23 36q7 9 14 0z', class: 'pp-mama-ink' }],
+  ],
+  // Flat eyes and mouth, a head that hangs a little, arms down: the mockup's `#mama-sigh`.
+  sigh: [
+    ['path', { d: 'M17 32q0 -18 13 -18q13 0 13 18z', class: 'pp-mama-hair' }],
+    ['path', { d: 'M20 48h20l4 46h-28z', class: 'pp-mama-dress' }],
+    ['path', { d: 'M20 52l-8 22M40 52l8 22', class: 'pp-mama-line' }],
+    ['circle', { cx: '30', cy: '34', r: '12', class: 'pp-mama-skin' }],
+    [
+      'path',
+      { d: 'M18 32q2 -16 12 -16q10 0 12 16q-6 -6 -12 -6q-6 0 -12 6z', class: 'pp-mama-hair' },
+    ],
+    ['path', { d: 'M22 34h6M32 34h6M26 41h8', class: 'pp-mama-line' }],
+  ],
+  // Hair up, round eyes and mouth, the three marks of the mockup's `#mama-woke`.
+  scream: [
+    ['path', { d: 'M17 30l-5 -12l9 6l3 -14l6 12l6 -12l3 14l9 -6l-5 12z', class: 'pp-mama-ink' }],
+    ['path', { d: 'M20 46h20l4 48h-28z', class: 'pp-mama-dress' }],
+    ['path', { d: 'M20 50l-10 -10M40 50l10 -10', class: 'pp-mama-line' }],
+    ['circle', { cx: '30', cy: '32', r: '12', class: 'pp-mama-skin' }],
+    [
+      'path',
+      { d: 'M18 30q2 -14 12 -14q10 0 12 14q-6 -6 -12 -6q-6 0 -12 6z', class: 'pp-mama-ink' },
+    ],
+    ['circle', { cx: '25', cy: '31', r: '2', class: 'pp-mama-ink' }],
+    ['circle', { cx: '35', cy: '31', r: '2', class: 'pp-mama-ink' }],
+    ['ellipse', { cx: '30', cy: '38', rx: '3.6', ry: '4.4', class: 'pp-mama-ink' }],
+    ['path', { d: 'M8 14l-5 -5M30 5v-5M52 14l5 -5', class: 'pp-mama-line' }],
+  ],
+};
+
 type RowKind = 'laugh' | 'calm' | 'home' | 'sigh' | 'scream';
 
 /** Points as the screen writes them: whole, or with a half and a decimal comma (`7,5`: a chore is worth half points, story 9.4). */
@@ -151,14 +216,15 @@ interface Row {
  * and holds alone (`photoHoldMs`, story 3.6; the panel is transparent meanwhile, and a level that took
  * no photo skips this), then Mama's five rows count up one after the other, the total
  * follows them, the earned stars stamp one by one, then the stars a woken Mama took off (dashed,
- * with a « −1 », story 3.2), then « Rejouer » comes up and takes focus. A woken Mama also puts a
- * header over the card, with its own cue, when the rows start (nothing sits between the photo and
- * her reaction). The
+ * with a « −1 », story 3.2), then « Rejouer » comes up and takes focus. Between the photo and the
+ * rows Mama reacts (story 3.7): her laugh, sigh or scream, each with its line in a bubble, its value,
+ * her face and a cue, held for `reactionHoldMs`; she stays, at rest, on the last one. A woken Mama also
+ * puts a header over the card, with its own cue, when the rows start (after her reactions). The
  * timings are `feedback.json › resultScreen`, in real ms. A press on the screen (the polaroid
- * included), Enter, Space or a pad's A skips to the end (panel shown, rows at their totals, stars
+ * included), Enter, Space or a pad's A skips to the end (panel shown, Mama at rest on her last reaction, rows at their totals, stars
  * placed silently, the header at rest, buttons up) without
  * pressing « Rejouer ». A press that starts within `inputGraceMs` of the screen coming up, or of the
- * buttons coming up, does neither: it is a tap still meant for the game. Mama's lines (3.7) and the 3.11 buttons come later.
+ * buttons coming up, does neither: it is a tap still meant for the game. Mama's fixed lines are placeholders for story 3.8, and the 3.11 buttons come later.
  */
 export function createResultScreen(options: ResultScreenOptions): OverlayScreen {
   const { t, score, maxima, timings, scheduler, doc = document } = options;
@@ -236,6 +302,77 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     photo.canvas.setAttribute('aria-label', t('result.photo_label'));
     polaroid.append(photo.canvas);
   }
+
+  // Mama and her bubble (story 3.7, UX `mum-bubble`): in the left column, on the polaroid's top-right corner
+  // when there is a photo and alone in the column when there is none. Invisible until her first reaction, but
+  // not `hidden`: her live region is in the page from the start, so that the first line is announced.
+  const { reactions } = options;
+  const lineKeyOf = (reaction: MamaReactionId): string => {
+    if (reaction === 'laugh') return 'result.mama_line_laugh';
+    if (reaction === 'sigh') return 'result.mama_line_sigh';
+    if (options.endReason === 'mamaWoke') return 'result.mama_line_scream_woke';
+    if (options.endReason === 'mamaHome') return 'result.mama_line_scream_home';
+    return 'result.mama_line_scream';
+  };
+  const mama = make('div', 'pp-result-mama pp-result-mama-waiting');
+  const bubble = make('div', 'pp-mum-bubble pp-type-body');
+  bubble.setAttribute('role', 'status');
+  bubble.setAttribute('aria-live', 'polite');
+  const bubbleText = make('span', 'pp-mum-bubble-text');
+  // The value the chip shows, for a reader (the chip itself is a picture of it).
+  const bubbleValue = make('span', 'pp-mum-bubble-value');
+  bubble.append(bubbleText, bubbleValue);
+  const reactionChip = make('span', 'pp-mum-chip pp-type-numeric');
+  reactionChip.setAttribute('aria-hidden', 'true');
+  reactionChip.hidden = true;
+  const speech = make('div', 'pp-mum-speech');
+  speech.append(reactionChip, bubble);
+  // One figure per reaction, built once; the shown one is a class away.
+  const figures = new Map<MamaReactionId, SVGElement>();
+  for (const { reaction } of reactions) {
+    if (figures.has(reaction)) continue;
+    figures.set(
+      reaction,
+      svgElement(
+        'svg',
+        { viewBox: MAMA_VIEW_BOX, class: `pp-mama pp-mama--${reaction}`, 'aria-hidden': 'true' },
+        MAMA_DRAWINGS[reaction].map(([tag, attributes]) => svgElement(tag, attributes, [], doc)),
+        doc,
+      ),
+    );
+  }
+  mama.append(speech, ...figures.values());
+  /** Shows the face of `reaction`; `isAtRest` leaves it without animation. */
+  const shapeFigures = (reaction: MamaReactionId, isAtRest: boolean): void => {
+    for (const [id, figure] of figures) {
+      figure.setAttribute(
+        'class',
+        `pp-mama pp-mama--${id}${id === reaction ? ' pp-mama--shown' : ''}${isAtRest ? ' pp-mama--rest' : ''}`,
+      );
+    }
+  };
+  /** Shows reaction number `index`: her line, her value, her face; `isAtRest` leaves her without animation. */
+  const showReaction = (index: number, isAtRest: boolean): void => {
+    const { reaction, points } = reactions[index] as MamaReaction;
+    bubble.className = `pp-mum-bubble pp-type-body pp-mum-bubble--${reaction}`;
+    bubbleText.textContent = t(lineKeyOf(reaction));
+    // What she takes off or gives, with the sign: nothing for a reaction worth 0 (the Laugh of a game with nothing in it).
+    reactionChip.hidden = points <= 0;
+    reactionChip.className = `pp-mum-chip pp-type-numeric pp-mum-chip--${reaction}`;
+    const value =
+      points > 0
+        ? formatString(
+            t(reaction === 'laugh' ? 'result.mama_value_gain' : 'result.mama_value_loss'),
+            {
+              points: formatPoints(points),
+            },
+          )
+        : '';
+    reactionChip.textContent = value;
+    bubbleValue.textContent = value;
+    mama.className = 'pp-result-mama';
+    shapeFigures(reaction, isAtRest);
+  };
 
   const isMamaWoke = options.endReason === 'mamaWoke';
   const isMamaHome = options.endReason === 'mamaHome';
@@ -405,7 +542,13 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   }
 
   panel.append(card, total, actions);
-  if (polaroid !== null) element.append(polaroid);
+  // The left column: the polaroid, Mama on its corner. Without either (no photo, no reaction) there is none.
+  if (polaroid !== null || reactions.length > 0) {
+    const left = make('div', `pp-result-left${polaroid === null ? ' pp-result-left-alone' : ''}`);
+    if (polaroid !== null) left.append(polaroid);
+    if (reactions.length > 0) left.append(mama);
+    element.append(left);
+  }
   element.append(panel);
 
   // The sequence. Every timer goes through `scheduler`, so `dispose` and a skip cancel them all.
@@ -479,6 +622,8 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     cancelAll();
     showPanel();
     mountHeader(false);
+    // Mama stays on her last reaction, at rest: a skip plays none of them (story 3.7).
+    if (reactions.length > 0) showReaction(reactions.length - 1, true);
     showTotals();
     while (earned < score.stars) earn(false);
     while (lost < lostCount) lose(false);
@@ -562,8 +707,11 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   options.keyTarget.addEventListener('keyup', onKeyUp);
   options.keyTarget.addEventListener('blur', onBlur);
 
-  /** The rows count up, then the stars: with a photo this follows its hold, otherwise it is the whole start. */
+  /** The rows count up, then the stars: after Mama's last reaction (story 3.7). */
   const startRows = (): void => {
+    // Her last reaction is over: she stays on it, at rest, as after a skip.
+    if (reactions.length > 0)
+      shapeFigures((reactions[reactions.length - 1] as MamaReaction).reaction, true);
     showPanel();
     mountHeader(true);
     enter('rows');
@@ -575,8 +723,31 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     later(startStars, (rows.length - 1) * timings.rowStaggerMs + timings.rowCountUpMs);
   };
 
+  /**
+   * Mama's reactions, one after the other, each held for `reactionHoldMs` (the last one too, so that it is
+   * read before the rows come): with a photo this follows its hold, otherwise it is the whole start. The
+   * panel stays transparent meanwhile and the header of a woken Mama waits for the rows. A hold of 0 goes
+   * straight on in the same call.
+   */
+  const startReactions = (): void => {
+    if (reactions.length === 0) {
+      startRows();
+      return;
+    }
+    enter('mama');
+    const play = (index: number): void => {
+      showReaction(index, false);
+      options.onMamaReaction((reactions[index] as MamaReaction).reaction);
+      const next = index + 1 < reactions.length ? () => play(index + 1) : startRows;
+      if (timings.reactionHoldMs === 0) next();
+      else later(next, timings.reactionHoldMs);
+    };
+    play(0);
+  };
+
   if (options.isDone) {
     mountHeader(false);
+    if (reactions.length > 0) showReaction(reactions.length - 1, true);
     showTotals();
     while (earned < score.stars) earn(false);
     while (lost < lostCount) lose(false);
@@ -585,16 +756,18 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
   } else if (polaroid !== null) {
     // The photo stands alone first: the panel is transparent (not `hidden`, which cannot take the
     // focus the host gives it), the polaroid drops in, the cue plays once, and after the hold the rows
-    // start. The header of a woken Mama waits for them (EXPERIENCE: nothing between the photo and her).
+    // start. The header of a woken Mama waits for them (EXPERIENCE: the reactions come first, then the rows).
     panel.classList.add('pp-result-panel-waiting');
     polaroid.classList.add('pp-polaroid-drop');
     enter('photo');
     options.onPhoto();
-    // A hold of 0 goes straight to the rows: not one task of a transparent panel in between.
-    if (timings.photoHoldMs === 0) startRows();
-    else later(startRows, timings.photoHoldMs);
+    // A hold of 0 goes straight on: not one task of a transparent panel in between.
+    if (timings.photoHoldMs === 0) startReactions();
+    else later(startReactions, timings.photoHoldMs);
   } else {
-    startRows();
+    // No photo: the panel is transparent while Mama reacts, as it is behind the polaroid's hold.
+    if (reactions.length > 0) panel.classList.add('pp-result-panel-waiting');
+    startReactions();
   }
 
   return {

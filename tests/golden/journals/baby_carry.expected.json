@@ -1,6 +1,6 @@
 {
   "untilSimMs": 8000,
-  "worldHash": "0cb4bfc743aec5",
+  "worldHash": "18568cb1cc02ef",
   "eventTypes": [
     "WaveStarted",
     "PapaPathPlanned",

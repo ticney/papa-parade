@@ -102,7 +102,7 @@ Rules `[ASSUMPTION]`:
 **Result sequence** (follows the GDD macro loop) `[ASSUMPTION]`:
 
 1. Photo polaroid: it drops in with a camera flash and a shutter sound (story 3.6), stands alone for a short hold (`photoHoldMs`), and a press skips the hold. A woken Mama's header (or the early-end header, v2.3) and its cue come after it, when the score rows start: nothing sits between the photo and her reaction. A level that could not take the photo skips this step.
-2. Mama's reactions (mum-bubble).
+2. Mama's reactions (mum-bubble, story 3.7): in the order Laugh, Sigh, Scream, only those she has points for, each held for `reactionHoldMs` (1.2 s) with her line, her face, its animation, its cue and a `+N` / `−N` chip (none for a reaction worth 0). A woken Mama (`mamaWoke`) and a Mama come home early (`mamaHome`) always scream, even with no near miss, before their header and door slam, which come with the rows. A game with nothing in it still gets her laugh, with no chip. With a photo she stands on the polaroid's top-right corner; with none she has the left column alone. A press skips them all (none plays) and leaves her at rest on the last reaction, as does a rebuilt screen. The lines are placeholders until story 3.8.
 3. Score rows and stars stamp in.
 4. Highlight replay with the "REPLAY" banner (skippable).
 5. The actions appear.

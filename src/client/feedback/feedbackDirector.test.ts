@@ -66,6 +66,7 @@ const TABLE: FeedbackTable = {
     actionsDelayMs: 400,
     inputGraceMs: 0,
     photoHoldMs: 1200,
+    reactionHoldMs: 1200,
   },
   calibration: { beep: { clip: 'ui_calibration_beep', bus: 'ui', gainPct: 100 } },
   loops: {

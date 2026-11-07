@@ -102,6 +102,8 @@ in the rush), per game and over the runs. A game that ends on \`timer\` in a lev
 The end photo (story 3.6) adds \`frozenNearMisses\` (the baby, not carried, within \`feel.endOfLevel.frozenNearMissReachM\` of
 the stairs when the level ends: one for each, counted in Mama's « Hurlement » and kept apart from \`nearMisses\`), per game and
 over the runs.
+Papa's look (story 3.7) adds \`lookParts\` (how many of the three parts the gags showed, from \`PapaLookChanged\`: each part shown at the end
+adds \`feel.mama.laughPerLookPartPoints\` to Mama's Laugh), per game, and over the runs with \`meanLookPartsPerRun\`.
 The house chores (story 9.4, FR76) add a \`chores\` block, over the runs: \`runsCompleted\` (the games where a chore was finished),
 \`beats\` (the beats judged, by quality: \`perfect\`, \`success\`, \`fail\` for a missed one), \`meanHomePoints\` (the Maison points the chores
 paid per game), \`meanBeatsPerRun\` and \`abandoned\` (story 9.5: the pots of the chores left alone, \`telegraphed\`, \`resolved\` when

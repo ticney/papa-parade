@@ -34,6 +34,7 @@ const NO_FX_STATE: FxState = {
   lightsFactor: 1,
   mischiefDecals: 0,
   choreShards: 0,
+  papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
 };
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */

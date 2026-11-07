@@ -1055,6 +1055,7 @@ body {
    score card (the media query below). Every text is 16px or more (`--pp-spacing-text-min`).
    --------------------------------------------------------------------------------------------- */
 .pp-result-screen {
+  gap: var(--pp-spacing-4);
   background: var(--pp-color-scrim);
 }
 
@@ -1067,6 +1068,23 @@ body {
 /* Focused only so that Enter and Space are heard while the sequence runs: no ring on the panel. */
 .pp-result-panel:focus {
   outline: none;
+}
+
+/* The left column (story 3.7): the polaroid, with Mama and her bubble on its top-right corner, or Mama alone
+   when the level took no photo. Same width as the polaroid used to be, so that both layouts fit 750 x 340. */
+.pp-result-left {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 0 1 340px;
+  min-width: 0;
+}
+
+/* In a column the polaroid's `flex: 0 1 340px` would be a height: it takes its own. */
+.pp-result-left > .pp-polaroid {
+  flex: none;
 }
 
 /* The end photo (story 3.6, UX `polaroid`, the left column of key-result.html): two columns, the
@@ -1129,6 +1147,230 @@ body {
 .pp-result-panel.pp-result-panel-waiting {
   animation: none;
   opacity: 0;
+}
+
+/* Mama's reactions (story 3.7, UX `mum-bubble`, the mockup's `.bubble`): her line in a speech bubble, the value
+   she gives or takes off in a chip beside it, and her face under it. With a photo the block sits on the
+   polaroid's top-right corner, in front of it, and never reaches past the polaroid's height; with none it
+   takes the left column alone. Invisible (but in the page, so that her live region is heard) until her first
+   reaction. */
+.pp-result-mama {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--pp-spacing-1);
+}
+
+.pp-result-mama-waiting {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pp-result-left > .pp-result-mama {
+  position: absolute;
+  top: 0;
+  right: calc(-1 * var(--pp-spacing-2));
+  z-index: 2;
+  max-width: 100%;
+}
+
+.pp-result-left-alone > .pp-result-mama {
+  position: static;
+  align-items: center;
+}
+
+.pp-mum-speech {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pp-spacing-2);
+}
+
+/* The speech bubble: paper, the 3px ink outline, the sticker lift, text in ink (never on the sigh's violet:
+   its 4.1:1 is for large text only). The accent of the reaction is the bar down its left side, not the only
+   signal: the chip and the line say the rest. */
+.pp-mum-bubble {
+  --pp-mum-accent: var(--pp-color-ink-soft);
+  position: relative;
+  box-sizing: border-box;
+  max-width: 230px;
+  margin-bottom: var(--pp-spacing-3);
+  padding: var(--pp-spacing-1) var(--pp-spacing-3) var(--pp-spacing-1) var(--pp-spacing-4);
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-lg);
+  background-color: var(--pp-color-paper);
+  background-image: linear-gradient(var(--pp-mum-accent), var(--pp-mum-accent));
+  background-repeat: no-repeat;
+  background-size: var(--pp-spacing-2) 100%;
+  box-shadow: var(--pp-lift);
+  color: var(--pp-color-ink);
+  overflow-wrap: break-word;
+}
+
+/* The value for a reader: the chip beside the bubble is a picture of it. */
+.pp-mum-bubble-value {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.pp-mum-bubble--laugh {
+  --pp-mum-accent: var(--pp-color-mama-laugh);
+}
+
+.pp-mum-bubble--sigh {
+  --pp-mum-accent: var(--pp-color-mama-sigh);
+}
+
+.pp-mum-bubble--scream {
+  --pp-mum-accent: var(--pp-color-mama-scream);
+}
+
+/* The tail, pointing down at Mama: an ink triangle with a paper one inside it. */
+.pp-mum-bubble::after {
+  content: "";
+  position: absolute;
+  right: 26px;
+  bottom: -19px;
+  border: 11px solid transparent;
+  border-top: 16px solid var(--pp-color-ink);
+  border-bottom: 0;
+}
+
+.pp-mum-bubble::before {
+  content: "";
+  position: absolute;
+  right: 30px;
+  bottom: -12px;
+  z-index: 1;
+  border: 7px solid transparent;
+  border-top: 11px solid var(--pp-color-paper);
+  border-bottom: 0;
+}
+
+/* What she gave or took off: « +5 » or « −3 » in ink on the reaction's accent, large text (the sigh's violet
+   only takes large text). Nothing for a reaction worth 0. */
+.pp-mum-chip {
+  flex: none;
+  padding: 0 var(--pp-spacing-2);
+  border: var(--pp-outline);
+  border-radius: var(--pp-rounded-full);
+  background: var(--pp-color-paper);
+  color: var(--pp-color-ink);
+  box-shadow: var(--pp-lift);
+}
+
+.pp-mum-chip[hidden] {
+  display: none;
+}
+
+.pp-mum-chip--laugh {
+  background: var(--pp-color-mama-laugh);
+}
+
+.pp-mum-chip--sigh {
+  background: var(--pp-color-mama-sigh);
+}
+
+.pp-mum-chip--scream {
+  background: var(--pp-color-mama-scream);
+}
+
+/* The provisional Mama, drawn in tokens (one figure per reaction, the shown one has `pp-mama--shown`). */
+.pp-mama {
+  display: none;
+  flex: none;
+  width: 52px;
+  height: 87px;
+  margin-right: var(--pp-spacing-4);
+  transform-origin: 50% 100%;
+}
+
+.pp-mama.pp-mama--shown {
+  display: block;
+}
+
+.pp-mama-skin {
+  fill: var(--pp-color-mama-skin);
+  stroke: var(--pp-color-ink);
+  stroke-width: 2.5;
+}
+
+.pp-mama-dress {
+  fill: var(--pp-color-mama-dress);
+  stroke: var(--pp-color-ink);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.pp-mama-hair,
+.pp-mama-ink {
+  fill: var(--pp-color-ink);
+}
+
+.pp-mama-line {
+  fill: none;
+  stroke: var(--pp-color-ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* One short animation each, on `transform` only, and never faster than 3 Hz: a bounce for the laugh, a slow
+   slump for the sigh, a short shake for the scream. A figure at rest (a skipped or rebuilt screen, or the
+   reactions over) does not move. */
+.pp-mama--laugh {
+  animation: pp-mama-bounce 600ms ease-in-out 2 both;
+}
+
+.pp-mama--sigh {
+  animation: pp-mama-slump 1000ms ease-out 1 both;
+}
+
+.pp-mama--scream {
+  animation: pp-mama-shake 400ms ease-in-out 3 both;
+}
+
+.pp-mama.pp-mama--rest {
+  animation: none;
+}
+
+@keyframes pp-mama-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pp-mama-slump {
+  from {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  to {
+    transform: translateY(3px) rotate(-3deg);
+  }
+}
+
+@keyframes pp-mama-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-3px);
+  }
+
+  75% {
+    transform: translateX(3px);
+  }
 }
 
 .pp-score-card {
@@ -1421,6 +1663,15 @@ body {
   }
 }
 
+/* « Maman est rentrée plus tôt ! » (story 3.16) is the longest header: at the heading's size it wraps to two
+   lines in the 360px panel and pushes it into a scroll on a short landscape phone (story 3.7 review). A
+   slightly smaller banner keeps it on one line there; the heading's size stays everywhere else. */
+@media (max-height: 400px) {
+  .pp-result-panel-home .pp-result-reason {
+    font-size: calc(var(--pp-font-heading-size) * 0.85);
+  }
+}
+
 .pp-result-actions {
   display: flex;
   gap: var(--pp-spacing-2);
@@ -1656,7 +1907,10 @@ body {
 :where(:root[data-pp-motion="reduced"]) .pp-start-prompt,
 :where(:root[data-pp-motion="reduced"]) .pp-portrait-icon,
 :where(:root[data-pp-motion="reduced"]) .pp-result-reason-slam,
-:where(:root[data-pp-motion="reduced"]) .pp-polaroid-drop {
+:where(:root[data-pp-motion="reduced"]) .pp-polaroid-drop,
+:where(:root[data-pp-motion="reduced"]) .pp-mama--laugh,
+:where(:root[data-pp-motion="reduced"]) .pp-mama--sigh,
+:where(:root[data-pp-motion="reduced"]) .pp-mama--scream {
   animation: none;
 }
 

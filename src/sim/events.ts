@@ -1,6 +1,7 @@
 import type { Feel } from '@content/schemas/feel';
 import type {
   AfterEffectDefKind,
+  PapaLookPart,
   ThreatCatastrophe,
   ThreatResponse,
 } from '@content/schemas/threat';
@@ -383,6 +384,12 @@ export type SimEvent =
    */
   | { type: 'PropImpact'; t: SimMs; propId: string; impulseNs: number; otherPropId: string | null }
   /**
+   * A gag showed a part of Papa's look for the first time (story 3.7): `part` is the def's
+   * `lookChange`, `threatId` the threat whose gag did it. Never emitted twice for the same part in
+   * a level; the same values are in `world.papa.look`.
+   */
+  | { type: 'PapaLookChanged'; t: SimMs; part: PapaLookPart; threatId: number }
+  /**
    * The noise gauge moved by a source event (story 3.1): `deltaPct` is the change after the clamp
    * (never 0) and `noisePct` the value after it, in % of the gauge. The decay is silent: read
    * `world.gauges.noisePct` for the exact value. `source` is a row of `feel.noise.sources`, or
@@ -634,6 +641,7 @@ export const SIM_EVENT_TYPES = [
   'PapaArrived',
   'PapaBlocked',
   'PapaGlideStarted',
+  'PapaLookChanged',
   'PapaPathPlanned',
   'PapaSnored',
   'PapaStateChanged',

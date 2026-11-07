@@ -18,5 +18,6 @@
   },
   "catastrophe": "mess",
   "afterEffect": { "kind": "debris", "pickUpMs": 1000 },
-  "cooldownMs": 6000
+  "cooldownMs": 6000,
+  "lookChange": "mashOnCheek"
 }

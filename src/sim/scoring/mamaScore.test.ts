@@ -20,6 +20,7 @@ const NONE: ScoreTally = {
   comboPoints: 0,
   calmMs: PLAYED_MS,
   playedMs: PLAYED_MS,
+  lookParts: 0,
   homePoints: 0,
   propsOnFloor: 0,
   propsBroken: 0,
@@ -46,6 +47,34 @@ describe('computeMamaScore', () => {
     expect(score.screamPoints).toBe(0);
     expect(score.scorePoints).toBe(mama.calmMaxPoints + mama.baseScorePoints);
     expect(rowSum(score)).toBe(score.scorePoints);
+  });
+
+  it('adds laughPerLookPartPoints per part of Papa’s look shown at the end (story 3.7)', () => {
+    // Weights chosen so the difference is whole and under the cap: the test reads them, not a literal.
+    const weighted = withMama({ laughPerLookPartPoints: 2 });
+    const none = computeMamaScore(tally({ lookParts: 0 }), weighted, 'timer');
+    const all = computeMamaScore(tally({ lookParts: 3 }), weighted, 'timer');
+    expect(none.laughPoints).toBe(0);
+    expect(all.laughPoints - none.laughPoints).toBe(3 * weighted.laughPerLookPartPoints);
+    expect(all.scorePoints - none.scorePoints).toBe(3 * weighted.laughPerLookPartPoints);
+    expect(rowSum(all, weighted)).toBe(all.scorePoints);
+    // And with the live test feel: the three parts are worth what the feel says, held to the cap.
+    const live = computeMamaScore(tally({ lookParts: 3 }), mama, 'timer').laughPoints;
+    expect(live).toBe(Math.round(Math.min(3 * mama.laughPerLookPartPoints, mama.laughMaxPoints)));
+  });
+
+  it('holds the Laugh to laughMaxPoints whatever the look adds', () => {
+    const heavy = withMama({ laughPerLookPartPoints: mama.laughMaxPoints });
+    expect(computeMamaScore(tally({ lookParts: 3 }), heavy, 'timer').laughPoints).toBe(
+      mama.laughMaxPoints,
+    );
+    // With perfects as well: the look only fills what the perfects left of the row.
+    const full = computeMamaScore(
+      tally({ perfects: mama.laughMaxPoints, lookParts: 3 }),
+      mama,
+      'timer',
+    );
+    expect(full.laughPoints).toBe(mama.laughMaxPoints);
   });
 
   it('counts half a perfect per success (story 3.12), whole numbers after one rounding', () => {
@@ -317,6 +346,32 @@ describe('computeMamaScore: a woken Mama (story 3.2)', () => {
 });
 
 describe('scoreLevel', () => {
+  it('counts the parts of Papa’s look shown in the world into the Laugh (story 3.7)', () => {
+    const feel = createTestContent().feel;
+    const scoredWith = (parts: number): MamaScore => {
+      const world = createWorld({
+        seed: 1,
+        feel,
+        papaSpawn: { xM: 0, zM: 0 },
+        babySpawn: { xM: 1, zM: 1 },
+        firstWanderAt: asSimMs(0),
+      });
+      world.papa.look.hasMashOnCheek = parts > 0;
+      world.papa.look.hasHairOnEnd = parts > 1;
+      world.papa.look.isShirtInsideOut = parts > 2;
+      scoreLevel(world, { events: [], feel } as unknown as StepContext, 'timer');
+      if (world.score.final === null) throw new Error('no note');
+      return world.score.final;
+    };
+    expect(scoredWith(0).laughPoints).toBe(0);
+    expect(scoredWith(3).laughPoints).toBe(
+      Math.round(Math.min(3 * mama.laughPerLookPartPoints, mama.laughMaxPoints)),
+    );
+    expect(scoredWith(1).laughPoints).toBe(
+      Math.round(Math.min(mama.laughPerLookPartPoints, mama.laughMaxPoints)),
+    );
+  });
+
   it('writes world.score.final and pushes one LevelScored with the same fields, at the world’s t', () => {
     const world = createWorld({
       seed: 1,
@@ -345,6 +400,7 @@ describe('scoreLevel', () => {
         comboPoints: 0,
         calmMs: 800,
         playedMs: 1230,
+        lookParts: 0,
         homePoints: 0,
         propsOnFloor: 1,
         propsBroken: 0,

@@ -152,6 +152,7 @@ describe('content/feel.json', () => {
         'sighPerBrokenPropPoints',
         'sighPerMischiefPoints',
         'screamPerNearMissPoints',
+        'laughPerLookPartPoints',
       ] as const
     ).flatMap((key): [string, [string, unknown][], string[]][] => [
       [`a missing mama.${key}`, [[`mama.${key}`, undefined]], [`mama.${key}`]],

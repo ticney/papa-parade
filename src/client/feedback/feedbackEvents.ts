@@ -21,6 +21,10 @@ export const FEEDBACK_CLIENT_EVENTS = [
   'ResultMamaWokeShown',
   // The header after Mama came home early (story 3.16): the door slams, a visual and a heavy vibration.
   'ResultMamaHomeShown',
+  // Mama's reactions between the photo and the rows (story 3.7): her voice, a visual (the bubble) and a vibration.
+  'ResultMamaLaughed',
+  'ResultMamaSighed',
+  'ResultMamaScreamed',
   'ResultStarLost',
 ] as const;
 

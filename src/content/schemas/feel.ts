@@ -556,6 +556,9 @@ const MamaSchema = z
     laughPerSuccessPoints: points(
       'Laugh points each success (not perfect) gives (held to `laughMaxPoints`), in points per success.',
     ),
+    laughPerLookPartPoints: points(
+      "Laugh points each part of Papa's look shown at the end gives (held to `laughMaxPoints`), in points per part (story 3.7).",
+    ),
     calmNoiseThresholdPct: pct(
       'The baby counts as calm while the noise gauge is strictly below this level, in % of the gauge.',
     ),

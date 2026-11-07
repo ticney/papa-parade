@@ -1078,6 +1078,11 @@
           "minimum": 0,
           "description": "Laugh points each success (not perfect) gives (held to `laughMaxPoints`), in points per success."
         },
+        "laughPerLookPartPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Laugh points each part of Papa's look shown at the end gives (held to `laughMaxPoints`), in points per part (story 3.7)."
+        },
         "calmNoiseThresholdPct": {
           "type": "number",
           "minimum": 0,
@@ -1116,6 +1121,7 @@
         "earlyWakePenaltyStars",
         "laughPerPerfectPoints",
         "laughPerSuccessPoints",
+        "laughPerLookPartPoints",
         "calmNoiseThresholdPct",
         "sighPerPropOnFloorPoints",
         "sighPerBrokenPropPoints",

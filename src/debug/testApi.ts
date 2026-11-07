@@ -1,7 +1,6 @@
 import type { LevelStartOptions } from '@client/app/levelSession';
 import type { CuePlayedRecord, FxState, PagePoint, TestHost } from '@client/app/testHost';
 import type { SoundedNote } from '@client/audio/beatScheduler';
-import type { PapaLook } from '@client/render/views/papaView';
 import {
   ADVANCE_MAX_STEPS,
   TEST_API_BEAT_NOTES_MAX,
@@ -13,7 +12,7 @@ import {
 import { cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
-import type { Journal, SimCommand, SimEvent, World } from '@sim';
+import type { Journal, PapaLook, SimCommand, SimEvent, World } from '@sim';
 import { applyFeelPatch, effectiveFeel, type FeelPatch } from './feelPatch.ts';
 import { feedPerfMeter } from './perfFeed.ts';
 import { createPerfMeter, type PerfReport } from './perfMeter.ts';
@@ -99,7 +98,7 @@ export interface PPTestApi {
    * whose camera follows Papa. Throws on a coordinate that is not a finite number.
    */
   pagePoint(xM: number, yM: number, zM: number): PagePoint;
-  /** Shows the parts of Papa's look (story 7.2: nothing in a game sets it until story 3.7). */
+  /** Shows the parts of Papa's look on top of the world's (story 3.7: a debug overlay; the gags set the world's own). */
   setPapaLook(look: PapaLook): void;
   /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
   perf(): PerfReport;

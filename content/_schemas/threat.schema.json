@@ -419,6 +419,15 @@
           "exclusiveMinimum": 0,
           "maximum": 100
         },
+        "lookChange": {
+          "description": "The part of Papa's look this def degrades when a miss ends in the gag (story 3.7), once per part per level: the part stays shown to the end of the level and each part shown adds Laugh points to Mama's note. Absent: the gag does not change the look.",
+          "type": "string",
+          "enum": [
+            "mashOnCheek",
+            "hairOnEnd",
+            "shirtInsideOut"
+          ]
+        },
         "target": {
           "type": "string",
           "enum": [
@@ -871,6 +880,15 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 100
+        },
+        "lookChange": {
+          "description": "The part of Papa's look this def degrades when a miss ends in the gag (story 3.7), once per part per level: the part stays shown to the end of the level and each part shown adds Laugh points to Mama's note. Absent: the gag does not change the look.",
+          "type": "string",
+          "enum": [
+            "mashOnCheek",
+            "hairOnEnd",
+            "shirtInsideOut"
+          ]
         },
         "target": {
           "type": "string",

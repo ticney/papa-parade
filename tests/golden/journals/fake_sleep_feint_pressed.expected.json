@@ -1,6 +1,6 @@
 {
   "untilSimMs": 21000,
-  "worldHash": "053ac8165bfb8c",
+  "worldHash": "109826e3c22c8e",
   "eventTypes": [
     "BabyStateChanged",
     "BabyPickedUp",

@@ -15,6 +15,8 @@ import { markDebris } from './afterEffects.ts';
  * list. The surprise mischiefs of the suspicious silence (story 1.21), the pot boiling over (story 9.5), the baby in the open
  * dishwasher (story 9.6) and the five mischiefs of the big salon (story 9.7: `dishes_on_floor`, `pan_concert`,
  * `peelings_everywhere`, `soil_on_rug`, `coffee_spilled`) add to `world.mess.mischiefs`.
+ * Papa's look (story 3.7) is not a gag id's business either: the def says which part its gag shows
+ * (`lookChange`), `gagThreat` applies it (`changePapaLook`) and the client reads `world.papa.look`.
  * A gag that makes the baby cry is not a gag id's business: the def says it with `gagCryMs`, and
  * `gagThreat` starts the cry (story 3.1 D9).
  */

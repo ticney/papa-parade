@@ -38,6 +38,8 @@ const REPO = fileURLToPath(new URL('../../', import.meta.url));
 const SEQUENCES = ['stay_awake', 'lullaby_walk', 'bedtime_duel', 'bomb_drop', 'stealth_exit'];
 const PANEL = '.pp-result-panel';
 const AUTOPLAY_TIMEOUT_MS = 180_000;
+// The header comes with the rows, after the photo's hold and Mama's reactions (up to ~5 s; story 3.7).
+const SEQUENCE_TIMEOUT_MS = 15_000;
 /** A response window long enough to outlast any wait of the toilet test: no threat of it gags before the entry starts (story 3.15). */
 const WIDE_WINDOW_MS = 60_000;
 /** Above the baby's floor point, where a finger aims at him. */
@@ -119,6 +121,7 @@ test.describe('Chambre de nuit', () => {
     await expect(html(page)).toHaveAttribute('data-pp-cycle-index', String(SEQUENCES.length));
     await expect(page.locator(`${PANEL} .pp-result-reason`)).toHaveText(
       STRINGS['result.cycle_done'] as string,
+      { timeout: SEQUENCE_TIMEOUT_MS },
     );
     await expect(page.locator(PANEL)).not.toHaveClass(/pp-result-panel-woken/);
     // The end photo is taken whatever the end and the level (story 3.6, D1): the bedroom is the one

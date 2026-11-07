@@ -16,7 +16,7 @@ export const AUDIO_BUSES = ['music', 'sfx', 'voice', 'ui'] as const;
 export const HAPTIC_KINDS = ['light', 'medium', 'heavy', 'heartbeat'] as const;
 
 /** `<category>_<name>`, the categories of the architecture (Conventions › Audio). */
-const CLIP_PATTERN = /^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$/;
+const CLIP_PATTERN = /^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$/;
 /** `lower_snake_case`, like every content id. */
 export const CUE_ID_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
@@ -26,7 +26,7 @@ const clip = z
   .string()
   .regex(
     CLIP_PATTERN,
-    'a clip is <category>_<name> in lower_snake_case, the category one of tel, resp, gag, baby, papa, env, ui, music',
+    'a clip is <category>_<name> in lower_snake_case, the category one of tel, resp, gag, baby, papa, env, ui, music, mama',
   )
   .describe('File name without extension: `public/assets/audio/<clip>.m4a`.');
 
@@ -254,9 +254,15 @@ const ResultScreenSchema = z
       .describe(
         'How long the end photo stays alone on screen, after it drops in and before the rows start, in real ms (story 3.6); 0 goes straight to the rows. A level that took no photo skips it. A press skips it.',
       ),
+    reactionHoldMs: z
+      .int()
+      .min(0)
+      .describe(
+        "How long each of Mama's reactions (her laugh, sigh or scream, with her line) stays on screen after the photo and before the rows start, in real ms (story 3.7); 0 goes straight on. A press skips them all.",
+      ),
   })
   .describe(
-    'The sequence of the Result screen (story 1.22): the photo (story 3.6), then rows, then stars, then buttons. Real time: the sim never reads it.',
+    'The sequence of the Result screen (story 1.22): the photo (story 3.6), the reactions of Mama (story 3.7), then rows, then stars, then buttons. Real time: the sim never reads it.',
   );
 
 const PhotoSchema = z

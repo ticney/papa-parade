@@ -507,6 +507,7 @@ describe('createLevelScene', () => {
       lightsFactor: 1,
       mischiefDecals: 0,
       choreShards: 0,
+      papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
     });
   });
 
@@ -1071,6 +1072,90 @@ describe('the characters on the sim clock (story 7.2)', () => {
     const { scene, setPapaLook } = build();
     setPapaLook({ hasMashOnCheek: true, hasHairOnEnd: false, isShirtInsideOut: false });
     expect(scene.getObjectByName('papa_look_mash')?.visible).toBe(true);
+  });
+
+  describe("Papa's look from the world (story 3.7)", () => {
+    const NONE = { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false };
+    const visible = (
+      scene: { getObjectByName(name: string): Object3D | undefined },
+      name: string,
+    ) => scene.getObjectByName(name)?.visible;
+    // The world is shared by the file: each test puts the look and Papa's state back.
+    const stateBefore = effectsWorld.papa.state;
+    afterEach(() => {
+      Object.assign(effectsWorld.papa.look, NONE);
+      effectsWorld.papa.state = stateBefore;
+    });
+
+    it('draws the parts the world holds, on the next update, and takes them away when it does not', () => {
+      const { scene, update, realFxState } = build();
+      update(fakeWorldAt(0), 0);
+      expect(visible(scene, 'papa_look_mash')).toBe(false);
+      expect(realFxState().papaLook).toEqual(NONE);
+      effectsWorld.papa.look.hasMashOnCheek = true;
+      effectsWorld.papa.look.isShirtInsideOut = true;
+      update(fakeWorldAt(10), 0);
+      expect(visible(scene, 'papa_look_mash')).toBe(true);
+      expect(visible(scene, 'papa_look_shirt')).toBe(true);
+      expect(realFxState().papaLook).toEqual({
+        ...NONE,
+        hasMashOnCheek: true,
+        isShirtInsideOut: true,
+      });
+      Object.assign(effectsWorld.papa.look, NONE);
+      update(fakeWorldAt(20), 0);
+      expect(visible(scene, 'papa_look_mash')).toBe(false);
+      expect(realFxState().papaLook).toEqual(NONE);
+    });
+
+    it('shows a part when the world or the debug overlay says so, and the overlay does not hide the world’s', () => {
+      const { scene, update, setPapaLook, realFxState } = build();
+      effectsWorld.papa.look.hasMashOnCheek = true;
+      setPapaLook({ ...NONE, hasHairOnEnd: true });
+      update(fakeWorldAt(0), 0);
+      expect(realFxState().papaLook).toEqual({ ...NONE, hasMashOnCheek: true, hasHairOnEnd: true });
+      // An overlay that asks for nothing leaves the world's part on screen.
+      setPapaLook(NONE);
+      update(fakeWorldAt(10), 0);
+      expect(visible(scene, 'papa_look_mash')).toBe(true);
+      expect(realFxState().papaLook).toEqual({ ...NONE, hasMashOnCheek: true });
+    });
+
+    it('clears the overlay with resetFx and keeps what the world holds', () => {
+      const { update, setPapaLook, resetFx, realFxState } = build();
+      effectsWorld.papa.look.isShirtInsideOut = true;
+      setPapaLook({ ...NONE, hasMashOnCheek: true });
+      update(fakeWorldAt(0), 0);
+      resetFx();
+      expect(realFxState().papaLook).toEqual({ ...NONE, isShirtInsideOut: true });
+    });
+
+    it('keeps the hair on end after the electrified time, on top of the gag’s own', () => {
+      const { scene, update, realFxState } = build();
+      const hair = scene.getObjectByName('papa_hair') as Object3D;
+      effectsWorld.papa.look.hasHairOnEnd = true;
+      effectsWorld.papa.state = 'electrified';
+      update(fakeWorldAt(0), 0);
+      expect(hair.visible).toBe(true);
+      effectsWorld.papa.state = 'idle';
+      update(fakeWorldAt(10), 0);
+      expect(realFxState().papaLook.hasHairOnEnd).toBe(true);
+      // The look holds the hair up on the one mesh once the electrified time is over.
+      expect(hair.visible).toBe(true);
+      Object.assign(effectsWorld.papa.look, NONE);
+      update(fakeWorldAt(20), 0);
+      expect(hair.visible).toBe(false);
+    });
+
+    it('hands out a copy of the look it draws, not the scratch object it reuses', () => {
+      const { update, realFxState } = build();
+      update(fakeWorldAt(0), 0);
+      const kept = realFxState().papaLook;
+      effectsWorld.papa.look.hasMashOnCheek = true;
+      update(fakeWorldAt(10), 0);
+      expect(kept).toEqual(NONE);
+      expect(realFxState().papaLook).not.toBe(kept);
+    });
   });
 
   it("frees each skeleton on dispose: the bone texture is not a mesh's", () => {

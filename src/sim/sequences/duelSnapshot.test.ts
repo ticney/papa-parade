@@ -280,6 +280,6 @@ describe('the duel slice in a snapshot (story 4.6)', () => {
   it('refuses a version 22 snapshot, which has no duel slice', async () => {
     const snapshot = roundTrip(await started());
     const target = await newSim();
-    expect(() => target.restore({ ...snapshot, version: 22 as 33 })).toThrow(/version 22/);
+    expect(() => target.restore({ ...snapshot, version: 22 as 34 })).toThrow(/version 22/);
   });
 });

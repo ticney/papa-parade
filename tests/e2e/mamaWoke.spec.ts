@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { mamaReactionsOf } from '../../src/sim/scoring/mamaReactions.ts';
 import {
   advanceToEnd,
   appUrl,
@@ -9,6 +10,7 @@ import {
   html,
   liveFeedback,
   liveFeel,
+  mamaHapticsOf,
   recordVibrations,
   THREATS_OFF,
   vibrations,
@@ -148,9 +150,14 @@ test.describe('Mama wakes', () => {
     const before = await openLoud(page);
     const scored = await wake(page);
     await waitForActions(page);
-    // The photo's shutter (story 3.6), the door-slam cue, each earned star, each lost star: no other
-    // cue between the two screens, and Mama's header comes after the photo, not before it.
-    expect(await cueCount(page)).toBe(before.cues + 1 + 1 + scored.stars + scored.lostStars);
+    // The photo's shutter (story 3.6), one cue for each of Mama's reactions (story 3.7: a woken Mama always
+    // screams, so at least one), the door-slam cue, each earned star, each lost star: no other cue between
+    // the two screens, and Mama's header comes after the photo and her reactions, not before.
+    const reactions = mamaReactionsOf(scored as never, 'mamaWoke');
+    expect(reactions.map(({ reaction }) => reaction)).toContain('scream');
+    expect(await cueCount(page)).toBe(
+      before.cues + 1 + reactions.length + 1 + scored.stars + scored.lostStars,
+    );
     if (hasVibrate()) {
       const shutter = hapticPatternOf('PhotoTaken');
       const slam = hapticPatternOf('ResultMamaWokeShown');
@@ -162,6 +169,7 @@ test.describe('Mama wakes', () => {
       expect(lostLight).not.toBeNull();
       expect((await vibrations(page)).slice(before.vibrationCount)).toEqual([
         shutter,
+        ...mamaHapticsOf(reactions),
         slam,
         ...Array.from({ length: scored.stars - 1 }, () => light),
         heavy,
@@ -173,11 +181,16 @@ test.describe('Mama wakes', () => {
   test('a skip places the lost star silently: no lost-star cue, no stamp', async ({ page }) => {
     const before = await openLoud(page);
     const scored = await wake(page);
-    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
-    // The shutter played with the photo (story 3.6) and the door slam plays when the header comes up,
-    // with the rows; nothing after it on a skip.
+    // Behind the photo's hold and Mama's reactions (story 3.7).
+    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+      timeout: SEQUENCE_TIMEOUT_MS,
+    });
+    // The shutter played with the photo (story 3.6), then Mama's reactions (story 3.7), and the door slam plays
+    // when the header comes up, with the rows; nothing after it on a skip.
     const cuesAfterOpen = await cueCount(page);
-    expect(cuesAfterOpen).toBe(before.cues + 1 + 1);
+    expect(cuesAfterOpen).toBe(
+      before.cues + 1 + mamaReactionsOf(scored as never, 'mamaWoke').length + 1,
+    );
     const vibrationsAfterOpen = hasVibrate() ? (await vibrations(page)).length : 0;
     await waitForInputGrace(page);
     await expect(html(page)).toHaveAttribute('data-pp-result', /rows|stars/);

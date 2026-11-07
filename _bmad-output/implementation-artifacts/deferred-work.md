@@ -922,8 +922,8 @@ Handed on:
 
 Open:
 
-- **Mama, the dog and the children have no model** (D1): Mama with stories 3.5 / 3.7, the dog with 6.1, the children with 6.4 to 6.8. Each is one `.blend`, one contract in `characterClips.ts`, one id in `CHARACTER_IDS` and one view. The children will need `SkeletonUtils.clone`.
-- **Story 3.7 wires `setLook`** and adds `World.papa.look`, `lookChange` and the Laugh weights (D2). Today only the debug `__PP__.setPapaLook` sets it; `levelScene.update` needs one line.
+- **Mama, the dog and the children have no model** (D1): Mama with E7 (story 3.7 gave her a provisional 2D figure on the Result screen, in the DOM: no model, no captured canvas), the dog with 6.1, the children with 6.4 to 6.8. Each is one `.blend`, one contract in `characterClips.ts`, one id in `CHARACTER_IDS` and one view. The children will need `SkeletonUtils.clone`.
+- ~~**Story 3.7 wires `setLook`** and adds `World.papa.look`, `lookChange` and the Laugh weights (D2).~~ **Closed in story 3.7:** `world.papa.look`, `lookChange` (outlet, coffee-table object, micro-sleep) and `feel.mama.laughPerLookPartPoints` are in; `levelScene.update` draws the world's look, and `__PP__.setPapaLook` is now a debug overlay on top of it.
 - **Untouched:** « le bébé se hisse », « Papa retire l'objet », the stairs slide's height, shards and mischief drawings. The hop and the slide keep their provisional code.
 - **The clip `eyes_open` plays on the signal, and the signal closes the baby's eyes** (4.6, 4.7: `signalIcon: eyelids`). The contract named the clip, so it stays, but it only moves his neck and spine; `babyLidsAfter` shuts the lids. Reason: a name to settle with Geo, renaming means one action in the `.blend` and one line of code.
 - **The baby's shut lids at the signal were not seen on screen:** the marker stands over him in the capture. Unit tests pin the bone. Reason: look at it in play, and it may decide where that marker goes.
@@ -1041,7 +1041,7 @@ Open:
 ## Deferred from: story 3-16-jauge-de-catastrophe-et-maman-est-rentree-plus-tot (2026-11-04)
 
 - **The six E4 gags raise no catastrophe** (`CATASTROPHE_OF_GAG`: `arms_wail`, `baby_eyes_reopened`, `baby_sat_up`, `baby_woke_on_drop`, `baby_woke_by_touch`, `baby_woke_crying` are `none`; GDD: « à chiffrer avec E4 »). `chambre_night` can only end on `mamaHome` through its outlet, table object and micro-sleeps. To cost with Geo at the playtest; a new category (or a value per def) is a schema change.
-- **Mama's scream on `mamaHome` is story 3.7's** (`mamaReactionsOf`, GDD L114, EXPERIENCE L340): the result shows the header and the cue, but no mum-bubble. 3.7 must give `mamaHome` its scream.
+- ~~**Mama's scream on `mamaHome` is story 3.7's**~~ **Closed in story 3.7:** `mamaReactionsOf` always screams on `mamaHome` and `mamaWoke`, with `result.mama_line_scream_home` / `_woke`, before the header and the door slam.
 - **The replay « cascade » of gags that brought Mama home is story 3.9's** (GDD L537): `world.flow.endReason` and the `CatastropheChanged` events are there to build it from.
 - **Story 7.4's « finale » must not fire after `mamaHome`** (`boot.ts` `LevelScored` block, music mute): a `mamaHome` is not a finished level.
 - **Sieste wording**: in a Sieste level Mama is next door, yet the header says « Maman est rentrée plus tôt ! » (the AC and the UX). The GDD's Sieste line is « Maman débarque, réveillée par un mauvais pressentiment ». One string for now; a variant string belongs to 3.10 (Retour) if Geo wants it.
@@ -1156,6 +1156,24 @@ Open:
 - The `cup` glyph of `THREAT_ICON_PATHS` ends with two open « steam » subpaths that a `fill` renders as near-invisible slivers, and its comment misdescribes it. Placeholder art: Geo's call on the device pass.
 - ~~AC 10 (both chores in 30 of 30 `perfect` runs, `choresLive.test.ts` thresholds unchanged) is not met: `perfect` finishes the dishwasher in 29 of 30, and the test asks `runsCompleted >= 28` and `meanHomePoints > 0.9 × homeMax`. The Firmness guards stretch 61 % of `perfect`'s telegraphs (mean 1975 ms, max 7280 ms) and `human` ends 24 of 60 runs in `mamaHome`. Geo accepted it (2026-11-06): the waves' balance and the `human` bot's model are 9.8's; restore the strict thresholds there.~~ **Closed in story 9.8:** `choresLive.test.ts` asks for 30 of 30 and `meanHomePoints === homeMax` again.
 - The bin and low-cabinet off-screen markers stack (anchors 0.74 m apart), and on `9-7-screenshots/chromium-g-the-kitchen-off-screen.png` their verbs (« NON ! », « REFERME ! ») sit partly under the HUD row (844 × 390). Geo (2026-11-06): judge it on the device pass; if it reads badly, move an anchor or the marker stack offset (`threatMarkers.ts`).
+
+## Deferred from: development of story 3.7 (2026-11-07)
+
+- ~~**The home-early header wraps to two lines and the Result panel scrolls** (3.16's « Maman est rentrée plus tôt ! », `ui.css › .pp-result-reason`): at 844 × 390 the panel needs 364 px for 352 and at 750 × 340 it needs 26 px more than it has; 667 × 375 fits and the woken header fits. Found by `mamaReactions.spec.ts`; not caused by 3.7 (the panel is untouched). A fix is a design call: a smaller banner than `{typography.heading}` on short phones, or a wider panel.~~ Fixed in the code review of story 3.7: below 400 px of height the header is drawn at 0.85 × the heading size (`ui.css`), and the `mamaHome` fit specs now hold the panel at 844 × 390, 667 × 375 and 750 × 340.
+- **Mama's four lines and her three clips are placeholders** (story 3.8 picks lines from `mama-lines.json`; a generated voice, as for the babble of 7.7, is possible for the clips). The 2D Mama is provisional too (E7 models her).
+- **`salon_kitchen`'s end photo shows no look**: the whole big room in one frame leaves Papa a few pixels tall (see L1019). The look is seen in play only.
+- **The `+30 % text` constraint has no mechanism in the app** (the CSS is in px tokens); the bubble and chip were checked at their normal size only.
+- **Not seen on screen**: the purée on the cheek and the shirt inside out from a real gag (the e2e proves them through `state()` and `fx()`), the Result on `chambre_night`, WebKit.
+
+
+## Deferred from: code review of story 3-7-reactions-de-maman-et-degaine-de-papa (2026-11-07)
+
+- The generic Scream line « Pas si près de l'escalier ! » (`result.mama_line_scream`) plays for any near miss, the outlet's included, and for a `timer` end; a placeholder until 3.8 picks lines from `mama-lines.json`.
+- The look is only seen on screen for the outlet's hair (`hairOnEnd`); the purée on the cheek and the shirt inside out are proven through `state()` / `fx()`, the Result on `chambre_night` and WebKit were not captured.
+- Test duplication in 3.7's specs: `lineKeyOf` / `chipOf` in `mamaReactions.spec.ts` copy the product logic, `MAMA_REACTION_EVENTS` is declared in `tests/e2e/support/game.ts` and in `boot.ts`, `LOOK_KEYS` in the spec and in `look.ts`, `mamaScore.test.ts` re-derives `lookParts`, and `mamaWoke.spec.ts` / `result.spec.ts` call `mamaReactionsOf(scored as never, …)`.
+- `combo.spec.ts:338-343` computes the expected Laugh without the look term: right only because that frozen game has no gag; add the term if a gag ever enters it.
+- `sim:balance`: the `human` bot loses 12 of 30 games (40 %, `mamaHome`) on `salon_kitchen`, outside the 10-30 % band; unchanged by story 3.7, belongs to 9.8's tuning.
+- Mama's block (`.pp-result-left`, with the `role="status"` bubble) is a sibling of the `aria-modal` Result panel, so a screen reader that honours the modal may treat her caption as inert. Fixing it means moving her block into the panel (a layout change to re-check at 750 × 340) or revisiting the modality; the live region and the chip's value were fixed in the review (Geo's call, 2026-11-07).
 
 ## Deferred from: story 9-8-niveau-grand-salon-jouable-de-bout-en-bout (2026-11-07)
 

@@ -13,6 +13,17 @@ import type { GagId } from './threats/gags.ts';
 import type { ThreatState } from './threats/threatFsm.ts';
 import type { EffectiveWindow } from './timing/effectiveWindow.ts';
 
+/**
+ * The three parts of Papa's look, each on its own (story 7.2, D2; story 3.7: world state). A gag
+ * shows one for good (`ThreatDef.lookChange`, `changePapaLook`); each part shown at the end is a
+ * few Laugh points.
+ */
+export interface PapaLook {
+  hasMashOnCheek: boolean;
+  hasHairOnEnd: boolean;
+  isShirtInsideOut: boolean;
+}
+
 /** Papa: a point on the floor plane (y = 0) that walks on the navigation grid. */
 export interface PapaSlice {
   state: PapaState;
@@ -26,6 +37,8 @@ export interface PapaSlice {
   /** Unit vector of the last direction of travel; (0, 1) at spawn. */
   headingX: number;
   headingZ: number;
+  /** Papa's look, which only gets worse during a level (story 3.7); all `false` at the start. */
+  look: PapaLook;
   /** Waypoints still ahead as a flat `[x0, z0, x1, z1, …]`; empty unless `walkPath`. */
   path: number[];
   /** Next waypoint, counted in points (not in numbers). */
@@ -319,7 +332,7 @@ export interface SilenceSlice {
  * `scorePoints = laugh + calm + home + (sighMax − sigh) + (screamMax − scream)`.
  */
 export interface MamaScore {
-  /** Rire: the perfects, the successes and the combo points cashed in, held to `laughMaxPoints`. */
+  /** Rire: the perfects, the successes, the combo points cashed in and the parts of Papa's look shown (story 3.7), held to `laughMaxPoints`. */
   laughPoints: number;
   /** Calme du bébé: the share of the played time the baby was calm, times `calmMaxPoints` (E5 changes how). */
   calmPoints: number;
@@ -777,6 +790,7 @@ export function createWorld({
       prevZM: papaSpawn.zM,
       headingX: 0,
       headingZ: 1,
+      look: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
       path: [],
       pathIndex: 0,
       dirX: 0,

@@ -58,7 +58,7 @@ function stepUntil(sim: Sim, until: () => boolean): void {
 }
 
 describe('the cycle in a snapshot (story 4.10)', () => {
-  it('is version 33 and carries the slice at rest in a level with no cycle', async () => {
+  it('is version 34 and carries the slice at rest in a level with no cycle', async () => {
     const sim = await createSim({
       content: createTestContent(),
       geometry: createTestGeometry(),
@@ -66,7 +66,7 @@ describe('the cycle in a snapshot (story 4.10)', () => {
       seed: 1,
     });
     const snapshot = sim.snapshot();
-    expect(snapshot.version).toBe(33);
+    expect(snapshot.version).toBe(34);
     expect(snapshot.world.cycle).toEqual({ index: 0, nextAt: null, completedAt: null });
     sim.dispose();
   });

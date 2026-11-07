@@ -55,6 +55,7 @@ export type { Journal, JournalEntry } from './journal.ts';
 export { isPapaBusy, PAPA_STATES, type PapaState } from './papa/papaFsm.ts';
 export { OBJECT_ACTION_KINDS } from './papa/papaSystem.ts';
 export { type ReplayOptions, type ReplayResult, replayJournal } from './replay.ts';
+export { type MamaReaction, mamaReactionsOf } from './scoring/mamaReactions.ts';
 export { starsForScore } from './scoring/stars.ts';
 export {
   type BeatEntry,
@@ -120,6 +121,7 @@ export type {
   MessSlice,
   MischiefMark,
   PapaGlide,
+  PapaLook,
   PapaSlice,
   PendingPress,
   PropSlice,

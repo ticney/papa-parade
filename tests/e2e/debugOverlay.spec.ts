@@ -947,7 +947,9 @@ test.describe('the debug overlay › keeps its fields away from the game', () =>
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
       timeout: SKIP_TIMEOUT_MS,
     });
-    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
+    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+      timeout: SKIP_TIMEOUT_MS,
+    });
     // Past the screen's input grace, when a key would skip the sequence for real.
     await waitFrames(page, Math.ceil(liveFeedback.resultScreen.inputGraceMs / FRAME_MS_UPPER) + 10);
     await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');

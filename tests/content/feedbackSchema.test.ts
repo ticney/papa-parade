@@ -348,6 +348,13 @@ describe('content/feedback.json', () => {
     expect(mutated(['resultScreen.inputGraceMs', 0])).toMatchObject({ ok: true });
   });
 
+  it('accepts the mama clip category, and still refuses a made-up one (story 3.7)', () => {
+    expect(mutated(['cues.papa_bump.audio.clip', 'mama_laugh'])).toMatchObject({ ok: true });
+    expect(failedPaths(mutated(['cues.papa_bump.audio.clip', 'mum_laugh']))).toEqual([
+      'cues.papa_bump.audio.clip',
+    ]);
+  });
+
   describe('the end photo (story 3.6)', () => {
     it.each<[string, [string, unknown][], string]>([
       ['a missing photo', [['photo', undefined]], 'photo'],
@@ -408,6 +415,21 @@ describe('content/feedback.json', () => {
         [['resultScreen.photoHoldMs', undefined]],
         'resultScreen.photoHoldMs',
       ],
+      [
+        'a negative reaction hold',
+        [['resultScreen.reactionHoldMs', -1]],
+        'resultScreen.reactionHoldMs',
+      ],
+      [
+        'a fractional reaction hold',
+        [['resultScreen.reactionHoldMs', 1.5]],
+        'resultScreen.reactionHoldMs',
+      ],
+      [
+        'a missing reaction hold',
+        [['resultScreen.reactionHoldMs', undefined]],
+        'resultScreen.reactionHoldMs',
+      ],
     ])('refuses %s', (_name, changes, path) => {
       expect(failedPaths(mutated(...changes))).toEqual([path]);
     });
@@ -422,6 +444,7 @@ describe('content/feedback.json', () => {
           ['photo.vignetteOpacityPct', 0],
           ['photo.vignetteRadiusPct', 10],
           ['resultScreen.photoHoldMs', 0],
+          ['resultScreen.reactionHoldMs', 0],
         ),
       ).toMatchObject({ ok: true });
       expect(

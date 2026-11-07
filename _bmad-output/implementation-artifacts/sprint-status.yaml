@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-11-06
+# last_updated: 2026-11-07
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -139,7 +139,7 @@ development_status:
   epic-9-retrospective: optional
 
   # Epic 3 [V1] (fin) — après l'epic 9.
-  3-7-reactions-de-maman-et-degaine-de-papa: backlog
+  3-7-reactions-de-maman-et-degaine-de-papa: done
   3-8-memoire-de-maman: backlog
   3-9-replay-des-meilleurs-moments: backlog
   3-10-variante-retour: backlog

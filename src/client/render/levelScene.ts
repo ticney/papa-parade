@@ -5,7 +5,7 @@ import { PAPA_TARGET_ANCHOR_ID, STEP_MS } from '@shared/constants';
 import { roomOf } from '@shared/followCamera';
 import { log } from '@shared/log';
 import type { RealMs, SimMs } from '@shared/time';
-import type { GagId, PropSlice, SimEvent, World } from '@sim';
+import type { GagId, PapaLook, PropSlice, SimEvent, World } from '@sim';
 import {
   AmbientLight,
   BoxGeometry,
@@ -40,7 +40,7 @@ import {
 } from './views/characterClips.ts';
 import { createCharacterRig } from './views/characterRig.ts';
 import { createDoorView, type DoorLook, doorPlacementOf } from './views/doorView.ts';
-import { createPapaView, type PapaLook, type PapaPose } from './views/papaView.ts';
+import { createPapaView, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
 import { type SquashScale, squashScaleAt } from './views/squash.ts';
 import { createViewPool, type ViewPool } from './views/viewPool.ts';
@@ -177,8 +177,13 @@ export interface LevelScene {
     mischiefDecals: number;
     /** How many broken plates' shards lie on the floor in front of the stations (story 9.6). */
     choreShards: number;
+    /** The look the view draws: the world's, or the debug overlay's (story 3.7). */
+    papaLook: Readonly<PapaLook>;
   };
-  /** Shows the parts of Papa's look. Nothing in a game sets it until story 3.7 (story 7.2, D2). */
+  /**
+   * The debug overlay of Papa's look (story 7.2, D2): a part is shown when the world's `papa.look`
+   * (story 3.7: what the gags did) or this overlay says so. Cleared by `resetFx`.
+   */
   setPapaLook(look: Readonly<PapaLook>): void;
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
@@ -484,6 +489,38 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   let gagHairAmount = 0;
   let isHairHeld = false;
   const applyHair = (): void => papa.setHair(Math.max(gagHairAmount, isHairHeld ? 1 : 0));
+  // Papa's look (story 3.7): the world's parts or the debug overlay's, in two scratch objects.
+  const worldLook: PapaLook = {
+    hasMashOnCheek: false,
+    hasHairOnEnd: false,
+    isShirtInsideOut: false,
+  };
+  const overlayLook: PapaLook = {
+    hasMashOnCheek: false,
+    hasHairOnEnd: false,
+    isShirtInsideOut: false,
+  };
+  const drawnLook: PapaLook = {
+    hasMashOnCheek: false,
+    hasHairOnEnd: false,
+    isShirtInsideOut: false,
+  };
+  const applyLook = (): void => {
+    const hasMashOnCheek = worldLook.hasMashOnCheek || overlayLook.hasMashOnCheek;
+    const hasHairOnEnd = worldLook.hasHairOnEnd || overlayLook.hasHairOnEnd;
+    const isShirtInsideOut = worldLook.isShirtInsideOut || overlayLook.isShirtInsideOut;
+    if (
+      hasMashOnCheek === drawnLook.hasMashOnCheek &&
+      hasHairOnEnd === drawnLook.hasHairOnEnd &&
+      isShirtInsideOut === drawnLook.isShirtInsideOut
+    ) {
+      return;
+    }
+    drawnLook.hasMashOnCheek = hasMashOnCheek;
+    drawnLook.hasHairOnEnd = hasHairOnEnd;
+    drawnLook.isShirtInsideOut = isShirtInsideOut;
+    papa.setLook(drawnLook);
+  };
   const babySlideM = { xM: 0, zM: 0 };
   const gags = createGagFx({
     setLightsFactor: (factor) => {
@@ -583,13 +620,22 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         lightsFactor: Math.min(flashLightsFactor, dimLightsFactor),
         mischiefDecals: decals.count,
         choreShards: choreShards.plateCount,
+        papaLook: { ...drawnLook },
       };
     },
     setPapaLook(look) {
-      papa.setLook(look);
+      overlayLook.hasMashOnCheek = look.hasMashOnCheek;
+      overlayLook.hasHairOnEnd = look.hasHairOnEnd;
+      overlayLook.isShirtInsideOut = look.isShirtInsideOut;
+      applyLook();
     },
     update(world, alpha, nowReal) {
       papa.update(world.papa, alpha);
+      // The look the gags left on Papa (story 3.7), every frame: three booleans, nothing allocated.
+      worldLook.hasMashOnCheek = world.papa.look.hasMashOnCheek;
+      worldLook.hasHairOnEnd = world.papa.look.hasHairOnEnd;
+      worldLook.isShirtInsideOut = world.papa.look.isShirtInsideOut;
+      applyLook();
       const clockMs = world.time.sim + alpha * STEP_MS;
       drawnLayDownPct = layDownPctAt(world, clockMs, bodies.layDownDefIds);
       baby.update(world.baby, alpha, world.papa, drawnLayDownPct);
@@ -656,6 +702,10 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       flashLightsFactor = 1;
       isHairHeld = false;
       gagHairAmount = 0;
+      overlayLook.hasMashOnCheek = false;
+      overlayLook.hasHairOnEnd = false;
+      overlayLook.isShirtInsideOut = false;
+      applyLook();
       applyLights();
       lift.reset();
       lastClockMs = null;

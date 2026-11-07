@@ -1,5 +1,5 @@
 import { ISO_YAW_DEG } from '@shared/constants';
-import type { BabySlice, PapaSlice } from '@sim';
+import type { BabySlice, PapaLook, PapaSlice } from '@sim';
 import { BoxGeometry, Color, Group, Mesh, type Object3D } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
@@ -40,13 +40,6 @@ const PAPA_Z_THICKNESS_M = 0.04;
 export interface PapaPose extends PointXZ {
   /** Rotation about the vertical axis, in radians: 0 faces +z, a positive angle turns toward +x. */
   yawRad: number;
-}
-
-/** The three parts of Papa's look, each on its own (story 7.2, D2; story 3.7 will drive them). */
-export interface PapaLook {
-  readonly hasMashOnCheek: boolean;
-  readonly hasHairOnEnd: boolean;
-  readonly isShirtInsideOut: boolean;
 }
 
 /**

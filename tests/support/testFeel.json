@@ -172,6 +172,7 @@
     "laughMaxPoints": 35,
     "laughPerPerfectPoints": 1,
     "laughPerSuccessPoints": 0.5,
+    "laughPerLookPartPoints": 5,
     "calmMaxPoints": 20,
     "calmNoiseThresholdPct": 50,
     "homeMaxPoints": 15,

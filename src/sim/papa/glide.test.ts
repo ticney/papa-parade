@@ -282,6 +282,7 @@ describe('planWalkTo', () => {
       prevZM: 0,
       headingX: 0,
       headingZ: 1,
+      look: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
       path: [],
       pathIndex: 0,
       dirX: 0,
