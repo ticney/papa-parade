@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   hapticPatternOf,
   html,
@@ -30,7 +31,7 @@ const ALERT_PATTERN = hapticPatternOf('NoiseAlertReached');
 const hasVibrate = (): boolean => test.info().project.name === 'chromium';
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

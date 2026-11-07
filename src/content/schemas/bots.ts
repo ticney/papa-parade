@@ -28,6 +28,50 @@ const ReadErrorSchema = z
   })
   .describe('How well the human bot times a response that has a chrono-ring.');
 
+const HUMAN_SCREEN_MAX_PX = 8192;
+
+const BotHumanViewSchema = z
+  .strictObject({
+    widthPx: z
+      .number()
+      .int()
+      .positive()
+      .max(HUMAN_SCREEN_MAX_PX)
+      .describe(
+        "Width of the screen the human bot plays on, in CSS px (the game canvas): 844 is the e2e viewport, a landscape phone. With `heightPx` it sets how much of the big room's follow frame the bot sees (story 9.8).",
+      ),
+    heightPx: z
+      .number()
+      .int()
+      .positive()
+      .max(HUMAN_SCREEN_MAX_PX)
+      .describe(
+        'Height of that screen, in CSS px. Landscape: under `widthPx`. The bot is compact (a phone) or regular (a tablet) as the client derives it from the short side.',
+      ),
+    hudBottomPx: z
+      .number()
+      .int()
+      .min(0)
+      .max(HUMAN_SCREEN_MAX_PX)
+      .describe(
+        "The bottom of the HUD row, in CSS px from the top of the canvas, as the client measures it on this screen: a threat's icon under it is not seen. An e2e test compares it with the client's measure.",
+      ),
+    bubbleReadMs: z
+      .number()
+      .min(0)
+      .max(HUMAN_TIMING_MAX_MS)
+      .describe(
+        'Extra time, in ms, the human bot needs to read a threat it first sees through an off-screen bubble (a small icon at the edge) instead of a marker in the play area; 0 = it reacts at the bubble as it would at a marker. No data behind it yet (story 9.8, question 2).',
+      ),
+  })
+  .refine((view) => view.widthPx > view.heightPx, {
+    path: ['widthPx'],
+    message: 'the screen is a landscape phone: widthPx must be above heightPx',
+  })
+  .describe(
+    'The screen the human bot plays a follow-camera level on (story 9.8): what it can see of the big room. A fixed-camera level ignores it.',
+  );
+
 const BotHumanSchema = z
   .strictObject({
     reactionMeanMs: z
@@ -89,6 +133,7 @@ const BotHumanSchema = z
       .describe(
         "Extra standard deviation, in ms, of the human bot's aim at a threat's window while Papa works at a chore's station (story 9.4: his back is turned to the baby, he reads the room worse); 0 = none. Gaussian, added to the ring's read error, so the cost grows smoothly with the value: one more draw per response planned in a chore, none otherwise.",
       ),
+    view: BotHumanViewSchema,
   })
   .describe('The `human` bot: a plausible attentive player.');
 

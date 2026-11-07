@@ -9,6 +9,7 @@ import {
   type FollowParams,
   type FollowState,
   fitFollowFrame,
+  roomOf,
   settleFollow,
   snapFollow,
   stepFollow,
@@ -482,5 +483,23 @@ describe('the follow (story 9.2, AC 3, 4, 8)', () => {
     expect(at(30)).not.toBe(0);
     expect(Math.abs(at(30) - at(100))).toBeLessThan(0.05);
     expect(Math.abs(at(60) - at(100))).toBeLessThan(0.02);
+  });
+});
+
+describe('roomOf', () => {
+  it('takes the box from the bounds, down to what goes below the floor (y = 0)', () => {
+    const room = roomOf({ boundsMinM: [-4.2, -0.8, -3.2], boundsMaxM: [4.9, 2.5, 3] });
+    expect(room.widthM).toBeCloseTo(9.1, 9);
+    expect(room.depthM).toBeCloseTo(6.2, 9);
+    expect(room.floorYM).toBe(-0.8);
+    expect(room.heightM).toBeCloseTo(3.3, 9);
+    expect(room.centerXM).toBeCloseTo(0.35, 9);
+    expect(room.centerZM).toBeCloseTo(-0.1, 9);
+  });
+
+  it('starts the box at y = 0 for a level that stays above the floor, not at the lowest visual', () => {
+    const room = roomOf({ boundsMinM: [-4, 0.3, -3], boundsMaxM: [4, 2.5, 3] });
+    expect(room.floorYM).toBe(0);
+    expect(room.heightM).toBe(2.5);
   });
 });

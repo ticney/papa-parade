@@ -136,7 +136,7 @@ test.describe('the built playtest bundle', () => {
     const [download] = await Promise.all([page.waitForEvent('download'), copy.click()]);
     await expect(copy).toHaveText(STRINGS['result.download_log'] as string);
     expect(download.suggestedFilename()).toMatch(
-      /^papa-parade-journal-salon_crawler-[0-9a-f]{8}-1\.json$/,
+      /^papa-parade-journal-salon_kitchen-[0-9a-f]{8}-1\.json$/,
     );
     const file = JSON.parse(readFileSync(await download.path(), 'utf8')) as { kind: string };
     expect(file.kind).toBe('papa-parade.journal');

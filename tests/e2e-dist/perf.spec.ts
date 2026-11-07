@@ -37,7 +37,8 @@ test('a full level at speed 1 holds the frame, draw-call and triangle budgets', 
   test.setTimeout(levelMs + 30_000);
   const problems = collectProblems(page);
 
-  // `PP_PERF_LEVEL` measures another level by hand (story 4.10); CI keeps the salon, so its time does not grow.
+  // With no level it measures the game's first level, the big room, which is what the playtest plays (story 9.8).
+  // `PP_PERF_LEVEL` measures another one by hand (story 4.10): `salon_crawler` for the old salon.
   const level = process.env.PP_PERF_LEVEL;
   const levelQuery = level === undefined ? '' : `&level=${level}`;
   await page.goto(`/?autoplay=human&seed=1&speed=1&debug=1${levelQuery}`);

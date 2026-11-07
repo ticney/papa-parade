@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { cueIds, shot, typesOf } from './support/duel.ts';
-import { collectProblems, html, OWN_WARNINGS, THREATS_OFF, waitFrames } from './support/game.ts';
+import {
+  appUrl,
+  collectProblems,
+  html,
+  OWN_WARNINGS,
+  THREATS_OFF,
+  waitFrames,
+} from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
 import {
   ppAdvance,
@@ -45,7 +52,7 @@ const chore = ppChore;
 /** Loads the kitchen frozen; `threats` keeps its waves (a test about a threat), else none disturbs the beat. */
 async function open(page: Page, { threats = false }: { threats?: boolean } = {}): Promise<void> {
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.goto(`/${threats ? '' : THREATS_OFF}${threats ? '?' : '&'}level=${LEVEL}`);
+  await page.goto(appUrl(`/${threats ? '' : THREATS_OFF}${threats ? '?' : '&'}level=${LEVEL}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -380,7 +387,7 @@ test.describe('the house chores', () => {
     page,
   }) => {
     const problems = collectProblems(page, { allowedErrors: OWN_WARNINGS });
-    await page.goto(`/${THREATS_OFF}&level=salon_crawler`);
+    await page.goto(appUrl(`/${THREATS_OFF}&level=salon_crawler`));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, 'salon_crawler', SEED);

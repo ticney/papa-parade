@@ -4,7 +4,7 @@ baseline_commit: 533975d
 
 # Story 9.8: Niveau grand salon jouable de bout en bout
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -67,39 +67,39 @@ so that I can hand it to the playtest of the third prototype.
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Pre-flight** (all ACs)
-  - [ ] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev`, `e2e` and `ci` in `(unset VITE_DEBUG_ALLOWED; …)`.
-  - [ ] `git log --oneline -1 main` is at or after `533975d` (9.7 merged); if `main` moved, `git merge main` (status lines of `sprint-status.yaml` by hand).
-  - [ ] Baseline (keep the numbers for the Debug Log): `npm run sim -- --bot <b> --level salon_kitchen --runs 200 --out <scratchpad>/before-<b>.json` for `human`, `perfect`, `idle`, and `human` on `salon_crawler` (the salon's own loss rate, for comparison).
-- [ ] **T1. The first level** (AC 1, 2)
-  - [ ] `DEFAULT_LEVEL_ID = 'salon_kitchen'` (comment); asset tools and `export_level.py` require their id (usage line, exit 1; a test per tool if they have one, else say so); `audioAssets.test.ts` per-level budgets.
-  - [ ] e2e: the `appUrl` helper in `tests/e2e/support/game.ts`, every level-less `page.goto` through it (grep `page.goto(` in `tests/e2e/*.spec.ts`), the new default-level cases; `tests/e2e-dist/{dist,perf}.spec.ts`.
-  - [ ] Unit tests that read the default: `levelSession.test.ts`, `simArgs.test.ts`, `runSim.test.ts` / `cli.test.ts` (journal names come from the explicit level), `checkDist.test.ts` fixtures: adjust only where the default itself is the subject.
-  - [ ] `npm run ci:fast`; then in the background `npm run e2e -- tests/e2e/level.spec.ts tests/e2e/autoplay.spec.ts tests/e2e/afterEffects.spec.ts tests/e2e/testApi.spec.ts tests/e2e/result.spec.ts --project=chromium` (the screenshot specs prove the helper caught their URLs).
-- [ ] **T2. Shared frame and urgency** (AC 5)
-  - [ ] Move `roomOf` to `src/shared/` (structural type), `levelScene.ts` imports it; move `threatCloseAt` / `compareUrgency` / `isMoreUrgent` to `src/shared/urgency.ts` (structural), `client/input/urgency.ts` deleted or re-exporting (prefer updating the imports); their tests move with them.
-- [ ] **T3. The visibility model** (AC 4, 6, 7)
-  - [ ] `src/content/schemas/bots.ts` + `bots.json › human.view`; `BotOptions`; `setupProblem`; `npm run content:schemas`.
-  - [ ] `src/bots/bot.ts › BotSetup.view` / `BotView` (doc comments); the builder (`src/bots/botView.ts` or beside `safeSpotOf`; the CLI and autoplay pass the level, its geometry and the settings); `runSim.ts`, `autoplay.ts`, `botSupport.ts` (`view: null` for the frozen test levels, a helper to build a follow view for unit tests).
-  - [ ] `src/bots/humanBot.ts`: the frame state, `seenAt` per threat cycle (a small memory keyed like `createCycleMemory`, allocation-free per step), the cap of 3 by shared urgency, `bubbleReadMs`; the header's model block gains the visibility paragraph. The press planning reads `seenAt` where it read `enteredAt` (the parry / Firmness branch, `isMissed`, the bomb drop's press, the false alarm's breath, the `wait`'s reaction to its signal stays the signal's).
-  - [ ] Tests (`src/bots/humanBot.visibility.test.ts` or beside): on a follow test view, a threat telegraphed outside the frame with a free bubble is planned from the telegraph (+ `bubbleReadMs`); a fourth off-screen threat waits for a bubble; one that is never seen gags; one in the frame is planned as before; `view: null` gives exactly the commands of before on the same world sequence (and `humanBotRegression.test.ts` unchanged); the frame matches the client's for the same Papa path (compare with `followRig`'s maths on a scripted path: same centre within 1e-9). Each rule gets a test that fails without it.
-  - [ ] Report `visibility` (`runSim.ts`, `simReport.ts`, `simArgs.ts › SIM_HELP`), its aggregation test.
-  - [ ] The e2e drift guard of AC 6 (`hudBottomPx`).
-- [ ] **T4. The balance** (AC 3, 8, 10)
-  - [ ] Measure first with the model on (200 games, all three bots), then tune in the order of AC 8. Keep a table of every attempt (the values, `human`'s `mamaHome` %, `perfect`'s chores and fails) in the Debug Log, the kept one marked.
-  - [ ] `salonKitchen.test.ts` shape test (AC 3); `choresLive.test.ts` thresholds back; re-measured constants with their date; the visibility live test (AC 10).
-  - [ ] Neighbour e2e specs that seed games on the big room (`cooking`, `dishwasher`, `chores`, `salonKitchen`, `offscreenBubble`, `activityBubble`, `newMischiefs`): a spec broken by the new waves is fixed in the spec (a later seed, a forced threat, `?threats=`), never by changing the level back; say which.
-- [ ] **T5. `sim:balance`** (AC 9)
-  - [ ] `src/content/schemas/playtest.ts` `simulated` block, `content/playtest.json`, `content:schemas`; `tools/sim/balanceCheck.ts` (`balanceVerdict` pure, the CLI glue thin, `log` not `console` outside `shared/log.ts`: follow what `tools/sim/cli.ts` does for output), `tests/tools/sim/balanceCheck.test.ts`; `package.json` scripts (`sim:balance`, and `ci:heavy`'s step after `test:coverage`); CLAUDE.md rows.
-- [ ] **T6. Browser, screenshots, docs** (AC 11, 13, 14)
-  - [ ] Screenshots (AC 14) with a throwaway spec, then delete it.
-  - [ ] `_bmad-output/project-context.md`: the first level (`DEFAULT_LEVEL_ID`), the frozen big room, the visibility model in « The `human` model » (and the two « the `human` bot of 9.8 will » sentences of 9.2 / 9.3 now in the present), `BotSetup.view`, `sim:balance` and `playtest.json › simulated`, the e2e test room rule (`appUrl`).
-  - [ ] `deferred-work.md`: a 9.8 section (Dev Notes › Deferred items); strike through what this story resolves (9.6 « `human` never lets the baby into the dishwasher » once `open.gagged > 0` is asserted live; 9.7 « `perfect` 29 / 30 » and « `salon_kitchen`'s waves are provisional »; 9.3 « the `human` bot of 9.8 runs the same test »).
-  - [ ] `docs/playtest/observation-sheet.md` (AC 13); CLAUDE.md (AC 9, 13).
-  - [ ] The GDD, the architecture and the UX docs are not edited; variances go in the Completion Notes.
-- [ ] **T7. The gate** (AC 13)
-  - [ ] `npm run ci:fast` after each task; the touched specs on Chromium in the background through `npm run e2e`.
-  - [ ] After the review: `npm run ci` in the background (this story completes Epic 9: it replaces `ci:story`). A red spec is fixed and rerun alone, say what happened.
+- [x] **T0. Pre-flight** (all ACs)
+  - [x] `env | grep VITE_`: if `VITE_DEBUG_ALLOWED` is set, wrap `dev`, `e2e` and `ci` in `(unset VITE_DEBUG_ALLOWED; …)`.
+  - [x] `git log --oneline -1 main` is at or after `533975d` (9.7 merged); if `main` moved, `git merge main` (status lines of `sprint-status.yaml` by hand).
+  - [x] Baseline (keep the numbers for the Debug Log): `npm run sim -- --bot <b> --level salon_kitchen --runs 200 --out <scratchpad>/before-<b>.json` for `human`, `perfect`, `idle`, and `human` on `salon_crawler` (the salon's own loss rate, for comparison).
+- [x] **T1. The first level** (AC 1, 2)
+  - [x] `DEFAULT_LEVEL_ID = 'salon_kitchen'` (comment); asset tools and `export_level.py` require their id (usage line, exit 1; a test per tool if they have one, else say so); `audioAssets.test.ts` per-level budgets.
+  - [x] e2e: the `appUrl` helper in `tests/e2e/support/game.ts`, every level-less `page.goto` through it (grep `page.goto(` in `tests/e2e/*.spec.ts`), the new default-level cases; `tests/e2e-dist/{dist,perf}.spec.ts`.
+  - [x] Unit tests that read the default: `levelSession.test.ts`, `simArgs.test.ts`, `runSim.test.ts` / `cli.test.ts` (journal names come from the explicit level), `checkDist.test.ts` fixtures: adjust only where the default itself is the subject.
+  - [x] `npm run ci:fast`; then in the background `npm run e2e -- tests/e2e/level.spec.ts tests/e2e/autoplay.spec.ts tests/e2e/afterEffects.spec.ts tests/e2e/testApi.spec.ts tests/e2e/result.spec.ts --project=chromium` (the screenshot specs prove the helper caught their URLs).
+- [x] **T2. Shared frame and urgency** (AC 5)
+  - [x] Move `roomOf` to `src/shared/` (structural type), `levelScene.ts` imports it; move `threatCloseAt` / `compareUrgency` / `isMoreUrgent` to `src/shared/urgency.ts` (structural), `client/input/urgency.ts` deleted or re-exporting (prefer updating the imports); their tests move with them.
+- [x] **T3. The visibility model** (AC 4, 6, 7)
+  - [x] `src/content/schemas/bots.ts` + `bots.json › human.view`; `BotOptions`; `setupProblem`; `npm run content:schemas`.
+  - [x] `src/bots/bot.ts › BotSetup.view` / `BotView` (doc comments); the builder (`src/bots/botView.ts` or beside `safeSpotOf`; the CLI and autoplay pass the level, its geometry and the settings); `runSim.ts`, `autoplay.ts`, `botSupport.ts` (`view: null` for the frozen test levels, a helper to build a follow view for unit tests).
+  - [x] `src/bots/humanBot.ts`: the frame state, `seenAt` per threat cycle (a small memory keyed like `createCycleMemory`, allocation-free per step), the cap of 3 by shared urgency, `bubbleReadMs`; the header's model block gains the visibility paragraph. The press planning reads `seenAt` where it read `enteredAt` (the parry / Firmness branch, `isMissed`, the bomb drop's press, the false alarm's breath, the `wait`'s reaction to its signal stays the signal's).
+  - [x] Tests (`src/bots/humanBot.visibility.test.ts` or beside): on a follow test view, a threat telegraphed outside the frame with a free bubble is planned from the telegraph (+ `bubbleReadMs`); a fourth off-screen threat waits for a bubble; one that is never seen gags; one in the frame is planned as before; `view: null` gives exactly the commands of before on the same world sequence (and `humanBotRegression.test.ts` unchanged); the frame matches the client's for the same Papa path (compare with `followRig`'s maths on a scripted path: same centre within 1e-9). Each rule gets a test that fails without it.
+  - [x] Report `visibility` (`runSim.ts`, `simReport.ts`, `simArgs.ts › SIM_HELP`), its aggregation test.
+  - [x] The e2e drift guard of AC 6 (`hudBottomPx`).
+- [x] **T4. The balance** (AC 3, 8, 10)
+  - [x] Measure first with the model on (200 games, all three bots), then tune in the order of AC 8. Keep a table of every attempt (the values, `human`'s `mamaHome` %, `perfect`'s chores and fails) in the Debug Log, the kept one marked.
+  - [x] `salonKitchen.test.ts` shape test (AC 3); `choresLive.test.ts` thresholds back; re-measured constants with their date; the visibility live test (AC 10).
+  - [x] Neighbour e2e specs that seed games on the big room (`cooking`, `dishwasher`, `chores`, `salonKitchen`, `offscreenBubble`, `activityBubble`, `newMischiefs`): a spec broken by the new waves is fixed in the spec (a later seed, a forced threat, `?threats=`), never by changing the level back; say which.
+- [x] **T5. `sim:balance`** (AC 9)
+  - [x] `src/content/schemas/playtest.ts` `simulated` block, `content/playtest.json`, `content:schemas`; `tools/sim/balanceCheck.ts` (`balanceVerdict` pure, the CLI glue thin, `log` not `console` outside `shared/log.ts`: follow what `tools/sim/cli.ts` does for output), `tests/tools/sim/balanceCheck.test.ts`; `package.json` scripts (`sim:balance`, and `ci:heavy`'s step after `test:coverage`); CLAUDE.md rows.
+- [x] **T6. Browser, screenshots, docs** (AC 11, 13, 14)
+  - [x] Screenshots (AC 14) with a throwaway spec, then delete it.
+  - [x] `_bmad-output/project-context.md`: the first level (`DEFAULT_LEVEL_ID`), the frozen big room, the visibility model in « The `human` model » (and the two « the `human` bot of 9.8 will » sentences of 9.2 / 9.3 now in the present), `BotSetup.view`, `sim:balance` and `playtest.json › simulated`, the e2e test room rule (`appUrl`).
+  - [x] `deferred-work.md`: a 9.8 section (Dev Notes › Deferred items); strike through what this story resolves (9.6 « `human` never lets the baby into the dishwasher » once `open.gagged > 0` is asserted live; 9.7 « `perfect` 29 / 30 » and « `salon_kitchen`'s waves are provisional »; 9.3 « the `human` bot of 9.8 runs the same test »).
+  - [x] `docs/playtest/observation-sheet.md` (AC 13); CLAUDE.md (AC 9, 13).
+  - [x] The GDD, the architecture and the UX docs are not edited; variances go in the Completion Notes.
+- [x] **T7. The gate** (AC 13)
+  - [x] `npm run ci:fast` after each task; the touched specs on Chromium in the background through `npm run e2e`.
+  - [ ] After the review: `npm run ci` in the background (this story completes Epic 9: it replaces `ci:story`). A red spec is fixed and rerun alone, say what happened. *(The review's gate: dev-story does not run `ci` or `ci:story`, CLAUDE.md › Which check, when.)*
 
 ## Dev Notes
 
@@ -221,13 +221,72 @@ Read as written: (1) the big room is the first level, the salon stays reachable 
 
 ### Agent Model Used
 
+Claude Sonnet 5.5 (claude-sonnet-5-5), via the `gds-dev-story` workflow, 2026-11-07.
+
+### Implementation Plan
+
+- **Shared maths (T2).** `roomOf` moved to `src/shared/followCamera.ts` (a `RoomBounds` input, a `RoomBox` output, so the client's `RoomSize` and the bot's frame share it); `threatCloseAt` / `compareUrgency` / `isMoreUrgent` to `src/shared/urgency.ts` on a structural `ThreatWindow`; `surfaceFor` to `src/shared/surface.ts` (the client's `bindSurface` stays in `client/app/surface.ts`); the marker's float height became `THREAT_MARKER_OFFSET_M` in `shared/constants.ts`. Their tests moved with them; the client imports from `@shared`.
+- **The sight (T3).** `src/bots/botSight.ts` is the whole model: a `FollowFrame` / `FollowState` rebuilt per `act` from Papa and `world.feel.camera` (a refit when the frame size moves, as `followRig.fit` does), the client's insets and hysteresis, and an insertion-sorted list of the threats outside the frame, the first `OFFSCREEN_BUBBLE_MAX_COUNT` of which are « seen through a bubble ». `humanBot.ts` asks `sight.seenAt(threat)` where it read `threat.enteredAt` (three places: the reaction floor, the bomb drop's press, the false alarm's breath) and does nothing for a threat not seen yet; with `view: null` it reads `enteredAt` and plays exactly as before. `BotView` carries the anchors and each def's `target` instead of a point per threat (see Variances). `botViewOf` (`src/bots/botView.ts`) builds it for `runSim`, `autoplay` and the tests.
+- **The report (T3).** `visibility` (`telegraphs`, `seenOffscreen`, `cappedMs`, `neverSeen`, `meanSeenDelayMs`) from a `VisibilityCounters` object the runner passes in (`BotSetup.visibilityCounters`) and the bot fills: `act`'s contract is untouched and no event is read. `summarizeVisibility` aggregates it (null for the other bots, for a fixed level and with no run).
+- **The first level (T1).** `DEFAULT_LEVEL_ID = 'salon_kitchen'`. The asset tools take a level id through `levelIdArg` (a usage line and exit 1 without one) and `export_level.py` requires `--out`. `audioAssets.test.ts` measures each level against its own budget. The e2e suite keeps the salon through `appUrl` (every `page.goto` of a spec; 40 spec files).
+- **The balance (T4, T5).** `npm run sim:balance` (`tools/sim/balanceCheck.ts`, pure `balanceVerdict`) reads `content/playtest.json › simulated`; `ci:heavy` runs it after `test:coverage`. The waves were tuned from a throwaway in-memory harness (not committed); the table of attempts is below.
+
 ### Debug Log References
+
+**The balance, before and after** (`main` at `533975d` for « before »; seed 1, 200 games, Normal tier, ring on; ends = `timer` · `mamaWoke` · `mamaHome`):
+
+| bot / level | before | after |
+|---|---|---|
+| `human` / `salon_kitchen` | 51 · 76 · 73 (**36.5 % lost**), score 82.4, 2.2 stars, peak catastrophe 74.9 %, cooking 199 / 200, dishwasher 171 / 200, open door 60 / 56 / 3 (telegraphed / closed / gagged), 1182 gags, home at 133 s | 114 · 47 · 39 (**19.5 % lost**), score 84.6, 3.2 stars, peak 62.3 %, cooking 197, dishwasher 195, open door 8 / 7 / **1**, 918 gags, home at 115 s |
+| `perfect` / `salon_kitchen` | 200 · 0 · 0, score 89.5, 4.8 stars, **dishwasher 184 / 200**, 0 fails | 200 · 0 · 0, score 92.9, 5 stars, **cooking 200, dishwasher 200**, 0 fails, 0 gags, 0 unfair, open door 0 |
+| `idle` / `salon_kitchen` | 0 · 0 · 200, lost at 26.4 s | 0 · 0 · 200, lost at 25.0 s |
+| `human` / `salon_crawler` (for comparison) | 144 · 35 · 21 (10.5 %), score 72.1 | unchanged (the level is untouched) |
+
+`human` fails per def, before → after: outlet 143 → 154, stairs 166 → 172, tablecloth 159 → 159, cabinet 169 → 79, plant 135 → 88, bin 128 → 68, mug 111 → 73, coffee table 106 → 81, micro-sleep 57 → 40, silence 5 → 3, open dishwasher 3 → 1. `human`'s ends on a wake (no GDD target, D9): 38 % → 23.5 %.
+
+**The visibility model, measured** (`human`, 200 games, bubble read 100 ms): on the old waves 11 017 telegraphs, 1 441 first seen through a bubble (13 %), `cappedMs` 0, `neverSeen` 0, mean seen delay 100 ms, and **the same 51 · 76 · 73 as without the model**; on the final waves 10 258 telegraphs, 1 300 through a bubble (12.7 %), `cappedMs` 0, `neverSeen` 0, 100 ms. The model changes the numbers by nothing today: the reaction floor `seenAt + reaction` (350 ms) never binds before the aim at the window's centre, and the bubble cap of three is never reached. It is there, measured, and what Geo's device would change is `human.view` (a tablet, a slower bubble).
+
+**The attempts** (`human` loss % · `perfect` dishwasher of 200; wave = index in the file; `w0 gaps` = `gapMinMs`-`gapMaxMs` of the first wave, `w1@` = when the second wave starts; the rest as in the file at the time):
+
+| attempt | human lost | perfect dishwasher | note |
+|---|---|---|---|
+| the file of 9.7 | 36.5 % | 184 | |
+| w2 gaps 1000-3000 | 20.0 % | 188 | the third wave's gaps fix the loss rate, not the chores |
+| w2 gaps 1500-3500 | 14.0 % | 191 | |
+| w1 gaps 1500-3500 | 27.0 % | 191 | |
+| w1 2000-4000 + w2 1500-3500 | 5.0 % | 195 | too easy |
+| w0 gaps 6000-9000 (+ w2 1000-3000) | 10.5 % | **200** | `human` never fails the open dishwasher |
+| w0 gaps 5000-8000 (+ w1 800-2500, w2 1000-3000) | 22.5 % | **200** | open door met 2 times in 200 games: no gag |
+| the open dishwasher moved to the second wave | 23 % | 200 | the door is never met (0 of 200): `human` has finished the dishwasher by 60 s |
+| w0 gaps 4000-7000, w1@75 s | 21.0 % | 196 | open door 23 / 2 gagged, but the pot unfailed |
+| w0 4000-7000, lull 6000, w1@80 s | 21.5 % | 199 | one seed (96) cooks for 78 s: every beat is cancelled by a threat |
+| w0 4500-7500, lull 6000, w1@80 s | 18.0 % | **200** | open door 5 / 0 gagged |
+| four threats in the first wave, w0 5000-8000 | 22.0 % | **200** | the door 10 / 0 gagged |
+| **four threats in the first wave, w0 4500-7500, w1@75 s, w1 800-2500, w2 1000-3000** | **19.5 %** | **200** | **kept: the open door 8 / 7 / 1 gagged, every new mischief failed at least once** |
+| the same with lull 6000 and w1@80 s | 31.0 % | 199 | |
+
+**Why the dishwasher was stuck:** a chore beat that a threat interrupts is cancelled and announced again about 5 s later (no miss), so with a threat every 5 s the cooking alone can take 78 s (seed 96 of the 9.7 waves: cooking done at 78 s, the dishwasher begun at the second wave and never finished). A calmer first wave is the only lever inside the rules of this story (`quietMinMs` and the chores' beat spacing were not touched).
+
+**Gates.** `npm run ci:fast` green (441 test files, 9 760 tests); `npm run sim:balance` all seven lines `OK` (above); the whole Chromium e2e suite once, 485 passed and 2 red, both fixed and rerun green alone: `autoplay.spec.ts` « is the same game as the headless one » (its CLI call had no `--level`, so it played the new default: now `--level salon_crawler`) and `chambreNight.spec.ts` « a mistyped id plays the salon » (a mistyped `?level=` plays the default level: it now says so and expects `DEFAULT_LEVEL_ID`); the screenshot references of `autoplay` and `afterEffects` are unchanged (`appUrl` caught every URL). `npm run ci` is the review's gate (project rule): not run here.
 
 ### Completion Notes List
 
+- **All 14 ACs are met; T7's last subtask (`npm run ci` after the review) is the review's gate.** `sim:balance`'s seven lines are `OK`; every test above is green.
+- **Variances from the story text.** (1) `BotView` holds the level's **anchors** (by id) and each def's **target** instead of « the marker point of each planned threat »: the client's marker is looked up by the threat's own `anchorId` (a chore's pot or open door stands at its station's anchor, which the def alone does not name), and a threat on the baby stands at its own point, so the bot resolves the point at the step exactly as `threatMarkers.ts` does. (2) `VisibilityCounters` is `BotSetup.visibilityCounters` (optional, written by the bot, read by `runSim`) and `visibility` is the report's own block. (3) The balance target `humanGagsEveryThreat` of the story's sketch became `humanMustFailDefs` (the six new mischiefs: a list in `content/playtest.json`) and `humanOpenDoorMustGag`: « every threat » also counted the pot and the micro-sleep, which no wave plans, and the AC says « per new def ». (4) `meanSeenDelayMs` is `seenAt − enteredAt` over the threats seen after their telegraph, the bubble's reading included (always 100 ms today).
+- **The waves' final shape** (`content/levels/salon_kitchen.json`; no other content file moved, no `feelOverrides`, so question 5's OK was not needed): the first wave keeps `maxSimultaneous` 1 and holds four threats (outlet, stairs, open dishwasher, tablecloth) at 4.5-7.5 s; the second starts at 75 s (was 60) with `maxSimultaneous` 2, gaps 0.8-2.5 s, and holds the cabinet, the plant, the coffee table, the silence, the bin and the mug; the third (120 s) keeps `maxSimultaneous` 3 and the phone, with gaps 1-3 s (was 0.5-2 s). `tests/content/salonKitchen.test.ts` pins this shape, never the numbers; the 9.7 test that pinned the cabinet and the plant in wave 0 now says wave 1.
+- **The balance is fragile on two targets** (honest report): `chores.open.gagged` is 1 in 200 `human` games and `dishwasher_open` fails once. They are deterministic and `sim:balance` fails the moment a content change loses them; a rhythm with a margin needs the baby to choose the door more often (deferred-work, 9.8 section).
+- **`choresLive.test.ts`** has its thresholds of before 9.7 (`perfect`: both chores 30 / 30, `meanHomePoints === homeMax`), the two measured scores re-measured on 2026-11-07 (77.9 without chores, 85.4 with the cooking only), the `human` test on 200 games (the calmer first wave leaves 5 plates in 200 games) and a live `open.gagged > 0` (the 9.6 deferred item). It no longer asks `perfect` to meet the open door (0 in 200: it has finished both chores before the baby can choose it).
+- **Not done, by decision of the story:** the room stays frozen (no `geometry.json`, `.glb` or `.blend` change); no `feel.json`, shared threat file or existing `human` knob moved; the GDD, architecture and UX docs are untouched.
+- **What only Geo can judge** (AC 14): whether the big room's rhythm feels right (a first wave of four threats every 4.5-7.5 s, the second from 75 s, three at once from 120 s); whether 100 ms to read an off-screen bubble is fair (it changes nothing in 200 simulated games, so only a player can say); whether the `human` bot's 19.5 % losses look like a player's (the third prototype's journals, `npm run sim -- --compare`); and whether the kitchen markers read well from the sofa end (the cabinet and bin markers still stack, question 4).
+
 ### File List
+
+**New:** `src/bots/botSight.ts`, `src/bots/botView.ts`, `src/shared/surface.ts`, `src/shared/surface.test.ts`, `tools/assets/levelIdArg.ts`, `tools/sim/balanceCheck.ts`, `tests/bots/botSight.test.ts`, `tests/bots/botView.test.ts`, `tests/tools/assets/levelIdArg.test.ts`, `tests/tools/sim/balanceCheck.test.ts`, `tests/tools/sim/visibilityLive.test.ts`, `tests/e2e/firstLevel.spec.ts`, `_bmad-output/implementation-artifacts/9-8-screenshots/*` (four screenshots and `b-the-bots-verdict.json`).
+**Moved:** `src/client/input/urgency.ts` and `.test.ts` → `src/shared/urgency.ts` and `.test.ts`.
+**Modified:** `CLAUDE.md`, `_bmad-output/project-context.md`, `_bmad-output/implementation-artifacts/{deferred-work.md,sprint-status.yaml}` and this story, `docs/playtest/observation-sheet.md`, `package.json`, `content/{bots,playtest}.json`, `content/_schemas/{bots,playtest}.schema.json`, `content/levels/salon_kitchen.json`, `src/shared/{constants,followCamera}.ts` (+ `followCamera.test.ts`), `src/bots/{bot,createBot,humanBot}.ts`, `src/content/schemas/{bots,playtest}.ts` (+ `playtest.test.ts`), `src/client/app/surface.ts` (+ test), `src/client/render/levelScene.ts` (+ test), `src/client/render/isoCamera.test.ts`, `src/client/input/autoTarget.ts`, `src/client/ui/{hud/offscreenHud,world/offscreenLayout,world/threatMarkers,world/verbLayout}.ts`, `src/client/app/levelSession.test.ts`, `src/debug/autoplay.ts`, `tools/assets/{exportLevel,extractLevelGeometry,optimizeGlb}.ts`, `tools/blender/export_level.py`, `tools/sim/{runSim,simReport,simArgs}.ts`, `tests/architecture/audioAssets.test.ts`, `tests/content/{botsSchema,salonKitchen}.test.ts`, `tests/support/{botSupport,testContent}.ts`, the `BotSetup` literals of `tests/bots/{bedtimeCycleFuzz,instinct,createBot}.test.ts`, `tests/golden/scenarios.ts`, `tests/tools/playtest/playtestMetrics.test.ts` and `tests/tools/sim/{cli,cycleLevel,journalReplay,mamaScore,microSleep,phone,playGame,runSim,silence,simReport,choresLive}.test.ts`, `tests/e2e/support/game.ts` (`appUrl`, `TEST_ROOM_ID`), 40 `tests/e2e/*.spec.ts` (their `page.goto` through `appUrl`; `autoplay.spec.ts` and `chambreNight.spec.ts` also adjusted), `tests/e2e-dist/{dist,perf}.spec.ts`.
 
 ### Change Log
 
 - 2026-11-06: Story 9.8 created (ready-for-dev).
 - 2026-11-07: Geo kept the five decisions as written (questions 1-5).
+- 2026-11-07: Implemented (dev-story): the big room is the first level; the `human` bot's visibility model and report; `sim:balance`; the waves retuned so that `human` loses 19.5 % of 200 games and `perfect` finishes both chores 200 times out of 200; the asset tools require a level id; the e2e suite keeps the salon through `appUrl`. Status → review.

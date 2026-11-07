@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import {
   advanceToEnd,
+  appUrl,
   collectProblems,
   cueCount,
   html,
@@ -123,7 +124,7 @@ async function openEnd(
   page: Page,
   options: { patch?: Parameters<typeof ppSetFeel>[1]; woken?: boolean } = {},
 ): Promise<void> {
-  await page.goto(`/${THREATS_OFF}`);
+  await page.goto(appUrl(`/${THREATS_OFF}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -409,7 +410,7 @@ test.describe('the end photo', () => {
     page,
   }) => {
     const flash = page.locator('.pp-screen-flash');
-    await page.goto(`/${THREATS_OFF}`);
+    await page.goto(appUrl(`/${THREATS_OFF}`));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   CHUNK_STEPS,
   collectProblems,
   emulateReducedMotion,
@@ -57,7 +58,7 @@ async function advanceTo(page: Page, simMs: number): Promise<void> {
 
 /** Opens the frozen level with no planned threat, the mug on the floor, and the rush set to begin at `RUSH_AT_MS`. */
 async function openRush(page: Page): Promise<void> {
-  await page.goto(`/${THREATS_OFF}`);
+  await page.goto(appUrl(`/${THREATS_OFF}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

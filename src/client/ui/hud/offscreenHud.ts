@@ -10,8 +10,8 @@ import {
 } from '@shared/constants';
 import { type FollowFrame, viewUM, viewVM } from '@shared/followCamera';
 import { type FollowInsets, followFramePointOf, isInFollowFrame } from '@shared/followVisibility';
+import { threatCloseAt } from '@shared/urgency';
 import type { ThreatInstance } from '@sim';
-import { threatCloseAt } from '../../input/urgency.ts';
 import type { OffscreenBubbles } from '../world/offscreenBubble.ts';
 import {
   createOffscreenCandidate,

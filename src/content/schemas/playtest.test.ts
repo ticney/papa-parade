@@ -11,6 +11,17 @@ function validFile(): PlaytestFile {
     touchVsKeyboardMinPct: 80,
     laughedMinPct: 80,
     humanBot: { maxStarGap: 1, maxPerfectExcessPct: 10 },
+    simulated: {
+      runs: 200,
+      seed: 1,
+      tier: 'normal',
+      humanLossPct: { min: 10, max: 30 },
+      humanMustFailDefs: ['outlet'],
+      humanOpenDoorMustGag: true,
+      perfectMaxFails: 0,
+      perfectChoresEveryRun: true,
+      idleLosesBeforeTimer: true,
+    },
   };
 }
 
@@ -52,5 +63,38 @@ describe('PlaytestSchema', () => {
       false,
     );
     expect(PlaytestSchema.safeParse({ ...validFile(), panelMinTesters: 0 }).success).toBe(false);
+  });
+});
+
+describe('PlaytestSchema › simulated (story 9.8)', () => {
+  const withSimulated = (patch: object) => ({
+    ...validFile(),
+    simulated: { ...validFile().simulated, ...patch },
+  });
+
+  it('refuses a missing block, an unknown key and a tier that does not exist', () => {
+    const { simulated: _omitted, ...rest } = validFile();
+    expect(PlaytestSchema.safeParse(rest).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withSimulated({ extra: 1 })).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withSimulated({ tier: 'hard' })).success).toBe(false);
+  });
+
+  it('refuses a number of games or a seed out of range', () => {
+    expect(PlaytestSchema.safeParse(withSimulated({ runs: 0 })).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withSimulated({ runs: 10_001 })).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withSimulated({ seed: -1 })).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withSimulated({ seed: 2 ** 32 })).success).toBe(false);
+  });
+
+  it('refuses a loss range that is upside down or outside 0..100', () => {
+    expect(
+      PlaytestSchema.safeParse(withSimulated({ humanLossPct: { min: 30, max: 10 } })).success,
+    ).toBe(false);
+    expect(
+      PlaytestSchema.safeParse(withSimulated({ humanLossPct: { min: 10, max: 101 } })).success,
+    ).toBe(false);
+    expect(
+      PlaytestSchema.safeParse(withSimulated({ humanLossPct: { min: 20, max: 20 } })).success,
+    ).toBe(true);
   });
 });

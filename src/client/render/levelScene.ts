@@ -2,6 +2,7 @@ import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { PAPA_TARGET_ANCHOR_ID, STEP_MS } from '@shared/constants';
+import { roomOf } from '@shared/followCamera';
 import { log } from '@shared/log';
 import type { RealMs, SimMs } from '@shared/time';
 import type { GagId, PropSlice, SimEvent, World } from '@sim';
@@ -234,24 +235,6 @@ export function layDownPctAt(
     if (layDownDefIds.includes(threat.defId)) return layDownProgressPct(threat, clockMs);
   }
   return 0;
-}
-
-/**
- * The camera box of a level: its bounds, down to the lowest point below the floor (y = 0) if
- * something such as a stairwell goes there.
- */
-export function roomOf(geometry: LevelGeometry): RoomSize {
-  const [minX, minY, minZ] = geometry.boundsMinM;
-  const [maxX, maxY, maxZ] = geometry.boundsMaxM;
-  const floorYM = Math.min(0, minY);
-  return {
-    widthM: maxX - minX,
-    depthM: maxZ - minZ,
-    heightM: maxY - floorYM,
-    floorYM,
-    centerXM: (minX + maxX) / 2,
-    centerZM: (minZ + maxZ) / 2,
-  };
 }
 
 /** Nodes the game uses but the player never sees: collision, navigation, zones, anchors (D4). */

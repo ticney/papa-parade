@@ -1,11 +1,14 @@
-import { readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { feedbackClips } from '../../src/content/feedbackClips.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
 import { FeedbackTableSchema } from '../../src/content/schemas/feedback.ts';
-import { DEFAULT_LEVEL_ID, LEVEL_PAYLOAD_MAX_BYTES } from '../../src/shared/constants.ts';
+import {
+  LEVEL_PAYLOAD_MAX_BYTES,
+  LEVEL_PAYLOAD_MAX_BYTES_BY_ID,
+} from '../../src/shared/constants.ts';
 
 // The committed audio: every clip the live feedback table names is a real MP4 audio file (a
 // single-page fallback would answer a missing file with HTML), and the level's payload, the .glb
@@ -14,7 +17,11 @@ import { DEFAULT_LEVEL_ID, LEVEL_PAYLOAD_MAX_BYTES } from '../../src/shared/cons
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const audioDir = join(root, 'public', 'assets', 'audio');
-const glbFile = join(root, 'public', 'assets', 'levels', `${DEFAULT_LEVEL_ID}.glb`);
+const levelsDir = join(root, 'public', 'assets', 'levels');
+/** Every level of `content/levels/`, each held to its own budget (story 9.8: not only the default level). */
+const levelIds = readdirSync(join(root, 'content', 'levels'))
+  .filter((file) => file.endsWith('.json') && !file.endsWith('.geometry.json'))
+  .map((file) => file.replace(/\.json$/, ''));
 
 const parsed = parseContentFile(
   'content/feedback.json',
@@ -41,10 +48,19 @@ describe('the committed audio clips', () => {
     expect(bytes.toString('ascii', 8, 12)).toBe('M4A ');
   });
 
-  it('keeps the level .glb and every clip within the payload ceiling', () => {
+  it('has at least one level to measure', () => {
+    expect(levelIds.length).toBeGreaterThan(0);
+    expect(levelIds).toContain('salon_kitchen');
+  });
+
+  // The ceiling of the level's own budget (`inspectDist` applies the same rule to the built `dist/`).
+  it.each(levelIds)('keeps the .glb of %s and every clip within its payload ceiling', (id) => {
+    const budget = Object.hasOwn(LEVEL_PAYLOAD_MAX_BYTES_BY_ID, id)
+      ? (LEVEL_PAYLOAD_MAX_BYTES_BY_ID[id] as number)
+      : LEVEL_PAYLOAD_MAX_BYTES;
     const total =
-      statSync(glbFile).size +
+      statSync(join(levelsDir, `${id}.glb`)).size +
       clips.reduce((sum, clip) => sum + statSync(join(audioDir, `${clip}.m4a`)).size, 0);
-    expect(total).toBeLessThanOrEqual(LEVEL_PAYLOAD_MAX_BYTES);
+    expect(total).toBeLessThanOrEqual(budget);
   });
 });

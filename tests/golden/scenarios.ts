@@ -701,6 +701,7 @@ export const SCENARIOS: readonly Scenario[] = [
         releaseDefIds: releaseDefIdsOf(createTestCycleLevel().threats),
         choreObjectIds: [],
         isChronoRingShown: true,
+        view: null,
         safeSpot: safeSpotOf(createTestCycleGeometry()),
         settings: createTestBots(),
       }),

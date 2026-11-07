@@ -14,6 +14,7 @@ import {
 } from './support/busyPapa.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
+  appUrl,
   collectProblems,
   FIRST_TELEGRAPH_MAX_MS,
   FIRST_WAVE_RESPONSE_MAX_MS,
@@ -130,7 +131,7 @@ test.describe('« Réduire les animations » on a bot-played level', () => {
     const problems = collectProblems(page);
     await seedSettings(page, { reducedMotion: true });
     await installFxSampler(page);
-    await page.goto(AUTOPLAY);
+    await page.goto(appUrl(AUTOPLAY));
     await waitForTestApi(page);
     await waitForPerfects(page, PERFECTS);
     const maxima = await fxMaxima(page);
@@ -148,7 +149,7 @@ test.describe('« Réduire les animations » on a bot-played level', () => {
     const problems = collectProblems(page);
     await seedSettings(page, { reducedMotion: false });
     await installFxSampler(page);
-    await page.goto(AUTOPLAY);
+    await page.goto(appUrl(AUTOPLAY));
     await waitForTestApi(page);
     await waitForPerfects(page, PERFECTS);
     const maxima = await fxMaxima(page);
@@ -163,7 +164,7 @@ test.describe('« Réduire les animations » on a bot-played level', () => {
   }) => {
     const problems = collectProblems(page);
     await seedSettings(page, { reducedMotion: true });
-    await page.goto(AUTOPLAY);
+    await page.goto(appUrl(AUTOPLAY));
     await waitForTestApi(page);
     await waitForPerfects(page, 1);
     const log = await ppCueLog(page);
@@ -180,7 +181,7 @@ test.describe('« Réduire les animations » on a bot-played level', () => {
   }) => {
     const problems = collectProblems(page);
     await seedSettings(page, { reducedMotion: false });
-    await page.goto(AUTOPLAY);
+    await page.goto(appUrl(AUTOPLAY));
     await waitForTestApi(page);
     await waitForPerfects(page, 1);
     expect((await ppCueLog(page)).some((record) => record.visuals.includes('shake'))).toBe(true);
@@ -198,7 +199,7 @@ test.describe('« Réduire les animations » on a bot-played level', () => {
       const page = await context.newPage();
       const problems = collectProblems(page);
       await seedSettings(page, { reducedMotion });
-      await page.goto(AUTOPLAY);
+      await page.goto(appUrl(AUTOPLAY));
       await waitForTestApi(page);
       await expect
         .poll(async () => (await resolved(page)).length, { timeout: RESPONSES_TIMEOUT_MS })
@@ -240,7 +241,7 @@ test.describe('the CSS follows the saved setting, not the OS', () => {
     const problems = collectProblems(page);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await seedSettings(page, { reducedMotion: true });
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
     expect(await animationNameOf(page, 'pp-panel')).toBe('pp-fade-in');
@@ -255,7 +256,7 @@ test.describe('the CSS follows the saved setting, not the OS', () => {
     const problems = collectProblems(page);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await seedSettings(page, { reducedMotion: false });
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await expect(html(page)).not.toHaveAttribute('data-pp-motion', /./);
     expect(await animationNameOf(page, 'pp-panel')).toBe('pp-pop-in');

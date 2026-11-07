@@ -3,6 +3,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { PARRY_RELEASE_AFTER_MS } from '../support/timeEffects.ts';
 import {
+  appUrl,
   collectProblems,
   FIRST_TELEGRAPH_MAX_MS,
   FIRST_WAVE_RESPONSE_MAX_MS,
@@ -70,7 +71,7 @@ async function firstRecordOf(page: Page, presets: string[], timeoutMs: number) {
  * Parry. Returns the `perfect` slow-mo the sim started.
  */
 async function perfectParry(page: Page) {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -104,7 +105,7 @@ test.describe('the picture reacts (story 2.5)', () => {
   test('a perfect shakes, bursts and stamps; the stamp never takes a tap', async ({ page }) => {
     test.setTimeout(FIRST_RESPONSE_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page);
-    await page.goto(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`);
+    await page.goto(appUrl(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`));
     await waitForTestApi(page);
     const record = await firstRecordOf(page, cueIdsOf('perfect'), FIRST_RESPONSE_TIMEOUT_MS);
     expect(record.visuals).toEqual(expect.arrayContaining(['particles', 'shake', 'stamp']));
@@ -121,7 +122,7 @@ test.describe('the picture reacts (story 2.5)', () => {
   test('a success shakes and bursts, and has no stamp', async ({ page }) => {
     test.setTimeout(SOME_RESPONSES_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page);
-    await page.goto(`/?autoplay=human&seed=${SEED}&speed=${SPEED}`);
+    await page.goto(appUrl(`/?autoplay=human&seed=${SEED}&speed=${SPEED}`));
     await waitForTestApi(page);
     const record = await firstRecordOf(page, cueIdsOf('success'), SOME_RESPONSES_TIMEOUT_MS);
     expect(record.visuals).toEqual(expect.arrayContaining(['particles', 'shake']));
@@ -132,7 +133,7 @@ test.describe('the picture reacts (story 2.5)', () => {
   test('a gag shakes and puffs', async ({ page }) => {
     test.setTimeout(FIRST_RESPONSE_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page);
-    await page.goto(`/?autoplay=idle&seed=${SEED}&speed=${SPEED}`);
+    await page.goto(appUrl(`/?autoplay=idle&seed=${SEED}&speed=${SPEED}`));
     await waitForTestApi(page);
     const record = await firstRecordOf(page, cueIdsOf('gag'), FIRST_RESPONSE_TIMEOUT_MS);
     expect(record.visuals).toEqual(expect.arrayContaining(['particles', 'shake']));
@@ -213,7 +214,7 @@ test.describe('reduced motion (story 2.5)', () => {
   test('a perfect still bursts and stamps, but does not shake', async ({ page }) => {
     test.setTimeout(FIRST_RESPONSE_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page);
-    await page.goto(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`);
+    await page.goto(appUrl(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`));
     await waitForTestApi(page);
     const record = await firstRecordOf(page, cueIdsOf('perfect'), FIRST_RESPONSE_TIMEOUT_MS);
     expect(record.visuals).toEqual(expect.arrayContaining(['particles', 'stamp']));

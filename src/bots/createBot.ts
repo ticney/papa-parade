@@ -10,6 +10,8 @@ import { createRandomBot } from './randomBot.ts';
 const READ_ERROR_SD_MAX_MS = 2000;
 /** Longer than any telegraph, silence or window: a longer delay, offset or jitter than this is a typo. Mirrors the schema. */
 const HUMAN_TIMING_MAX_MS = 10_000;
+/** The largest screen a bot plays on, in CSS px: a typo guard. Mirrors the schema. */
+const SCREEN_MAX_PX = 8192;
 const isFinitePositive = (value: number): boolean => Number.isFinite(value) && value > 0;
 const isFiniteNonNegative = (value: number): boolean => Number.isFinite(value) && value >= 0;
 const isDurationInRange = (value: number, minMs: number): boolean =>
@@ -62,6 +64,26 @@ function setupProblem(setup: BotSetup): string | null {
   }
   if (!isDurationInRange(human.backTurnedSdMs, 0)) {
     return `human.backTurnedSdMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
+  }
+  const { view } = human;
+  if (!Number.isInteger(view.widthPx) || view.widthPx <= 0 || view.widthPx > SCREEN_MAX_PX) {
+    return `human.view.widthPx must be a whole number in (0, ${SCREEN_MAX_PX}]`;
+  }
+  if (!Number.isInteger(view.heightPx) || view.heightPx <= 0 || view.heightPx > SCREEN_MAX_PX) {
+    return `human.view.heightPx must be a whole number in (0, ${SCREEN_MAX_PX}]`;
+  }
+  if (view.widthPx <= view.heightPx) {
+    return `human.view must be a landscape screen: widthPx (${view.widthPx}) above heightPx (${view.heightPx})`;
+  }
+  if (
+    !Number.isInteger(view.hudBottomPx) ||
+    view.hudBottomPx < 0 ||
+    view.hudBottomPx > SCREEN_MAX_PX
+  ) {
+    return `human.view.hudBottomPx must be a whole number in [0, ${SCREEN_MAX_PX}]`;
+  }
+  if (!isDurationInRange(view.bubbleReadMs, 0)) {
+    return `human.view.bubbleReadMs must be a number in [0, ${HUMAN_TIMING_MAX_MS}]`;
   }
   if (typeof settings.chores.isEnabled !== 'boolean') {
     return 'chores.isEnabled must be a boolean';

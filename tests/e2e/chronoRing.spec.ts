@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   hapticPatternOfCue,
   LEVEL_DURATION_MS,
@@ -395,7 +396,7 @@ test.describe('every perfect press is in the notch', () => {
     const problems = collectProblems(page);
     // A recorder, as `photo.spec.ts` does: the mirror changes at every judgement and polling would miss some.
     await recordMirrorWrites(page, ['data-pp-response', 'data-pp-chrono-judged']);
-    await page.goto(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`);
+    await page.goto(appUrl(`/?autoplay=perfect&seed=${SEED}&speed=${SPEED}`));
     await waitForTestApi(page);
 
     await expect

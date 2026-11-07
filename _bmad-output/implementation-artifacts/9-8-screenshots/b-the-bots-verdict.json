@@ -1,0 +1,22 @@
+{
+  "screenshot": "chromium-b-a-kitchen-threat-off-screen.png",
+  "state": "Papa at his spawn (5.25, 1), low_cabinet_open telegraphed at 10 ms, the step is 20 ms",
+  "screen": {
+    "widthPx": 844,
+    "heightPx": 390,
+    "isCompact": true,
+    "hudBottomPx": 56
+  },
+  "bubbleReadMs": 100,
+  "seenAtMs": 120,
+  "telegraphedAtMs": 10,
+  "seenThrough": "its off-screen bubble (outside the frame)",
+  "counters": {
+    "telegraphs": 1,
+    "seenOffscreen": 1,
+    "cappedMs": 0,
+    "neverSeen": 0,
+    "seenLate": 1,
+    "seenLateDelayMs": 110
+  }
+}

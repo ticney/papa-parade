@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { PHONE_RINGING_EVERY_MS, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   cueCount,
   hapticPatternOfCue,
@@ -39,7 +40,7 @@ const FATIGUE_FEEL = (
 const hasVibrate = (): boolean => test.info().project.name === 'chromium';
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

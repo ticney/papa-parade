@@ -62,6 +62,7 @@ export function legacyHuman(
     jitterSdMs,
     missWhileBusyPct: 0,
     backTurnedSdMs: 0,
+    view: { widthPx: 844, heightPx: 390, hudBottomPx: 56, bubbleReadMs: 100 },
   };
 }
 
@@ -81,6 +82,7 @@ export function botSetup(
     choreObjectIds: [],
     safeSpot: null,
     isChronoRingShown: true,
+    view: null,
     settings: { ...createTestBots(), ...settings },
   };
 }

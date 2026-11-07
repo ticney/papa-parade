@@ -134,6 +134,8 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
   const readyCameras: LevelCameraSetup[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
+    // The fixtures below are the salon's (story 9.8: the default level is the big room, the tests keep the salon).
+    levelId: 'salon_crawler',
     t: (key) => `<${key}>`,
     appFsm,
     pause,

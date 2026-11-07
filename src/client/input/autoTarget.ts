@@ -1,8 +1,8 @@
 import { AUTO_TARGET_EDGE_EPSILON_M, AUTO_TARGET_ON_PAPA_M } from '@shared/constants';
 import { log } from '@shared/log';
+import { isMoreUrgent, threatCloseAt } from '@shared/urgency';
 import type { ThreatInstance } from '@sim';
 import type { FloorDir } from './moveDirection.ts';
-import { isMoreUrgent, threatCloseAt } from './urgency.ts';
 
 // A threat that is active but has no frozen window cannot happen (the window is frozen at the
 // telegraph); it is skipped and said once per threat instance (ids restart at 1 in every sim, the

@@ -3,6 +3,7 @@ import { STEP_MS } from '../../src/shared/constants.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   advanceToEnd,
+  appUrl,
   collectProblems,
   hapticPatternOfCue,
   html,
@@ -46,7 +47,7 @@ const DODGE_RED = 'rgb(240, 53, 61)';
 const VIGNETTE_COLOUR = 'rgba(42, 33, 64, 0.35)';
 
 async function openFrozen(page: Page, query = ''): Promise<void> {
-  await page.goto(`/${query}`);
+  await page.goto(appUrl(`/${query}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
