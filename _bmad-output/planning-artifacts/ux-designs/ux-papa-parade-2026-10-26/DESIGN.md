@@ -35,6 +35,8 @@ colors:
   mama-scream: '#E06A00'
   mama-calm: '#D6609A'
   mama-home: '#9A6A3F'
+  mama-skin: '#F3C9A6'
+  mama-dress: '#C9B6D6'
   star: '#FFB800'
 typography:
   display:
@@ -468,6 +470,8 @@ The 3D world's rendering (toon, outlines, low-poly, iso view) is owned by the ar
 | Mama | `mama-scream` | #E06A00 | Scream reaction accent | Body-text background |
 | Mama | `mama-calm` | #D6609A | « Calme du bébé » score-row accent (baby-blanket rose; v2.3) | Body-text background, any play-time UI |
 | Mama | `mama-home` | #9A6A3F | « Maison » score-row accent (wooden-spoon brown; v2.3) | Body-text background, any play-time UI |
+| Mama | `mama-skin` | #F3C9A6 | Face and hands of the 2D Mama on Result (story 3.7; the mockup's `#mama-sigh` skin) | Text background, any play-time UI |
+| Mama | `mama-dress` | #C9B6D6 | Dress of the 2D Mama on Result (story 3.7; the mockup's `#mama-sigh` dress) | Text background, any play-time UI |
 | Reward | `star` | #FFB800 | Earned stars on Result and the Fridge magnets, on cream with ink outline | Any play-time UI |
 
 Rules `[ASSUMPTION]`:
@@ -501,6 +505,7 @@ Rules `[ASSUMPTION]`:
 | `alert` chrono-ring final arc against its 2px `ink` outline (v2.3) | 9.3:1 | Pass as non-text; `alert` on `paper` alone is ≈ 1.6:1, so the ink outline is mandatory. The 8px thickness, not the hue, sets the arc apart |
 | `mama-calm` / `mama-home` accent on `paper` (v2.3) | ≈ 4.3 / 4.7:1 | Pass as non-text (≥ 3:1) |
 | `ink` on `mama-calm` / `mama-home` (v2.3) | ≈ 3.5 / 3.2:1 | Graphics only; no text on these accents |
+| `ink` outline and features on `mama-skin` / `mama-dress` (story 3.7) | ≈ 11 / 8:1 | Pass as graphics; Mama is drawn, never a text background |
 
 ## Typography
 

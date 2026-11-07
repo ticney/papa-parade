@@ -501,6 +501,14 @@ export const GAUGE_MAX_POINTS = 100;
 /** Mama's note is out of this many points (GDD › economy, story 1.22); `MamaSchema` makes its four maxima add up to it. */
 export const MAMA_SCORE_MAX_POINTS = 100;
 
+/**
+ * Mama's three reactions on the Result screen, in the order they play (story 3.7, GDD › Note de
+ * Maman): she laughs, sighs or screams. `mamaReactionsOf` picks which ones play; story 3.8's
+ * `MamaLinesSchema` keys her lines by them.
+ */
+export const MAMA_REACTIONS = ['laugh', 'sigh', 'scream'] as const;
+export type MamaReactionId = (typeof MAMA_REACTIONS)[number];
+
 /** Mama gives at most this many stars: one per `feel.mama.starThresholdPoints` (story 1.22). */
 export const STAR_COUNT_MAX = 5;
 

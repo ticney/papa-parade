@@ -371,11 +371,18 @@ describe("Papa's exaggerated props and poses (story 2.13)", () => {
   });
 });
 
-describe('nothing in a game sets the look until story 3.7 (story 7.2, D2)', () => {
-  it('the scene never calls it by itself, and boot only hands it to the debug host', () => {
+// Story 3.7 wired the look: the world's `papa.look` feeds it every frame, and the debug `setPapaLook`
+// (story 7.2, D2) is now an overlay ORed with it. Still one call to the view, still one door for boot.
+describe("Papa's look is fed by the world or the debug overlay, through one call (story 3.7)", () => {
+  it('the scene calls the view once, from the merge of both; boot only hands the overlay to the debug host', () => {
     const scene = readFileSync(join(root, 'src', 'client', 'render', 'levelScene.ts'), 'utf8');
     expect(scene.match(/papa\.setLook\(/g)).toHaveLength(1);
-    expect(scene).toMatch(/setPapaLook\(look\) \{\s+papa\.setLook\(look\);/);
+    expect(scene).toMatch(/const applyLook = \(\): void => \{[\s\S]*?papa\.setLook\(drawnLook\);/);
+    // The merge reads the world's look in `update` and the overlay in `setPapaLook`, and both apply it.
+    expect(scene).toMatch(/worldLook\.hasMashOnCheek = world\.papa\.look\.hasMashOnCheek;/);
+    expect(scene).toMatch(
+      /setPapaLook\(look\) \{\s+overlayLook\.hasMashOnCheek = look\.hasMashOnCheek;/,
+    );
     const boot = readFileSync(join(root, 'src', 'client', 'boot.ts'), 'utf8');
     expect(boot.match(/setPapaLook/g)).toHaveLength(2);
     expect(boot).toMatch(/setPapaLook: \(look\) => currentLevel\?\.setPapaLook\(look\)/);

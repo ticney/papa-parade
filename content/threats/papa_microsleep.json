@@ -18,5 +18,6 @@
   },
   "catastrophe": "microSleep",
   "afterEffect": { "kind": "asleep", "busyMs": 3000 },
-  "cooldownMs": 1000
+  "cooldownMs": 1000,
+  "lookChange": "shirtInsideOut"
 }

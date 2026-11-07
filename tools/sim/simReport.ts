@@ -222,6 +222,11 @@ export interface RunSummary {
    */
   frozenNearMisses: number;
   /**
+   * How many of the three parts of Papa's look the gags showed in the run (`PapaLookChanged`, story 3.7): the
+   * parts shown at the end, each worth `feel.mama.laughPerLookPartPoints` in Mama's Laugh.
+   */
+  lookParts: number;
+  /**
    * The highest the need reached in the run, in % to one decimal: the gauge rises silently, so it is
    * read from the world when a visit starts (it is frozen from then on), when it fills, and at the
    * end of the run. 0 in a level with no need gauge.
@@ -399,6 +404,7 @@ export function createRunRecorder(
   let finalRushes = 0;
   let propsTidied = 0;
   let frozenNearMisses = 0;
+  let lookParts = 0;
   let bladderPeakPct = 0;
   let noisePeakPct = 0;
   const noiseBySourcePct = emptyNoiseBySource();
@@ -516,6 +522,9 @@ export function createRunRecorder(
         propsTidied++;
       } else if (event.type === 'NearMissFrozen') {
         frozenNearMisses++;
+      } else if (event.type === 'PapaLookChanged') {
+        // One event per part per level: the count is the parts shown at the end.
+        lookParts++;
       } else if (event.type === 'FloorCreaked') {
         floorCreaks++;
       } else if (event.type === 'BreathGasped') {
@@ -660,6 +669,7 @@ export function createRunRecorder(
         finalRushes,
         propsTidied,
         frozenNearMisses,
+        lookParts,
         bladderPeakPct: round(Math.max(bladderPeakPct, sim.world.gauges.bladderPct), 1),
         noisePeakPct,
         noiseFinalPct: round(sim.world.gauges.noisePct, 1),
@@ -858,6 +868,10 @@ export interface SimReport {
   propsTidied: number;
   /** The near misses frozen on the end photo, over the runs (`NearMissFrozen`, story 3.6). */
   frozenNearMisses: number;
+  /** The parts of Papa's look the gags showed, over the runs (`PapaLookChanged`, story 3.7). */
+  lookParts: number;
+  /** Mean of the runs' shown parts of the look, to two decimals (0 to 3). */
+  meanLookPartsPerRun: number;
   /** The highest need any run reached, in % to one decimal (0 in a level with no need gauge). */
   bladderPeakPct: number;
   /** Mean of the runs' highest noise, in % to one decimal: does 3.2 end games (story 3.1 open point 2)? */
@@ -995,6 +1009,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   let finalRushes = 0;
   let propsTidied = 0;
   let frozenNearMisses = 0;
+  let lookParts = 0;
   let bladderPeakPct = 0;
   let noisePeakSumPct = 0;
   let noisePeakMaxPct = 0;
@@ -1122,6 +1137,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     finalRushes += run.finalRushes;
     propsTidied += run.propsTidied;
     frozenNearMisses += run.frozenNearMisses;
+    lookParts += run.lookParts;
     bladderPeakPct = Math.max(bladderPeakPct, run.bladderPeakPct);
     noisePeakSumPct += run.noisePeakPct;
     noisePeakMaxPct = Math.max(noisePeakMaxPct, run.noisePeakPct);
@@ -1278,6 +1294,8 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     finalRushes,
     propsTidied,
     frozenNearMisses,
+    lookParts,
+    meanLookPartsPerRun: runs.length === 0 ? 0 : round(lookParts / runs.length, 2),
     bladderPeakPct: round(bladderPeakPct, 1),
     noisePeakMeanPct: runs.length === 0 ? 0 : round(noisePeakSumPct / runs.length, 1),
     noisePeakMaxPct: round(noisePeakMaxPct, 1),

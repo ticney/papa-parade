@@ -60,6 +60,7 @@ const NO_REAL_FX = () => ({
   lightsFactor: 1,
   mischiefDecals: 0,
   choreShards: 0,
+  papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
 });
 
 interface Deferred<T> {

@@ -1,11 +1,10 @@
 import type { ContentBundle } from '@content/contentBundle';
 import type { LevelCameraMode } from '@content/schemas/level';
-import type { Sim, SimEvent } from '@sim';
+import type { PapaLook, Sim, SimEvent } from '@sim';
 import type { Group } from 'three';
 import type { SoundedNote } from '../audio/beatScheduler.ts';
 import type { InputDevice } from '../input/inputMapper.ts';
 import type { RenderStats } from '../render/renderer.ts';
-import type { PapaLook } from '../render/views/papaView.ts';
 import type { LevelSession, StartedLevel } from './levelSession.ts';
 import type { PauseState } from './pauseController.ts';
 
@@ -60,6 +59,8 @@ export interface FxState {
   readonly mischiefDecals: number;
   /** How many broken plates' shards lie on the floor in front of the stations (story 9.6). */
   readonly choreShards: number;
+  /** The look the view draws on Papa: the world's parts or the debug overlay's (story 3.7). */
+  readonly papaLook: Readonly<PapaLook>;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */
@@ -133,7 +134,7 @@ export interface TestHost {
    * how many stamps were shown.
    */
   fxState(): FxState;
-  /** Shows the parts of Papa's look (story 7.2: nothing in a game sets it until story 3.7). No effect without a level. */
+  /** Shows the parts of Papa's look on top of the world's (story 3.7: a debug overlay). No effect without a level. */
   setPapaLook(look: PapaLook): void;
   /** The icon points of the running level's threats as they are on the page now (a new array per call). */
   threatScreenPoints(): readonly ThreatScreenPoint[];

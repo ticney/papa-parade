@@ -2599,6 +2599,122 @@ export function synthTelegraphMug(): Float32Array {
   return out;
 }
 
+// Mama's voice on the Result screen (story 3.7): three placeholder clips, a laugh, a sigh and a scream, each
+// a vowel-ish tone (a few harmonics) or a breath. Gentle on purpose: she is exasperated-loving, never harsh.
+const MAMA_LAUGH_LENGTH_MS = 800;
+/** Four short « ha »s, each a falling tone whose pitch drops a little more every time. */
+const MAMA_LAUGH_BURSTS = 4;
+const MAMA_LAUGH_BURST_MS = 120;
+const MAMA_LAUGH_PERIOD_MS = 170;
+const MAMA_LAUGH_PITCH_HZ = { from: 330, to: 250 };
+const MAMA_LAUGH_BREATH_GAIN = 0.25;
+const MAMA_LAUGH_RELEASE_MS = 60;
+
+/** Mama laughing (cue `mama_laugh`, clip `mama_laugh`): four short, voiced « ha »s over a breath, each lower than the last. */
+export function synthMamaLaugh(): Float32Array {
+  const rng = createRng(SEED + 58);
+  const out = new Float32Array(samplesOf(MAMA_LAUGH_LENGTH_MS));
+  const release = samplesOf(MAMA_LAUGH_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const ms = (i / SAMPLE_RATE_HZ) * 1000;
+    const burst = Math.min(MAMA_LAUGH_BURSTS - 1, Math.floor(ms / MAMA_LAUGH_PERIOD_MS));
+    const age = ms - burst * MAMA_LAUGH_PERIOD_MS;
+    let value = 0;
+    if (age < MAMA_LAUGH_BURST_MS) {
+      const progress = burst / (MAMA_LAUGH_BURSTS - 1);
+      const pitchHz =
+        (MAMA_LAUGH_PITCH_HZ.from +
+          (MAMA_LAUGH_PITCH_HZ.to - MAMA_LAUGH_PITCH_HZ.from) * progress) *
+        (1 - 0.12 * (age / MAMA_LAUGH_BURST_MS));
+      phase += (2 * Math.PI * pitchHz) / SAMPLE_RATE_HZ;
+      const envelope = Math.sin((Math.PI * age) / MAMA_LAUGH_BURST_MS) * (1 - 0.2 * progress);
+      value =
+        (Math.sin(phase) + 0.5 * Math.sin(2 * phase) + 0.25 * Math.sin(3 * phase)) * envelope +
+        (nextFloat(rng) * 2 - 1) * MAMA_LAUGH_BREATH_GAIN * envelope;
+    }
+    out[i] = value * Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const MAMA_SIGH_LENGTH_MS = 1100;
+const MAMA_SIGH_ATTACK_MS = 220;
+const MAMA_SIGH_PITCH_HZ = { from: 240, to: 170 };
+const MAMA_SIGH_SMOOTHING = 0.35;
+const MAMA_SIGH_TONE_GAIN = 0.3;
+
+/** Mama sighing (cue `mama_sigh`, clip `mama_sigh`): a long breath out that swells then fades, with a faint tone that sags. */
+export function synthMamaSigh(): Float32Array {
+  const rng = createRng(SEED + 59);
+  const out = new Float32Array(samplesOf(MAMA_SIGH_LENGTH_MS));
+  const attack = samplesOf(MAMA_SIGH_ATTACK_MS);
+  let smoothed = 0;
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    smoothed += MAMA_SIGH_SMOOTHING * (nextFloat(rng) * 2 - 1 - smoothed);
+    const pitchHz =
+      MAMA_SIGH_PITCH_HZ.from + (MAMA_SIGH_PITCH_HZ.to - MAMA_SIGH_PITCH_HZ.from) * progress;
+    phase += (2 * Math.PI * pitchHz) / SAMPLE_RATE_HZ;
+    const envelope = Math.min(1, i / attack) * (1 - progress) ** 1.5;
+    out[i] = (smoothed + MAMA_SIGH_TONE_GAIN * Math.sin(phase)) * envelope;
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
+const MAMA_SCREAM_LENGTH_MS = 700;
+const MAMA_SCREAM_PITCH_HZ = { from: 420, peak: 780, to: 640 };
+const MAMA_SCREAM_PEAK_AT = 0.35;
+const MAMA_SCREAM_VIBRATO_HZ = 7;
+const MAMA_SCREAM_VIBRATO_DEPTH = 0.04;
+const MAMA_SCREAM_ATTACK_MS = 40;
+const MAMA_SCREAM_RELEASE_MS = 150;
+const MAMA_SCREAM_GRIT_GAIN = 0.12;
+
+/** Mama screaming (cue `mama_scream`, clip `mama_scream`): a startled « Aah ! », a pitch that jumps up and settles, with a little grit. */
+export function synthMamaScream(): Float32Array {
+  const rng = createRng(SEED + 60);
+  const out = new Float32Array(samplesOf(MAMA_SCREAM_LENGTH_MS));
+  const attack = samplesOf(MAMA_SCREAM_ATTACK_MS);
+  const release = samplesOf(MAMA_SCREAM_RELEASE_MS);
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const progress = i / out.length;
+    const seconds = i / SAMPLE_RATE_HZ;
+    const base =
+      progress < MAMA_SCREAM_PEAK_AT
+        ? MAMA_SCREAM_PITCH_HZ.from +
+          (MAMA_SCREAM_PITCH_HZ.peak - MAMA_SCREAM_PITCH_HZ.from) * (progress / MAMA_SCREAM_PEAK_AT)
+        : MAMA_SCREAM_PITCH_HZ.peak +
+          (MAMA_SCREAM_PITCH_HZ.to - MAMA_SCREAM_PITCH_HZ.peak) *
+            ((progress - MAMA_SCREAM_PEAK_AT) / (1 - MAMA_SCREAM_PEAK_AT));
+    const pitchHz =
+      base *
+      (1 + MAMA_SCREAM_VIBRATO_DEPTH * Math.sin(2 * Math.PI * MAMA_SCREAM_VIBRATO_HZ * seconds));
+    phase += (2 * Math.PI * pitchHz) / SAMPLE_RATE_HZ;
+    const voiced =
+      Math.sin(phase) +
+      0.6 * Math.sin(2 * phase) +
+      0.4 * Math.sin(3 * phase) +
+      0.2 * Math.sin(4 * phase);
+    out[i] =
+      (voiced + (nextFloat(rng) * 2 - 1) * MAMA_SCREAM_GRIT_GAIN) *
+      Math.min(1, i / attack) *
+      Math.min(1, (out.length - i) / release);
+  }
+  out[0] = 0;
+  out[out.length - 1] = 0;
+  normalize(out, PEAK_LOUD);
+  return out;
+}
+
 export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Array }[] = [
   { clip: 'baby_babble_loop', synth: synthBabble },
   { clip: 'music_crawler_calm', synth: synthMusic },
@@ -2681,6 +2797,9 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'papa_busy', synth: synthBusyRefused },
   { clip: 'ui_papa_free_ding', synth: synthFreeDing },
   { clip: 'papa_coffee_slurp', synth: synthCoffeeSlurp },
+  { clip: 'mama_laugh', synth: synthMamaLaugh },
+  { clip: 'mama_sigh', synth: synthMamaSigh },
+  { clip: 'mama_scream', synth: synthMamaScream },
 ];
 
 /**

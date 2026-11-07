@@ -2,6 +2,7 @@ import type { Feel } from '@content/schemas/feel';
 import { MAMA_SCORE_MAX_POINTS } from '@shared/constants';
 import type { StepContext } from '../context.ts';
 import type { LevelEndReason } from '../events.ts';
+import { lookPartsShown } from '../papa/look.ts';
 import type { MamaScore, World } from '../world.ts';
 import { calmShareOf } from './calmTracker.ts';
 import { starsForScore } from './stars.ts';
@@ -18,6 +19,8 @@ export interface ScoreTally {
   calmMs: number;
   /** Sim time played, at the step the level ends (`world.time.sim`): the calm share's denominator. */
   playedMs: number;
+  /** How many of the three parts of Papa's look are shown at the end (story 3.7): each feeds the Rire. */
+  lookParts: number;
   /** Points of the house chores, before the clamp (story 9.4: the sum of the done chores' `homePoints`). */
   homePoints: number;
   propsOnFloor: number;
@@ -37,7 +40,7 @@ const homeRow = (value: number, maxPoints: number): number =>
   Math.round(Math.min(Math.max(value, 0), maxPoints) * 2) / 2;
 
 /**
- * Mama's note (GDD › economy, story 1.22, five rows since 3.12): Rire + Calme du bébé + Maison +
+ * Mama's note (GDD › economy, story 1.22, five rows since 3.12): Rire (the look's parts included, story 3.7) + Calme du bébé + Maison +
  * base − Soupir − Hurlement, each row held to its range and rounded (to a whole number, the Maison row to a half), the sum held to `[0, 100]`.
  * With the refines of `MamaSchema` (the maxima add up to 100, the base is the sigh and scream
  * maxima) the rows always add up to the score. A woken Mama (story 3.2, D3) changes the stars only:
@@ -54,7 +57,8 @@ export function computeMamaScore(
   const laughPoints = row(
     tally.perfects * mama.laughPerPerfectPoints +
       tally.successes * mama.laughPerSuccessPoints +
-      tally.comboPoints,
+      tally.comboPoints +
+      tally.lookParts * mama.laughPerLookPartPoints,
     mama.laughMaxPoints,
   );
   const calmPoints = row(
@@ -120,6 +124,7 @@ export function scoreLevel(world: World, ctx: StepContext, reason: LevelEndReaso
       nearMisses,
       comboPoints,
       calmMs,
+      lookParts: lookPartsShown(world.papa.look),
       // The clock stops mattering from the ending step on (`ENDED_SYSTEMS` keeps it going): read it here.
       playedMs: world.time.sim,
       homePoints,

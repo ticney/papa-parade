@@ -381,7 +381,7 @@ describe('the dishwasher’s plates and door in a snapshot (story 9.6)', () => {
 
   it('refuses a snapshot of the version before: its chores have no plates or door', async () => {
     const { snapshot } = await atOpenDoor();
-    await expect(restoreInto({ ...snapshot, version: 32 as 33 })).rejects.toThrow(/version 32/);
+    await expect(restoreInto({ ...snapshot, version: 32 as 34 })).rejects.toThrow(/version 32/);
   });
 
   /** Restores into a fresh sim; async so that every refusal is read the same way (`rejects`). */

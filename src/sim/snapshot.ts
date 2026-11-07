@@ -37,14 +37,14 @@ import {
  */
 export interface SimSnapshot {
   /**
-   * 33 since story 9.6: `ChoreInstance.beatsMissed` (the beats a chore has missed, for the broken plates of Mama's Soupir) and `ChoreInstance.isOpen` (the station's door, open while a dishwasher waits to be emptied). 32 since story 9.4: `world.chores` (one instance per house chore of the level: its state, the beats done and the beat under way with its frozen window), the `chore` Papa state, and a glide with a null `threatId` (to a station). 31 since story 3.16: `gauges.catastrophePct` (the catastrophe gauge, in every level), `flow.endReason` (why the level ended, null while it is live), and the `mamaHome` end reason with its `CatastropheChanged` event. 30 since story 3.15: `world.afterEffects` (the pénombre, the debris Papa stands on, the marks of a silence's mischief), `PropSlice.debrisPickUpMs`, `BabySlice.downstairsUntil`, the `electrified` / `carryingUp` / `pickingUp` Papa states, the `downstairs` / `carriedUp` baby states, the `fetchBaby` intent, and `feel.fatigue.asleepMs` gone (the nap's length is the micro-sleep's `afterEffect`). 29 since story 3.12: `score.successes` and `score.calmMs`, and Mama's note has five rows (`calmPoints` and `homePoints` replace `babyStatePoints`). 28 since story 3.5: `world.flow.finalRushAt`, the `finalRush` and `photo` flow states, `PropSlice.isMess` and `score.propsTidied`. 27 since story 4.10: `world.cycle` (the bedtime cycle: the entry, when it is due and when the cycle was completed), and the `CycleCompleted` event. 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
+   * 34 since story 3.7: `papa.look` (the three parts of Papa's look) and the `PapaLookChanged` event. 33 since story 9.6: `ChoreInstance.beatsMissed` (the beats a chore has missed, for the broken plates of Mama's Soupir) and `ChoreInstance.isOpen` (the station's door, open while a dishwasher waits to be emptied). 32 since story 9.4: `world.chores` (one instance per house chore of the level: its state, the beats done and the beat under way with its frozen window), the `chore` Papa state, and a glide with a null `threatId` (to a station). 31 since story 3.16: `gauges.catastrophePct` (the catastrophe gauge, in every level), `flow.endReason` (why the level ended, null while it is live), and the `mamaHome` end reason with its `CatastropheChanged` event. 30 since story 3.15: `world.afterEffects` (the pénombre, the debris Papa stands on, the marks of a silence's mischief), `PropSlice.debrisPickUpMs`, `BabySlice.downstairsUntil`, the `electrified` / `carryingUp` / `pickingUp` Papa states, the `downstairs` / `carriedUp` baby states, the `fetchBaby` intent, and `feel.fatigue.asleepMs` gone (the nap's length is the micro-sleep's `afterEffect`). 29 since story 3.12: `score.successes` and `score.calmMs`, and Mama's note has five rows (`calmPoints` and `homePoints` replace `babyStatePoints`). 28 since story 3.5: `world.flow.finalRushAt`, the `finalRush` and `photo` flow states, `PropSlice.isMess` and `score.propsTidied`. 27 since story 4.10: `world.cycle` (the bedtime cycle: the entry, when it is due and when the cycle was completed), and the `CycleCompleted` event. 26 since story 4.9: `world.sequence.stealth` (the running `stealth` step: the exit, the next alert, the breath and the board Papa stands on). 25 since story 4.8: the `sequence` slow-mo source (a duel step's own slow motion); no new field. 24 since story 4.7: `ThreatInstance.feintAt` / `isFeintGiven` (the feint of a fake sleep, before its signal). 23 since story 4.6: `world.sequence.duel` (the running `duel` step: whether it runs, the instant of the next round and the retreats so far). 22 since story 4.5 (merged after 2.9): `world.sequence.beat` (the running `beats` step: its cursors, the wake of the baby and the window of the beat). 21 since story 2.9 (merged after 4.4): `world.instinct` (Fatherly Instinct) and the `instinct` slow-mo source. 20 since story 4.4 (merged after 2.8): `world.sequence` (the special sequence) and the `sequence` flow state. 19 since story 2.8 (merged after 4.3): `difficultyTier` (`SetDifficultyTier`). 18 since story 4.3 (merged after 2.7): `gauges.bladderPct` / `isBladderFull` and the `onToilet` Papa state. 17 since story 2.7: `input.lagMs` (`SetInputLag`). 16 since story 4.2: `world.combo`, `score.comboPoints`, the `comboCashIn` slow-mo. 15 since story 4.1: `world.carry`, `papa.intent`, the `carried` baby state. 14 since story 3.2: `score.final.lostStars`. 13 since story 2.1: `feel`, the effective feel (a `SetFeel` changes it). 12 since story 3.1: `gauges.noisePct` / `propNoiseAt` and `baby.cryStartedAt` / `cryEndsAt`. 11 since story 1.23: `PendingPress.heldAt` (the hold-ring closed). 10 since story 1.22: `score` (Mama's counters and, once the level has ended, her note). 9 since story 1.21: `silence` (the suspicious silence), `mess.mischiefs`, the `hidden` threat
    * state and the `mischiefSilent` baby state. 8 since story 1.20: `disruptions` (one instance per planned disruption) and the `onPhone`
    * state. 7 added `gauges`, `PapaSlice.objectId` / `busyUntil` and the `drink` / `asleep`
    * states. 6 added `director`, `flow` and `ThreatInstance.waveIndex` (story 1.18). 5 added the
    * Rapier world, base64 (4 carried the base scale and the slow-mos in `World.time`, since story
    * 1.14; 3 named the level).
    */
-  version: 33;
+  version: 34;
   seed: number;
   feelHash: string;
   geometryHash: string;
@@ -63,7 +63,7 @@ export function takeSnapshot(
   physics: Uint8Array,
 ): SimSnapshot {
   return {
-    version: 33,
+    version: 34,
     seed,
     feelHash,
     geometryHash,
@@ -101,6 +101,14 @@ function papaProblem(
     if (typeof slice[key] !== 'number' || !Number.isFinite(slice[key])) {
       return `world.papa.${key}`;
     }
+  }
+  // The look: exactly the three booleans (story 3.7).
+  const { look } = slice;
+  if (typeof look !== 'object' || look === null) return 'world.papa.look';
+  const lookKeys = Object.keys(look);
+  if (lookKeys.length !== 3) return 'world.papa.look';
+  for (const key of ['hasMashOnCheek', 'hasHairOnEnd', 'isShirtInsideOut']) {
+    if (typeof (look as Record<string, unknown>)[key] !== 'boolean') return 'world.papa.look';
   }
   const { path } = slice;
   if (!Array.isArray(path) || path.length % 2 !== 0) return 'world.papa.path';
@@ -1598,7 +1606,7 @@ export function worldFromSnapshot(
   planned: PlannedLevel,
   initialFeel: Feel,
 ): RestoredSnapshot {
-  invariant(snapshot.version === 33, `unsupported snapshot version ${String(snapshot.version)}`);
+  invariant(snapshot.version === 34, `unsupported snapshot version ${String(snapshot.version)}`);
   invariant(snapshot.seed === seed, 'the snapshot was taken by a sim with another seed');
   invariant(snapshot.feelHash === feelHash, 'the snapshot was taken by a sim with another feel');
   invariant(

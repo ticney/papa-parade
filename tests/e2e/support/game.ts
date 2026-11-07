@@ -7,6 +7,7 @@ import { feedbackClips } from '../../../src/content/feedbackClips.ts';
 import type { FeedbackTable } from '../../../src/content/schemas/feedback.ts';
 import type { LevelGeometry } from '../../../src/content/schemas/levelGeometry.ts';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../../src/shared/constants.ts';
+import type { MamaReaction } from '../../../src/sim/index.ts';
 import { ppAdvance, ppEvents, ppWorld } from './testApi.ts';
 
 // The live room and feel, read here and never copied: Geo re-exports the room and retunes the feel freely.
@@ -26,7 +27,7 @@ export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'ut
     { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' | 'heartbeat' }
   >;
   events: Record<string, string>;
-  resultScreen: { inputGraceMs: number; photoHoldMs: number };
+  resultScreen: { inputGraceMs: number; photoHoldMs: number; reactionHoldMs: number };
   photo: { widthPx: number; heightPx: number; tiltMaxDeg: number };
   door: { openMs: number; openAngleDeg: number };
   calibration: { beep: { clip: string } };
@@ -44,6 +45,21 @@ export function hapticPatternOf(event: string): number[] | null {
   const kind = cueId === undefined ? undefined : liveFeedback.cues[cueId]?.haptic;
   return kind === undefined ? null : liveFeedback.haptics[kind].patternMs;
 }
+
+/** The client event, and so the cue and the vibration, of each of Mama's reactions on the Result screen (story 3.7). */
+export const MAMA_REACTION_EVENTS = {
+  laugh: 'ResultMamaLaughed',
+  sigh: 'ResultMamaSighed',
+  scream: 'ResultMamaScreamed',
+} as const;
+
+/** The cue ids Mama's reactions play, in the live table (`events` -> cue), by reaction. */
+export const mamaCueOf = (reaction: MamaReaction['reaction']): string =>
+  liveFeedback.events[MAMA_REACTION_EVENTS[reaction]] as string;
+
+/** The vibration of each reaction, in the order they play: what the Result screen buzzes between the photo and the rows. */
+export const mamaHapticsOf = (reactions: readonly MamaReaction[]): (number[] | null)[] =>
+  reactions.map(({ reaction }) => hapticPatternOf(MAMA_REACTION_EVENTS[reaction]));
 
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
   /** The catastrophe gauge (story 3.16): where Mama's face changes and where she is alarmed. */

@@ -68,6 +68,13 @@ export type ThreatIconShape = (typeof THREAT_ICON_SHAPES)[number];
 export const THREAT_COLORS = ['parry', 'dodge'] as const;
 export type ThreatColor = (typeof THREAT_COLORS)[number];
 
+/**
+ * The parts of Papa's look a gag can show (story 3.7, GDD « dégaine de papa »): purée on the cheek,
+ * hair on end, shirt inside out. A def names at most one (`lookChange`).
+ */
+export const PAPA_LOOK_PARTS = ['mashOnCheek', 'hairOnEnd', 'shirtInsideOut'] as const;
+export type PapaLookPart = (typeof PAPA_LOOK_PARTS)[number];
+
 /** The pair each shape goes with: the signal is the pair (NFR8). */
 export const THREAT_SHAPE_COLORS: Readonly<Record<ThreatIconShape, ThreatColor>> = {
   circle: 'parry',
@@ -309,6 +316,12 @@ const baseShape = {
     .optional()
     .describe(
       'When a miss ends in the gag, the noise gauge rises by this many points at once (story 9.5: the pot boiling over; no effect in a level with no noise gauge). Absent: the gag makes no noise of its own.',
+    ),
+  lookChange: z
+    .enum(PAPA_LOOK_PARTS)
+    .optional()
+    .describe(
+      "The part of Papa's look this def degrades when a miss ends in the gag (story 3.7), once per part per level: the part stays shown to the end of the level and each part shown adds Laugh points to Mama's note. Absent: the gag does not change the look.",
     ),
 };
 

@@ -36,7 +36,9 @@ describe('Mama’s note of the live salon_crawler', () => {
     try {
       playGame(sim, made, level.level.durationMs, (event) => events.push({ ...event }));
       const { world } = sim;
+      const lookParts = Object.values(world.papa.look).filter(Boolean).length;
       return {
+        lookParts,
         events,
         mama: content.feel.mama,
         final: world.score.final,
@@ -53,6 +55,7 @@ describe('Mama’s note of the live salon_crawler', () => {
             homePoints: 0,
             propsOnFloor: world.mess.propsOnFloor,
             propsBroken: world.mess.propsBroken,
+            lookParts,
             mischiefs: world.mess.mischiefs,
           },
           content.feel.mama,
@@ -113,7 +116,7 @@ describe('Mama’s note of the live salon_crawler', () => {
     'perfect: no sigh, no scream, and the laughs of its perfects',
     async () => {
       for (const seed of SEEDS) {
-        const { events, mama, final, perfects } = await runOf('perfect', seed);
+        const { events, mama, final, perfects, lookParts } = await runOf('perfect', seed);
         expect(final?.sighPoints, `seed ${seed}`).toBe(0);
         // No scream of its own: only the near misses frozen on the end photo (story 3.6), where the baby
         // happens to stand at the end of the level, are counted.
@@ -123,7 +126,12 @@ describe('Mama’s note of the live salon_crawler', () => {
           Math.round(Math.min(frozen * mama.screamPerNearMissPoints, mama.screamMaxPoints)),
         );
         expect(final?.laughPoints, `seed ${seed}`).toBe(
-          Math.min(mama.laughMaxPoints, perfects * mama.laughPerPerfectPoints),
+          Math.round(
+            Math.min(
+              mama.laughMaxPoints,
+              perfects * mama.laughPerPerfectPoints + lookParts * mama.laughPerLookPartPoints,
+            ),
+          ),
         );
       }
     },
@@ -131,13 +139,18 @@ describe('Mama’s note of the live salon_crawler', () => {
   );
 
   it(
-    'idle: no laugh, and a lower mean score than perfect',
+    'idle: no laugh but the parts of its messy look, and a lower mean score than perfect',
     async () => {
       let idleSum = 0;
       let perfectSum = 0;
       for (const seed of SEEDS) {
         const idle = await runOf('idle', seed);
-        expect(idle.final?.laughPoints, `seed ${seed}`).toBe(0);
+        // It presses nothing: no perfect, no success, no combo. Only the gags it let through show on Papa (story 3.7).
+        expect(idle.final?.laughPoints, `seed ${seed}`).toBe(
+          Math.round(
+            Math.min(idle.mama.laughMaxPoints, idle.lookParts * idle.mama.laughPerLookPartPoints),
+          ),
+        );
         idleSum += idle.final?.scorePoints ?? Number.NaN;
         perfectSum += (await runOf('perfect', seed)).final?.scorePoints ?? Number.NaN;
       }

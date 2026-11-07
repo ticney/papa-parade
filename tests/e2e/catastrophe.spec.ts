@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 import { STEP_MS } from '../../src/shared/constants.ts';
+import { mamaReactionsOf } from '../../src/sim/scoring/mamaReactions.ts';
 import {
   collectProblems,
   cueCount,
@@ -9,6 +10,8 @@ import {
   LEVEL_DURATION_MS,
   liveFeedback,
   liveFeel,
+  mamaCueOf,
+  mamaHapticsOf,
   recordVibrations,
   startLevel,
   THREATS_OFF,
@@ -17,6 +20,7 @@ import {
 import { STRINGS } from './support/strings.ts';
 import {
   ppAdvance,
+  ppCueLog,
   ppEvents,
   ppFreeze,
   ppFx,
@@ -234,7 +238,8 @@ test.describe('Mama comes home early', () => {
   }) => {
     const before = await openAlarmed(page);
     await setCatastrophe(page, 100);
-    await expect(page.locator(HEADER)).toBeVisible();
+    // The header comes with the rows, after the photo and Mama's reactions (story 3.7).
+    await expect(page.locator(HEADER)).toBeVisible({ timeout: SEQUENCE_TIMEOUT_MS });
     await expect(page.locator(HEADER)).toHaveText(STRINGS['result.mama_home'] as string);
     await expect(page.locator(`${PANEL}.pp-result-panel-home`)).toHaveCount(1);
     await waitForActions(page);
@@ -260,11 +265,19 @@ test.describe('Mama comes home early', () => {
       return color;
     });
     expect(shadow).not.toContain(scream);
-    // The shutter, then the door slam (a heavy buzz), and nothing else: no star was stamped.
-    expect(await cueCount(page)).toBe(before.cues + 1 + 1);
+    // The shutter, Mama's reactions (she always screams on this end, story 3.7), then the door slam (a heavy
+    // buzz), and nothing else: no star was stamped.
+    const note = (await ppWorld(page)).score.final;
+    if (note === null) throw new Error('no note after Mama came home');
+    const reactions = mamaReactionsOf(note, 'mamaHome');
+    expect(reactions.map(({ reaction }) => reaction)).toContain('scream');
+    expect(await cueCount(page)).toBe(before.cues + 1 + reactions.length + 1);
+    const cues = (await ppCueLog(page)).map((record) => record.cueId);
+    expect(cues.indexOf(mamaCueOf('scream'))).toBeLessThan(cues.indexOf('mama_home'));
     if (hasVibrate()) {
       expect((await vibrations(page)).slice(before.buzzes)).toEqual([
         hapticPatternOf('PhotoTaken'),
+        ...mamaHapticsOf(reactions),
         hapticPatternOf('ResultMamaHomeShown'),
       ]);
     }

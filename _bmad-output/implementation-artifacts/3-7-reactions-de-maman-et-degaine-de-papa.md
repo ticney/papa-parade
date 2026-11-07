@@ -1,6 +1,10 @@
+---
+baseline_commit: af716cba5bc7d323b22b03fadf03cd8e30b604d5
+---
+
 # Story 3.7: Réactions de Maman et dégaine de papa
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -50,34 +54,34 @@ Requirements: FR35 `[V1]` (the end sequence: photo → **Mama's reactions** → 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: The look in the sim (AC: 1, 2, 3, 4, 5)
-  - [ ] `PapaLook` in `world.ts`, exported from `@sim`; `createWorld`; client imports moved
-  - [ ] `PAPA_LOOK_PARTS` and `lookChange` in `threat.ts`; the three live defs; `npm run content:schemas`
-  - [ ] `sim/papa/look.ts` (`changePapaLook`), the call in `gagThreat`, `PapaLookChanged` in `events.ts` and `SIM_EVENT_TYPES`
-  - [ ] Snapshot version 34 and `papaProblem`; round-trip tests of a world with a look
-  - [ ] `laughPerLookPartPoints` in `FeelSchema` and the three feel files; `ScoreTally.lookParts`; `computeMamaScore`
-  - [ ] Unit tests: a gag with and without `lookChange`, the same part twice (one event), a hidden-zone def, a gag in `finalRush`, the Laugh difference and its cap
-- [ ] Task 2: Reactions, pure (AC: 10)
-  - [ ] `MAMA_REACTIONS` in `shared/constants.ts`; `sim/scoring/mamaReactions.ts` and test; export from `src/sim/index.ts`
-- [ ] Task 3: The look on screen (AC: 7, 8, 9)
-  - [ ] `levelScene.update` and the debug overlay; `fx().papaLook`; `characterAssets.test.ts` regex; `levelScene.test.ts`
-- [ ] Task 4: Cues and clips (AC: 16)
-  - [ ] `mama` in `CLIP_PATTERN`; three synths, `npm run assets:audio -- --only mama_laugh` (and the two others); a clip test beside `tests/tools/audio/cameraShutterClip.test.ts`
-  - [ ] The three client events, cues and event rows; `tests/support/testContent.ts` and the tests that build a full table
-- [ ] Task 5: The Result screen (AC: 11, 12, 13, 14, 15, 17, 18, 19)
-  - [ ] `reactionHoldMs` in `ResultScreenSchema` and `feedback.json › resultScreen` (start at **1 200**)
-  - [ ] `reactions`, `onMamaReaction`, the `mama` phase, Mama's block (face + bubble + chip), `complete()` and `isDone` at rest on the last reaction
-  - [ ] Wire `boot.ts`: `mamaReactionsOf(resultScore ?? NO_SCORE, resultEndReason)`, `onMamaReaction` → `director.handle('ResultMama…', null)`
-  - [ ] `ui.css`: bubble, chip, Mama, three keyframes and their reduced-motion rule; the no-photo left column
-  - [ ] Strings in `strings.fr.json`
-  - [ ] `resultScreen.test.ts`: both paths (photo, no photo), the order and count of `onMamaReaction`, `reactionHoldMs: 0`, skip in `photo` and in `mama`, rebuild, the chip's sign and its absence at 0, the woke line. Existing tests pass `reactions` and keep their assertions
-- [ ] Task 6: Report, goldens, e2e (AC: 6, 8 and all)
-  - [ ] `simReport.ts`, `simArgs.ts`, the whole-report pins
-  - [ ] The `papa_look` golden scenario (see Traps); `npm run golden:update`, deliberately; read the diff and say what moved
-  - [ ] New `tests/e2e/mamaReactions.spec.ts`; adapt the specs listed in Traps
-  - [ ] `npm run sim` with the four bots on `salon_crawler` and `salon_kitchen` (and `chambre_night` for `perfect` and `random`), before and after: `meanStars`, `lookParts`, the Laugh mean and `endsByReason.mamaHome` (the look must not change how often Mama comes home: it adds no catastrophe), in the Completion Notes
-- [ ] Task 7: Docs (AC: 20)
-  - [ ] `npm run ci:fast` after each task, plus the touched specs on Chromium
+- [x] Task 1: The look in the sim (AC: 1, 2, 3, 4, 5)
+  - [x] `PapaLook` in `world.ts`, exported from `@sim`; `createWorld`; client imports moved
+  - [x] `PAPA_LOOK_PARTS` and `lookChange` in `threat.ts`; the three live defs; `npm run content:schemas`
+  - [x] `sim/papa/look.ts` (`changePapaLook`), the call in `gagThreat`, `PapaLookChanged` in `events.ts` and `SIM_EVENT_TYPES`
+  - [x] Snapshot version 34 and `papaProblem`; round-trip tests of a world with a look
+  - [x] `laughPerLookPartPoints` in `FeelSchema` and the three feel files; `ScoreTally.lookParts`; `computeMamaScore`
+  - [x] Unit tests: a gag with and without `lookChange`, the same part twice (one event), a hidden-zone def, a gag in `finalRush`, the Laugh difference and its cap
+- [x] Task 2: Reactions, pure (AC: 10)
+  - [x] `MAMA_REACTIONS` in `shared/constants.ts`; `sim/scoring/mamaReactions.ts` and test; export from `src/sim/index.ts`
+- [x] Task 3: The look on screen (AC: 7, 8, 9)
+  - [x] `levelScene.update` and the debug overlay; `fx().papaLook`; `characterAssets.test.ts` regex; `levelScene.test.ts`
+- [x] Task 4: Cues and clips (AC: 16)
+  - [x] `mama` in `CLIP_PATTERN`; three synths, `npm run assets:audio -- --only mama_laugh` (and the two others); a clip test beside `tests/tools/audio/cameraShutterClip.test.ts`
+  - [x] The three client events, cues and event rows; `tests/support/testContent.ts` and the tests that build a full table
+- [x] Task 5: The Result screen (AC: 11, 12, 13, 14, 15, 17, 18, 19)
+  - [x] `reactionHoldMs` in `ResultScreenSchema` and `feedback.json › resultScreen` (start at **1 200**)
+  - [x] `reactions`, `onMamaReaction`, the `mama` phase, Mama's block (face + bubble + chip), `complete()` and `isDone` at rest on the last reaction
+  - [x] Wire `boot.ts`: `mamaReactionsOf(resultScore ?? NO_SCORE, resultEndReason)`, `onMamaReaction` → `director.handle('ResultMama…', null)`
+  - [x] `ui.css`: bubble, chip, Mama, three keyframes and their reduced-motion rule; the no-photo left column
+  - [x] Strings in `strings.fr.json`
+  - [x] `resultScreen.test.ts`: both paths (photo, no photo), the order and count of `onMamaReaction`, `reactionHoldMs: 0`, skip in `photo` and in `mama`, rebuild, the chip's sign and its absence at 0, the woke line. Existing tests pass `reactions` and keep their assertions
+- [x] Task 6: Report, goldens, e2e (AC: 6, 8 and all)
+  - [x] `simReport.ts`, `simArgs.ts`, the whole-report pins
+  - [x] The `papa_look` golden scenario (see Traps); `npm run golden:update`, deliberately; read the diff and say what moved
+  - [x] New `tests/e2e/mamaReactions.spec.ts`; adapt the specs listed in Traps
+  - [x] `npm run sim` with the four bots on `salon_crawler` and `salon_kitchen` (and `chambre_night` for `perfect` and `random`), before and after: `meanStars`, `lookParts`, the Laugh mean and `endsByReason.mamaHome` (the look must not change how often Mama comes home: it adds no catastrophe), in the Completion Notes
+- [x] Task 7: Docs (AC: 20)
+  - [x] `npm run ci:fast` after each task, plus the touched specs on Chromium
 
 ## Dev Notes
 
@@ -230,11 +234,149 @@ Follows the layers and aliases. New files: `sim/papa/look.ts` (beside `sleep.ts`
 
 ### Agent Model Used
 
+claude-sonnet-5-5
+
 ### Debug Log References
+
+- `VITE_DEBUG_ALLOWED=false` was exported in the shell: every `dev` / `e2e` / `ci` run used `(unset VITE_DEBUG_ALLOWED; …)`.
+- The first e2e runs failed on exactly the specs the Traps predicted (phase lists, cue and vibration counts), then on my own fit check (a typo left the home-early end in it, and the panel's fit was read before the fonts and the slam settled); all fixed in the specs.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
 - Refreshed on 2026-11-07 after merging `main` into the branch: snapshot 33 → 34, the Laugh's v2.3 formula and cap (35), the `mamaHome` end (D4, AC 10, 19), three levels, every line number re-checked.
 
+
+**Implemented (Date: 2026-11-07), all seven tasks.**
+
+- **The look in the sim.** `world.papa.look` (`PapaLook` moved to `sim/world.ts`, exported from `@sim`), `ThreatDef.lookChange` (`PAPA_LOOK_PARTS` in `content/schemas/threat.ts`), `changePapaLook` (`sim/papa/look.ts`) called from `gagThreat` after `gagNoisePct`, the `PapaLookChanged` event (sorted in `SIM_EVENT_TYPES`), snapshot **33 → 34** with `papaProblem` refusing a `papa.look` that is not exactly three booleans. `outlet` → `hairOnEnd`, `coffee_table_object` → `mashOnCheek`, `papa_microsleep` → `shirtInsideOut`. `feel.mama.laughPerLookPartPoints` = 5 (live feel, `testFeel.json`, `feelSample.json`), `ScoreTally.lookParts`, `computeMamaScore`'s Laugh and `scoreLevel`. `world.rng` is not drawn (a unit test compares the PRNG state with and without the look).
+- **Reactions, pure.** `MAMA_REACTIONS` / `MamaReactionId` in `shared/constants.ts`; `mamaReactionsOf` in `sim/scoring/mamaReactions.ts`, exported from `@sim` (rules D4, tested table-driven over `LEVEL_END_REASONS`).
+- **The look on screen.** `levelScene.update` copies `world.papa.look` into scratch objects; `applyLook` merges the world's look and the debug overlay (`setPapaLook`, cleared by `resetFx`) and holds the one `papa.setLook(` of the file. New `FxState.papaLook` (`fx().papaLook`). `tests/architecture/characterAssets.test.ts`'s describe « nothing in a game sets the look until story 3.7 » was **rewritten deliberately** to pin the new contract (one `papa.setLook(` fed by the merge of world and overlay; boot still hands only the overlay to the debug host: two `setPapaLook` in `boot.ts` unchanged).
+- **Cues and clips.** `mama` category in `CLIP_PATTERN`; three placeholder synths (`mama_laugh`, `mama_sigh`, `mama_scream`, seeds `SEED + 58..60`) written with `npm run assets:audio -- --only …` (about 32 KiB of `.m4a` together; `dist:check --flavor playtest`: level payload 2788.5 KiB, under the 3 MiB / 5 MiB limits); events `ResultMamaLaughed|Sighed|Screamed` → cues on the `voice` bus, `uiElement` visual, haptics `light` / `light` / `medium` `[ASSUMPTION]`; `tests/tools/audio/mamaClips.test.ts`.
+- **The Result screen.** `ResultPhase` gains `mama`; `createResultScreen` takes `reactions` and `onMamaReaction`; each reaction sets its line, the `+N` / `−N` chip (hidden at 0), the figure and its accent class, fires its cue once, and holds `resultScreen.reactionHoldMs` (1 200). The 2D Mama is built in code with `svgElement` (one figure per reaction), drawn with tokens only: two tokens were missing and were added to `DESIGN.md` and `tokens.css` together (`mama-skin`, `mama-dress`, taken from the mockup's `#mama-sigh`). New left column `pp-result-left` (polaroid + Mama on its corner, or Mama alone with no photo). A press in `photo` or `mama`, and a rebuilt screen, leave her at rest on the last reaction with no cue. Boot computes `mamaReactionsOf(resultScore ?? NO_SCORE, resultEndReason)`.
+- **Strings.** Four lines as proposed, with one change: `result.mama_line_laugh` is « Ha ha ! Tous les deux, alors… », not « Vous deux, alors… », because `StringsSchema` forbids « vous » (tutoiement register). Two extra keys, `result.mama_value_gain` / `_loss` (`+{points}` / `−{points}`), because `uiStrings.test.ts` forbids a sign or any prose written in `src/client/ui`. The lines stay placeholders for 3.8 (here and in `deferred-work.md`, not in the JSON).
+- **Report.** `lookParts` per run and `lookParts` / `meanLookPartsPerRun` over the runs; `simArgs` help updated.
+- **Goldens (deliberate, `npm run golden:update`).** Every journal moved by exactly two things: the `feelHash` of its header (the new feel key) and the `worldHash` of its reference (the new `papa.look`). **No `eventTypes` and no `eventsHash` moved** (the fixture defs have no `lookChange`); the one other diff, `mama_woke.expected.json`, is the formatter's line break of an unchanged array. New scenario `papa_look` (its own copy of the outlet def with `lookChange`, missed twice: one `PapaLookChanged`, then the timer end scores the part) and `tests/golden/papaLook.test.ts`. `tests/bots/humanBotRegression.test.ts` re-pinned its whole-journal hashes (header's feel hash) and left `PINNED_COMMANDS` untouched: they still hold, as in 3.15 / 3.16 / 9.2.
+- **Tests that moved, with a reason.** The 33 → 34 snapshot version in the snapshot tests; `tests/tools/sim/mamaScore.test.ts`: the idle bot now scores `lookParts × laughPerLookPartPoints` of Laugh (a micro-sleep and the outlet show on it), asserted through the feel's value, not loosened; `result.spec.ts`, `mamaWoke.spec.ts`, `catastrophe.spec.ts`, `photo.spec.ts` count the cues and vibrations of the reactions from `mamaReactionsOf` of the sim's note (new `mamaCueOf` / `mamaHapticsOf` in `tests/e2e/support/game.ts`), and the phase lists have `mama`; specs that wait for `rows` pass `SEQUENCE_TIMEOUT_MS` (no global timeout changed, `reactionHoldMs` left at 1 200 in the live feedback).
+
+**Verification.** `npm run ci:fast` green (439 files, 9 779 tests). Chromium, in several runs, alone on the queue: `mamaReactions`, `photo`, `result`, `mamaWoke`, `catastrophe`, `characters`, `chambreNight`, `salonKitchen`, `feedback`, `testApi`, `autoplay`, `debugOverlay`: all green after the fixes below (the first runs failed only on the phase lists and cue counts above, and on my own new fit check). `ci:story` and WebKit are left to the review.
+
+**Bots, before / after** (`npm run sim`, 30 games each from seed 1, Normal tier; « before » is the same code with `laughPerLookPartPoints` set to 0 for the run, which is exactly the old note since the bots never see the look; the look adds no catastrophe, so `mamaHome` does not move):
+
+| level / bot | meanStars | mean Laugh | `lookParts` per run | `mamaHome` of 30 |
+|---|---|---|---|---|
+| salon_crawler / human | 2.90 → 3.00 | 31.4 → 33.4 | 0.93 | 4 → 4 |
+| salon_crawler / perfect | 4.00 → 4.00 | 35 → 35 | 0 | 0 → 0 |
+| salon_crawler / random | 0 → 0 | 0.0 → 5.0 | 1.00 | 30 → 30 |
+| salon_crawler / idle | 0 → 0 | 0.0 → 5.0 | 1.00 | 30 → 30 |
+| salon_kitchen / human | 2.20 → 2.20 | 31.4 → 32.5 | 1.17 | 12 → 12 |
+| salon_kitchen / perfect | 4.80 → 4.80 | 35 → 35 | 0 | 0 → 0 |
+| salon_kitchen / random | 0 → 0 | 0.1 → 4.4 | 0.87 | 30 → 30 |
+| salon_kitchen / idle | 0 → 0 | 0.0 → 4.3 | 0.87 | 30 → 30 |
+| chambre_night / perfect | 4.00 → 4.00 | 35 → 35 | 0 | 0 → 0 |
+| chambre_night / random | 0 → 0 | 0.1 → 10.4 | 2.07 | 30 → 30 |
+
+The weight lifts a bot that lets gags through by 4 to 10 Laugh points, and the human bot (who parries most gags) by one or two; the perfect bot is already at the cap. `meanStars` moves by 0.1 for the human on `salon_crawler` only. Geo tunes `laughPerLookPartPoints`.
+
+**What I saw (screenshots in `3-7-screenshots/`, Chromium 844 × 390 and 750 × 340, real gags, not the debug setter).** Laugh, Sigh and Scream bubbles with their accent bar and chip on both levels; Mama stands on the polaroid's top-right corner, in front of it; with no photo she stands alone in the left column (750 × 340). On `salon_crawler` Papa's hair on end is seen in play after a real outlet gag, during `electrified` and still after it ended (`salon_crawler-look-hair-*.png`). On `salon_kitchen`, the photo frames the whole 13.5 × 7 m room: Papa is a few pixels tall in it and **no part of his look can be made out in the picture** (as predicted by `deferred-work.md` L1019); his look is visible in play only. **Not captured:** the purée on the cheek and the shirt inside out in a screenshot (the idle game's first gag at these seeds was the outlet; the e2e only proves them through `state()` / `fx()`), the Result screen on `chambre_night`, the chip over the sigh's violet at 130 % text, WebKit, and any device.
+
+**Found while testing, not caused by this story (to decide):** the home-early header « Maman est rentrée plus tôt ! » (3.16) wraps to two lines in the 360 px panel, which makes the panel scroll by 12 px at 844 × 390 and by 26 px at 750 × 340 (667 × 375 fits). The woken header fits. `mamaReactions.spec.ts` therefore measures the panel's fit on a woken end and only Mama's own place on a home-early end (750 × 340); it is in `deferred-work.md`. The `+30 % text` constraint of AC 15 has no mechanism in the app today (the CSS is in px tokens): it is not tested.
+
+**Open points for Geo (from the story):** 2 (which gag gives which part) and 3 (the weight) are data, see above; 4 (Mama reacts only to what happened), 5 (placeholder lines and clips), 6 (`reactionHoldMs` 1 200: `photo` + up to 3 holds before the rows, a press skips) and 7 (`mamaHome` screams too) are as the story wrote them.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/3-7-screenshots/`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/decision-log.md`
+- `_bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/gdd.md`
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md`
+- `_bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/EXPERIENCE.md`
+- `_bmad-output/project-context.md`
+- `content/_schemas/feedback.schema.json`
+- `content/_schemas/feel.schema.json`
+- `content/_schemas/threat.schema.json`
+- `content/feedback.json`
+- `content/feel.json`
+- `content/strings.fr.json`
+- `content/threats/coffee_table_object.json`
+- `content/threats/outlet.json`
+- `content/threats/papa_microsleep.json`
+- `public/assets/audio/mama_laugh.m4a`
+- `public/assets/audio/mama_scream.m4a`
+- `public/assets/audio/mama_sigh.m4a`
+- `src/client/app/levelSession.test.ts`
+- `src/client/app/testHost.ts`
+- `src/client/boot.ts`
+- `src/client/feedback/feedbackDirector.test.ts`
+- `src/client/feedback/feedbackEvents.ts`
+- `src/client/render/levelScene.test.ts`
+- `src/client/render/levelScene.ts`
+- `src/client/render/views/papaView.test.ts`
+- `src/client/render/views/papaView.ts`
+- `src/client/ui/screens/resultScreen.test.ts`
+- `src/client/ui/screens/resultScreen.ts`
+- `src/client/ui/styles/tokens.css`
+- `src/client/ui/styles/ui.css`
+- `src/content/schemas/feedback.ts`
+- `src/content/schemas/feel.ts`
+- `src/content/schemas/threat.ts`
+- `src/debug/testApi.test.ts`
+- `src/debug/testApi.ts`
+- `src/shared/constants.ts`
+- `src/sim/chores/choreSnapshot.test.ts`
+- `src/sim/events.ts`
+- `src/sim/flow/flowSystem.test.ts`
+- `src/sim/index.ts`
+- `src/sim/papa/glide.test.ts`
+- `src/sim/papa/look.test.ts`
+- `src/sim/papa/look.ts`
+- `src/sim/papa/walk.test.ts`
+- `src/sim/scoring/frozenNearMiss.test.ts`
+- `src/sim/scoring/mamaReactions.test.ts`
+- `src/sim/scoring/mamaReactions.ts`
+- `src/sim/scoring/mamaScore.test.ts`
+- `src/sim/scoring/mamaScore.ts`
+- `src/sim/sequences/bombDropSnapshot.test.ts`
+- `src/sim/sequences/cycleSnapshot.test.ts`
+- `src/sim/sequences/duelSnapshot.test.ts`
+- `src/sim/sequences/fakeSleepSnapshot.test.ts`
+- `src/sim/sequences/sequenceSnapshot.test.ts`
+- `src/sim/snapshot.test.ts`
+- `src/sim/snapshot.ts`
+- `src/sim/threats/afterEffectsSnapshot.test.ts`
+- `src/sim/threats/gags.ts`
+- `src/sim/threats/inputLag.test.ts`
+- `src/sim/threats/threatFsm.ts`
+- `src/sim/world.ts`
+- `tests/architecture/characterAssets.test.ts`
+- `tests/bots/humanBotRegression.test.ts`
+- `tests/content/feedbackSchema.test.ts`
+- `tests/content/stringsSchema.test.ts`
+- `tests/e2e/catastrophe.spec.ts`
+- `tests/e2e/debugOverlay.spec.ts`
+- `tests/e2e/mamaReactions.spec.ts`
+- `tests/e2e/mamaWoke.spec.ts`
+- `tests/e2e/photo.spec.ts`
+- `tests/e2e/result.spec.ts`
+- `tests/e2e/support/game.ts`
+- `tests/e2e/support/testApi.ts`
+- `tests/golden/papaLook.test.ts`
+- `tests/golden/scenarios.ts`
+- `tests/support/fakeTestHost.ts`
+- `tests/support/testContent.ts`
+- `tests/support/testFeel.json`
+- `tests/tools/audio/mamaClips.test.ts`
+- `tests/tools/sim/mamaScore.test.ts`
+- `tests/tools/sim/simReport.test.ts`
+- `tests/tools/vite/fixtures/feelSample.json`
+- `tools/audio/makePlaceholderAudio.ts`
+- `tools/sim/simArgs.ts`
+- `tools/sim/simReport.ts`
+- `tests/golden/journals/*.json` and `*.expected.json` (every journal: `feelHash` in the header, `worldHash` in the reference; plus the new `papa_look` pair)
+- `_bmad-output/implementation-artifacts/3-7-reactions-de-maman-et-degaine-de-papa.md` (this file)
+
+### Change Log
+
+- 2026-11-07: Story 3.7 implemented: Papa's look in the sim (snapshot 34), Mama's reactions on the Result screen (`mama` phase, 2D Mama, three cues on the voice bus), docs and goldens updated; status `review`.

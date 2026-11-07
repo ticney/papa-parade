@@ -23,6 +23,7 @@ function papa(patch: Partial<PapaSlice> = {}): PapaSlice {
     prevZM: 1,
     headingX: 0,
     headingZ: 1,
+    look: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
     path: [],
     pathIndex: 0,
     dirX: 0,

@@ -281,6 +281,20 @@ const INSTINCT_THREATS: readonly LevelWaveThreat[] = [
   { def: 'outlet', anchor: 'toilet' },
 ];
 
+/** The outlet of the frozen room, with its gag showing Papa's hair on end (story 3.7): this scenario's own copy. */
+const papaLookLevel = () => {
+  const level = createTestLevel({
+    durationMs: 20_000,
+    waves: [testWave([OUTLET], { fromMs: 500_000 })],
+  });
+  const outlet = level.threats.outlet;
+  if (outlet === undefined) throw new Error('no outlet in the frozen level');
+  return {
+    ...level,
+    threats: { ...level.threats, outlet: { ...outlet, lookChange: 'hairOnEnd' as const } },
+  };
+};
+
 export const SCENARIOS: readonly Scenario[] = [
   {
     // Time and commands only (no gameplay system exists yet). It still covers a late command
@@ -854,6 +868,21 @@ export const SCENARIOS: readonly Scenario[] = [
     actions: [
       { atStep: 9, command: { type: 'SetFatigue', t: asSimMs(100), points: 100 } },
       { atStep: 1049, command: forceThreat(10_500, 1) },
+    ],
+  },
+  {
+    // Papa's look (story 3.7): the outlet forced at 100 is never answered and its gag shows his hair on end
+    // (`PapaLookChanged{hairOnEnd}`, `world.papa.look`). Forced a second time at 12 s it gags again and
+    // shows nothing more (one part, once). The level then runs out at 20 s and Mama's Laugh counts the part
+    // (`LevelEnded{timer}`, `LevelScored`). The def with `lookChange` is this scenario's own copy: the shared
+    // fixture has none, so that no other scenario moves. `papaLook.test.ts` pins what it covers.
+    name: 'papa_look',
+    level: papaLookLevel(),
+    seed: 57,
+    untilSimMs: 21000,
+    actions: [
+      { atStep: 9, command: forceThreat(100, 1) },
+      { atStep: 1199, command: forceThreat(12_000, 1) },
     ],
   },
   {

@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { mamaReactionsOf } from '../../src/sim/scoring/mamaReactions.ts';
 import {
   advanceToEnd,
   appHistory,
@@ -9,6 +10,7 @@ import {
   html,
   liveFeedback,
   liveFeel,
+  mamaHapticsOf,
   recordAppStates,
   recordVibrations,
   stubGamepad,
@@ -176,11 +178,13 @@ test.describe('the Result screen', () => {
     await recordVibrations(page);
     const scored = await openResult(page, { mama: { starThresholdPoints: EVERY_STAR } });
     expect(scored.stars).toBe(EVERY_STAR.length);
-    // The level's own vibrations are behind: only the stamps come from here.
+    // The level's own vibrations are behind: only Mama's reactions (story 3.7, they come after the photo's
+    // hold) and the stamps come from here.
+    const reactions = mamaReactionsOf(scored as never, 'timer');
     const vibrationsBefore = (await vibrations(page)).length;
     const cuesBefore = await cueCount(page);
     await waitForActions(page);
-    expect(await cueCount(page)).toBe(cuesBefore + scored.stars);
+    expect(await cueCount(page)).toBe(cuesBefore + reactions.length + scored.stars);
     // Five stars, whatever the game: the outline of every star is the ink (a star on cream is 1.6:1).
     const strokes = await page.evaluate(() => {
       const probe = document.createElement('div');
@@ -199,6 +203,7 @@ test.describe('the Result screen', () => {
       expect(light).not.toBeNull();
       expect(heavy).not.toBeNull();
       expect((await vibrations(page)).slice(vibrationsBefore)).toEqual([
+        ...mamaHapticsOf(reactions),
         ...Array.from({ length: scored.stars - 1 }, () => light),
         heavy,
       ]);
@@ -211,7 +216,10 @@ test.describe('the Result screen', () => {
     await recordVibrations(page);
     await openResult(page, { mama: { starThresholdPoints: EVERY_STAR } });
     await recordAppStates(page);
-    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
+    // Behind the photo's hold and Mama's reactions (story 3.7).
+    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+      timeout: SEQUENCE_TIMEOUT_MS,
+    });
     const cuesBefore = await cueCount(page);
     const vibrationsBefore = (await vibrations(page)).length;
     await waitForInputGrace(page);
@@ -254,7 +262,9 @@ test.describe('the Result screen', () => {
       await openResult(page);
       await pad.setPadPresent(true);
       await recordAppStates(page);
-      await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
+      await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+        timeout: SEQUENCE_TIMEOUT_MS,
+      });
       await waitForInputGrace(page);
       await pad.tapButton(0);
       await waitForActions(page);
@@ -292,7 +302,9 @@ test.describe('the Result screen', () => {
     page,
   }) => {
     await openResult(page);
-    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
+    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+      timeout: SEQUENCE_TIMEOUT_MS,
+    });
     const plannedBefore = (await ppEvents(page)).filter(
       (event) => event.type === 'PapaPathPlanned',
     ).length;

@@ -5,6 +5,7 @@ import {
   cueCount,
   html,
   liveFeedback,
+  mamaCueOf,
   mirrorWrites,
   recordMirrorWrites,
   THREATS_OFF,
@@ -189,7 +190,8 @@ test.describe('the end photo', () => {
     const results = writes
       .filter(({ name }) => name === 'data-pp-result')
       .map(({ value }) => value);
-    expect(results).toEqual(['photo', 'rows', 'stars', 'actions']);
+    // Mama reacts between the photo and the rows (story 3.7): she always does, even to a game with nothing in it.
+    expect(results).toEqual(['photo', 'mama', 'rows', 'stars', 'actions']);
     const photoWrites = writes.filter(({ name }) => name === 'data-pp-photo');
     expect(photoWrites.map(({ value }) => value)).toEqual(['taken']);
     // The photo is taken before the app enters `result`: the mirror is written first.
@@ -360,10 +362,13 @@ test.describe('the end photo', () => {
     // Nothing between the photo and Mama's reaction: no header while the photo stands alone.
     expect(shot?.hasHeader).toBe(false);
     const results = (await mirrorWrites(page)).map(({ value }) => value);
-    expect(results.slice(0, 2)).toEqual(['photo', 'rows']);
+    // The photo, then her reaction, then the rows with the header (story 3.7: nothing sits between the photo and her).
+    expect(results.slice(0, 3)).toEqual(['photo', 'mama', 'rows']);
     const cues = (await ppCueLog(page)).map((record) => record.cueId);
     expect(cues.indexOf('photo_taken')).toBeGreaterThanOrEqual(0);
-    expect(cues.indexOf('mama_woke')).toBeGreaterThan(cues.indexOf('photo_taken'));
+    // A woken Mama always screams: her scream sits between the shutter and the door slam.
+    expect(cues.indexOf(mamaCueOf('scream'))).toBeGreaterThan(cues.indexOf('photo_taken'));
+    expect(cues.indexOf('mama_woke')).toBeGreaterThan(cues.indexOf(mamaCueOf('scream')));
   });
 
   test('a skip in the photo brings a woken header up at rest: no slam, no door cue', async ({
@@ -499,7 +504,9 @@ test.describe('a photo that cannot be taken', () => {
     await expect(page.locator(POLAROID)).toHaveCount(0);
     await expect(page.locator(PANEL)).toBeVisible();
     await expect(page.locator(REPLAY)).toBeFocused();
+    // No photo: the sequence starts at Mama's reaction (story 3.7), where it used to start at the rows.
     expect((await mirrorWrites(page)).map(({ value }) => value)).toEqual([
+      'mama',
       'rows',
       'stars',
       'actions',

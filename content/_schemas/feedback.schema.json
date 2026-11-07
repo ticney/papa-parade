@@ -188,7 +188,7 @@
           "properties": {
             "clip": {
               "type": "string",
-              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
               "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
             },
             "bus": {
@@ -230,12 +230,12 @@
               "properties": {
                 "calm": {
                   "type": "string",
-                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                   "description": "The calm stem: the music at rest."
                 },
                 "tense": {
                   "type": "string",
-                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                   "description": "The tense stem: it comes up while a threat is on (story 2.6)."
                 }
               },
@@ -288,7 +288,7 @@
             "properties": {
               "clip": {
                 "type": "string",
-                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                 "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
               },
               "bus": {
@@ -347,19 +347,19 @@
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
               "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
             },
             "description": "The notes, one per judged beat: the note of judged beat `n` is `notes[n % notes.length]`."
           },
           "countIn": {
             "type": "string",
-            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
             "description": "The tick of the count-in beats."
           },
           "decoy": {
             "type": "string",
-            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
             "description": "The sound of a decoy, between two beats."
           },
           "bus": {
@@ -474,6 +474,12 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "description": "How long the end photo stays alone on screen, after it drops in and before the rows start, in real ms (story 3.6); 0 goes straight to the rows. A level that took no photo skips it. A press skips it."
+        },
+        "reactionHoldMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long each of Mama's reactions (her laugh, sigh or scream, with her line) stays on screen after the photo and before the rows start, in real ms (story 3.7); 0 goes straight on. A press skips them all."
         }
       },
       "required": [
@@ -483,10 +489,11 @@
         "starIntervalMs",
         "actionsDelayMs",
         "inputGraceMs",
-        "photoHoldMs"
+        "photoHoldMs",
+        "reactionHoldMs"
       ],
       "additionalProperties": false,
-      "description": "The sequence of the Result screen (story 1.22): the photo (story 3.6), then rows, then stars, then buttons. Real time: the sim never reads it."
+      "description": "The sequence of the Result screen (story 1.22): the photo (story 3.6), the reactions of Mama (story 3.7), then rows, then stars, then buttons. Real time: the sim never reads it."
     },
     "calibration": {
       "type": "object",
@@ -496,7 +503,7 @@
           "properties": {
             "clip": {
               "type": "string",
-              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
               "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
             },
             "bus": {
@@ -1112,7 +1119,7 @@
             "properties": {
               "clip": {
                 "type": "string",
-                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                 "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
               },
               "bus": {
@@ -1150,7 +1157,7 @@
               "properties": {
                 "clip": {
                   "type": "string",
-                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                   "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
                 },
                 "bus": {

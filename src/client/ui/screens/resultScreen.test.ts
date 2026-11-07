@@ -1,5 +1,5 @@
 import { COUNT_UP_FRAME_MS, JOURNAL_COPY_TIMEOUT_MS, STAR_COUNT_MAX } from '@shared/constants';
-import type { MamaScore } from '@sim';
+import type { MamaReaction, MamaScore } from '@sim';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestFeedback } from '../../../../tests/support/testContent.ts';
 import {
@@ -162,10 +162,13 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
     isDone: false,
     // No photo by default: the sequence starts at `rows`, as it did before story 3.6.
     photo: null,
+    // No reaction by default: the `mama` phase has its own describe below (story 3.7).
+    reactions: [],
     scheduler: clock.scheduler,
     now: clock.now,
     keyTarget: keys as never,
     onPhoto: () => calls.push('photo'),
+    onMamaReaction: (reaction) => calls.push(`mama ${reaction}`),
     onStar: (isLast) => calls.push(isLast ? 'last star' : 'star'),
     onMamaWoke: () => calls.push('mama woke'),
     onMamaHome: () => calls.push('mama home'),
@@ -920,7 +923,10 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
   it('puts the canvas in a polaroid left of the panel, labelled and tilted', () => {
     const { root, panel, canvas, polaroid } = withPhoto();
     expect(polaroid).toBeDefined();
-    expect(root.children).toEqual([polaroid, panel]);
+    // The polaroid stands in the left column (story 3.7), which comes first in the screen.
+    const left = root.find('pp-result-left')[0];
+    expect(root.children).toEqual([left, panel]);
+    expect(left?.children).toEqual([polaroid]);
     expect(polaroid?.children).toEqual([canvas]);
     expect(canvas.attributes.get('role')).toBe('img');
     expect(canvas.attributes.get('aria-label')).toBe('result.photo_label');
@@ -1032,7 +1038,7 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
       expect(values()).toEqual(ROW_TOTALS);
       expect(actions.hidden).toBe(false);
       expect(focused).toBe(replay);
-      expect(root.children[0]).toBe(polaroid);
+      expect(root.find('pp-result-left')[0]?.children[0]).toBe(polaroid);
       expect(polaroid?.children).toEqual([canvas]);
     });
 
@@ -1090,7 +1096,7 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
       expect(calls).toEqual([]);
       expect(values()).toEqual(ROW_TOTALS);
       expect(actions.hidden).toBe(false);
-      expect(root.children[0]).toBe(polaroid);
+      expect(root.find('pp-result-left')[0]?.children[0]).toBe(polaroid);
     });
 
     it('shows a woken header at rest, with no slam and no cue', () => {
@@ -1121,6 +1127,288 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
   it('takes the panel as its initial focus, transparent or not', () => {
     const { screen, panel } = withPhoto();
     expect(screen.initialFocus).toBe(panel as never);
+  });
+});
+
+describe("createResultScreen: Mama's reactions (story 3.7)", () => {
+  beforeEach(() => {
+    focused = null;
+  });
+
+  const HOLD_MS = timings.reactionHoldMs;
+  const PHOTO_HOLD_MS = timings.photoHoldMs;
+  const ALL: readonly MamaReaction[] = [
+    { reaction: 'laugh', points: 7 },
+    { reaction: 'sigh', points: 3 },
+    { reaction: 'scream', points: 2.5 },
+  ];
+  // The strings the chip needs; every other key stays its own name.
+  const t = (key: string): string =>
+    key === 'result.mama_value_gain'
+      ? '+{points}'
+      : key === 'result.mama_value_loss'
+        ? '−{points}'
+        : key;
+  const make = (overrides: Partial<ResultScreenOptions> = {}) =>
+    build({ t, reactions: ALL, ...overrides });
+  const withPhoto = (overrides: Partial<ResultScreenOptions> = {}) =>
+    make({ photo: { canvas: new FakeElement('canvas') as never, tiltDeg: 1 }, ...overrides });
+  const press = (root: FakeElement) => {
+    root.dispatch('pointerdown', { pointerId: 3, isPrimary: true });
+    root.dispatch('pointerup', { pointerId: 3 });
+  };
+  const bubbleOf = (root: FakeElement) => root.find('pp-mum-bubble')[0] as FakeElement;
+  const lineOf = (root: FakeElement) =>
+    (root.find('pp-mum-bubble-text')[0] as FakeElement).textContent;
+  const chipOf = (root: FakeElement) => root.find('pp-mum-chip')[0] as FakeElement;
+  const shownOf = (root: FakeElement) => root.find('pp-mama--shown');
+  const mamaOf = (root: FakeElement) => root.find('pp-result-mama')[0] as FakeElement;
+
+  it('plays them in order, each held for reactionHoldMs, and only then starts the rows (no photo)', () => {
+    const { clock, phases, calls } = make();
+    expect(phases).toEqual(['mama']);
+    expect(calls).toEqual(['mama laugh']);
+    clock.advance(HOLD_MS - 1);
+    expect(calls).toEqual(['mama laugh']);
+    clock.advance(1);
+    expect(calls).toEqual(['mama laugh', 'mama sigh']);
+    clock.advance(HOLD_MS);
+    expect(calls).toEqual(['mama laugh', 'mama sigh', 'mama scream']);
+    // The last one is held too, so that it is read before the rows.
+    expect(phases).toEqual(['mama']);
+    clock.advance(HOLD_MS);
+    expect(phases).toEqual(['mama', 'rows']);
+    clock.advance(20_000);
+    expect(phases).toEqual(['mama', 'rows', 'stars', 'actions']);
+    expect(calls.filter((call) => call.startsWith('mama '))).toEqual([
+      'mama laugh',
+      'mama sigh',
+      'mama scream',
+    ]);
+  });
+
+  it('puts the photo first when there is one: photo, then the reactions after its hold', () => {
+    const { clock, phases, calls, root } = withPhoto();
+    expect(phases).toEqual(['photo']);
+    expect(calls).toEqual(['photo']);
+    // Hers is hidden while the photo stands alone.
+    expect(mamaOf(root).hidden).toBe(true);
+    clock.advance(PHOTO_HOLD_MS);
+    expect(phases).toEqual(['photo', 'mama']);
+    expect(calls).toEqual(['photo', 'mama laugh']);
+    expect(mamaOf(root).hidden).toBe(false);
+    clock.advance(HOLD_MS * ALL.length);
+    expect(phases).toEqual(['photo', 'mama', 'rows']);
+  });
+
+  it('shows the line of the reaction in the bubble, with its accent class, and the next one after the hold', () => {
+    const { clock, root } = make();
+    expect(lineOf(root)).toBe('result.mama_line_laugh');
+    expect(bubbleOf(root).className).toContain('pp-mum-bubble--laugh');
+    clock.advance(HOLD_MS);
+    expect(lineOf(root)).toBe('result.mama_line_sigh');
+    expect(bubbleOf(root).className).toContain('pp-mum-bubble--sigh');
+    expect(bubbleOf(root).className).not.toContain('pp-mum-bubble--laugh');
+    clock.advance(HOLD_MS);
+    expect(lineOf(root)).toBe('result.mama_line_scream');
+    expect(bubbleOf(root).className).toContain('pp-mum-bubble--scream');
+  });
+
+  it('is the caption of her voice: a polite status that always shows, with her figures hidden from readers', () => {
+    const { root } = make();
+    const bubble = bubbleOf(root);
+    expect(bubble.attributes.get('role')).toBe('status');
+    expect(bubble.attributes.get('aria-live')).toBe('polite');
+    expect(bubble.className).toContain('pp-type-body');
+    expect(root.find('pp-mama').length).toBeGreaterThan(0);
+    for (const figure of root.find('pp-mama')) {
+      expect(figure.attributes.get('aria-hidden')).toBe('true');
+    }
+  });
+
+  it('shows one figure at a time, the one of the reaction, each with an animation class of its own', () => {
+    const { clock, root } = make();
+    const classOfShown = () => (shownOf(root)[0] as FakeElement).attributes.get('class') ?? '';
+    expect(shownOf(root)).toHaveLength(1);
+    expect(classOfShown()).toContain('pp-mama--laugh');
+    expect(classOfShown()).not.toContain('pp-mama--rest');
+    clock.advance(HOLD_MS);
+    expect(shownOf(root)).toHaveLength(1);
+    expect(classOfShown()).toContain('pp-mama--sigh');
+    clock.advance(HOLD_MS);
+    expect(classOfShown()).toContain('pp-mama--scream');
+  });
+
+  it('writes the value with its sign: + for the Laugh, − for the Sigh and the Scream, a decimal comma', () => {
+    const { clock, root } = make();
+    expect(chipOf(root).hidden).toBe(false);
+    expect(chipOf(root).textContent).toBe('+7');
+    expect(chipOf(root).className).toContain('pp-mum-chip--laugh');
+    clock.advance(HOLD_MS);
+    expect(chipOf(root).textContent).toBe('−3');
+    expect(chipOf(root).className).toContain('pp-mum-chip--sigh');
+    clock.advance(HOLD_MS);
+    expect(chipOf(root).textContent).toBe('−2,5');
+    expect(chipOf(root).className).toContain('pp-mum-chip--scream');
+  });
+
+  it('shows no chip for a reaction worth 0, and brings it back for the next one', () => {
+    const { clock, root } = make({
+      reactions: [
+        { reaction: 'laugh', points: 0 },
+        { reaction: 'scream', points: 4 },
+      ],
+    });
+    expect(chipOf(root).hidden).toBe(true);
+    expect(chipOf(root).textContent).toBe('');
+    clock.advance(HOLD_MS);
+    expect(chipOf(root).hidden).toBe(false);
+    expect(chipOf(root).textContent).toBe('−4');
+  });
+
+  it('gives the Scream the line of its end: woken, home early, or the general one', () => {
+    const scream = [{ reaction: 'scream', points: 0 }] as const;
+    expect(lineOf(make({ reactions: scream, endReason: 'mamaWoke' }).root)).toBe(
+      'result.mama_line_scream_woke',
+    );
+    expect(lineOf(make({ reactions: scream, endReason: 'mamaHome' }).root)).toBe(
+      'result.mama_line_scream_home',
+    );
+    expect(lineOf(make({ reactions: scream, endReason: 'timer' }).root)).toBe(
+      'result.mama_line_scream',
+    );
+    expect(lineOf(make({ reactions: scream, endReason: 'cycleDone' }).root)).toBe(
+      'result.mama_line_scream',
+    );
+  });
+
+  it('keeps the woken and home-early headers and their cues for the rows, after the reactions', () => {
+    const woken = make({ endReason: 'mamaWoke', score: { ...SCORE, stars: 1, lostStars: 1 } });
+    expect(woken.root.find('pp-result-reason')).toHaveLength(0);
+    expect(woken.calls).not.toContain('mama woke');
+    woken.clock.advance(HOLD_MS * ALL.length);
+    expect(woken.phases).toEqual(['mama', 'rows']);
+    expect(woken.calls).toEqual(['mama laugh', 'mama sigh', 'mama scream', 'mama woke']);
+    expect(woken.root.find('pp-result-reason')).toHaveLength(1);
+    const home = make({ endReason: 'mamaHome' });
+    home.clock.advance(HOLD_MS * ALL.length);
+    expect(home.calls).toEqual(['mama laugh', 'mama sigh', 'mama scream', 'mama home']);
+  });
+
+  it('keeps the panel transparent while she reacts and lets it show with the rows', () => {
+    const { clock, panel } = make();
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(true);
+    clock.advance(HOLD_MS * ALL.length);
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(false);
+  });
+
+  it('goes straight on with reactionHoldMs 0: every reaction fires in the same call, then the rows', () => {
+    const { phases, calls, root } = make({ timings: { ...timings, reactionHoldMs: 0 } });
+    expect(phases).toEqual(['mama', 'rows']);
+    expect(calls).toEqual(['mama laugh', 'mama sigh', 'mama scream']);
+    // She stays on the last one.
+    expect(lineOf(root)).toBe('result.mama_line_scream');
+  });
+
+  it('goes straight from the photo to the reactions with photoHoldMs 0 as well', () => {
+    const { phases, calls } = withPhoto({
+      timings: { ...timings, photoHoldMs: 0, reactionHoldMs: 0 },
+    });
+    expect(phases).toEqual(['photo', 'mama', 'rows']);
+    expect(calls).toEqual(['photo', 'mama laugh', 'mama sigh', 'mama scream']);
+  });
+
+  it('stays, at rest, on the last reaction once the sequence is over', () => {
+    const { clock, root } = make();
+    clock.advance(20_000);
+    const [figure] = shownOf(root);
+    expect(figure?.attributes.get('class')).toContain('pp-mama--scream');
+    expect(lineOf(root)).toBe('result.mama_line_scream');
+    expect(mamaOf(root).hidden).toBe(false);
+  });
+
+  describe('a press', () => {
+    it('during the photo skips the reactions: none plays, Mama stands at rest on the last one', () => {
+      const { root, phases, calls, values, actions } = withPhoto();
+      press(root);
+      expect(phases).toEqual(['photo', 'actions']);
+      expect(calls).toEqual(['photo']);
+      expect(values()).toEqual(ROW_TOTALS);
+      expect(actions.hidden).toBe(false);
+      expect(mamaOf(root).hidden).toBe(false);
+      expect(lineOf(root)).toBe('result.mama_line_scream');
+      const [figure] = shownOf(root);
+      expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
+    });
+
+    it('during the reactions skips the rest, with no cue, no header slam and Mama at rest on the last', () => {
+      const { clock, root, phases, calls, actions } = make({
+        endReason: 'mamaWoke',
+        score: { ...SCORE, stars: 1, lostStars: 1 },
+      });
+      clock.advance(HOLD_MS);
+      press(root);
+      expect(phases).toEqual(['mama', 'actions']);
+      expect(calls).toEqual(['mama laugh', 'mama sigh']);
+      expect(actions.hidden).toBe(false);
+      expect(lineOf(root)).toBe('result.mama_line_scream_woke');
+      expect(chipOf(root).textContent).toBe('−2,5');
+      const [figure] = shownOf(root);
+      expect(figure?.attributes.get('class')).toContain('pp-mama--scream');
+      expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
+      // The header is there at rest: no slam class, no cue.
+      expect(root.find('pp-result-reason-slam')).toHaveLength(0);
+      expect(calls).not.toContain('mama woke');
+      // And nothing is left to run.
+      clock.advance(20_000);
+      expect(calls).toEqual(['mama laugh', 'mama sigh']);
+    });
+
+    it('is ignored within inputGraceMs: the reactions go on', () => {
+      const { root, phases, calls } = make({ timings: { ...timings, inputGraceMs: 350 } });
+      press(root);
+      expect(phases).toEqual(['mama']);
+      expect(calls).toEqual(['mama laugh']);
+    });
+  });
+
+  it('shows a rebuilt, finished screen the same Mama at rest, silently', () => {
+    const { phases, calls, root } = make({ isDone: true });
+    expect(phases).toEqual(['actions']);
+    expect(calls).toEqual([]);
+    expect(lineOf(root)).toBe('result.mama_line_scream');
+    expect(chipOf(root).textContent).toBe('−2,5');
+    const [figure] = shownOf(root);
+    expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
+  });
+
+  it('lays out the left column: the polaroid and Mama together, or Mama alone', () => {
+    const photo = withPhoto();
+    const left = photo.root.find('pp-result-left')[0] as FakeElement;
+    expect(left.className).not.toContain('pp-result-left-alone');
+    expect(left.children).toHaveLength(2);
+    expect(left.children[1]).toBe(mamaOf(photo.root));
+    const alone = make();
+    const aloneLeft = alone.root.find('pp-result-left')[0] as FakeElement;
+    expect(aloneLeft.className).toContain('pp-result-left-alone');
+    expect(aloneLeft.children).toEqual([mamaOf(alone.root)]);
+    expect(alone.root.children).toEqual([aloneLeft, alone.panel]);
+  });
+
+  it('plays no `mama` phase and builds no left column when it is given no reaction and no photo', () => {
+    const { phases, root } = build({ reactions: [] });
+    expect(phases).toEqual(['rows']);
+    expect(root.find('pp-result-left')).toHaveLength(0);
+  });
+
+  it('builds one figure per kind of reaction, whatever the list', () => {
+    const { root } = make({
+      reactions: [
+        { reaction: 'laugh', points: 1 },
+        { reaction: 'laugh', points: 2 },
+      ],
+    });
+    expect(root.find('pp-mama')).toHaveLength(1);
   });
 });
 

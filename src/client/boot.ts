@@ -7,7 +7,13 @@ import { GAUGE_IDS, type GaugeId } from '@content/schemas/level';
 import type { Settings } from '@content/schemas/save';
 import type { SequenceDef } from '@content/schemas/sequence';
 import { createPlatform } from '@platform/createPlatform';
-import { DEFAULT_DIFFICULTY_TIER, MAX_TIMER_DELAY_MS, MS_PER_S, STEP_MS } from '@shared/constants';
+import {
+  DEFAULT_DIFFICULTY_TIER,
+  MAX_TIMER_DELAY_MS,
+  type MamaReactionId,
+  MS_PER_S,
+  STEP_MS,
+} from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
@@ -21,6 +27,7 @@ import {
   isStealthStepRunning,
   type LevelEndReason,
   type MamaScore,
+  mamaReactionsOf,
   type Sim,
   type SimEvent,
   type SimObjectSpec,
@@ -55,6 +62,7 @@ import {
 import { takeEndPhoto } from './endOfLevel/photo.ts';
 import { isCatastropheAlertCrossing } from './feedback/catastropheAlert.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
+import type { FeedbackEventName } from './feedback/feedbackEvents.ts';
 import { createGatedHaptics } from './feedback/gatedHaptics.ts';
 import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
 import { createResponseChoreography } from './feedback/responseChoreography.ts';
@@ -170,6 +178,12 @@ function doorPointOf(
   const [xM, , zM] = door?.positionM ?? [];
   return door === undefined || xM === undefined || zM === undefined ? null : { xM, zM };
 }
+/** The client event of each of Mama's reactions on the Result screen (story 3.7): its cue is in `feedback.json`. */
+const MAMA_REACTION_EVENTS = {
+  laugh: 'ResultMamaLaughed',
+  sigh: 'ResultMamaSighed',
+  scream: 'ResultMamaScreamed',
+} as const satisfies Record<MamaReactionId, FeedbackEventName>;
 /** What the Result screen shows if it ever has no note (a bug, warned about): all zero. */
 const NO_SCORE: MamaScore = {
   laughPoints: 0,
@@ -2040,6 +2054,8 @@ export async function boot(): Promise<void> {
         // Rebuilt after the portrait overlay: the stars do not stamp (nor sound) twice.
         isDone: hasResultStarted,
         photo: resultPhoto,
+        // Mama's reactions to the note she gave, between the photo and the rows (story 3.7).
+        reactions: mamaReactionsOf(resultScore ?? NO_SCORE, resultEndReason),
         // The shutter and the flash, once, when the photo drops in (never on a rebuild, nor with no photo).
         onPhoto: () => director.handle('PhotoTaken', null),
         scheduler: {
@@ -2052,6 +2068,8 @@ export async function boot(): Promise<void> {
           director.handle(isLast ? 'ResultLastStarStamped' : 'ResultStarStamped', null),
         // The header of a woken Mama and the star she took off have their own cues (story 3.2 D4, D5).
         onMamaWoke: () => director.handle('ResultMamaWokeShown', null),
+        // Mama's voice for each reaction, once each, before the rows (story 3.7).
+        onMamaReaction: (reaction) => director.handle(MAMA_REACTION_EVENTS[reaction], null),
         // The header of a Mama come home early has its own door-slam cue (story 3.16 D9).
         onMamaHome: () => director.handle('ResultMamaHomeShown', null),
         onStarLost: () => director.handle('ResultStarLost', null),
@@ -2393,6 +2411,11 @@ export async function boot(): Promise<void> {
           lightsFactor: real?.lightsFactor ?? 1,
           mischiefDecals: real?.mischiefDecals ?? 0,
           choreShards: real?.choreShards ?? 0,
+          papaLook: {
+            hasMashOnCheek: real?.papaLook.hasMashOnCheek ?? false,
+            hasHairOnEnd: real?.papaLook.hasHairOnEnd ?? false,
+            isShirtInsideOut: real?.papaLook.isShirtInsideOut ?? false,
+          },
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),

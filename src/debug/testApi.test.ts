@@ -574,6 +574,7 @@ describe('fx (story 2.5)', () => {
       lightsFactor: 1,
       mischiefDecals: 0,
       choreShards: 0,
+      papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
     };
     const host = createFakeTestHost();
     (host as { fxState: () => typeof state }).fxState = () => state;
@@ -594,6 +595,7 @@ describe('fx (story 2.5)', () => {
       lightsFactor: 0.4,
       mischiefDecals: 2,
       choreShards: 0,
+      papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
     };
     expect(api.fx()).toEqual(state);
   });
