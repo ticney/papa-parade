@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-11-07
+# last_updated: 2026-11-08
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -41,9 +41,11 @@
 # - epic-3 reste 'in-progress' entre 3.4 et 3.5 : ne pas le passer à 'done' après 3.4.
 # - Rattrapage v2.3 (sprint-change-proposal-2026-11-03.md) : 3.12, 2.11, 3.13, 2.12, 2.13, 3.14, 3.15, 3.16
 #   se livrent après 3.6, puis un playtest, puis l'epic 9, puis 3.7 à 3.11. Les clés 2-x restent rattachées à epic-2.
+# - Animation v2.4 (sprint-change-proposal-2026-11-08.md) : 7.8 à 7.12, un playtest de l'animation,
+#   puis 7.13 à 7.15, se livrent après 3.8 et avant 3.9. Les clés 7-x restent rattachées à epic-7.
 
 generated: 2026-10-26
-last_updated: 2026-11-07
+last_updated: 2026-11-08
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -141,6 +143,20 @@ development_status:
   # Epic 3 [V1] (fin) — après l'epic 9.
   3-7-reactions-de-maman-et-degaine-de-papa: done
   3-8-memoire-de-maman: done
+
+  # Animation v2.4 (2026-11-08) — après 3.8, avant 3.9. Ordre de production du GDD :
+  # couche de vie, squelette v2, première vague, puis le reste.
+  7-8-couche-de-vie-et-personnages-detaches-du-decor: backlog
+  7-9-squelette-v2-et-animations-reprises: backlog
+  7-10-visages-sourcils-et-expressions: backlog
+  7-11-premiere-vague-deplacement-et-attentes-de-papa: backlog
+  7-12-premiere-vague-taches-reponses-reactions-et-bebe: backlog
+  # Playtest de l'animation (indicateur « Papa se lit sans sa bulle ») : npm run ci, puis le lien.
+  7-13-variantes-de-reponses-et-pose-de-combo: backlog
+  7-14-allures-taches-et-reactions-de-papa: backlog
+  7-15-reste-du-panel-du-bebe: backlog
+
+  # Epic 3 [V1] (fin, suite) — après l'animation v2.4.
   3-9-replay-des-meilleurs-moments: backlog
   3-10-variante-retour: backlog
   3-11-reussite-deblocage-par-etoiles-et-frigo: backlog

@@ -2,7 +2,7 @@
 title: 'EXPERIENCE.md — Papa Parade'
 status: final
 created: 2026-10-26
-updated: 2026-11-03
+updated: 2026-11-08
 design_ref: ./DESIGN.md
 sources:
   - ../../gdds/gdd-papa-parade-2026-10-26/gdd.md
@@ -10,6 +10,7 @@ sources:
   - ../../epics.md
   - ../../implementation-readiness-report-2026-10-26.md
   - ../../sprint-change-proposal-2026-11-03.md
+  - ../../sprint-change-proposal-2026-11-08.md
 form_factor: 'Mobile landscape, touch-first (primary); web desktop with keyboard, mouse or gamepad; iOS and Android via Capacitor (landscape locked)'
 ---
 
@@ -457,6 +458,8 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Full-screen flash | Border glow |
 | Characters' clips | Kept: a pose carries state (asleep, on the phone), the same call as hitstop and slow-mo `[ASSUMPTION]` |
 | Characters' squash and stretch | Removed `[ASSUMPTION]` |
+| Characters' life layer (v2.4): breathing, lean, forelock | Removed, and the damped turn no longer overshoots `[ASSUMPTION]`. The fades, the gaze, the fatigue stoop, the expressions and any pose that carries a state stay |
+| Characters' idle variants (v2.4) | Removed: Papa and the baby hold their loop |
 | silence-bubble blink | Slow pulse, 1Hz or slower |
 | Follow camera (large room, v2.3) | Slower catch-up, no overshoot (story 9.2) |
 | catastrophe-face alert pulse (v2.3) | Slow pulse, 1Hz or slower; the alarmed face stays |

@@ -15,7 +15,7 @@ language: fr
 
 ## Vue d'ensemble
 
-Ce document découpe en epics et en stories implémentables les exigences du GDD v2.1, complétées par la v2.3 (`planning-artifacts/sprint-change-proposal-2026-11-03.md`), de l'architecture (`planning-artifacts/game-architecture.md`) et de la spécification UX (`planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/`, reprise en UX-DR1 à UX-DR30). Il compte 9 epics et 98 stories. Il est rédigé en français, comme le GDD et l'architecture ; les identifiants techniques restent en anglais.
+Ce document découpe en epics et en stories implémentables les exigences du GDD v2.1, complétées par la v2.3 (`planning-artifacts/sprint-change-proposal-2026-11-03.md`) et la v2.4 (`planning-artifacts/sprint-change-proposal-2026-11-08.md`, animation des personnages), de l'architecture (`planning-artifacts/game-architecture.md`) et de la spécification UX (`planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/`, reprise en UX-DR1 à UX-DR30). Il compte 9 epics et 106 stories. Il est rédigé en français, comme le GDD et l'architecture ; les identifiants techniques restent en anglais.
 
 **Phases :** `[P]` prototype « Bébé à 4 pattes » (E1, E2, E3 partiel) · `[P2]` deuxième prototype (cycle du dodo, E4) · `[P3]` troisième prototype (grand salon et maison, E9) · `[V1]` version 1.
 
@@ -143,6 +143,7 @@ Ce document découpe en epics et en stories implémentables les exigences du GDD
 - FR76 `[P3]` : **tâches de la maison.** Tâches facultatives à un poste (cuisine, lave-vaisselle), jouées en temps forts de Parer (anneau-chrono, fenêtre 300 ms), interruptibles à tout moment avec progression gardée, en attente pendant la fenêtre d'une menace. Une tâche finie remplit la ligne Maison. Un temps fort raté est un petit gag.
 - FR77 `[P3]` : **grand salon et caméra qui suit.** Un grand salon avec cuisine ouverte (environ 13–14 × 7 m) remplace le salon. La caméra suit papa avec une zone morte, sans rotation (sauf la rotation courte d'une parfaite). Une menace hors cadre est signalée par une bulle d'info au bord de l'écran (icône, anneau-chrono, flèche), qu'on peut taper. Glissade plafonnée à 0,9 s dans cette pièce.
 - FR78 `[P3]` : **nouvelles bêtises.** Bêtises du grand salon tirées de la liste candidate du GDD (nappe, placard bas, lave-vaisselle ouvert, poubelle, plante verte, tasse de papa), triées par Geo, avec les réponses existantes.
+- FR79 `[V1]` : **animation des personnages (v2.4).** Le corps de papa raconte son état sans la bulle d'activité (tâche, café, téléphone, infiltration, fatigue, bébé dans les bras). Une couche de vie s'ajoute aux animations : fondus par transition, demi-tour amorti, élan, respiration, regard, mèche, posture de fatigue. Squelette v2 (une vingtaine d'os, 32 au plus, triangles inchangés) ; quatre expressions par personnage, portées par les yeux et les sourcils ; un panel d'animations variées (une première vague de treize, puis le reste) ; des personnages détachés du décor (liseré clair, contour 1,5 fois plus épais). Une animation ne change jamais une position, une durée ni une fenêtre, ne retarde jamais une réponse (NFR2), ne ressemble à aucun télégraphe et ne trahit aucune information cachée. Une partie rejouée montre les mêmes animations. Mesurée par l'indicateur « Papa se lit sans sa bulle ».
 
 ### Exigences non fonctionnelles
 
@@ -356,6 +357,7 @@ La spécification UX fait foi pour l'interface : `ux-designs/ux-papa-parade-2026
 | FR76 | E9 | Tâches de la maison |
 | FR77 | E9 | Grand salon et caméra qui suit |
 | FR78 | E9 | Nouvelles bêtises |
+| FR79 | E7 | Animation des personnages (v2.4) |
 
 Les NFR sont transverses. NFR2, NFR4, NFR5, NFR12 et NFR14 sont posées dès E1 ; NFR6 à NFR9 sont consolidées en E2 ; NFR1 et NFR3 sont mesurées en E1 (test de performance), puis tenues à chaque epic ; NFR11 est mesurée en fin de E3 `[P]` ; NFR13 est vérifiée en E1 (web) et en E8 (WebView) ; NFR15 est vérifiée par `dist:check` à chaque niveau (E1, E9).
 
@@ -396,7 +398,7 @@ Les NFR sont transverses. NFR2, NFR4, NFR5, NFR12 et NFR14 sont posées dès E1 
 
 ## Liste des epics
 
-**Séquence :** E1 → E2 → E3 `[P]` → **playtest** → E4 → E3 `[V1]` (3.5, 3.6) → **rattrapage v2.3** (3.12, 2.11, 3.13, 2.12, 2.13, 3.14, 3.15, 3.16, dans cet ordre) → **playtest** → **E9** → E3 `[V1]` (3.7 à 3.11) → E5 → E6, avec E7 et E8 en parallèle à partir de E4 (révisée le 2026-11-03). **Attention au sprint planning :** le tri par numéro placerait les stories 3.5 à 3.11 avant E4 ; elles doivent être différées après E4. La numérotation est celle du GDD et de l'architecture.
+**Séquence :** E1 → E2 → E3 `[P]` → **playtest** → E4 → E3 `[V1]` (3.5, 3.6) → **rattrapage v2.3** (3.12, 2.11, 3.13, 2.12, 2.13, 3.14, 3.15, 3.16, dans cet ordre) → **playtest** → **E9** → E3 `[V1]` (3.7, 3.8) → **animation v2.4** (7.8 à 7.12 → **playtest de l'animation** → 7.13 à 7.15) → E3 `[V1]` (3.9 à 3.11) → E5 → E6, avec les autres stories d'E7 et E8 en parallèle à partir de E4 (révisée le 2026-11-08). **Attention au sprint planning :** le tri par numéro placerait les stories 3.5 à 3.11 avant E4 ; elles doivent être différées après E4. La numérotation est celle du GDD et de l'architecture.
 
 ### Epic 1 : Le salon jouable en cubes
 Le joueur joue une partie complète de 3 minutes dans un salon isométrique en cubes. Il protège le bébé de trois menaces et du téléphone en parant au bon moment, gère sa fatigue avec le café, repère le silence suspect, et reçoit la note de Maman. La partie est jouable à la souris, au tactile, au clavier et à la manette, par lien web, et sans humain grâce aux bots. Les fondations techniques de l'architecture (sim pure, horloge, contenu, feeling, tests) et celles de l'UI (tokens, HUD, pause : story 1.5) arrivent dans les premières stories, au service d'une tranche verticale jouable au plus tôt.
@@ -425,9 +427,10 @@ Le joueur devine l'état caché du bébé (odeur, pleurs typés, renifler) et y 
 Le joueur grandit avec l'enfant : petite enfance (crises, provocation, jauge d'attention, aide invisible, fugue), désarmement et coolitude, préparation entre les vagues, le chien, puis Enfance, Adolescence et Adulte, jusqu'à apprendre à ne plus parer.
 **FR couvertes :** FR6 (provocations), FR30, FR45, FR46, FR47, FR50, FR51, FR52.
 
-### Epic 7 : Production art et audio *(stories cadrées)*
+### Epic 7 : Production art et audio *(7.4 et 7.5 cadrées ; 7.13 à 7.15 à réviser après le playtest de l'animation)*
 Le jeu quitte les cubes : pièces modélisées, personnages riggés et animés (papa, bébé, enfants, Maman, chien), rendu toon final, VFX, célébration démesurée, cadrages parodiques et musique adaptative par âge.
-**FR couvertes :** FR60 (complète), FR62, FR70.
+`[Animation v2.4]` Papa et le bébé bougent en continu et se détachent du décor, plient coudes et genoux, ont quatre expressions chacun et piochent dans un panel d'animations variées : le corps raconte l'état sans la bulle. Maman, le chien et les enfants suivront les mêmes principes dans les stories qui les créent.
+**FR couvertes :** FR60 (complète), FR62, FR70, FR79.
 
 ### Epic 8 : Distribution mobile *(stories cadrées ; modèle économique à trancher avant)*
 Le joueur installe le jeu sur iOS ou Android, avec haptique native, audio fiable et orientation paysage, depuis les stores.
@@ -2602,7 +2605,7 @@ afin de progresser d'âge en âge.
 
 ## Epic 7 : Production art et audio
 
-*Stories cadrées.* Le jeu quitte les cubes.
+*Stories 7.4 et 7.5 cadrées.* Le jeu quitte les cubes. Les stories 7.8 à 7.15 (v2.4) suivent l'ordre de production de la section « Animation des personnages » du GDD : couche de vie, squelette v2, première vague, puis le reste. Elles se livrent après la story 3.8 (`sprint-status.yaml`).
 
 ### Story 7.1 : Pièces modélisées dans Blender
 
@@ -2650,7 +2653,7 @@ afin que le style tienne sur tous les écrans.
 
 ### Story 7.4 : Célébration finale et cadrages parodiques
 
-**Exigences :** FR62
+**Exigences :** FR62, FR79
 
 En tant que joueur,
 je veux une célébration démesurée sur la dernière réponse, et des cadrages de film pour chaque séquence,
@@ -2665,6 +2668,14 @@ afin de vivre le contraste épique / banal.
 **Étant donné** chaque séquence spéciale
 **Quand** elle se joue
 **Alors** elle applique la grammaire visuelle de sa référence (action, infiltration, prise d'otage, désamorçage), définie dans son JSON
+
+**Étant donné** un niveau qui finit sans que Maman soit rentrée plus tôt
+**Quand** la célébration finale se joue
+**Alors** papa y danse sa danse de victoire, qui fait partie de la célébration (GDD v2.4)
+
+**Étant donné** « Maman est rentrée plus tôt ! » (jauge de catastrophe à 100 %)
+**Quand** la porte s'ouvre
+**Alors** papa s'effondre, en gag et sans blessure (NFR9 ; GDD v2.4, lu comme le niveau perdu seulement)
 
 ### Story 7.5 : Musique adaptative par âge et bibliothèque sonore
 
@@ -2719,6 +2730,302 @@ afin que la voix ne masque plus le reste du son du jeu.
 **Étant donné** la prise choisie à l'écoute par Geo le 2026-11-01
 **Quand** `baby_babble_loop` est remplacé
 **Alors** l'arrêt du babillage annonce toujours le silence suspect, et `npm run assets:audio` sans `--only` n'écrase pas le fichier
+
+### Story 7.8 : Couche de vie et personnages détachés du décor
+
+**Exigences :** FR79, NFR2
+**UX :** UX-DR18
+
+En tant que joueur,
+je veux que papa et le bébé bougent en continu, avec du poids et de l'élan, et qu'ils se détachent du décor,
+afin qu'ils aient l'air vivants et se lisent d'un coup d'œil sur un téléphone.
+
+**Critères d'acceptation :**
+
+**Étant donné** un changement de clip (se mettre en route, s'arrêter, revenir d'une pose ponctuelle)
+**Quand** la vue passe d'un clip à l'autre
+**Alors** le fondu démarre et finit en douceur, avec une durée par passage (0,1 s, 0,2 s et 0,15 s au départ), à la place du fondu unique de `feedback.json › characters.crossFadeMs`
+
+**Étant donné** papa ou le bébé qui change de direction
+**Quand** il se tourne
+**Alors** il pivote en 0,25 s environ, démarre et freine en douceur, et dépasse sa cible de 5 à 10° avant de s'y poser, à la place de la vitesse constante de `turnRateDegPerSec` ; seule la vue tourne
+
+**Étant donné** papa qui accélère, freine ou tourne
+**Quand** sa vitesse dessinée change
+**Alors** son buste penche jusqu'à 10° dans le sens de l'accélération ou du freinage, et jusqu'à 8° vers l'intérieur du virage
+
+**Étant donné** papa et le bébé, quoi qu'ils fassent
+**Quand** le temps de jeu avance
+**Alors** ils respirent par-dessus leur clip, sur un cycle de 3 s, qui passe à 1,5 s quand la jauge de catastrophe dépasse 70 % ; la respiration de papa s'arrête tant qu'il retient son souffle (sortie en infiltration, story 4.9)
+
+**Étant donné** le bébé dessiné à l'écran, ni hors cadre ni caché
+**Quand** papa n'est pas en train de répondre
+**Alors** la tête de papa le suit, jusqu'à 60° de chaque côté ; sinon, elle suit la menace télégraphiée visible dont l'anneau-chrono est le plus avancé ; sinon, elle revient droit devant. Elle ne suit jamais le silence suspect, et un test vérifie que le regard ne lit ni `windowOpenAt`, ni `feintAt`, ni la tolérance cachée (comme le D9 de la story 7.2)
+
+**Étant donné** la fatigue de papa
+**Quand** elle monte
+**Alors** il se voûte, jusqu'à 15° à fatigue 100, en plus des parties de la dégaine (purée, cheveux en pétard, t-shirt à l'envers) ; ses paupières ne tombent qu'en micro-sieste
+
+**Étant donné** papa et le bébé à l'écran
+**Quand** une pièce est rendue
+**Alors** un liseré clair suit leur pourtour, et leur contour est 1,5 fois plus épais que celui des meubles ; les personnages ont leurs propres matériaux toon (aujourd'hui, ils partagent par couleur le cache de la pièce) ; un 4ᵉ ton d'ombrage s'essaie par un réglage désactivé par défaut, que Geo tranche en jouant
+
+**Étant donné** chaque valeur de cette story
+**Quand** Geo veut la régler
+**Alors** elle vit dans `feel.json › characters` (client seul, comme `camera`) et se règle à chaud dans le panneau de feeling ; `crossFadeMs` et `turnRateDegPerSec` quittent `feedback.json`
+
+**Étant donné** le mouvement réduit
+**Quand** un niveau se joue
+**Alors** la respiration et l'élan s'arrêtent, et le demi-tour ne dépasse plus sa cible `[ASSUMPTION]` ; les fondus, le regard, la voûte et les poses qui portent un état restent (lignes ajoutées au tableau du mouvement réduit d'`EXPERIENCE.md`)
+
+**Étant donné** la couche de vie
+**Quand** une partie se joue, est rejouée, figée en photo de fin ou capturée par un test
+**Alors** elle ne change aucune position, aucune durée ni aucune fenêtre ; aucun état final ni aucun événement des goldens ne bouge : seules leurs empreintes `feelHash` sont régénérées (`npm run golden:update`, la story le dit), puisque `feel.json › characters` entre dans la copie figée du feel (`tests/support/testFeel.json`) ; elle ne lit que l'horloge de la sim (D6 de la story 7.2), donc la même partie montre les mêmes mouvements ; un tap garde son retour visuel en 50 ms au plus ; `perf.spec.ts` tient ; les références de captures macOS sont régénérées délibérément, et la story le dit
+
+*Hors de cette story : la mèche arrive avec le squelette v2 (7.9), et la marche traînante au-dessus de 70 de fatigue avec la 7.14.*
+
+### Story 7.9 : Squelette v2 et animations reprises
+
+**Exigences :** FR79, FR70
+
+En tant que joueur,
+je veux que papa et le bébé plient les coudes et les genoux, et que leurs gestes aient de l'anticipation et du rebond,
+afin que leurs mouvements soient souples et expressifs.
+
+**Critères d'acceptation :**
+
+**Étant donné** `assets-src/blender/characters/{papa,baby}.blend`
+**Quand** leur squelette passe en v2
+**Alors** chaque personnage a une vingtaine d'os, 32 au plus (`CHARACTER_BONES_MAX` ne change pas). Papa gagne les coudes, les genoux, les pieds, le cou, le bassin, une mèche et deux sourcils. Le bébé gagne les coudes, les genoux, les mains, les pieds et deux sourcils. Le nombre de triangles d'un personnage ne dépasse pas celui d'aujourd'hui
+
+**Étant donné** chaque clip du contrat actuel (boucles et ponctuels de papa et du bébé)
+**Quand** il est repris sur le squelette v2
+**Alors** il garde son nom, donc `characterClips.ts` ne change pas, et il gagne de l'anticipation, du dépassement et des trajectoires en arc ; les silhouettes de jeu du D8 de la story 7.2 tiennent (hauteur de papa, bébé porté au point visé par le tap, bébé jamais plus haut que le canapé, pieds au sol)
+
+**Étant donné** les os pilotés par le code (paupières, sourcils, mèche)
+**Quand** le `.glb` est exporté
+**Alors** aucun clip n'a de piste sur eux ; `characterArt.ts` et `tests/architecture/characterAssets.test.ts` vérifient les nouveaux os et cette règle sur les fichiers committés ; les sourcils restent neutres jusqu'à la story 7.10
+
+**Étant donné** papa qui bouge
+**Quand** ses gestes changent
+**Alors** sa mèche les suit avec un temps de retard (réglé dans `feel.json › characters`), et elle s'arrête en mouvement réduit ; elle ne se confond pas avec les cheveux en pétard du gag de la prise
+
+**Étant donné** les nouveaux fichiers
+**Quand** `npm run dist:check` et `perf.spec.ts` tournent
+**Alors** chaque `.glb` reste sous `CHARACTER_GLB_MAX_BYTES`, la charge de chaque niveau tient NFR15, et le budget de frame tient malgré le skinning plus lourd
+
+**Étant donné** les clips repris
+**Quand** la story est livrée
+**Alors** des captures avant / après de chaque personnage, dans `7-9-screenshots/`, permettent à Geo de juger à l'œil ; Geo peut modifier les `.blend` et relancer les deux commandes d'export, comme pour la story 7.2 ; aucun état final ni événement des goldens ne bouge (une clé ajoutée au feel ne régénère que leurs empreintes `feelHash`), et les références de captures macOS sont régénérées délibérément
+
+### Story 7.10 : Visages : sourcils et expressions
+
+**Exigences :** FR79
+
+En tant que joueur,
+je veux lire sur le visage de papa et du bébé ce qu'ils ressentent,
+afin que chaque moment du jeu ait sa réaction, même à la taille d'un téléphone.
+
+**Critères d'acceptation :**
+
+**Étant donné** les sourcils et les paupières du squelette v2 (story 7.9)
+**Quand** un moment visible du jeu arrive
+**Alors** chaque personnage prend l'une de ses quatre expressions :
+
+| Expression | Papa | Bébé |
+|---|---|---|
+| Surprise / joie | surpris quand une menace est télégraphiée | ravi quand il rit, quand papa le prend ou après un gag |
+| Fermeté / bouderie | sourcils froncés pendant une Fermeté | boudeur juste après une Fermeté |
+| Fatigue / concentration | épuisé au-dessus de 70 de fatigue (sourcils affaissés, paupières ouvertes) | concentré pendant une bêtise déjà télégraphiée |
+| Fierté / sommeil | fier après une réponse parfaite | ensommeillé dans le cycle du dodo |
+
+**Étant donné** deux moments qui se chevauchent
+**Quand** les deux veulent une expression
+**Alors** le plus récent l'emporte ; un état qui dure (fatigue au-dessus de 70, cycle du dodo) revient quand le moment ponctuel est fini ; la durée de chaque moment est réglée dans `feel.json › characters`
+
+**Étant donné** les paupières de papa
+**Quand** il n'est pas en micro-sieste
+**Alors** aucune expression ne les baisse, pour que seule la micro-sieste les fasse tomber : ses expressions passent par les sourcils
+
+**Étant donné** le bébé
+**Quand** une menace se prépare
+**Alors** il ne prend son air concentré qu'après le télégraphe de cette menace, jamais en `targetLocked` avant ; un test vérifie que le choix de l'expression ne lit ni `windowOpenAt`, ni `feintAt`, ni `realWakePct` (comme le D9 de la story 7.2)
+
+**Étant donné** le duel du coucher, la sortie en infiltration et les feintes (faux sommeil, fausses alertes)
+**Quand** ils se jouent
+**Alors** aucune expression ne s'ajoute à leurs signaux : le bébé n'y paraît pas ensommeillé, et papa n'y réagit pas différemment à un vrai signal et à une feinte
+
+**Étant donné** le mouvement réduit
+**Quand** une expression change
+**Alors** elle reste, car elle porte un état
+
+**Étant donné** les quatre expressions de chaque personnage
+**Quand** la story est livrée
+**Alors** des captures à la taille réelle, sur un téléphone en paysage dans `7-10-screenshots/`, permettent à Geo de juger qu'elles se distinguent ; aucun état final ni événement des goldens ne bouge (une clé ajoutée au feel ne régénère que leurs empreintes `feelHash`)
+
+### Story 7.11 : Première vague (1/2) : déplacement et attentes de papa
+
+**Exigences :** FR79, NFR2
+
+En tant que joueur,
+je veux que papa se mette en route, freine, marche sur la pointe des pieds et s'occupe quand il attend,
+afin qu'il ait l'air d'un vrai papa et pas d'un pion.
+
+**Critères d'acceptation :**
+
+**Étant donné** papa à l'arrêt, puis en mouvement (et l'inverse)
+**Quand** la sim le met en route ou l'arrête
+**Alors** il joue un démarrage avec élan, ou un freinage, qui s'ajoute à l'élan de la couche de vie (story 7.8) ; sa position reste celle de la sim
+
+**Étant donné** la sortie en infiltration (story 4.9)
+**Quand** papa se déplace
+**Alors** il marche sur la pointe des pieds au lieu de la marche ralentie d'aujourd'hui ; tant qu'il retient son souffle, ses joues sont gonflées (un nœud caché, montré par la vue comme les parties de la dégaine)
+
+**Étant donné** papa immobile, les mains libres
+**Quand** 4 s passent sans qu'il bouge
+**Alors** il joue l'une de ses trois attentes (se gratter la tête, se masser la nuque, s'étirer le dos), puis une autre toutes les 5 à 8 s, jamais deux fois la même de suite ; la cadence est réglée dans `feel.json › characters`
+
+**Étant donné** une attente, un démarrage ou un freinage en cours
+**Quand** le joueur tape, ou que l'état de papa change
+**Alors** l'animation est coupée dans la frame où la commande est acceptée, et le retour visuel reste à 50 ms au plus
+
+**Étant donné** le duel du coucher, la sortie en infiltration, les feintes, le bébé dans les bras ou le mouvement réduit
+**Quand** papa est immobile
+**Alors** il ne joue aucune attente et garde sa boucle
+
+**Étant donné** la même partie, rejouée ou figée en photo de fin
+**Quand** papa attend
+**Alors** les mêmes attentes jouent aux mêmes instants : la cadence et le choix ne dépendent que de la graine du niveau et du temps de jeu, jamais de `Math.random` ni du temps réel ; aucun état final ni événement des goldens ne bouge (une clé ajoutée au feel ne régénère que leurs empreintes `feelHash`)
+
+**Étant donné** les nouveaux clips
+**Quand** la story est livrée
+**Alors** des tests unitaires vérifient la cadence (première attente à 4 s, écarts de 5 à 8 s, jamais deux fois la même, même résultat pour la même partie) ; un test e2e vérifie qu'un papa immobile joue une attente et qu'un tap la coupe ; aucune attente ne ressemble à un télégraphe (pas de bâillement, paupières ouvertes), et Geo en juge sur les captures de `7-11-screenshots/`
+
+### Story 7.12 : Première vague (2/2) : tâches, réponses, réactions et bébé
+
+**Exigences :** FR79, FR68
+
+En tant que joueur,
+je veux que papa remue la casserole, ramasse les débris, pare de plus d'une façon et souffle quand il s'en sort de justesse, et que le bébé s'assoie, tape des mains et rie de plus d'une façon,
+afin que la partie ne répète plus les mêmes gestes.
+
+**Critères d'acceptation :**
+
+**Étant donné** papa à la tâche « cuisine » (story 9.5)
+**Quand** il est au poste
+**Alors** il remue la casserole au lieu d'attendre ; la tâche « lave-vaisselle » garde son attente jusqu'à la story 7.14
+
+**Étant donné** papa qui ramasse un débris (`pickingUp`)
+**Quand** la sim le fait ramasser
+**Alors** il joue un geste de ramassage, au rythme de la durée de la sim, qui ne change pas
+
+**Étant donné** une réponse Parer
+**Quand** elle se joue
+**Alors** papa joue l'une de ses deux variantes, jamais deux fois la même de suite ; les deux gardent la silhouette de Parer ; le choix ne dépend que de la graine du niveau et de la sim, pas de `Math.random`
+
+**Étant donné** une réussite (pas une parfaite) dans le dernier quart de la fenêtre, tolérance cachée comprise (`offsetMs` et `responseWindow` de `ResponseResolved`)
+**Quand** elle est jugée
+**Alors** papa pousse un soupir de soulagement, qui ne l'occupe pas : un tap le coupe ; le quart est réglé dans `feel.json › characters`
+
+**Étant donné** le bébé arrêté depuis un moment réglé dans `feel.json › characters`
+**Quand** la sim le garde sur place
+**Alors** il s'assoit, puis il repart à quatre pattes dès que la sim le remet en mouvement, sans que sa position prenne de retard : il ne s'assoit jamais en mouvement
+
+**Étant donné** le bébé assis ou au repos
+**Quand** il attend
+**Alors** il tape des mains, à une cadence réglée comme les attentes de papa (story 7.11)
+
+**Étant donné** le bébé qui rit
+**Quand** il rit plusieurs fois
+**Alors** il joue l'un de ses deux rires, jamais deux fois le même de suite
+
+**Étant donné** le duel du coucher, la sortie en infiltration, les feintes ou le mouvement réduit
+**Quand** le bébé est au repos
+**Alors** il ne s'assoit pas, ne tape pas des mains et garde sa boucle ; aucune de ses animations ne ressemble à un télégraphe (il ne se hisse pas, ne fixe pas un point, n'accélère pas)
+
+**Étant donné** un build de dev ou de playtest ouvert avec `?bubble=off` (ignoré par la production, comme `?level`)
+**Quand** un niveau se joue
+**Alors** la bulle d'activité de papa n'est pas dessinée, et tout le reste ne change pas, pour les extraits de l'indicateur « Papa se lit sans sa bulle »
+
+**Étant donné** les observations de Geo pendant ces extraits (tâche, café, téléphone, infiltration, fatigue, bébé dans les bras)
+**Quand** `npm run playtest:metrics` tourne
+**Alors** il calcule l'indicateur « Papa se lit sans sa bulle » : au moins 4 testeurs sur 5 nomment ce que fait papa, et aucun ne trouve spontanément une pose répétitive ; les seuils sont dans `content/playtest.json`, et les colonnes dans `observations.example.csv` et `observation-sheet.md`
+
+**Étant donné** les nouveaux clips
+**Quand** la story est livrée
+**Alors** aucun état final ni événement des goldens ne bouge (une clé ajoutée au feel ne régénère que leurs empreintes `feelHash`) ; Geo juge les animations sur les captures de `7-12-screenshots/`
+
+*Règles communes aux stories 7.13 à 7.15, à réviser après le playtest de l'animation :* aucune animation ne ressemble à un télégraphe ni ne trahit une information cachée ; aucune variante ni attente pendant le duel du coucher, la sortie en infiltration et les feintes ; jamais deux fois la même variante de suite ; le choix ne dépend que de la graine du niveau et de la sim ; un tap coupe toute réaction ; en mouvement réduit, les attentes s'arrêtent ; aucun état final ni événement des goldens ne bouge (une clé ajoutée au feel ne régénère que leurs empreintes `feelHash`) ; Geo juge sur les captures de la story.
+
+### Story 7.13 : Variantes de réponses et pose de combo
+
+**Exigences :** FR79
+
+En tant que joueur,
+je veux que papa ne réponde jamais deux fois de la même façon, et qu'il s'emballe quand le combo monte,
+afin que les réussites restent drôles du début à la fin.
+
+**Critères d'acceptation :**
+
+**Étant donné** une réponse Parer, Fermeté ou parfaite
+**Quand** elle se joue
+**Alors** papa joue l'une de ses deux ou trois variantes, qui gardent toutes la silhouette de la réponse ; Attendre et Ne rien faire n'ont pas de variante
+
+**Étant donné** une menace qui a son propre geste (fermer le placard bas, plaquer la main sur la prise)
+**Quand** papa y répond
+**Alors** il joue ce geste ; la menace le nomme dans son JSON, et un test vérifie que chaque geste nommé existe dans le `.glb`
+
+**Étant donné** le combo
+**Quand** il atteint x3, puis x6
+**Alors** la pose de réponse s'emballe d'un cran à chaque palier ; les deux paliers sont réglés dans `feel.json › characters`
+
+### Story 7.14 : Allures, tâches et réactions de papa
+
+**Exigences :** FR79
+
+En tant que joueur,
+je veux que l'allure de papa trahisse la panique et la fatigue, qu'il fasse vraiment les tâches et qu'il réagisse à ses gags,
+afin que son corps raconte la partie.
+
+**Critères d'acceptation :**
+
+**Étant donné** la jauge de catastrophe au-dessus de 70 %, ou la fatigue au-dessus de 70
+**Quand** papa se déplace
+**Alors** il court, paniqué, ou il traîne les pieds, à la vitesse de la sim : seule l'allure change ; si les deux valent, la course paniquée l'emporte `[ASSUMPTION]`
+
+**Étant donné** la tâche « lave-vaisselle », puis la tâche « cuisine »
+**Quand** papa est au poste
+**Alors** il vide le lave-vaisselle au lieu d'attendre, et il goûte la purée en variante de la cuisine `[ASSUMPTION]` ; le télégraphe d'un temps fort ou un tap coupe le geste
+
+**Étant donné** un gag, une fois sa séquelle finie
+**Quand** papa est libre
+**Alors** il fait un facepalm ou un regard caméra, qui ne l'occupe pas
+
+### Story 7.15 : Reste du panel du bébé
+
+**Exigences :** FR79
+
+En tant que joueur,
+je veux un bébé qui joue, boude, applaudit et s'endort pour de vrai,
+afin qu'il ait une personnalité et pas seulement des bêtises.
+
+**Critères d'acceptation :**
+
+**Étant donné** le bébé au repos
+**Quand** il attend
+**Alors** il tape des mains, joue avec ses orteils ou suce son pouce, jamais deux fois la même attente de suite
+
+**Étant donné** un rire, une Fermeté, une réponse parfaite
+**Quand** ils arrivent
+**Alors** il joue son troisième rire, une moue boudeuse, ou il applaudit
+
+**Étant donné** le cycle du dodo, hors du duel du coucher, de la sortie en infiltration et des feintes
+**Quand** le bébé est porté ou au repos
+**Alors** il bâille et se frotte les yeux
+
+**Étant donné** une menace du bébé
+**Quand** elle a été télégraphée, et seulement après
+**Alors** il peut pointer l'objet de la menace ; il ne pointe jamais un objet hors cadre, ni pendant un silence suspect
 
 ## Epic 8 : Distribution mobile
 

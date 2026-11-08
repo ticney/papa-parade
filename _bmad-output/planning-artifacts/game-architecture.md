@@ -3,8 +3,8 @@ title: 'Game Architecture'
 project: 'papa-parade'
 date: '2026-10-26'
 author: 'Geo'
-version: '1.1'
-lastUpdated: '2026-11-03'
+version: '1.2'
+lastUpdated: '2026-11-08'
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9]
 status: 'complete'
 engine: 'Three.js r186 (three@0.186.1) + Vite 8.3 + TypeScript 7.0'
@@ -26,6 +26,7 @@ brief: null
 
 **Statut :** complet (workflow GDS Architecture, 9 étapes sur 9), validé le 2026-10-26.
 **Mise à jour v1.1 (2026-11-03) :** GDD v2.3 et Sprint Change Proposal du 2026-11-03 (`sprint-change-proposal-2026-11-03.md`, §4.8) : caméra qui suit, équité de trajet (ADR-011), jauge de catastrophe et fin anticipée, séquelles, tâches de la maison, note sur cinq lignes, NFR15. Les ajouts portent la mention « (v2.3, 2026-11-03) ».
+**Mise à jour v1.2 (2026-11-08) :** GDD v2.4 et Sprint Change Proposal du 2026-11-08 (`sprint-change-proposal-2026-11-08.md`, §4.6) : animation des personnages (couche de vie, variantes reproductibles, contrat des personnages étendu, réglages dans `feel.json › characters`), mouvement réduit. Les ajouts portent la mention « (v2.4, 2026-11-08) ».
 Le document est rédigé en français, comme le GDD (dérogation à `document_output_language: English`, décidée par Geo le 2026-10-26). Les identifiants de code restent en anglais. Il est la source de vérité **technique** ; le GDD reste la source de vérité des **règles du jeu**, et la spécification UX (`DESIGN.md`, `EXPERIENCE.md`) celle de **l'interface**.
 
 ## Résumé exécutif
@@ -250,7 +251,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 
 ### Retours multimodaux
 
-- **Mouvement réduit** (`save.settings.reducedMotion`) : seul le client le lit (`FeedbackDirector`, `cameraFx`, `vfx/`, UI). Il supprime le tremblement et la rotation de caméra, plafonne le zoom à 50 %, réduit les particules de 60 % et remplace les flashs par une lueur. Caméra qui suit (v2.3, 2026-11-03) : rattrapage plus lent et sans rebond. Il ne touche jamais la sim : hitstop, ralentis et fenêtres restent identiques, et les tests golden ne changent pas. Quel que soit le réglage, rien ne clignote à plus de 3 Hz.
+- **Mouvement réduit** (`save.settings.reducedMotion`) : seul le client le lit (`FeedbackDirector`, `cameraFx`, `vfx/`, UI). Il supprime le tremblement et la rotation de caméra, plafonne le zoom à 50 %, réduit les particules de 60 % et remplace les flashs par une lueur. Caméra qui suit (v2.3, 2026-11-03) : rattrapage plus lent et sans rebond. Animation des personnages (v2.4, 2026-11-08) : la respiration, l'élan, la mèche et les attentes s'arrêtent, et le demi-tour ne dépasse plus sa cible ; les clips, les poses qui portent un état, la voûte de fatigue, le regard et les expressions restent. Il ne touche jamais la sim : hitstop, ralentis et fenêtres restent identiques, et les tests golden ne changent pas. Quel que soit le réglage, rien ne clignote à plus de 3 Hz.
 
 - La sim émet des événements de domaine typés, comme `ThreatTelegraphed`, `WindowOpened`, `ResponseResolved{quality: perfect | success | fail}`, `GagTriggered`, `SilenceStarted`, `NoiseChanged` ou `MamaWoke`.
 - Le client relaie ces événements au `FeedbackDirector`, qui consulte `content/feedback.json` : à chaque événement correspondent des `audio`, `visual`, `haptic` et `camera` (facultatif).
@@ -262,7 +263,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 - Le contenu vit dans `content/`, en JSON, avec un schéma Zod par type : `threats/`, `levels/`, `disruptions/`, `feedback.json`, `mama-lines.json`, `feel.json`.
 - Les schémas se trouvent dans `src/content/schemas/` et produisent à la fois les types TS (`z.infer`) et des fichiers JSON Schema (`z.toJSONSchema`), générés dans `content/_schemas/` pour l'autocomplétion.
 - **Validation :** `npm run content:check` en CI, et au chargement en dev (erreur affichée à l'écran).
-- `feel.json` contient toutes les valeurs chiffrées du GDD : fenêtres, tolérance, buffer, hitstop, ralentis, seuils tap / maintien, glissade, jauges, instinct, paliers de difficulté, note de Maman (cinq lignes), et depuis v2.3 (2026-11-03) `catastrophe`, `director` (`fairnessMarginMs`) et `camera` (zone morte, rattrapage). Un niveau peut surcharger des clés via `feelOverrides`.
+- `feel.json` contient toutes les valeurs chiffrées du GDD : fenêtres, tolérance, buffer, hitstop, ralentis, seuils tap / maintien, glissade, jauges, instinct, paliers de difficulté, note de Maman (cinq lignes), et depuis v2.3 (2026-11-03) `catastrophe`, `director` (`fairnessMarginMs`) et `camera` (zone morte, rattrapage), et depuis v2.4 (2026-11-08) `characters` (couche de vie, cadence des attentes, expressions, netteté ; client seul). Un niveau peut surcharger des clés via `feelOverrides`.
 - **Panneau de feeling :** Tweakpane 4, généré à partir du schéma de `feel.json`. Il est disponible avec l'overlay de debug (en dev et avec `?debug=1`). Les valeurs s'appliquent à chaud à la sim en cours via la commande `SetFeel` (P6). Le bouton « Enregistrer » n'existe qu'en dev : il envoie un POST au plugin Vite `feel-writer`, qui écrit `content/feel.json`. Le panneau est absent des builds stores.
 
 ### Gestion des assets
@@ -270,6 +271,25 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 - **Stratégie de chargement :** par niveau, avec préchargement complet (modèles `.glb`, buffers audio décodés) derrière un écran de chargement, puis aucun chargement pendant le jeu.
 - **Pipeline :** fichier `.blend` → script d'export (exécuté via Blender MCP ou `blender -b -P tools/blender/export.py`) → `.glb` → gltfpack (meshopt) → `public/assets/`. Une étape `assets:extract` lit les nœuds `COL_`, `NAV_` et `ANCHOR_` et produit les données de niveau dont la sim a besoin.
 - **Prototype :** le salon est bloqué en cubes dans Blender par l'IA via Blender MCP, dès E1.
+
+### Animation des personnages (v2.4)
+
+- **Client seul.** La couche de vie, les variantes, les attentes et les expressions vivent dans `src/client/render/views/`. La sim n'en sait rien, et aucune ne change une position, une durée ni une fenêtre.
+- **Ordre dans une frame :** l'état choisit la boucle et les événements les ponctuels (D5 de la story 7.2) ; le mixer avance du `dt` de la sim ; la couche de vie ajoute ses rotations (bassin, buste, cou, tête : élan, respiration, voûte, regard) ; les os pilotés par le code (paupières, sourcils, mèche) sont écrits en dernier. Aucun clip n'a de piste sur un os piloté par le code.
+- **Fondus et demi-tour :** une durée de fondu par passage (mise en route, arrêt, retour d'un ponctuel), sur une courbe douce. Le demi-tour est un ressort sous-amorti sur le cap dessiné. Ils remplacent `feedback.json › characters.crossFadeMs` et `turnRateDegPerSec`.
+- **Reproductible :**
+  - Tout avance sur l'horloge de la sim (D6 de la story 7.2).
+  - Les ressorts (demi-tour, élan, mèche) s'intègrent au pas fixe de la sim (`STEP_MS`), pas à la frame : la photo de fin, le replay et les captures ne dépendent pas du framerate.
+  - Le choix d'une variante ou d'une attente est une fonction pure de la graine du niveau, d'instants de la sim et de compteurs que le `World` porte déjà (réponses jugées, combo). Jamais `Math.random`, ni le temps réel, ni `world.rng` : le client ne tire pas dans le PRNG de la sim.
+  - « Jamais deux fois la même de suite » tient aussi dans un replay qui repart d'un snapshot (story 3.9) : la vue ne garde pas en mémoire la variante précédente, elle la recalcule à partir des mêmes entrées.
+- **Interruption :** une commande acceptée ou un changement d'état de papa coupe une attente, une réaction ou un démarrage dans la même frame. Le fondu de mise en route est le plus long admis, et NFR2 tient.
+- **Information cachée (extension du D9 de la story 7.2) :** ces modules ne lisent que papa, le bébé, les événements et ce que l'écran montre (anneau-chrono, bulles).
+  - Le regard suit le bébé dessiné et non caché, sinon la menace télégraphiée visible dont l'anneau est le plus avancé ; jamais le silence suspect.
+  - Pendant le duel du coucher, la sortie en infiltration et les feintes, aucune variante, aucune attente ni aucune expression ne s'ajoute aux signaux.
+  - Un test scanne ces modules à la recherche de `windowOpenAt`, `feintAt`, `realWakePct` et de la tolérance cachée.
+- **Contrat des personnages :** os v2 (32 au plus : `CHARACTER_BONES_MAX` ne change pas), os pilotés par le code, nœuds cachés (joues gonflées), clips et variantes. `characterArt.ts` et `tests/architecture/characterAssets.test.ts` les vérifient. Le budget de triangles ne change pas.
+- **Netteté :** les personnages ont leurs propres matériaux toon (liseré clair) et un contour 1,5 fois plus épais que celui des meubles, sans draw call de plus. Le 4ᵉ ton d'ombrage est un réglage.
+- **Réglages :** `feel.json › characters`, client seul comme `camera`, donc dans le panneau de feeling (FR65). Une clé ajoutée entre dans la copie figée des tests et régénère les empreintes `feelHash` des goldens. `feedback.json › characters` garde les tables liées aux assets (`squash`, `clipSpeeds`, `papaClipFacing`, `busyProps`).
 
 ### IA du bébé et navigation
 
@@ -1001,6 +1021,8 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | E6 | Désarmement, coolitude, préparation entre les vagues | `content/objects/` (`coolness`), `src/sim/flow/` (état `prep`) | Données |
 | E6 | Chien (la casserole passe en E9, story 9.5 ; v2.3) | `content/disruptions/` | P1 |
 | **E7** | Personnages riggés et animés | `public/assets/characters/`, `AnimationMixer` dans les vues | Patterns d'entités (pools de vues) |
+| E7 (v2.4) | Couche de vie, netteté (7.8) | `src/client/render/views/`, `materials/`, `feel.characters` | Animation des personnages |
+| E7 (v2.4) | Squelette v2, visages, panel (7.9 à 7.15) | `assets-src/blender/characters/`, `public/assets/characters/`, `characterClips.ts`, `characterArt.ts` | Contrat des personnages, D9 étendu |
 | E7 | Rendu toon final, palette, VFX, célébration | `src/client/render/materials/`, `vfx/` | ADR-008 (WebGPU réévalué : on reste sur WebGL) |
 | E7 | Musique adaptative par âge | `src/client/audio/adaptiveMusic.ts`, `content/music/` | — |
 | **E8** | Capacitor iOS et Android | `capacitor.config.ts`, `src/platform/native/`, `ios/`, `android/` | Déploiement |
