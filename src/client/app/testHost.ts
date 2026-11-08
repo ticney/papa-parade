@@ -7,6 +7,7 @@ import type { SoundedNote } from '../audio/beatScheduler.ts';
 import type { Highlight } from '../endOfLevel/highlights.ts';
 import type { InputDevice } from '../input/inputMapper.ts';
 import type { RenderStats } from '../render/renderer.ts';
+import type { BabyFace, PapaFace } from '../render/views/expressions.ts';
 import type { PapaGazeKind } from '../render/views/papaGaze.ts';
 import type { LevelSession, StartedLevel } from './levelSession.ts';
 import type { PauseState } from './pauseController.ts';
@@ -80,6 +81,14 @@ export interface FxState {
   readonly babyBreathDeg: number;
   /** How shut Papa's eyelids are drawn, 0 (open) to 100: the micro-sleep or his sleep only (story 7.8). */
   readonly papaEyelidsPct: number;
+  /** What Papa's face shows now, the debug overlay included (story 7.10). */
+  readonly papaExpression: PapaFace;
+  /** What the baby's face shows now, the debug overlay included (story 7.10). */
+  readonly babyExpression: BabyFace;
+  /** Papa's brows' drawn tilt, in degrees, positive inner ends up (story 7.10): it settles on the pose. */
+  readonly papaBrowTiltDeg: number;
+  /** The baby's brows' drawn tilt, in degrees, positive inner ends up (story 7.10). */
+  readonly babyBrowTiltDeg: number;
   /** The finale's sparks drawn or waiting to burst (story 7.4). */
   readonly fireworksAlive: number;
   /** Whether the finale's celebration plays now (story 7.4). */
@@ -184,6 +193,11 @@ export interface TestHost {
   fxState(): FxState;
   /** Shows the parts of Papa's look on top of the world's (story 3.7: a debug overlay). No effect without a level. */
   setPapaLook(look: PapaLook): void;
+  /**
+   * Shows an expression on each face over what the game says (story 7.10: a debug overlay); `null` gives
+   * the face back. Cleared by a restart. No effect without a level.
+   */
+  setExpressions(papa: PapaFace | null, baby: BabyFace | null): void;
   /**
    * Plays the client half of a level's finale now (story 7.4): the cue `finale_reached`, Papa's dance and
    * the celebration, with no sim event. For specs that cannot reach a real finale fast.

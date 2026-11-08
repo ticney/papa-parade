@@ -35,9 +35,12 @@ import {
 // forelock, client only). `PINNED_COMMANDS` were not touched and still hold.
 // Its code review re-pinned them once more: the forelock's starting values were retuned (`reachMs` 100,
 // `dampingRatio` 0.6), so the feel hash moved again. `PINNED_COMMANDS` still hold.
+//
+// Story 7.10 re-pinned them once more, for the same reason: the feel gained `characters.expressions` (the
+// faces, client only). `PINNED_COMMANDS` were not touched and still hold.
 const PINNED: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
-  test: { 1: '11f0010b946246', 2: '03060469518457', 3: '09ecef46878cca' },
-  trio: { 1: '0207f35d6643cb', 2: '1b080ccf443ef8', 3: '16004999909af4' },
+  test: { 1: '1172addffcac06', 2: '1177c2978d7a03', 3: '16d8762a82b8ff' },
+  trio: { 1: '02f1a547790927', 2: '16566469a563a1', 3: '12b328dc5f373d' },
 };
 const PINNED_COMMANDS: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
   test: { 1: '0632f181689687', 2: '158358e075a1a2', 3: '111636e2c690a2' },

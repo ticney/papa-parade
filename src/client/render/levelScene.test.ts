@@ -44,6 +44,7 @@ const BODIES = {
   papaRadiusM: 0.25,
   babyRadiusM: 0.2,
   microSleepDefId: null,
+  hasBedtimeCycle: false,
   layDownDefIds: [] as string[],
   anchorThreatDefIds: [] as string[],
   choreStations: [] as { xM: number; zM: number; missBrokenObjects: number }[],
@@ -523,6 +524,10 @@ describe('createLevelScene', () => {
       papaBreathDeg: 0,
       babyBreathDeg: 0,
       papaEyelidsPct: 0,
+      papaExpression: 'neutral',
+      babyExpression: 'neutral',
+      papaBrowTiltDeg: 0,
+      babyBrowTiltDeg: 0,
     });
   });
 
@@ -1655,5 +1660,88 @@ describe('the life layer and the characters look (story 7.8)', () => {
     ].map((material) => vi.spyOn(material as MeshToonMaterial, 'dispose'));
     level.dispose();
     for (const spy of spies) expect(spy).toHaveBeenCalled();
+  });
+});
+
+describe('the faces (story 7.10)', () => {
+  const savedFatigue = effectsWorld.gauges.fatigue;
+  afterEach(() => {
+    effectsWorld.gauges.fatigue = savedFatigue;
+    effectsWorld.sequence.duel.isRunning = false;
+  });
+  const faces = effectsWorld.feel.characters.expressions;
+  const telegraph = (t: number): SimEvent => ({
+    type: 'ThreatTelegraphed',
+    t: asSimMs(t),
+    threatId: 1,
+    kind: 'outlet',
+    anchorId: 'outlet_1',
+    waveIndex: 0,
+  });
+
+  it('a telegraph surprises Papa, then his face rests after surprisedMs', () => {
+    const { update, fx, realFxState } = build();
+    const world = fakeWorldAt(1000);
+    update(world, 0);
+    fx.playCharacterEvent(telegraph(1000), world, false);
+    update(fakeWorldAt(1010), 0);
+    expect(realFxState().papaExpression).toBe('surprised');
+    update(fakeWorldAt(1000 + faces.papa.surprisedMs), 0);
+    expect(realFxState().papaExpression).toBe('neutral');
+  });
+
+  it('a tired Papa surprised goes back to tired', () => {
+    const { update, fx, realFxState } = build();
+    effectsWorld.gauges.fatigue = effectsWorld.feel.fatigue.thresholdPoints + 1;
+    update(fakeWorldAt(1000), 0);
+    expect(realFxState().papaExpression).toBe('tired');
+    fx.playCharacterEvent(telegraph(1010), fakeWorldAt(1010), false);
+    update(fakeWorldAt(1020), 0);
+    expect(realFxState().papaExpression).toBe('surprised');
+    update(fakeWorldAt(1010 + faces.papa.surprisedMs), 0);
+    expect(realFxState().papaExpression).toBe('tired');
+  });
+
+  it("is not tired at exactly the threshold (the sim's strict >)", () => {
+    const { update, realFxState } = build();
+    effectsWorld.gauges.fatigue = effectsWorld.feel.fatigue.thresholdPoints;
+    update(fakeWorldAt(1000), 0);
+    expect(realFxState().papaExpression).toBe('neutral');
+  });
+
+  it('shows both faces at rest in a duel step, and a moment noted then never shows', () => {
+    const { update, fx, realFxState } = build();
+    effectsWorld.gauges.fatigue = effectsWorld.feel.fatigue.thresholdPoints + 1;
+    effectsWorld.sequence.duel.isRunning = true;
+    const world = fakeWorldAt(1000);
+    update(world, 0);
+    fx.playCharacterEvent({ type: 'BabyPickedUp', t: asSimMs(1000) }, world, false);
+    fx.playCharacterEvent({ type: 'WaitFeintGiven', t: asSimMs(1000), threatId: 1 }, world, false);
+    update(fakeWorldAt(1010), 0);
+    expect(realFxState().papaExpression).toBe('neutral');
+    expect(realFxState().babyExpression).toBe('neutral');
+    effectsWorld.sequence.duel.isRunning = false;
+    update(fakeWorldAt(1020), 0);
+    expect(realFxState().babyExpression).toBe('neutral');
+    expect(realFxState().papaExpression).toBe('tired');
+  });
+
+  it('the debug overlay wins over the game, and resetFx clears it and the brows', () => {
+    const { update, fx, realFxState, resetFx, setExpressionOverlay } = build();
+    const world = fakeWorldAt(1000);
+    update(world, 0);
+    fx.playCharacterEvent(telegraph(1000), world, false);
+    setExpressionOverlay('proud', 'sleepy');
+    for (let t = 1010; t < 1300; t += 10) update(fakeWorldAt(t), 0);
+    expect(realFxState().papaExpression).toBe('proud');
+    expect(realFxState().babyExpression).toBe('sleepy');
+    expect(realFxState().papaBrowTiltDeg).toBeCloseTo(faces.papa.poses.proud.tiltDeg, 3);
+    expect(realFxState().babyBrowTiltDeg).toBeCloseTo(faces.baby.poses.sleepy.tiltDeg, 3);
+    resetFx();
+    expect(realFxState().papaExpression).toBe('neutral');
+    expect(realFxState().babyExpression).toBe('neutral');
+    expect(realFxState().papaBrowTiltDeg).toBe(0);
+    update(fakeWorldAt(1300), 0);
+    expect(realFxState().papaExpression).toBe('neutral');
   });
 });

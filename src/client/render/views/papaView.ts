@@ -15,6 +15,13 @@ import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
 import { PALETTE } from '../materials/palette.ts';
 import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
+import {
+  type BrowPose,
+  createBrowState,
+  REST_BROW_POSE,
+  stepBrows,
+  unplaceBrows,
+} from './brows.ts';
 import { PAPA_TRAVELLING, papaClipOf } from './characterClips.ts';
 import { fadeMsOf } from './characterFades.ts';
 import {
@@ -53,6 +60,49 @@ const RAD_TO_DEG = 180 / Math.PI;
 /** A lock shorter than this, in metres, has no direction to turn: a file with no forelock marker. */
 const FORELOCK_LENGTH_MIN_M = 1e-4;
 const IDENTITY = new Quaternion();
+/** The brows turn about the head's forward axis (story 7.10, D2): +θ lifts the end toward his left. */
+const BROW_TILT_AXIS = new Vector3(0, 0, 1);
+
+/** One character's two brows and their rest positions, read once (story 7.10, D2). */
+export interface BrowBones {
+  readonly left: Object3D;
+  readonly right: Object3D;
+  readonly leftRest: Vector3;
+  readonly rightRest: Vector3;
+}
+
+/** `brow_l` and `brow_r` of `rig` with their rest positions, read once at creation (D2). */
+export function browBonesOf(rig: CharacterRig): BrowBones {
+  const left = rig.node('brow_l');
+  const right = rig.node('brow_r');
+  return { left, right, leftRest: left.position.clone(), rightRest: right.position.clone() };
+}
+
+/**
+ * Writes both brows, absolutely, from their rest (story 7.10, D2): raised by `raiseOffsetM`, toward the
+ * nose by `inwardOffsetM`, his left up and his right down by `skewOffsetM`; `brow_l` turned by −tilt and
+ * `brow_r` by +tilt about the head's forward axis, so a positive tilt lifts both inner ends; both scaled by
+ * `scalePct` about their bone (the bar's centre). Allocates nothing.
+ */
+export function writeBrowBones(bones: BrowBones, pose: Readonly<BrowPose>, scalePct: number): void {
+  const { left, right, leftRest, rightRest } = bones;
+  const tiltRad = pose.tiltDeg * DEG_TO_RAD;
+  const scale = scalePct / 100;
+  left.position.set(
+    leftRest.x - pose.inwardOffsetM,
+    leftRest.y + pose.raiseOffsetM + pose.skewOffsetM,
+    leftRest.z,
+  );
+  right.position.set(
+    rightRest.x + pose.inwardOffsetM,
+    rightRest.y + pose.raiseOffsetM - pose.skewOffsetM,
+    rightRest.z,
+  );
+  left.quaternion.setFromAxisAngle(BROW_TILT_AXIS, 0 - tiltRad);
+  right.quaternion.setFromAxisAngle(BROW_TILT_AXIS, tiltRad);
+  left.scale.setScalar(scale);
+  right.scale.setScalar(scale);
+}
 
 /**
  * Papa's height, feet on the floor to the top of his head, in metres: what the markers above him
@@ -120,7 +170,8 @@ export interface PapaView {
    * Plays the loop the world says now (fading in over its passage's fade), turns his body on its spring
    * toward the facing of the clip the player sees (the camera, away from the baby) or else his heading,
    * advances his mixer by `dtMs` of sim time, then lays the life layer over the clip (story 7.8, D3):
-   * lean, breath and stoop on `spine`, the gaze on `head`, then the forelock's pendulum (story 7.9).
+   * lean, breath and stoop on `spine`, the gaze on `head`, then his brows on his expression (story 7.10) and
+   * the forelock's pendulum (story 7.9).
    * A `dtMs` of 0 holds him. Allocates nothing once the clips have played once.
    */
   animate(
@@ -177,6 +228,8 @@ export interface PapaView {
   readonly forelockDeg: number;
   /** How shut his eyelids are drawn, 0 (open) to 100: the micro-sleep's telegraph or his sleep, nothing else. */
   readonly eyelidsPct: number;
+  /** His brows' drawn tilt now, in degrees, positive inner ends up (story 7.10). */
+  readonly browTiltDeg: number;
   /** How far the steam leans now, in degrees; 0 while it is hidden or held. */
   readonly steamSwayDeg: number;
   /** How far the bla-bla bubble tilts now, in degrees; 0 while it is hidden or held. */
@@ -316,6 +369,11 @@ export function createPapaView(
   const headInverse = new Matrix4();
   let isForelockPlaced = false;
   let forelockNowDeg = 0;
+  // The brows (story 7.10): written last with the forelock, after the gaze, from rests read once.
+  const brows = browBonesOf(rig);
+  const browState = createBrowState();
+  /** The brows' size the last frame drew, in % (`browScalePct`): a restart keeps it. */
+  let browScaleNowPct = 100;
   let isAwayNow = false;
   let steamSwayNowDeg = 0;
   let blablaTiltNowDeg = 0;
@@ -425,6 +483,16 @@ export function createPapaView(
       );
       offsetEuler.set(0, headYawRad, 0);
       head.quaternion.multiply(offset.setFromEuler(offsetEuler));
+      // His brows on his expression (D2, D9, D14): before the forelock, whose block returns early.
+      const face = characters.expressions.papa;
+      stepBrows(
+        browState,
+        life.papaExpression === 'neutral' ? REST_BROW_POSE : face.poses[life.papaExpression],
+        dtMs,
+        characters.expressions.reachMs,
+      );
+      browScaleNowPct = face.browScalePct;
+      writeBrowBones(brows, browState.drawn, browScaleNowPct);
       // The forelock last, after the gaze: where a rigid lock's tip would be now, with the head as drawn,
       // in the room's metres (the scene he stands in), so that a screen shake never swings it.
       if (!hasForelock) return;
@@ -500,6 +568,9 @@ export function createPapaView(
       isForelockPlaced = false;
       forelock.quaternion.identity();
       forelockNowDeg = 0;
+      // The brows at rest now; the next frame snaps them on his expression (D9).
+      unplaceBrows(browState);
+      writeBrowBones(brows, browState.drawn, browScaleNowPct);
     },
     setEyelids(amount01) {
       const amount = Math.min(1, Math.max(0, amount01));
@@ -567,6 +638,9 @@ export function createPapaView(
     },
     get forelockDeg() {
       return forelockNowDeg;
+    },
+    get browTiltDeg() {
+      return browState.drawn.tiltDeg;
     },
     get eyelidsPct() {
       return Math.max(wantedEyelids, asleepAmount) * 100;

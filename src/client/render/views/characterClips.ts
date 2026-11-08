@@ -231,7 +231,7 @@ export const PAPA_CONTRACT = {
     'victory_dance',
     'collapse',
   ],
-  /** The lids, the brows (at rest until story 7.10) and the forelock's pendulum (story 7.9, D3, D7). */
+  /** The lids, the brows (his expressions, story 7.10) and the forelock's pendulum (story 7.9, D3, D7). */
   codeDrivenBones: ['eyelids', 'brow_l', 'brow_r', 'forelock'],
   /** The steam sways and the bla-bla bubble wobbles by code on the sim clock, so reduced motion can hold them (D3). */
   codeDrivenNodes: ['papa_mug_steam', 'papa_blabla'],
@@ -241,7 +241,7 @@ export const PAPA_CONTRACT = {
 
 /**
  * The baby's contract with his `.glb`: `head` turns to the gaze and `eyelids` follow the duel, both by
- * code; the brows rest until story 7.10. The v2 skeleton (story 7.9, D1) adds elbows, wrists, knees, ankles.
+ * code; the brows carry his expressions (story 7.10). The v2 skeleton (story 7.9, D1) adds elbows, wrists, knees, ankles.
  */
 export const BABY_CONTRACT = {
   bones: [

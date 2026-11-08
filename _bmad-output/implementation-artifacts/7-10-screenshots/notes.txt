@@ -1,0 +1,75 @@
+Story 7.10 — the faces, captures (D13)
+
+How: a throwaway Playwright file (deleted), Chromium, 844 × 390 CSS px, deviceScaleFactor 2, the game's
+DPR cap 2. `?threats=off` for the expression sets, `__PP__.freeze`, `__PP__.setExpressions` (the overlay),
+`advance` by 5 steps until fx()'s two brow tilts stop changing, then the screenshot. Each `<name>.png` is
+the full frame; each `<name>_crop4x.png` is cut from that same PNG (no re-render), 50 × 50 CSS px around
+Papa's brows (left panel) and the baby's (right panel), ×4 nearest neighbour, magenta between them. The
+drawn pixel ratio (canvas.width / clientWidth) is 2 for every image but one (said below).
+
+T0 measure (before any code, `physicalPxPerM` from the live camera along screen right at the brows' height):
+84 physical px per metre on both levels at DPR 2. Papa's bar is 7 cm × 3 cm → 5.9 × 2.5 px; the baby's
+6.7 cm × 2.5 cm → 5.6 × 2.1 px. Both under the ~6 px of D10, so `browScalePct` starts at 120 for both
+(Papa 7.0 px, the baby 6.7 px long). Not retuned after the captures: the look is Geo's call.
+
+Setups:
+- `<level>_papa_<expression>_after`: Papa idle, walked toward the camera so that he faces it, the baby
+  sitting (a long babble, `baby.babbleMinMs/MaxMs` 20 s through `setFeel`) behind him past
+  `gaze.behindDeg`, so his head looks ahead. The baby is `neutral` in these.
+- `<level>_baby_<expression>_after`: the baby carried (`TapBaby`), Papa walked toward the camera, so the baby
+  faces it; Papa's face is hidden behind the baby here. Papa is `neutral` in these.
+- `<level>_neutral_before`: untouched code (before T1), Papa beside the baby, both `idle`/`crawl`.
+
+File                                          sim ms  dpr  papa (tilt°)      baby (tilt°)       clips
+salon_kitchen_neutral_before                   2310   2    (no field)        (no field)         idle/crawl
+salon_crawler_neutral_before                   2230   2    (no field)        (no field)         idle/crawl
+salon_kitchen_papa_neutral_after               7550   2    neutral 0         neutral 0          idle/babble
+salon_kitchen_papa_surprised_after             8100   2    surprised 10      neutral 0          idle/babble
+salon_kitchen_papa_firm_after                  8650   2    firm -28          neutral 0          idle/babble
+salon_kitchen_papa_tired_after                 9200   2    tired 22          neutral 0          idle/babble
+salon_kitchen_papa_proud_after                 9750   2    proud -10         neutral 0          idle/babble
+salon_kitchen_baby_neutral_after               2890   2    neutral 0         neutral 0          carry_idle/carried
+salon_kitchen_baby_delighted_after             3440   2    neutral 0         delighted 6        carry_idle/carried
+salon_kitchen_baby_sulky_after                 3990   2    neutral 0         sulky -25          carry_idle/carried
+salon_kitchen_baby_focused_after               4540   2    neutral 0         focused -8         carry_idle/carried
+salon_kitchen_baby_sleepy_after                5090   2    neutral 0         sleepy 18          carry_idle/carried
+salon_crawler_papa_neutral_after               7230   2    neutral 0         neutral 0          idle/babble
+salon_crawler_papa_surprised_after             7780   2    surprised 10      neutral 0          idle/babble
+salon_crawler_papa_firm_after                  8330   2    firm -28          neutral 0          idle/babble
+salon_crawler_papa_tired_after                 8880   2    tired 22          neutral 0          idle/babble
+salon_crawler_papa_proud_after                 9430   2    proud -10         neutral 0          idle/babble
+salon_crawler_baby_neutral_after               2780   2    neutral 0         neutral 0          carry_idle/carried
+salon_crawler_baby_delighted_after             3330   2    neutral 0         delighted 6        carry_idle/carried
+salon_crawler_baby_sulky_after                 3880   2    neutral 0         sulky -25          carry_idle/carried
+salon_crawler_baby_focused_after               4430   2    neutral 0         focused -8         carry_idle/carried
+salon_crawler_baby_sleepy_after                4980   2    neutral 0         sleepy 18          carry_idle/carried
+salon_crawler_natural_baby_delighted_after     1350   2    neutral 0         delighted 5.6      carry_idle/laugh
+salon_crawler_natural_papa_surprised_after     4400   1.5  surprised 9.7     focused -7.8       idle/locked
+
+Natural moments (no overlay, threats on, `fx()` names the face): the baby right after `BabyPickedUp`
+(delighted, his brows still blending: 5.6° of 6°), and Papa right after the first `ThreatTelegraphed`
+(surprised, 9.7° of 10°; the baby `focused` on that threat). The surprise was drawn at a pixel ratio of 1.5:
+the game stepped its cap down after two slow 2 s windows of the headless GPU (`adaptivePixelRatio.ts`).
+In both, the face is turned away from the camera at that instant (Papa's head toward the threat, the carried
+baby along Papa's heading, away from us): they show the moment's timing, not the pose. The pose sets above
+show the faces.
+
+Opened by eye (the current files): salon_kitchen_neutral_before_crop4x, salon_crawler_neutral_before_crop4x
+(an earlier take of the same setup; the committed file is a retake with the measure added, not reopened),
+salon_kitchen_papa_{neutral,surprised,firm,tired,proud}_after_crop4x, salon_kitchen_baby_{delighted,sulky}_after_crop4x,
+salon_crawler_baby_{neutral,focused,sleepy}_after_crop4x, salon_crawler_papa_firm_after (full frame),
+salon_crawler_natural_{papa_surprised,baby_delighted}_after_crop4x.
+Not opened: every other full frame (`*.png` without `_crop4x`), salon_crawler_neutral_before_crop4x (current
+take), salon_kitchen_baby_{neutral,focused,sleepy}_after_crop4x, salon_crawler_papa_{neutral,surprised,firm,
+tired,proud}_after_crop4x, salon_crawler_baby_{delighted,sulky}_after_crop4x (opened only in an earlier take
+of the same setup, which showed a raised arc for delighted and an inward-down V for sulky).
+
+What was seen, on the ×4 crops: Papa facing the camera, his brows are dark bars just above the eye whites,
+under the fringe; `surprised` lifts them clear of the eyes (a gap of skin shows), `firm` makes an inward V over
+the eyes, `tired` sags their outer ends (a worried look), `proud` sits one brow higher than the other, the
+subtlest of the four. The forelock hangs between the brows and sometimes joins the inner ends. The baby:
+`delighted` raises a dark arc above wide eyes, `sulky` a V, `focused` a small lopsided frown, `sleepy` a sag
+that reads close to `neutral`. At real size (the full frames) Papa's face is about 20 physical px wide and a
+brow is 6-7 px: the four are told apart on the crops, barely at 1:1. Nothing broken seen (no brow inside an
+eye, none floating off the head, no stretched bar). The look and the size are Geo's call: tune
+`feel.json › characters.expressions` (`browScalePct` first) in the feel panel with `__PP__.setExpressions`.

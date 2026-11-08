@@ -1258,3 +1258,14 @@ Closed here: « Rigid parts, no elbows » (7.2), « Code-driven bones assume an 
 - **Loop seamlessness, « nothing moves before its own event » and the calm of the duel / stealth / feint loops are pinned by no test** (7.9 D5, D6, AC 10). Reason: judged by Geo's eye and the first playtest.
 - **Reduced motion switched on mid-swing, and a non-uniform squash with the forelock, have no test** (`papaView.test.ts`). Reason: the logic reads right (it rests every frame while reduced), no defect found.
 - **The forelock's determinism is proven for a held target only**: the view samples the head once per frame, so a moving head gives slightly different angles at 30 and 120 fps. Reason: client-only, no golden reads it.
+
+## Story 7-10-visages-sourcils-et-expressions (2026-11-08)
+
+All eight expressions show at least once in the live headless runs (`tests/bots/expressionsLive.test.ts`). Left open for Geo (story « Open for Geo »), none settled here:
+
+- **Brows only (D1):** no expression lowers the baby's lids (the duel's signals) or widens Papa's eyes (`coffee_kick`'s). In the captures, the baby's `sleepy` sags his brows but reads close to `neutral` at real size. Reason: half-shut lids would look like the fake sleep's peek (principle 4).
+- **The poses and their size (D10):** starting values kept as written, `browScalePct` started at 120 for both (the T0 measure gave about 5.9 physical px for Papa's brow and 5.6 for the baby's at DPR 2, under the 6 px of D10). At real size a brow is 6-7 px; the four of each character are told apart on the ×4 crops, barely at 1:1. Reason: the look is Geo's call, in the feel panel with `__PP__.setExpressions`.
+- **Papa's surprise on every telegraph, off-screen ones included (D4),** never on his own micro-sleep. Reason: Geo's call.
+- **Tired reads the gameplay threshold (D7)**, so the face and the window penalty move together. Reason: Geo's call.
+- **Pride and delight on a perfect chore beat (D4).** Reason: Geo's call.
+- **`SceneBodies.hasBedtimeCycle` has no session test with a real cycle level**: `levelSession.test.ts` pins `false` for its test levels; the live test reads `level.cycle` as the session does. Reason: a cycle level in the session fake needs the bedroom's sequences.

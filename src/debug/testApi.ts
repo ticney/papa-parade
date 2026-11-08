@@ -3,6 +3,12 @@ import type { CuePlayedRecord, FxState, PagePoint, TestHost } from '@client/app/
 import type { SoundedNote } from '@client/audio/beatScheduler';
 import type { Highlight } from '@client/endOfLevel/highlights';
 import {
+  BABY_EXPRESSIONS,
+  type BabyFace,
+  PAPA_EXPRESSIONS,
+  type PapaFace,
+} from '@client/render/views/expressions';
+import {
   ADVANCE_MAX_STEPS,
   TEST_API_BEAT_NOTES_MAX,
   TEST_API_BEAT_SAMPLES_MAX,
@@ -120,6 +126,12 @@ export interface PPTestApi {
   pagePoint(xM: number, yM: number, zM: number): PagePoint;
   /** Shows the parts of Papa's look on top of the world's (story 3.7: a debug overlay; the gags set the world's own). */
   setPapaLook(look: PapaLook): void;
+  /**
+   * Shows an expression on each face over what the game says (story 7.10, D11): one of the character's four,
+   * `'neutral'` (the rest), or `null` to give the face back to the game. Cleared by a restart. Throws on a
+   * name that is not one of them.
+   */
+  setExpressions(faces: { papa: PapaFace | null; baby: BabyFace | null }): void;
   /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
   perf(): PerfReport;
 }
@@ -327,6 +339,21 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
         hasHairOnEnd: look.hasHairOnEnd,
         isShirtInsideOut: look.isShirtInsideOut,
       });
+    },
+    setExpressions(faces) {
+      const papaNames: readonly unknown[] = [...PAPA_EXPRESSIONS, 'neutral', null];
+      const babyNames: readonly unknown[] = [...BABY_EXPRESSIONS, 'neutral', null];
+      if (
+        typeof faces !== 'object' ||
+        faces === null ||
+        !papaNames.includes(faces.papa) ||
+        !babyNames.includes(faces.baby)
+      ) {
+        throw new Error(
+          `__PP__.setExpressions: expected { papa, baby }, papa one of ${papaNames.join(', ')} and baby one of ${babyNames.join(', ')}`,
+        );
+      }
+      host.setExpressions(faces.papa, faces.baby);
     },
     fx() {
       return host.fxState();
