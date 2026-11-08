@@ -22,8 +22,8 @@ import {
   stepBrows,
   unplaceBrows,
 } from './brows.ts';
-import { PAPA_TRAVELLING, papaClipOf } from './characterClips.ts';
-import { fadeMsOf } from './characterFades.ts';
+import { PAPA_IDLE_CLIPS, PAPA_TRAVELLING, papaClipOf } from './characterClips.ts';
+import { type FadesConfig, fadeMsOf } from './characterFades.ts';
 import {
   busyCycleAt,
   type ClipFacings,
@@ -47,6 +47,13 @@ import {
   stoopDegOf,
 } from './lifeLayer.ts';
 import {
+  createIdleSlot,
+  idleSlotAt,
+  isPapaIdleEligible,
+  PAPA_IDLE_SALT,
+  passageOneShotOf,
+} from './papaActing.ts';
+import {
   createPapaGazeAim,
   type PapaGazeInput,
   type PapaGazeKind,
@@ -62,6 +69,7 @@ const FORELOCK_LENGTH_MIN_M = 1e-4;
 const IDENTITY = new Quaternion();
 /** The brows turn about the head's forward axis (story 7.10, D2): +θ lifts the end toward his left. */
 const BROW_TILT_AXIS = new Vector3(0, 0, 1);
+const IDLE_CLIPS: readonly string[] = PAPA_IDLE_CLIPS;
 
 /** One character's two brows and their rest positions, read once (story 7.10, D2). */
 export interface BrowBones {
@@ -182,6 +190,16 @@ export interface PapaView {
   ): void;
   /** Plays a clip once, over his loop, fading in over `fadeMs`. */
   playOnce(clip: string, fadeMs: number, holdsLastPose?: boolean): void;
+  /**
+   * Cuts his acting one-shot under way (an idle, a start, a brake: story 7.11, D11), and only that: the loop
+   * fades in from now over `fades.startMs` into a travelling loop, `fades.otherMs` otherwise. The scene calls
+   * it in the frame of a state change or of an accepted command (D12). Allocates nothing.
+   */
+  cutActing(fades: Readonly<FadesConfig>): void;
+  /** His acting one-shot under way (story 7.11): an idle, a start or a brake, else null. */
+  readonly actingClip: string | null;
+  /** Whether his puffed cheeks are shown (story 7.11, D6): while he holds his breath. */
+  readonly isCheeksShown: boolean;
   /** The clip the player sees. */
   readonly clipName: string | null;
   /** His mixer's clock, in sim ms. */
@@ -279,6 +297,8 @@ export function createPapaView(
   const mash = rig.node('papa_look_mash');
   const shirt = rig.node('papa_shirt');
   const insideOutShirt = rig.node('papa_look_shirt');
+  const cheeks = rig.node('papa_cheeks');
+  cheeks.visible = false;
   mug.visible = false;
   handset.visible = false;
   hair.visible = false;
@@ -336,6 +356,24 @@ export function createPapaView(
   const head = rig.node('head');
   let loopClip: string | null = null;
   let isLoopTravelling = false;
+  // The acting (story 7.11): the one-shot it plays, the spells a start or a brake reads, the idles' window.
+  let actingClip: string | null = null;
+  /** Whether the spell he is in travels, or null before his first frame (a restart). */
+  let isSpellTravelling: boolean | null = null;
+  /** When the spell he is in began, in sim ms: the `enteredAt` of its first state. */
+  let spellStartAt = 0;
+  /** How long the spell before this one lasted, in sim ms, or null when unknown. */
+  let lastSpellMs: number | null = null;
+  /** The step clock of the last frame that read the idles' slots, or null after a restart. */
+  let lastSlotSimMs: number | null = null;
+  const idleSlot = createIdleSlot();
+  let isCheeksShownNow = false;
+  const cutActingNow = (fades: Readonly<FadesConfig>): void => {
+    if (actingClip !== null && rig.oneShotName === actingClip) {
+      rig.cutOnce(isLoopTravelling ? fades.startMs : fades.otherMs);
+    }
+    actingClip = null;
+  };
   const lean = createLeanState();
   const breath = createBreathState();
   const headSpring = createSpring(0);
@@ -411,18 +449,86 @@ export function createPapaView(
     },
     animate(papa, baby, dtMs, life) {
       const { characters } = life;
+      const { fades } = characters;
       const isReduced = life.isMotionReduced;
-      // The loop, and the passage it is (D4): a start, a stop, or any other.
-      const clip = papaClipOf(papa, baby);
+      const isGuarded = life.isSignalOnly;
+      const isCarried = baby.state === 'carried';
+      // The loop, and the passage it is (D4): a start, a stop, or any other. On tiptoe in a stealth step (7.11).
+      const clip = papaClipOf(papa, baby, life.isStealth);
       const isTravelling = PAPA_TRAVELLING[papa.state];
-      let fadeMs = characters.fades.otherMs;
-      if (clip !== loopClip) {
-        fadeMs = fadeMsOf(isLoopTravelling, isTravelling, 'loop', characters.fades);
-        loopClip = clip;
-        isLoopTravelling = isTravelling;
+      // The spells a start or a brake reads (story 7.11, D3, D4), dated with the world's sim instants.
+      if (isSpellTravelling === null) {
+        isSpellTravelling = isTravelling;
+        spellStartAt = papa.enteredAt;
+      } else if (isTravelling !== isSpellTravelling) {
+        lastSpellMs = papa.enteredAt - spellStartAt;
+        spellStartAt = papa.enteredAt;
+        isSpellTravelling = isTravelling;
       }
       const speedMps = stepSpeedMpsOf(papa);
-      rig.play(clip, clipTimeScaleOf(clip, speedMps, motion.clips), fadeMs);
+      const timeScale = clipTimeScaleOf(clip, speedMps, motion.clips);
+      if (clip !== loopClip) {
+        const fromClip = loopClip;
+        loopClip = clip;
+        rig.play(clip, timeScale, fadeMsOf(isLoopTravelling, isTravelling, 'loop', fades));
+        isLoopTravelling = isTravelling;
+        // A new loop cuts an acting one-shot in this frame (D11), then may start or brake (D3, D4).
+        cutActingNow(fades);
+        const passage = isCarried
+          ? null
+          : passageOneShotOf(
+              fromClip,
+              clip,
+              papa.state,
+              lastSpellMs,
+              characters.startStop,
+              isGuarded,
+              isReduced,
+            );
+        if (passage !== null && rig.oneShotName === null) {
+          rig.playOnce(passage, passage === 'walk_start' ? fades.startMs : fades.otherMs);
+          actingClip = passage;
+        }
+      } else {
+        rig.play(clip, timeScale, fades.otherMs);
+      }
+      // An acting one-shot handed back, or replaced by an event's, is forgotten; one is cut the frame the
+      // baby is picked up, a duel or stealth step begins, motion is reduced, or (an idle) he leaves `idle`.
+      if (actingClip !== null && rig.oneShotName !== actingClip) actingClip = null;
+      if (
+        actingClip !== null &&
+        (isCarried ||
+          isGuarded ||
+          isReduced ||
+          (papa.state !== 'idle' && IDLE_CLIPS.includes(actingClip)))
+      ) {
+        cutActingNow(fades);
+      }
+      // The idles (D8, D9): each slot is seen by the one frame whose step clock first reaches it; a slot he
+      // is not free for shows nothing, and the next comes on time. The first frame after a restart starts none.
+      if (lastSlotSimMs === null || life.simMs < lastSlotSimMs) {
+        lastSlotSimMs = life.simMs;
+      } else if (dtMs > 0 && life.simMs > lastSlotSimMs) {
+        idleSlotAt(
+          life.levelSeed,
+          PAPA_IDLE_SALT,
+          papa.enteredAt,
+          life.simMs,
+          characters.idles,
+          IDLE_CLIPS.length,
+          idleSlot,
+        );
+        if (
+          idleSlot.index >= 0 &&
+          idleSlot.startAt > lastSlotSimMs &&
+          isPapaIdleEligible(papa, baby, isGuarded, isReduced, rig.oneShotName !== null)
+        ) {
+          const idle = IDLE_CLIPS[idleSlot.variant] as string;
+          rig.playOnce(idle, fades.otherMs);
+          actingClip = idle;
+        }
+        lastSlotSimMs = life.simMs;
+      }
       // The clip the player sees (a one-shot over his loop) decides where he faces; his heading is the
       // sim's. The drawn body springs toward it (D5); under reduced motion with no overshoot.
       const wantedYawRad =
@@ -493,6 +599,9 @@ export function createPapaView(
       );
       browScaleNowPct = face.browScalePct;
       writeBrowBones(brows, browState.drawn, browScaleNowPct);
+      // His puffed cheeks while he holds his breath (story 7.11, D6): a state, so under reduced motion too.
+      isCheeksShownNow = life.isBreathHeld;
+      cheeks.visible = isCheeksShownNow;
       // The forelock last, after the gaze: where a rigid lock's tip would be now, with the head as drawn,
       // in the room's metres (the scene he stands in), so that a screen shake never swings it.
       if (!hasForelock) return;
@@ -542,6 +651,15 @@ export function createPapaView(
     playOnce(clip, fadeMs, holdsLastPose) {
       rig.playOnce(clip, fadeMs, holdsLastPose);
     },
+    cutActing(fades) {
+      cutActingNow(fades);
+    },
+    get actingClip() {
+      return actingClip;
+    },
+    get isCheeksShown() {
+      return isCheeksShownNow;
+    },
     get clipName() {
       return rig.clipName;
     },
@@ -558,6 +676,11 @@ export function createPapaView(
       isBodyPlaced = false;
       loopClip = null;
       isLoopTravelling = false;
+      // The acting starts over: no one-shot, no spell known, no slot seen (`rig.reset` dropped the clips).
+      actingClip = null;
+      isSpellTravelling = null;
+      lastSpellMs = null;
+      lastSlotSimMs = null;
       resetLean(lean);
       resetBreath(breath);
       resetSpring(headSpring, 0);

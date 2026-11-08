@@ -2750,6 +2750,7 @@ export async function boot(): Promise<void> {
           babyExpression: real?.babyExpression ?? 'neutral',
           papaBrowTiltDeg: real?.papaBrowTiltDeg ?? 0,
           babyBrowTiltDeg: real?.babyBrowTiltDeg ?? 0,
+          papaCheeksShown: real?.papaCheeksShown ?? false,
           fireworksAlive: real?.fireworksAlive ?? 0,
           celebrating: celebration.isRunning(performance.now()),
           framing: {

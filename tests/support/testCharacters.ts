@@ -147,6 +147,9 @@ export const createTestPapa = (): CharacterAsset => {
     forelock.add(tip);
   }
   placeBrows(asset, TEST_PAPA_BROW_REST_M);
+  // The puffed cheeks ride on the head, as in `papa.glb` (story 7.11, D2).
+  const cheeks = asset.scene.getObjectByName('papa_cheeks');
+  if (cheeks !== undefined) asset.scene.getObjectByName('head')?.add(cheeks);
   return asset;
 };
 export const createTestBaby = (): CharacterAsset => {

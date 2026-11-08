@@ -29,6 +29,14 @@ export interface LifeInputs {
   papaExpression: PapaFace;
   /** What the baby's face shows (story 7.10). */
   babyExpression: BabyFace;
+  /** Only the signals count (story 7.10's guard, `faceInputs.ts › isSignalOnly`): no idle, start or brake (story 7.11). */
+  isSignalOnly: boolean;
+  /** A stealth step runs (`isStealthStepRunning`): Papa walks on tiptoe (story 7.11, D5). */
+  isStealth: boolean;
+  /** The level's seed (`SceneBodies.levelSeed`): the idles' draws (story 7.11, D8). */
+  levelSeed: number;
+  /** The sim's step clock, `world.time.sim`, in sim ms: the idles' slots are read on it (story 7.11, D8). */
+  simMs: number;
   characters: CharactersFeel;
 }
 
@@ -44,6 +52,10 @@ export function createLifeInputs(characters: CharactersFeel): LifeInputs {
     babyZM: 0,
     papaExpression: 'neutral',
     babyExpression: 'neutral',
+    isSignalOnly: false,
+    isStealth: false,
+    levelSeed: 0,
+    simMs: 0,
     characters,
   };
 }

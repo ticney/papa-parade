@@ -13,12 +13,13 @@ import {
   wrapRad,
   YAW_TOLERANCE_RAD,
 } from './support/busyPapa.ts';
-import { appUrl, html, sceneShot, startLevel, waitFrames } from './support/game.ts';
+import { appUrl, html, liveFeel, sceneShot, startLevel, waitFrames } from './support/game.ts';
 import {
   ppAdvance,
   ppEvents,
   ppFreeze,
   ppFx,
+  ppPagePoint,
   ppSend,
   ppWorld,
   waitForTestApi,
@@ -50,7 +51,8 @@ test('the clips follow the sim: Papa walks, the baby crawls, and carrying change
   const { papa } = await ppWorld(page);
   await ppSend(page, { type: 'TapFloor', xM: papa.xM - 1, zM: papa.zM });
   await ppAdvance(page, 10);
-  expect((await clipsOf(page))[0]).toBe('walk');
+  // He walks: the walk, or its push-off over it when he stood still long enough (story 7.11).
+  expect(['walk_start', 'walk']).toContain((await clipsOf(page))[0]);
   for (let i = 0; i < 100 && (await ppWorld(page)).papa.state !== 'idle'; i++) {
     await ppAdvance(page, 10);
   }
@@ -267,4 +269,48 @@ test.describe('Papa busy', () => {
     expect(idle.papaSteamSwayDeg).toBe(0);
     expect(idle.papaBlablaTiltDeg).toBe(0);
   });
+});
+
+// Story 7.11 (AC 11): Papa's idles in the real game, and their cut by a real tap. The rules (the slots, the
+// guard, the cut list) are proven headless; this checks what the player sees: an idle on a still Papa, and
+// the tap that takes it away in the frame of the step that applies it.
+const IDLE_CLIPS = ['idle_scratch', 'idle_neck', 'idle_stretch'];
+const { firstAfterMs } = (
+  liveFeel as unknown as { characters: { idles: { firstAfterMs: number } } }
+).characters.idles;
+
+test('a still Papa idles after firstAfterMs, and a real tap on the floor cuts the idle in the step that applies it', async ({
+  page,
+}) => {
+  await startLevel(page, '?level=salon_kitchen&threats=off');
+  await ppFreeze(page, true);
+  let idle: string | null = null;
+  for (let i = 0; i < 400 && idle === null; i++) {
+    await ppAdvance(page, 10);
+    await waitFrames(page, 2);
+    const clip = (await ppFx(page)).papaClip;
+    if (clip !== null && IDLE_CLIPS.includes(clip)) idle = clip;
+  }
+  expect(IDLE_CLIPS).toContain(idle);
+  const still = await ppWorld(page);
+  expect(still.papa.state).toBe('idle');
+  expect(still.time.sim - still.papa.enteredAt).toBeGreaterThanOrEqual(firstAfterMs);
+
+  // A real tap, halfway to the baby: the pointer, not `ppSend`.
+  const point = await ppPagePoint(
+    page,
+    (still.papa.xM + still.baby.xM) / 2,
+    0,
+    (still.papa.zM + still.baby.zM) / 2,
+  );
+  await page.mouse.click(point.x, point.y);
+  await waitFrames(page, 3);
+  for (let i = 0; i < 10; i++) {
+    await ppAdvance(page, 1);
+    await waitFrames(page, 2);
+    if ((await ppWorld(page)).papa.state !== 'idle') break;
+  }
+  // The step that moved him is the frame that no longer shows the idle.
+  expect((await ppWorld(page)).papa.state).not.toBe('idle');
+  expect((await ppFx(page)).papaClip).not.toBe(idle);
 });

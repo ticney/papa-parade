@@ -48,6 +48,7 @@ const NO_FX_STATE: FxState = {
   babyExpression: 'neutral',
   papaBrowTiltDeg: 0,
   babyBrowTiltDeg: 0,
+  papaCheeksShown: false,
   fireworksAlive: 0,
   celebrating: false,
   framing: { style: null, blend: 0, letterboxPct: 0, lightsFactor: 1, rollDeg: 0 },

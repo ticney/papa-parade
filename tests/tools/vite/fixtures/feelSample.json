@@ -284,6 +284,8 @@
         }
       }
     },
+    "idles": { "firstAfterMs": 4000, "gapMinMs": 5000, "gapMaxMs": 8000 },
+    "startStop": { "startMinStillMs": 300, "brakeMinTravelMs": 400 },
     "look": {
       "outlineWidthPct": 150,
       "rimStrengthPct": 35,

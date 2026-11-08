@@ -111,7 +111,8 @@
       { "clip": "walk", "speedMps": 3 },
       { "clip": "carry_walk", "speedMps": 3 },
       { "clip": "crawl", "speedMps": 0.6 },
-      { "clip": "sneak", "speedMps": 1.2 }
+      { "clip": "sneak", "speedMps": 1.2 },
+      { "clip": "tiptoe", "speedMps": 1.05 }
     ],
     "papaClipFacing": [
       { "clip": "drink", "facing": "camera" },

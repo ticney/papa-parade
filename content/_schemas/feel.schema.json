@@ -2326,6 +2326,59 @@
           "additionalProperties": false,
           "description": "The faces (story 7.10): one expression per character, carried by the brows alone, blended on springs of the sim clock. The same under « Réduire les animations »."
         },
+        "idles": {
+          "type": "object",
+          "properties": {
+            "firstAfterMs": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 20000,
+              "description": "How long Papa stands still before his first idle, in sim ms, from his entering `idle`."
+            },
+            "gapMinMs": {
+              "type": "integer",
+              "minimum": 3000,
+              "maximum": 30000,
+              "description": "The shortest time from one idle's start to the next's, in sim ms. Its floor (3 s) stays above the longest idle (2.2 s), so two never overlap."
+            },
+            "gapMaxMs": {
+              "type": "integer",
+              "minimum": 3000,
+              "maximum": 30000,
+              "description": "The longest time from one idle's start to the next's, in sim ms. Not under `gapMinMs`."
+            }
+          },
+          "required": [
+            "firstAfterMs",
+            "gapMinMs",
+            "gapMaxMs"
+          ],
+          "additionalProperties": false,
+          "description": "Papa's idles (story 7.11): scratching his head, rubbing his neck, stretching his back, while he stands still with his hands free. Each comes at a slot drawn from the level's seed and the sim clock, never twice in a row. None in a duel or stealth step, with the baby in his arms, or under « Réduire les animations »."
+        },
+        "startStop": {
+          "type": "object",
+          "properties": {
+            "startMinStillMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3000,
+              "description": "How long Papa must have stood still, in sim ms, for a walk to begin with its push-off (`walk_start`)."
+            },
+            "brakeMinTravelMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3000,
+              "description": "How long Papa must have walked, in sim ms, for a stop to play its brake (`walk_stop`)."
+            }
+          },
+          "required": [
+            "startMinStillMs",
+            "brakeMinTravelMs"
+          ],
+          "additionalProperties": false,
+          "description": "Papa's start and brake (story 7.11): a push-off into a walk and a catching step out of it, over the loops, his position the sim's. None while he carries the baby, into or out of a glide, in a duel or stealth step, or under « Réduire les animations »."
+        },
         "look": {
           "type": "object",
           "properties": {
@@ -2378,10 +2431,12 @@
         "stoop",
         "forelock",
         "expressions",
+        "idles",
+        "startStop",
         "look"
       ],
       "additionalProperties": false,
-      "description": "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), expressions (story 7.10), rim and outline. Client only."
+      "description": "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), expressions (story 7.10), idles and start / stop (story 7.11), rim and outline. Client only."
     },
     "music": {
       "type": "object",

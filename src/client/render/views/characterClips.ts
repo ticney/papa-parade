@@ -76,14 +76,55 @@ export function isBabyTravelling(baby: Readonly<BabySlice>): boolean {
   return baby.cryEndsAt === null && BABY_TRAVELLING[baby.state];
 }
 
-/** The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`). */
-export function papaClipOf(papa: Readonly<PapaSlice>, baby: Readonly<BabySlice>): string {
+/**
+ * The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`).
+ * In a stealth step (`isStealth`, story 7.11, D5) he walks on tiptoe: a boolean, never a threat.
+ */
+export function papaClipOf(
+  papa: Readonly<PapaSlice>,
+  baby: Readonly<BabySlice>,
+  isStealth: boolean,
+): string {
   const clip = PAPA_LOOPS[papa.state];
-  if (baby.state !== 'carried') return clip;
+  if (baby.state !== 'carried') return isStealth && clip === 'walk' ? 'tiptoe' : clip;
   if (clip === 'idle') return 'carry_idle';
   if (clip === 'walk') return 'carry_walk';
   return clip;
 }
+
+/** Papa's idles (story 7.11, D1), in the order the schedule's variant index reads them. */
+export const PAPA_IDLE_CLIPS = ['idle_scratch', 'idle_neck', 'idle_stretch'] as const;
+
+/**
+ * Papa's « acting » one-shots (story 7.11, D1): they decorate a state and carry none, so anything cuts
+ * them (D11). The event one-shots (gags, responses, the coffee kick, the finale) are not here.
+ */
+export const PAPA_ACTING_CLIPS: readonly string[] = [...PAPA_IDLE_CLIPS, 'walk_start', 'walk_stop'];
+
+/**
+ * The events by which the view sees, in the frame of the step that applies it, that a command of the
+ * player was accepted (story 7.11, D12): each cuts an acting one-shot at once. `PapaStateChanged` is one
+ * too (read here and from the loop change). Each command a player can send to an idle Papa emits one of
+ * these in its applying step (`tests/bots/papaActingCuts.test.ts`).
+ */
+export const PAPA_ACTING_CUT_EVENTS: readonly SimEvent['type'][] = [
+  'PapaStateChanged',
+  'PapaPathPlanned',
+  'PapaGlideStarted',
+  'ObjectTapped',
+  'PapaBlocked',
+  'TapRefused',
+  'ResponseHeld',
+  'ResponseResolved',
+  'BabyPickedUp',
+  'BabyPutDown',
+  'BreathHeld',
+  'ChoreRefused',
+  'ToiletRefused',
+  'BeatHit',
+  'BeatStrayTapped',
+  'DecoyTapped',
+];
 
 /** The loop the baby's state says now. His cry is a timer apart from his state, and it overlays any of them. */
 export function babyClipOf(baby: Readonly<BabySlice>): string {
@@ -210,6 +251,8 @@ export const PAPA_CONTRACT = {
     'papa_hair',
     'papa_look_mash',
     'papa_look_shirt',
+    // The puffed cheeks of a held breath (story 7.11, D2): shown by the view.
+    'papa_cheeks',
   ],
   clips: [
     'idle',
@@ -230,6 +273,13 @@ export const PAPA_CONTRACT = {
     'coffee_kick',
     'victory_dance',
     'collapse',
+    // The first wave of story 7.11 (D1): a start, a brake, the tiptoe loop, three idles.
+    'walk_start',
+    'walk_stop',
+    'tiptoe',
+    'idle_scratch',
+    'idle_neck',
+    'idle_stretch',
   ],
   /** The lids, the brows (his expressions, story 7.10) and the forelock's pendulum (story 7.9, D3, D7). */
   codeDrivenBones: ['eyelids', 'brow_l', 'brow_r', 'forelock'],

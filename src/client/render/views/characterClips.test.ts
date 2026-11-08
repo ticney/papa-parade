@@ -9,9 +9,12 @@ import {
   babyLidsAfter,
   babyOneShotOf,
   isBabyTravelling,
+  PAPA_ACTING_CLIPS,
+  PAPA_ACTING_CUT_EVENTS,
   PAPA_CONTRACT,
   PAPA_DEFERRED_ONE_SHOTS,
   PAPA_HELD_ONE_SHOTS,
+  PAPA_IDLE_CLIPS,
   PAPA_TRAVELLING,
   papaClipOf,
   papaOneShotOf,
@@ -50,22 +53,61 @@ const t = asSimMs(1000);
 describe('papaClipOf', () => {
   it('reads each state', () => {
     const free = baby('babble');
-    expect(papaClipOf(papa('idle'), free)).toBe('idle');
-    expect(papaClipOf(papa('walkPath'), free)).toBe('walk');
-    expect(papaClipOf(papa('walkDir'), free)).toBe('walk');
-    expect(papaClipOf(papa('glide'), free)).toBe('glide');
-    expect(papaClipOf(papa('drink'), free)).toBe('drink');
-    expect(papaClipOf(papa('asleep'), free)).toBe('asleep');
-    expect(papaClipOf(papa('onPhone'), free)).toBe('on_phone');
-    expect(papaClipOf(papa('onToilet'), free)).toBe('idle');
+    expect(papaClipOf(papa('idle'), free, false)).toBe('idle');
+    expect(papaClipOf(papa('walkPath'), free, false)).toBe('walk');
+    expect(papaClipOf(papa('walkDir'), free, false)).toBe('walk');
+    expect(papaClipOf(papa('glide'), free, false)).toBe('glide');
+    expect(papaClipOf(papa('drink'), free, false)).toBe('drink');
+    expect(papaClipOf(papa('asleep'), free, false)).toBe('asleep');
+    expect(papaClipOf(papa('onPhone'), free, false)).toBe('on_phone');
+    expect(papaClipOf(papa('onToilet'), free, false)).toBe('idle');
   });
 
   it("has the carried variants, read from the baby's state alone", () => {
     const carried = baby('carried');
-    expect(papaClipOf(papa('idle'), carried)).toBe('carry_idle');
-    expect(papaClipOf(papa('walkPath'), carried)).toBe('carry_walk');
-    expect(papaClipOf(papa('walkDir'), carried)).toBe('carry_walk');
-    expect(papaClipOf(papa('glide'), carried)).toBe('glide');
+    expect(papaClipOf(papa('idle'), carried, false)).toBe('carry_idle');
+    expect(papaClipOf(papa('walkPath'), carried, false)).toBe('carry_walk');
+    expect(papaClipOf(papa('walkDir'), carried, false)).toBe('carry_walk');
+    expect(papaClipOf(papa('glide'), carried, false)).toBe('glide');
+  });
+
+  it('walks on tiptoe in a stealth step, and only the walk changes (story 7.11, D5)', () => {
+    const free = baby('babble');
+    expect(papaClipOf(papa('walkPath'), free, true)).toBe('tiptoe');
+    expect(papaClipOf(papa('walkDir'), free, true)).toBe('tiptoe');
+    expect(papaClipOf(papa('idle'), free, true)).toBe('idle');
+    expect(papaClipOf(papa('glide'), free, true)).toBe('glide');
+    // Outside a stealth step nothing plays the tiptoe.
+    for (const state of Object.keys(PAPA_TRAVELLING) as PapaSlice['state'][]) {
+      expect(papaClipOf(papa(state), free, false)).not.toBe('tiptoe');
+      expect(papaClipOf(papa(state), baby('carried'), true)).not.toBe('tiptoe');
+    }
+  });
+});
+
+describe("Papa's acting one-shots and their cut (story 7.11, D1, D12)", () => {
+  it('lists the three idles in order, then the start and the brake, all in the contract', () => {
+    expect([...PAPA_IDLE_CLIPS]).toEqual(['idle_scratch', 'idle_neck', 'idle_stretch']);
+    expect([...PAPA_ACTING_CLIPS].sort()).toEqual(
+      ['idle_neck', 'idle_scratch', 'idle_stretch', 'walk_start', 'walk_stop'].sort(),
+    );
+    const contract: readonly string[] = PAPA_CONTRACT.clips;
+    for (const clip of PAPA_ACTING_CLIPS) expect(contract, clip).toContain(clip);
+    expect(contract).toContain('tiptoe');
+    expect(PAPA_CONTRACT.hiddenNodes).toContain('papa_cheeks');
+  });
+
+  it('never lists an event one-shot as acting: a gag, a response or the finale keeps its rules', () => {
+    for (const clip of [...PAPA_HELD_ONE_SHOTS, ...PAPA_DEFERRED_ONE_SHOTS, 'stumble']) {
+      expect(PAPA_ACTING_CLIPS).not.toContain(clip);
+    }
+  });
+
+  it('cuts on a state change and on the events of an accepted command', () => {
+    expect(PAPA_ACTING_CUT_EVENTS).toContain('PapaStateChanged');
+    expect(PAPA_ACTING_CUT_EVENTS).toContain('PapaPathPlanned');
+    expect(PAPA_ACTING_CUT_EVENTS).toContain('BabyPutDown');
+    expect(new Set(PAPA_ACTING_CUT_EVENTS).size).toBe(PAPA_ACTING_CUT_EVENTS.length);
   });
 });
 
