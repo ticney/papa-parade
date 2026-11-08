@@ -21,6 +21,7 @@
     "test:coverage": "vitest run --coverage",
     "golden:update": "GOLDEN_UPDATE=1 vitest run tests/golden",
     "e2e": "bash tools/ci/heavyLock.sh playwright test",
+    "e2e:smoke": "PP_E2E_TIER=smoke bash tools/ci/heavyLock.sh playwright test --project=chromium",
     "e2e:dist": "bash tools/ci/heavyLock.sh tsx tools/build/runDistE2e.ts",
     "content:check": "tsx tools/content/checkContent.ts",
     "content:schemas": "tsx tools/content/emitSchemas.ts",
@@ -36,7 +37,7 @@
     "assets:audio": "tsx tools/audio/makePlaceholderAudio.ts",
     "story:new": "bash tools/git/newStoryWorktree.sh",
     "ci:fast": "npm run typecheck && npm run lint && npm run content:check && npm run test",
-    "ci:story": "npm run ci:fast && npm run e2e -- --project=chromium",
+    "ci:story": "npm run ci:fast && npm run e2e:smoke",
     "ci": "npm run typecheck && npm run lint && npm run content:check && bash tools/ci/heavyLock.sh npm run ci:heavy",
     "ci:heavy": "npm run test:coverage && npm run sim:balance && npm run e2e && npm run build:playtest && npm run dist:check -- --flavor playtest && npm run e2e:dist && npm run build && npm run dist:check -- --flavor prod"
   },

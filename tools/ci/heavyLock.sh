@@ -3,8 +3,8 @@
 #
 # Runs a heavy check (an e2e suite, `ci`) only when no other one is running on this machine, so that
 # two agents working on two stories at once do not load the Mac with two Playwright suites and make
-# each other time out (CLAUDE.md › Which check, when). The npm scripts `e2e`, `e2e:dist`, `ci:story`
-# and `ci` go through it; `ci:fast` does not (a few seconds).
+# each other time out (CLAUDE.md › Which check, when). The npm scripts `e2e`, `e2e:smoke`, `e2e:dist`,
+# `ci:story` and `ci` go through it; `ci:fast` does not (a few seconds).
 #
 # The lock is the folder `pp-heavy.lock` in the git common dir, the same `.git` for the main checkout
 # and every worktree. `mkdir` is atomic (macOS has no `flock`). Its `owner` file names the holder: a
