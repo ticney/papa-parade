@@ -12,7 +12,9 @@
   "framing": {
     "camera": { "zoomPct": 28, "focusPct": 70, "inMs": 1200, "outMs": 700 },
     "musicLoop": "bedtime_duel",
-    "bar": null
+    "bar": null,
+    "style": "duel",
+    "titleKey": "framing.title_duel"
   },
   "feedback": {
     "started": "sequence_started",

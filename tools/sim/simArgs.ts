@@ -99,6 +99,8 @@ out loudly, by reason: \`empty\`, \`early\`, \`notHeld\`) and \`nothingResponses
 Its two alerts are not counted in \`microSleeps\`. \`snore\`, \`floorCreak\` and \`breathReleased\` are sources of the noise per source.
 The final rush (story 3.5) adds \`finalRushes\` (the doors that opened: 0 in a level without one) and \`propsTidied\` (the props put back
 in the rush), per game and over the runs. A game that ends on \`timer\` in a level with a rush ends on the photo, not on \`ended\`.
+The finale (story 7.4) adds \`finales\` (\`lastWave\`: the success that closed the level's last wave; \`cycleDone\`: the bedtime
+cycle done; \`FinaleReached\`, at most one a game), per game and over the runs.
 The end photo (story 3.6) adds \`frozenNearMisses\` (the baby, not carried, within \`feel.endOfLevel.frozenNearMissReachM\` of
 the stairs when the level ends: one for each, counted in Mama's « Hurlement » and kept apart from \`nearMisses\`), per game and
 over the runs.

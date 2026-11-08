@@ -712,9 +712,10 @@
     "NoiseChanged",
     "SequenceEnded",
     "CycleCompleted",
+    "FinaleReached",
     "BabyStateChanged",
     "LevelEnded",
     "LevelScored"
   ],
-  "eventsHash": "0883c5e933dad1"
+  "eventsHash": "005ab7cdeff405"
 }

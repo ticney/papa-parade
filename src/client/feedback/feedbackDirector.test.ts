@@ -33,6 +33,8 @@ world.time.sim = asSimMs(4200);
 const TABLE: FeedbackTable = {
   render: createTestFeedback().render,
   characters: createTestFeedback().characters,
+  celebration: createTestFeedback().celebration,
+  framingStyles: createTestFeedback().framingStyles,
   buses: {
     music: { gainPct: 50 },
     sfx: { gainPct: 90 },
@@ -44,6 +46,7 @@ const TABLE: FeedbackTable = {
     medium: { patternMs: [30] },
     heavy: { patternMs: [60] },
     heartbeat: { patternMs: [30, 90, 30] },
+    fanfare: { patternMs: [60, 80, 60, 80, 120, 60] },
   },
   sequenceBar: { slideMs: 250 },
   comboBadge: { cashInHoldMs: 900 },

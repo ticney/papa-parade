@@ -43,6 +43,9 @@ const NO_FX_STATE: FxState = {
   papaBreathDeg: 0,
   babyBreathDeg: 0,
   papaEyelidsPct: 0,
+  fireworksAlive: 0,
+  celebrating: false,
+  framing: { style: null, blend: 0, letterboxPct: 0, lightsFactor: 1, rollDeg: 0 },
 };
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */
@@ -132,6 +135,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     debugGroup: () => null,
     fxState: () => options.fxState ?? NO_FX_STATE,
     setPapaLook: () => {},
+    celebrate: () => {},
     threatScreenPoints: () => [],
     pagePoint: (xM, _yM, zM) => ({ xPx: xM * 100, yPx: zM * 100 }),
     lastInputDevice: () => lastInput,

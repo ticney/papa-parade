@@ -169,13 +169,35 @@
           ],
           "additionalProperties": false,
           "description": "A lub-dub: Fatherly Instinct kicks in (story 2.9)."
+        },
+        "fanfare": {
+          "type": "object",
+          "properties": {
+            "patternMs": {
+              "minItems": 1,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "description": "`navigator.vibrate` pattern, in ms: vibrate, pause, vibrate, pause..."
+            }
+          },
+          "required": [
+            "patternMs"
+          ],
+          "additionalProperties": false,
+          "description": "A run of pulses on the fireworks' rhythm: the level's finale (story 7.4)."
         }
       },
       "required": [
         "light",
         "medium",
         "heavy",
-        "heartbeat"
+        "heartbeat",
+        "fanfare"
       ],
       "additionalProperties": false,
       "description": "The vibration of each kind. A browser without vibration ignores them."
@@ -1217,6 +1239,608 @@
       "additionalProperties": false,
       "description": "The final look (story 7.3). Client-only: unlike `feel.json` it is not hashed into the journal, so no golden moves for it."
     },
+    "celebration": {
+      "type": "object",
+      "properties": {
+        "endHoldMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8000,
+          "description": "When the level ends during the celebration, the photo and the Result wait for it at most this long, in real ms (story 7.4 D3)."
+        },
+        "collapseHoldMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4000,
+          "description": "When Mama comes home early, the photo and the Result wait this long, in real ms, so that Papa's collapse plays (story 7.4 D14); 0 ends at once."
+        },
+        "musicMuteMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8000,
+          "description": "The level and sequence music are muted this long while the choir sings, in real ms."
+        },
+        "stampMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 900,
+          "description": "How long the finale's Epic stamp stays, in real ms (at most 900)."
+        },
+        "fireworks": {
+          "type": "object",
+          "properties": {
+            "bursts": {
+              "minItems": 1,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "atMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8000,
+                    "description": "When the burst goes off, in real ms after the finale."
+                  },
+                  "xPct": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Where it goes off across the area the camera shows, in % of its width (50 = the middle)."
+                  },
+                  "zPct": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Where it goes off along the area the camera shows, in % of its depth (50 = the middle)."
+                  },
+                  "heightM": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 5,
+                    "description": "How high above the floor it goes off, in metres."
+                  },
+                  "sparks": {
+                    "type": "integer",
+                    "minimum": 4,
+                    "maximum": 96,
+                    "description": "Sparks in the burst; reduced motion keeps `REDUCED_MOTION_PARTICLE_KEEP_PCT` of them."
+                  }
+                },
+                "required": [
+                  "atMs",
+                  "xPct",
+                  "zPct",
+                  "heightM",
+                  "sparks"
+                ],
+                "additionalProperties": false,
+                "description": "One burst of the fireworks."
+              },
+              "description": "The bursts, in any order."
+            },
+            "areaHalfM": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10,
+              "description": "Half the side of the square the bursts are placed in, in metres, around the floor point the camera looks at (a follow camera shows a part of a big room), cut to the room's floor."
+            },
+            "speedMps": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 10,
+              "description": "How fast a spark leaves its burst, in metres per second."
+            },
+            "lifeMs": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 4000,
+              "description": "How long a spark lives, in real ms; it shrinks to nothing over that time."
+            },
+            "sizeM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 0.3,
+              "description": "The size of a spark at birth, in metres."
+            },
+            "colorTokens": {
+              "minItems": 1,
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "primary",
+                  "gauge-calm",
+                  "mama-calm",
+                  "smell",
+                  "paper"
+                ]
+              },
+              "description": "The DESIGN.md colours of the sparks, taken in turn."
+            }
+          },
+          "required": [
+            "bursts",
+            "areaHalfM",
+            "speedMps",
+            "lifeMs",
+            "sizeM",
+            "colorTokens"
+          ],
+          "additionalProperties": false,
+          "description": "The fireworks over the room (one pooled mesh, real time)."
+        }
+      },
+      "required": [
+        "endHoldMs",
+        "collapseHoldMs",
+        "musicMuteMs",
+        "stampMs",
+        "fireworks"
+      ],
+      "additionalProperties": false,
+      "description": "The level's finale (story 7.4): what the celebration module adds to the cue `finale_reached`. Client only and not hashed."
+    },
+    "framingStyles": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "object",
+          "properties": {
+            "letterboxPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "Height of each letterbox bar at full blend, in % of the screen's height (at most 12: Papa and the exit stay clear)."
+            },
+            "rollDeg": {
+              "type": "number",
+              "minimum": -6,
+              "maximum": 6,
+              "description": "Camera roll at full blend, in degrees; 0 under reduced motion."
+            },
+            "vignetteOpacityPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 80,
+              "description": "How dark the corners get at full blend, in % (ink)."
+            },
+            "titleHoldMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 900,
+              "description": "How long the title card stays from the start of the sequence, in sim ms (at most 900); 0 shows none."
+            },
+            "grade": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "lightsFactor": {
+                      "type": "number",
+                      "minimum": 0.3,
+                      "maximum": 1.5,
+                      "description": "The room's light intensities are multiplied by this at full blend."
+                    },
+                    "ambientColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The ambient light's colour at full blend (it is lerped from the level's)."
+                    },
+                    "sunColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The sun's colour at full blend."
+                    }
+                  },
+                  "required": [
+                    "lightsFactor",
+                    "ambientColor",
+                    "sunColor"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A colour grade through the room's own lights: no post-processing (ADR-008)."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The colour grade, or null for none."
+            }
+          },
+          "required": [
+            "letterboxPct",
+            "rollDeg",
+            "vignetteOpacityPct",
+            "titleHoldMs",
+            "grade"
+          ],
+          "additionalProperties": false,
+          "description": "The `action` grammar."
+        },
+        "rhythm": {
+          "type": "object",
+          "properties": {
+            "letterboxPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "Height of each letterbox bar at full blend, in % of the screen's height (at most 12: Papa and the exit stay clear)."
+            },
+            "rollDeg": {
+              "type": "number",
+              "minimum": -6,
+              "maximum": 6,
+              "description": "Camera roll at full blend, in degrees; 0 under reduced motion."
+            },
+            "vignetteOpacityPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 80,
+              "description": "How dark the corners get at full blend, in % (ink)."
+            },
+            "titleHoldMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 900,
+              "description": "How long the title card stays from the start of the sequence, in sim ms (at most 900); 0 shows none."
+            },
+            "grade": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "lightsFactor": {
+                      "type": "number",
+                      "minimum": 0.3,
+                      "maximum": 1.5,
+                      "description": "The room's light intensities are multiplied by this at full blend."
+                    },
+                    "ambientColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The ambient light's colour at full blend (it is lerped from the level's)."
+                    },
+                    "sunColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The sun's colour at full blend."
+                    }
+                  },
+                  "required": [
+                    "lightsFactor",
+                    "ambientColor",
+                    "sunColor"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A colour grade through the room's own lights: no post-processing (ADR-008)."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The colour grade, or null for none."
+            }
+          },
+          "required": [
+            "letterboxPct",
+            "rollDeg",
+            "vignetteOpacityPct",
+            "titleHoldMs",
+            "grade"
+          ],
+          "additionalProperties": false,
+          "description": "The `rhythm` grammar."
+        },
+        "duel": {
+          "type": "object",
+          "properties": {
+            "letterboxPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "Height of each letterbox bar at full blend, in % of the screen's height (at most 12: Papa and the exit stay clear)."
+            },
+            "rollDeg": {
+              "type": "number",
+              "minimum": -6,
+              "maximum": 6,
+              "description": "Camera roll at full blend, in degrees; 0 under reduced motion."
+            },
+            "vignetteOpacityPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 80,
+              "description": "How dark the corners get at full blend, in % (ink)."
+            },
+            "titleHoldMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 900,
+              "description": "How long the title card stays from the start of the sequence, in sim ms (at most 900); 0 shows none."
+            },
+            "grade": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "lightsFactor": {
+                      "type": "number",
+                      "minimum": 0.3,
+                      "maximum": 1.5,
+                      "description": "The room's light intensities are multiplied by this at full blend."
+                    },
+                    "ambientColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The ambient light's colour at full blend (it is lerped from the level's)."
+                    },
+                    "sunColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The sun's colour at full blend."
+                    }
+                  },
+                  "required": [
+                    "lightsFactor",
+                    "ambientColor",
+                    "sunColor"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A colour grade through the room's own lights: no post-processing (ADR-008)."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The colour grade, or null for none."
+            }
+          },
+          "required": [
+            "letterboxPct",
+            "rollDeg",
+            "vignetteOpacityPct",
+            "titleHoldMs",
+            "grade"
+          ],
+          "additionalProperties": false,
+          "description": "The `duel` grammar."
+        },
+        "defusal": {
+          "type": "object",
+          "properties": {
+            "letterboxPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "Height of each letterbox bar at full blend, in % of the screen's height (at most 12: Papa and the exit stay clear)."
+            },
+            "rollDeg": {
+              "type": "number",
+              "minimum": -6,
+              "maximum": 6,
+              "description": "Camera roll at full blend, in degrees; 0 under reduced motion."
+            },
+            "vignetteOpacityPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 80,
+              "description": "How dark the corners get at full blend, in % (ink)."
+            },
+            "titleHoldMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 900,
+              "description": "How long the title card stays from the start of the sequence, in sim ms (at most 900); 0 shows none."
+            },
+            "grade": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "lightsFactor": {
+                      "type": "number",
+                      "minimum": 0.3,
+                      "maximum": 1.5,
+                      "description": "The room's light intensities are multiplied by this at full blend."
+                    },
+                    "ambientColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The ambient light's colour at full blend (it is lerped from the level's)."
+                    },
+                    "sunColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The sun's colour at full blend."
+                    }
+                  },
+                  "required": [
+                    "lightsFactor",
+                    "ambientColor",
+                    "sunColor"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A colour grade through the room's own lights: no post-processing (ADR-008)."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The colour grade, or null for none."
+            }
+          },
+          "required": [
+            "letterboxPct",
+            "rollDeg",
+            "vignetteOpacityPct",
+            "titleHoldMs",
+            "grade"
+          ],
+          "additionalProperties": false,
+          "description": "The `defusal` grammar."
+        },
+        "infiltration": {
+          "type": "object",
+          "properties": {
+            "letterboxPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "Height of each letterbox bar at full blend, in % of the screen's height (at most 12: Papa and the exit stay clear)."
+            },
+            "rollDeg": {
+              "type": "number",
+              "minimum": -6,
+              "maximum": 6,
+              "description": "Camera roll at full blend, in degrees; 0 under reduced motion."
+            },
+            "vignetteOpacityPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 80,
+              "description": "How dark the corners get at full blend, in % (ink)."
+            },
+            "titleHoldMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 900,
+              "description": "How long the title card stays from the start of the sequence, in sim ms (at most 900); 0 shows none."
+            },
+            "grade": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "lightsFactor": {
+                      "type": "number",
+                      "minimum": 0.3,
+                      "maximum": 1.5,
+                      "description": "The room's light intensities are multiplied by this at full blend."
+                    },
+                    "ambientColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The ambient light's colour at full blend (it is lerped from the level's)."
+                    },
+                    "sunColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The sun's colour at full blend."
+                    }
+                  },
+                  "required": [
+                    "lightsFactor",
+                    "ambientColor",
+                    "sunColor"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A colour grade through the room's own lights: no post-processing (ADR-008)."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The colour grade, or null for none."
+            }
+          },
+          "required": [
+            "letterboxPct",
+            "rollDeg",
+            "vignetteOpacityPct",
+            "titleHoldMs",
+            "grade"
+          ],
+          "additionalProperties": false,
+          "description": "The `infiltration` grammar."
+        },
+        "hostage": {
+          "type": "object",
+          "properties": {
+            "letterboxPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "Height of each letterbox bar at full blend, in % of the screen's height (at most 12: Papa and the exit stay clear)."
+            },
+            "rollDeg": {
+              "type": "number",
+              "minimum": -6,
+              "maximum": 6,
+              "description": "Camera roll at full blend, in degrees; 0 under reduced motion."
+            },
+            "vignetteOpacityPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 80,
+              "description": "How dark the corners get at full blend, in % (ink)."
+            },
+            "titleHoldMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 900,
+              "description": "How long the title card stays from the start of the sequence, in sim ms (at most 900); 0 shows none."
+            },
+            "grade": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "lightsFactor": {
+                      "type": "number",
+                      "minimum": 0.3,
+                      "maximum": 1.5,
+                      "description": "The room's light intensities are multiplied by this at full blend."
+                    },
+                    "ambientColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The ambient light's colour at full blend (it is lerped from the level's)."
+                    },
+                    "sunColor": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "description": "The sun's colour at full blend."
+                    }
+                  },
+                  "required": [
+                    "lightsFactor",
+                    "ambientColor",
+                    "sunColor"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A colour grade through the room's own lights: no post-processing (ADR-008)."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The colour grade, or null for none."
+            }
+          },
+          "required": [
+            "letterboxPct",
+            "rollDeg",
+            "vignetteOpacityPct",
+            "titleHoldMs",
+            "grade"
+          ],
+          "additionalProperties": false,
+          "description": "The `hostage` grammar."
+        }
+      },
+      "required": [
+        "action",
+        "rhythm",
+        "duel",
+        "defusal",
+        "infiltration",
+        "hostage"
+      ],
+      "additionalProperties": false,
+      "description": "The film grammars of the special sequences (story 7.4 D8, D12), one row per id; a sequence's `framing.style` names its row. Client only and not hashed."
+    },
     "cues": {
       "type": "object",
       "propertyNames": {
@@ -1376,7 +2000,8 @@
               "light",
               "medium",
               "heavy",
-              "heartbeat"
+              "heartbeat",
+              "fanfare"
             ]
           },
           "flash": {
@@ -1448,6 +2073,8 @@
     "photo",
     "replay",
     "render",
+    "celebration",
+    "framingStyles",
     "cues",
     "events"
   ],

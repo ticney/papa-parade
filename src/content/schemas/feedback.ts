@@ -1,4 +1,8 @@
 import {
+  EPIC_STAMP_MAX_MS,
+  FIREWORK_POOL_SIZE,
+  FRAMING_STYLE_IDS,
+  LETTERBOX_MAX_PCT,
   PHOTO_ASPECT_MAX,
   PHOTO_ASPECT_MIN,
   SCREEN_FLASH_MIN_INTERVAL_MS,
@@ -14,7 +18,7 @@ import { FX_PRESET_IDS } from './feel.ts';
 // so that the file, the type and the emitted JSON Schema map one to one.
 
 export const AUDIO_BUSES = ['music', 'sfx', 'voice', 'ui'] as const;
-export const HAPTIC_KINDS = ['light', 'medium', 'heavy', 'heartbeat'] as const;
+export const HAPTIC_KINDS = ['light', 'medium', 'heavy', 'heartbeat', 'fanfare'] as const;
 
 /** `<category>_<name>`, the categories of the architecture (Conventions › Audio). */
 const CLIP_PATTERN = /^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$/;
@@ -62,6 +66,9 @@ const HapticsSchema = z
     medium: HapticSchema.describe('A medium tap: a response.'),
     heavy: HapticSchema.describe('A heavy tap: a gag.'),
     heartbeat: HapticSchema.describe('A lub-dub: Fatherly Instinct kicks in (story 2.9).'),
+    fanfare: HapticSchema.describe(
+      "A run of pulses on the fireworks' rhythm: the level's finale (story 7.4).",
+    ),
   })
   .describe('The vibration of each kind. A browser without vibration ignores them.');
 
@@ -794,6 +801,206 @@ const RenderSchema = z
     'The final look (story 7.3). Client-only: unlike `feel.json` it is not hashed into the journal, so no golden moves for it.',
   );
 
+/**
+ * The colour tokens of `DESIGN.md` a firework may use (story 7.4 D7): never `alert`, `parry` or
+ * `dodge`, the reserved hues of a threat and its answers, nor `star`, which sits on `alert`'s hue.
+ * `levelAssets.test.ts` holds each one at more than the reserved margin from them.
+ */
+export const FIREWORK_COLOR_TOKENS = [
+  'primary',
+  'gauge-calm',
+  'mama-calm',
+  'smell',
+  'paper',
+] as const;
+
+const FireworkBurstSchema = z
+  .strictObject({
+    atMs: z
+      .int()
+      .min(0)
+      .max(8000)
+      .describe('When the burst goes off, in real ms after the finale.'),
+    xPct: z
+      .number()
+      .min(0)
+      .max(100)
+      .describe(
+        'Where it goes off across the area the camera shows, in % of its width (50 = the middle).',
+      ),
+    zPct: z
+      .number()
+      .min(0)
+      .max(100)
+      .describe(
+        'Where it goes off along the area the camera shows, in % of its depth (50 = the middle).',
+      ),
+    heightM: z
+      .number()
+      .min(0.5)
+      .max(5)
+      .describe('How high above the floor it goes off, in metres.'),
+    sparks: z
+      .int()
+      .min(4)
+      .max(96)
+      .describe(
+        'Sparks in the burst; reduced motion keeps `REDUCED_MOTION_PARTICLE_KEEP_PCT` of them.',
+      ),
+  })
+  .describe('One burst of the fireworks.');
+
+const CelebrationSchema = z
+  .strictObject({
+    endHoldMs: z
+      .int()
+      .min(0)
+      .max(8000)
+      .describe(
+        'When the level ends during the celebration, the photo and the Result wait for it at most this long, in real ms (story 7.4 D3).',
+      ),
+    collapseHoldMs: z
+      .int()
+      .min(0)
+      .max(4000)
+      .describe(
+        "When Mama comes home early, the photo and the Result wait this long, in real ms, so that Papa's collapse plays (story 7.4 D14); 0 ends at once.",
+      ),
+    musicMuteMs: z
+      .int()
+      .min(0)
+      .max(8000)
+      .describe(
+        'The level and sequence music are muted this long while the choir sings, in real ms.',
+      ),
+    stampMs: z
+      .int()
+      .min(100)
+      .max(EPIC_STAMP_MAX_MS)
+      .describe(
+        `How long the finale's Epic stamp stays, in real ms (at most ${EPIC_STAMP_MAX_MS}).`,
+      ),
+    fireworks: z
+      .strictObject({
+        bursts: z.array(FireworkBurstSchema).min(1).max(8).describe('The bursts, in any order.'),
+        areaHalfM: z
+          .number()
+          .min(1)
+          .max(10)
+          .describe(
+            "Half the side of the square the bursts are placed in, in metres, around the floor point the camera looks at (a follow camera shows a part of a big room), cut to the room's floor.",
+          ),
+        speedMps: z
+          .number()
+          .gt(0)
+          .max(10)
+          .describe('How fast a spark leaves its burst, in metres per second.'),
+        lifeMs: z
+          .int()
+          .min(100)
+          .max(4000)
+          .describe('How long a spark lives, in real ms; it shrinks to nothing over that time.'),
+        sizeM: z.number().gt(0).max(0.3).describe('The size of a spark at birth, in metres.'),
+        colorTokens: z
+          .array(z.enum(FIREWORK_COLOR_TOKENS))
+          .min(1)
+          .max(5)
+          .describe('The DESIGN.md colours of the sparks, taken in turn.'),
+      })
+      .refine(
+        (fireworks) =>
+          fireworks.bursts.reduce((sum, burst) => sum + burst.sparks, 0) <= FIREWORK_POOL_SIZE,
+        {
+          message: `the bursts' sparks add up to at most ${FIREWORK_POOL_SIZE} (the pool)`,
+          path: ['bursts'],
+        },
+      )
+      .describe('The fireworks over the room (one pooled mesh, real time).'),
+  })
+  .superRefine((celebration, ctx) => {
+    // A level that ends during the celebration waits `endHoldMs` for it (0: it does not wait). A burst or
+    // a stamp that outlasts the wait is cut short by the Result screen: a retune must not do it silently.
+    const { endHoldMs, stampMs, fireworks } = celebration;
+    if (endHoldMs === 0) return;
+    if (stampMs > endHoldMs) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['stampMs'],
+        message: `the stamp (${stampMs} ms) must fit in endHoldMs (${endHoldMs} ms)`,
+      });
+    }
+    fireworks.bursts.forEach((burst, index) => {
+      const endsAtMs = burst.atMs + fireworks.lifeMs;
+      if (endsAtMs <= endHoldMs) return;
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fireworks', 'bursts', index, 'atMs'],
+        message: `burst ${index} ends at ${endsAtMs} ms (atMs + lifeMs), past endHoldMs (${endHoldMs} ms)`,
+      });
+    });
+  })
+  .describe(
+    "The level's finale (story 7.4): what the celebration module adds to the cue `finale_reached`. Client only and not hashed.",
+  );
+
+const GradeSchema = z
+  .strictObject({
+    lightsFactor: z
+      .number()
+      .min(0.3)
+      .max(1.5)
+      .describe("The room's light intensities are multiplied by this at full blend."),
+    ambientColor: z
+      .string()
+      .regex(HEX_COLOUR_PATTERN, 'a colour is #RRGGBB')
+      .describe("The ambient light's colour at full blend (it is lerped from the level's)."),
+    sunColor: z
+      .string()
+      .regex(HEX_COLOUR_PATTERN, 'a colour is #RRGGBB')
+      .describe("The sun's colour at full blend."),
+  })
+  .describe("A colour grade through the room's own lights: no post-processing (ADR-008).");
+
+const FramingStyleSchema = z
+  .strictObject({
+    letterboxPct: z
+      .number()
+      .min(0)
+      .max(LETTERBOX_MAX_PCT)
+      .describe(
+        `Height of each letterbox bar at full blend, in % of the screen's height (at most ${LETTERBOX_MAX_PCT}: Papa and the exit stay clear).`,
+      ),
+    rollDeg: z
+      .number()
+      .min(-6)
+      .max(6)
+      .describe('Camera roll at full blend, in degrees; 0 under reduced motion.'),
+    vignetteOpacityPct: z
+      .number()
+      .min(0)
+      .max(80)
+      .describe('How dark the corners get at full blend, in % (ink).'),
+    titleHoldMs: z
+      .int()
+      .min(0)
+      .max(EPIC_STAMP_MAX_MS)
+      .describe(
+        `How long the title card stays from the start of the sequence, in sim ms (at most ${EPIC_STAMP_MAX_MS}); 0 shows none.`,
+      ),
+    grade: GradeSchema.nullable().describe('The colour grade, or null for none.'),
+  })
+  .describe('The look of one film grammar.');
+
+const FramingStylesSchema = z
+  .strictObject(
+    Object.fromEntries(
+      FRAMING_STYLE_IDS.map((id) => [id, FramingStyleSchema.describe(`The \`${id}\` grammar.`)]),
+    ) as Record<(typeof FRAMING_STYLE_IDS)[number], typeof FramingStyleSchema>,
+  )
+  .describe(
+    "The film grammars of the special sequences (story 7.4 D8, D12), one row per id; a sequence's `framing.style` names its row. Client only and not hashed.",
+  );
+
 export const FeedbackTableSchema = z
   .strictObject({
     buses: BusesSchema,
@@ -817,6 +1024,8 @@ export const FeedbackTableSchema = z
     photo: PhotoSchema,
     replay: ReplaySchema,
     render: RenderSchema,
+    celebration: CelebrationSchema,
+    framingStyles: FramingStylesSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
       .describe('Every cue, by id. Threats will point at these ids.'),
@@ -852,3 +1061,7 @@ export type ComboBadgeTimings = z.infer<typeof ComboBadgeSchema>;
 export type BeatTrack = z.infer<typeof BeatTrackSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];
 export type HapticKind = (typeof HAPTIC_KINDS)[number];
+export type CelebrationSettings = z.infer<typeof CelebrationSchema>;
+export type FramingStyle = z.infer<typeof FramingStyleSchema>;
+export type FramingGrade = z.infer<typeof GradeSchema>;
+export type FireworkColorToken = (typeof FIREWORK_COLOR_TOKENS)[number];

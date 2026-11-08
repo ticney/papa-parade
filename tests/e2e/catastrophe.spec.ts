@@ -208,6 +208,22 @@ test.describe('Mama comes home early', () => {
     };
   }
 
+  test('Papa collapses as the door opens, and the Result waits for it (story 7.4, AC 19)', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openFrozen(page);
+    await setCatastrophe(page, 100);
+    await expect(html(page)).toHaveAttribute('data-pp-end-reason', 'mamaHome');
+    // The end holds for the gag: the room is still drawn, Papa down.
+    await expect(html(page)).toHaveAttribute('data-pp-end-hold', 'on');
+    await expect.poll(async () => (await ppFx(page)).papaClip).toBe('collapse');
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'result', { timeout: 10_000 });
+    await expect(html(page)).toHaveAttribute('data-pp-photo', 'taken');
+    expect(problems).toEqual([]);
+  });
+
   test('ends the level at 100 %: LevelEnded{mamaHome} at once, no MamaWoke, no rush, the photo, the door open', async ({
     page,
   }) => {

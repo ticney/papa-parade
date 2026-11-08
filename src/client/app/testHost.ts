@@ -1,5 +1,6 @@
 import type { ContentBundle } from '@content/contentBundle';
 import type { LevelCameraMode } from '@content/schemas/level';
+import type { FramingStyleId } from '@shared/constants';
 import type { MamaReactionLine, PapaLook, Sim, SimEvent } from '@sim';
 import type { Group } from 'three';
 import type { SoundedNote } from '../audio/beatScheduler.ts';
@@ -77,6 +78,25 @@ export interface FxState {
   readonly babyBreathDeg: number;
   /** How shut Papa's eyelids are drawn, 0 (open) to 100: the micro-sleep or his sleep only (story 7.8). */
   readonly papaEyelidsPct: number;
+  /** The finale's sparks drawn or waiting to burst (story 7.4). */
+  readonly fireworksAlive: number;
+  /** Whether the finale's celebration plays now (story 7.4). */
+  readonly celebrating: boolean;
+  /** The film grammar drawn now (story 7.4): `style` null outside a styled sequence. */
+  readonly framing: FramingState;
+}
+
+/** The film grammar of a special sequence as drawn (story 7.4). */
+export interface FramingState {
+  readonly style: FramingStyleId | null;
+  /** The framing's blend, 0 to 1 (1 while a seam carries the sequence before out). */
+  readonly blend: number;
+  /** Each letterbox bar's height now, in % of the screen. */
+  readonly letterboxPct: number;
+  /** The grade's factor on the room's lights now (1 with none). */
+  readonly lightsFactor: number;
+  /** The camera's roll now, in degrees (0 under reduced motion). */
+  readonly rollDeg: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */
@@ -162,6 +182,11 @@ export interface TestHost {
   fxState(): FxState;
   /** Shows the parts of Papa's look on top of the world's (story 3.7: a debug overlay). No effect without a level. */
   setPapaLook(look: PapaLook): void;
+  /**
+   * Plays the client half of a level's finale now (story 7.4): the cue `finale_reached`, Papa's dance and
+   * the celebration, with no sim event. For specs that cannot reach a real finale fast.
+   */
+  celebrate(): void;
   /** The icon points of the running level's threats as they are on the page now (a new array per call). */
   threatScreenPoints(): readonly ThreatScreenPoint[];
   /**

@@ -20,7 +20,9 @@
   "framing": {
     "camera": { "zoomPct": 20, "focusPct": 45, "inMs": 1000, "outMs": 700 },
     "musicLoop": "stealth_exit",
-    "bar": null
+    "bar": null,
+    "style": "infiltration",
+    "titleKey": "framing.title_infiltration"
   },
   "feedback": {
     "started": "sequence_started",

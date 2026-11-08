@@ -718,3 +718,25 @@ export const OFFSCREEN_BUBBLE_CHIP_WIDTH_PX = 96;
 
 /** ...and its height (the chip's 32 px). */
 export const OFFSCREEN_BUBBLE_CHIP_HEIGHT_PX = 32;
+
+/**
+ * The film grammars a special sequence's framing may name (story 7.4 D9): `framing.style` of a
+ * sequence def, one row each in `feedback.json › framingStyles`. `hostage` has no live sequence yet (6.2).
+ */
+export const FRAMING_STYLE_IDS = [
+  'action',
+  'rhythm',
+  'duel',
+  'defusal',
+  'infiltration',
+  'hostage',
+] as const;
+
+/** One of `FRAMING_STYLE_IDS`. */
+export type FramingStyleId = (typeof FRAMING_STYLE_IDS)[number];
+
+/** Each letterbox bar covers at most this share of the screen's height, in % (story 7.4 D11): Papa and the exit stay clear. */
+export const LETTERBOX_MAX_PCT = 12;
+
+/** Sparks the fireworks mesh draws at most (one `InstancedMesh`, one draw call, story 7.4 D7): a perf limit, not a feel. */
+export const FIREWORK_POOL_SIZE = 256;

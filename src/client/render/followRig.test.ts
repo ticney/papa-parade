@@ -5,7 +5,7 @@ import { asSimMs } from '@shared/time';
 import type { SimEvent, World } from '@sim';
 import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createCameraFx, type SequenceFraming } from './cameraFx.ts';
+import { createCameraFx, createSequenceFraming, type SequenceFraming } from './cameraFx.ts';
 import { createFollowRig, type LevelCameraSetup } from './followRig.ts';
 import { createIsoCamera, fitIsoCamera, type RoomSize } from './isoCamera.ts';
 
@@ -29,7 +29,14 @@ const KITCHEN: RoomSize = {
   centerZM: -0.1,
 };
 const ASPECT = 4 / 3;
-const NO_FRAMING: SequenceFraming = { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 };
+const NO_FRAMING: SequenceFraming = {
+  ...createSequenceFraming(),
+  blend: 0,
+  zoomPct: 0,
+  focusPct: 0,
+  xM: 0,
+  zM: 0,
+};
 const FOLLOW: LevelCameraSetup = {
   mode: 'follow',
   follow: PARAMS,
@@ -230,7 +237,14 @@ describe('createFollowRig (story 9.2)', () => {
 
   it('frames a threat judged during a sequence framing', () => {
     const built = build();
-    const framing: SequenceFraming = { blend: 0.6, zoomPct: 10, focusPct: 20, xM: 0, zM: 0 };
+    const framing: SequenceFraming = {
+      ...createSequenceFraming(),
+      blend: 0.6,
+      zoomPct: 10,
+      focusPct: 20,
+      xM: 0,
+      zM: 0,
+    };
     const world = worldOf({ sequenceStartedAt: 800 });
     built.rig.onSimEvent(resolved(1000), world);
     play(built, world, 1000, 1200, 0, 0, false, framing);

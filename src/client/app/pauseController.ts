@@ -11,8 +11,16 @@ export interface PauseController {
   readonly state: PauseState;
   /** Real ms left before the game goes on: 0 unless `resuming`. Story 1.5 draws "3" "2" "1" from it. */
   readonly countdownRemainingMs: number;
-  /** From `running` or `resuming` to `paused` (a countdown in progress is cancelled). Already paused: nothing. */
+  /**
+   * From `running` or `resuming` to `paused` (a countdown in progress is cancelled). Already paused:
+   * nothing. While refused (`setRefused`), nothing either: the level is over and its end is waiting.
+   */
   requestPause(reason: PauseReason): void;
+  /**
+   * Refuses every pause from now on, or accepts them again (story 7.4: while the end of a level waits
+   * for the finale's celebration, nothing can pause it). A pause already on is left as it is.
+   */
+  setRefused(isRefused: boolean): void;
   /** Only from `paused`, to `resuming`; ignored otherwise. The countdown starts at the next `update`. */
   requestResume(): void;
   /** Called once per frame by the loop with the frame's real timestamp. */
@@ -43,6 +51,7 @@ export function createPauseController(options: PauseControllerOptions): PauseCon
   // Frame time at which the current countdown started (the first update after `requestResume`).
   let countdownStartAtReal: number | null = null;
   let lastUpdateAtReal = 0;
+  let isRefused = false;
 
   return {
     get state() {
@@ -55,9 +64,17 @@ export function createPauseController(options: PauseControllerOptions): PauseCon
     },
     requestPause(reason) {
       if (state === 'paused') return;
+      if (isRefused) {
+        if (log.enabled('debug'))
+          log.debug('boot', `pause refused while the level ends (${reason})`);
+        return;
+      }
       state = 'paused';
       countdownStartAtReal = null;
       events.emit('PauseRequested', { reason });
+    },
+    setRefused(next) {
+      isRefused = next;
     },
     requestResume() {
       if (state !== 'paused') {
