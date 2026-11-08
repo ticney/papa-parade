@@ -4,14 +4,41 @@ import { describe, expect, it } from 'vitest';
 import { GAG_PRESENTATIONS } from '../gags.ts';
 import {
   BABY_CONTRACT,
+  BABY_TRAVELLING,
   babyClipOf,
   babyLidsAfter,
   babyOneShotOf,
+  isBabyTravelling,
   PAPA_CONTRACT,
+  PAPA_TRAVELLING,
   papaClipOf,
   papaOneShotOf,
   responseClipOf,
 } from './characterClips.ts';
+
+describe('the travelling states (story 7.8, D4)', () => {
+  it('names Papa’s walks and glide, the glide included though it has no speed row', () => {
+    const travelling = Object.entries(PAPA_TRAVELLING)
+      .filter(([, isTravelling]) => isTravelling)
+      .map(([state]) => state);
+    expect(travelling.sort()).toEqual(['glide', 'walkDir', 'walkPath']);
+  });
+
+  it('names the baby’s crawls, the silent one included', () => {
+    const travelling = Object.entries(BABY_TRAVELLING)
+      .filter(([, isTravelling]) => isTravelling)
+      .map(([state]) => state);
+    expect(travelling.sort()).toEqual(['approach', 'mischiefSilent', 'wander']);
+  });
+
+  it('counts a crying baby as still, whatever his state (the cry is a still clip)', () => {
+    expect(isBabyTravelling({ state: 'wander', cryEndsAt: null } as BabySlice)).toBe(true);
+    expect(isBabyTravelling({ state: 'wander', cryEndsAt: asSimMs(9000) } as BabySlice)).toBe(
+      false,
+    );
+    expect(isBabyTravelling({ state: 'babble', cryEndsAt: null } as BabySlice)).toBe(false);
+  });
+});
 
 const papa = (state: PapaSlice['state']) => ({ state }) as PapaSlice;
 const baby = (state: BabySlice['state'], cryEndsAt: number | null = null) =>

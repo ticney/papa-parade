@@ -89,6 +89,13 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
         mischiefDecals: 0,
         choreShards: 0,
         papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+        papaLeanDeg: 0,
+        papaStoopDeg: 0,
+        papaHeadYawDeg: 0,
+        papaGaze: 'ahead' as const,
+        papaBreathDeg: 0,
+        babyBreathDeg: 0,
+        papaEyelidsPct: 0,
       },
   );
 

@@ -389,7 +389,54 @@ describe("Papa's look is fed by the world or the debug overlay, through one call
   });
 });
 
+describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred item)', () => {
+  const feel = JSON.parse(readFileSync(join(root, 'content', 'feel.json'), 'utf8')) as {
+    characters: { fades: { returnMs: number } };
+  };
+  /** The one-shots the code plays: the events', the responses' and the gags'. */
+  const section = (from: string, to: string): string =>
+    clips.slice(clips.indexOf(from), clips.indexOf(to));
+  const papaOneShots = [
+    ...clipNamesIn(
+      section('export function papaOneShotOf', 'export function babyOneShotOf'),
+      /return '([a-z_]+)'/g,
+    ),
+    ...clipNamesIn(
+      section('export function responseClipOf', '/** How shut'),
+      /'(respond_[a-z_]+)'/g,
+    ),
+    ...clipNamesIn(gags, /papaClip: '([a-z_]+)'/g),
+  ];
+  const babyOneShots = [
+    ...clipNamesIn(
+      section('export function babyOneShotOf', "/** Papa's pose for a response"),
+      /return '([a-z_]+)'/g,
+    ),
+    ...clipNamesIn(gags, /babyClip: '([a-z_]+)'/g),
+  ];
+
+  it.each([
+    ['papa', papaOneShots],
+    ['baby', babyOneShots],
+  ] as const)(
+    'every one-shot of %s lasts at least twice the return fade of the committed feel',
+    async (id, names) => {
+      expect(names.length).toBeGreaterThan(3);
+      const asset = await load(id);
+      const minMs = 2 * feel.characters.fades.returnMs;
+      for (const name of new Set(names)) {
+        const clip = asset.animations.find((candidate) => candidate.name === name);
+        expect(clip, name).toBeDefined();
+        // A one-shot no longer than its return would hand back at its first update, never seen.
+        expect((clip?.duration ?? 0) * 1000, name).toBeGreaterThanOrEqual(minMs);
+      }
+    },
+  );
+});
+
 describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
+  /** The life layer's modules (story 7.8): the springs, the fades, the lean and breath, the gaze. */
+  const LIFE_VIEWS = ['characterSpring', 'characterFades', 'lifeLayer', 'papaGaze'];
   const VIEWS = [
     'characterClips',
     'characterRig',
@@ -397,20 +444,36 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     'squash',
     'papaView',
     'babyView',
+    ...LIFE_VIEWS,
   ];
+  const viewSource = (name: string): string =>
+    readFileSync(join(root, 'src', 'client', 'render', 'views', `${name}.ts`), 'utf8');
 
-  it.each(VIEWS)('%s.ts reads no `windowOpenAt` or `feintAt` of a threat', (name) => {
-    const source = readFileSync(
-      join(root, 'src', 'client', 'render', 'views', `${name}.ts`),
-      'utf8',
-    );
-    // `layDownProgressPct` (babyView) is the one allowed reader: a release def's pose is not hidden.
-    const allowed = source.replace(
-      /export interface LayDownThreat[\s\S]*?^}\n[\s\S]*?export function layDownProgressPct[\s\S]*?^}\n/m,
-      '',
-    );
-    expect(allowed).not.toMatch(/windowOpenAt|feintAt|realWakePct/);
-  });
+  it.each(VIEWS)(
+    '%s.ts reads no `windowOpenAt`, `feintAt`, `realWakePct` or `toleranceMs` of a threat',
+    (name) => {
+      const source = viewSource(name);
+      // `layDownProgressPct` (babyView) is the one allowed reader: a release def's pose is not hidden.
+      const allowed = source.replace(
+        /export interface LayDownThreat[\s\S]*?^}\n[\s\S]*?export function layDownProgressPct[\s\S]*?^}\n/m,
+        '',
+      );
+      expect(allowed).not.toMatch(/windowOpenAt|feintAt|realWakePct|toleranceMs/);
+    },
+  );
+
+  // Story 7.8, D12: the life layer advances on the sim clock alone and chooses nothing at random.
+  it.each([...LIFE_VIEWS, 'papaView', 'babyView', 'characterRig'])(
+    '%s.ts reads no real time, no clock and no randomness',
+    (name) => {
+      const code = viewSource(name)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '');
+      expect(code).not.toMatch(
+        /Math\.random|\bperformance\b|\bDate\b|\.rng\b|nowReal|\bClock\b|requestAnimationFrame/,
+      );
+    },
+  );
 
   it('dangerTint.ts reads no `windowOpenAt` or `feintAt` of a threat: a wake and a false alarm draw the same', () => {
     const source = readFileSync(

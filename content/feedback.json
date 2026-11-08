@@ -95,8 +95,6 @@
     "laidHeightM": 0.3
   },
   "characters": {
-    "crossFadeMs": 140,
-    "turnRateDegPerSec": 720,
     "squash": [
       { "event": "PapaArrived", "character": "papa", "amountPct": -14, "durationMs": 280 },
       { "event": "PapaBlocked", "character": "papa", "amountPct": -18, "durationMs": 260 },

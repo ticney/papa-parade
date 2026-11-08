@@ -31,7 +31,7 @@ import { createMischiefDecals } from './vfx/mischiefDecals.ts';
 import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
-import { createBabyView, layDownProgressPct } from './views/babyView.ts';
+import { BABY_LIFE_BONES, createBabyView, layDownProgressPct } from './views/babyView.ts';
 import {
   babyLidsAfter,
   babyOneShotOf,
@@ -40,7 +40,9 @@ import {
 } from './views/characterClips.ts';
 import { createCharacterRig } from './views/characterRig.ts';
 import { createDoorView, type DoorLook, doorPlacementOf } from './views/doorView.ts';
-import { createPapaView, type PapaPose } from './views/papaView.ts';
+import { type CharactersFeel, createLifeInputs } from './views/lifeLayer.ts';
+import type { PapaGazeKind } from './views/papaGaze.ts';
+import { createPapaView, PAPA_LIFE_BONES, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
 import { type SquashScale, squashScaleAt } from './views/squash.ts';
 import { createViewPool, type ViewPool } from './views/viewPool.ts';
@@ -66,8 +68,13 @@ export interface SceneBodies {
   choreStations: readonly ChoreStationSpec[];
   /** The height of the baby's centre once laid on the mattress, in metres (`feedback.json › bombDrop.laidHeightM`). */
   laidHeightM: number;
-  /** How the characters move (`feedback.json › characters`). */
+  /** How the characters move (`feedback.json › characters`): squash, clip speeds, facings, busy props. */
   characters: FeedbackTable['characters'];
+  /**
+   * The life layer and the characters' look (`world.feel.characters`, story 7.8), read at each call and
+   * never copied: a change in the feel panel shows on the next frame.
+   */
+  liveCharacters(): CharactersFeel;
   /** The door panel's numbers (`feedback.json › door`, story 3.5). */
   door: DoorLook;
   /** The final look (`feedback.json › render`, story 7.3). */
@@ -179,7 +186,34 @@ export interface LevelScene {
     choreShards: number;
     /** The look the view draws: the world's, or the debug overlay's (story 3.7). */
     papaLook: Readonly<PapaLook>;
+    /** Papa's lean into a start or a stop, in degrees (story 7.8); 0 under reduced motion. */
+    papaLeanDeg: number;
+    /** Papa's fatigue stoop, in degrees forward (story 7.8). */
+    papaStoopDeg: number;
+    /** Papa's head turn from his body, in degrees, positive toward his left (story 7.8). */
+    papaHeadYawDeg: number;
+    /** What Papa's head follows (story 7.8). */
+    papaGaze: PapaGazeKind;
+    /** Papa's breath, in degrees of his torso (story 7.8); 0 held or under reduced motion. */
+    papaBreathDeg: number;
+    /** The baby's breath, in degrees of his torso (story 7.8); 0 under reduced motion. */
+    babyBreathDeg: number;
+    /** How shut Papa's eyelids are drawn, 0 (open) to 100: the micro-sleep or his sleep only (story 7.8, D9). */
+    papaEyelidsPct: number;
   };
+  /**
+   * What the screen shows Papa's gaze (story 7.8, D8), from boot after the markers and the bubbles: the
+   * baby on screen, and the visible threat whose ring is the most advanced (`hasThreat` false for none).
+   * Applied at the next `update`: one frame late, a cosmetic head turn. Allocates nothing.
+   */
+  setPapaGazeSight(
+    isBabyShown: boolean,
+    hasThreat: boolean,
+    threatXM: number,
+    threatZM: number,
+  ): void;
+  /** Where the baby was last drawn (interpolated, his slide included), for boot's « is he on screen ». */
+  readonly babyPoint: Readonly<{ xM: number; zM: number }>;
   /**
    * The debug overlay of Papa's look (story 7.2, D2): a part is shown when the world's `papa.look`
    * (story 3.7: what the gags did) or this overlay says so. Cleared by `resetFx`.
@@ -240,6 +274,11 @@ export function layDownPctAt(
     if (layDownDefIds.includes(threat.defId)) return layDownProgressPct(threat, clockMs);
   }
   return 0;
+}
+
+/** Papa's response poses (`responseClipOf`): while one plays, his eyes are on the job (story 7.8, D8). */
+function isResponseClip(clip: string | null): boolean {
+  return clip?.startsWith('respond_') === true;
 }
 
 /** Nodes the game uses but the player never sees: collision, navigation, zones, anchors (D4). */
@@ -332,6 +371,15 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const { render } = bodies;
   const toon = createToonMaterialCache(render.toonTones);
   const outlines = createOutlineKit(render.outlines);
+  // The characters' own look (story 7.8, D10): their toon materials (a rim, maybe a 4th tone) and their
+  // hulls, wider than the props'. Separate from the room's, which stay as they are; no draw call added.
+  const characterToon = createToonMaterialCache(render.toonTones, { isCharacters: true });
+  const characterOutlines = createOutlineKit(render.outlines);
+  const applyCharacterLook = (characters: CharactersFeel): void => {
+    characterToon.setLook(characters.look);
+    characterOutlines.setWidthM((render.outlines.widthM * characters.look.outlineWidthPct) / 100);
+  };
+  applyCharacterLook(bodies.liveCharacters());
   // The props leave the model first, and get their hulls before the swap, which loses the material
   // names. `template.clone(true)` then carries the hull into every view.
   const { templates, taken: propNodes } = takePropNodes(model, geometry);
@@ -423,25 +471,31 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     },
   });
 
-  const { crossFadeMs, turnRateDegPerSec, clipSpeeds, squash, papaClipFacing, busyProps } =
-    bodies.characters;
-  const motion = { turnRateDegPerSec, clips: clipSpeeds, clipFacing: papaClipFacing, busyProps };
+  const { clipSpeeds, squash, papaClipFacing, busyProps } = bodies.characters;
+  const motion = { clips: clipSpeeds, clipFacing: papaClipFacing, busyProps };
   const papa = createPapaView(
     content,
-    toon,
+    characterToon,
     shadows.kit,
     bodies.papaRadiusM,
-    createCharacterRig(assets.characters.papa, toon, crossFadeMs, outlines),
+    createCharacterRig(assets.characters.papa, characterToon, characterOutlines, PAPA_LIFE_BONES),
     motion,
   );
   const baby = createBabyView(
     content,
     shadows.kit,
     bodies.babyRadiusM,
-    createCharacterRig(assets.characters.baby, toon, crossFadeMs, outlines),
+    createCharacterRig(assets.characters.baby, characterToon, characterOutlines, BABY_LIFE_BONES),
     motion,
     bodies.laidHeightM,
   );
+  // The life layer's inputs (story 7.8), one scratch object filled each frame from the world and the screen.
+  const life = createLifeInputs(bodies.liveCharacters());
+  /** What boot last said the screen shows Papa's gaze: applied at the next `update`. */
+  const pendingSight = { isBabyShown: false, hasThreat: false, threatXM: 0, threatZM: 0 };
+  const babyPoint = { xM: 0, zM: 0 };
+  /** A one-shot's fade in: the « other » passage of the live feel (D4). */
+  const oneShotFadeMs = (): number => bodies.liveCharacters().fades.otherMs;
   // The closed door at `ANCHOR_door` (story 3.5): it opens from `world.flow.finalRushAt`, every frame.
   const doorAnchor = geometry.anchors.find((anchor) => anchor.id === 'door');
   const door =
@@ -572,14 +626,15 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     liftBaby: (startAt) => lift.start(startAt),
     playResponseClip(response, quality) {
       const clip = responseClipOf(response, quality);
-      if (clip !== null) papa.playOnce(clip);
+      if (clip !== null) papa.playOnce(clip, oneShotFadeMs());
     },
     playCharacterEvent(event, world, isMotionReduced) {
+      const fadeMs = world.feel.characters.fades.otherMs;
       const papaClip = papaOneShotOf(event);
       // A gag during a glide plays as his squash alone: the glide's loop goes on (P3).
-      if (papaClip !== null && world.papa.state !== 'glide') papa.playOnce(papaClip);
+      if (papaClip !== null && world.papa.state !== 'glide') papa.playOnce(papaClip, fadeMs);
       const babyClip = babyOneShotOf(event);
-      if (babyClip !== null) baby.playOnce(babyClip);
+      if (babyClip !== null) baby.playOnce(babyClip, fadeMs);
       babyLids = babyLidsAfter(event, babyLids);
       baby.setEyelids(babyLids);
       if (isMotionReduced) return;
@@ -621,8 +676,22 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         mischiefDecals: decals.count,
         choreShards: choreShards.plateCount,
         papaLook: { ...drawnLook },
+        papaLeanDeg: papa.leanDeg,
+        papaStoopDeg: papa.stoopDeg,
+        papaHeadYawDeg: papa.headYawDeg,
+        papaGaze: papa.gazeKind,
+        papaBreathDeg: papa.breathDeg,
+        babyBreathDeg: baby.breathDeg,
+        papaEyelidsPct: papa.eyelidsPct,
       };
     },
+    setPapaGazeSight(isBabyShown, hasThreat, threatXM, threatZM) {
+      pendingSight.isBabyShown = isBabyShown;
+      pendingSight.hasThreat = hasThreat;
+      pendingSight.threatXM = threatXM;
+      pendingSight.threatZM = threatZM;
+    },
+    babyPoint,
     setPapaLook(look) {
       overlayLook.hasMashOnCheek = look.hasMashOnCheek;
       overlayLook.hasHairOnEnd = look.hasHairOnEnd;
@@ -643,8 +712,25 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       // `alpha` can step back at a boundary, and a negative time would run a clip backwards (D6).
       const dtMs = lastClockMs === null ? 0 : Math.max(0, clockMs - lastClockMs);
       lastClockMs = clockMs;
-      papa.animate(world.papa, world.baby, dtMs);
-      baby.animate(world.baby, dtMs);
+      // The life layer's inputs (story 7.8), from the world and what boot last said the screen shows.
+      const characters = world.feel.characters;
+      applyCharacterLook(characters);
+      babyPoint.xM = baby.pose.xM + babySlideM.xM;
+      babyPoint.zM = baby.pose.zM + babySlideM.zM;
+      life.characters = characters;
+      life.fatigue = world.gauges.fatigue;
+      life.isAlert = world.gauges.catastrophePct > world.feel.catastrophe.alertPct;
+      life.isBreathHeld = world.sequence.stealth.breathHeldAt !== null;
+      life.isMotionReduced = bodies.isMotionReduced();
+      life.isResponding = world.papa.state === 'glide' || isResponseClip(papa.clipName);
+      life.babyXM = babyPoint.xM;
+      life.babyZM = babyPoint.zM;
+      life.gazeSight.isBabyShown = pendingSight.isBabyShown;
+      life.gazeSight.hasThreat = pendingSight.hasThreat;
+      life.gazeSight.threatXM = pendingSight.threatXM;
+      life.gazeSight.threatZM = pendingSight.threatZM;
+      papa.animate(world.papa, world.baby, dtMs, life);
+      baby.animate(world.baby, dtMs, life);
       applySquash(papaSquash, clockMs, setPapaSquash);
       applySquash(babySquash, clockMs, setBabySquash);
       props.sync(world.props, alpha);
@@ -714,6 +800,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       babyLids = 0;
       papa.resetAnimation();
       baby.resetAnimation();
+      pendingSight.isBabyShown = false;
+      pendingSight.hasThreat = false;
     },
     dispose() {
       // Skeletons first: `disposeObject` handles meshes only and would leave their bone textures (D11).
@@ -734,6 +822,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       }
       toon.dispose();
       outlines.dispose();
+      characterToon.dispose();
+      characterOutlines.dispose();
       shadows.dispose();
       scene.clear();
     },

@@ -1,11 +1,24 @@
 import type { BabySlice, PapaSlice } from '@sim';
-import { Group, type Object3D } from 'three';
+import { Euler, Group, type Object3D, Quaternion } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
-import { babyClipOf } from './characterClips.ts';
-import { clipTimeScaleOf, stepSpeedMpsOf, turnToward, wrapAngleRad } from './characterMotion.ts';
+import { babyClipOf, isBabyTravelling } from './characterClips.ts';
+import { fadeMsOf } from './characterFades.ts';
+import { clipTimeScaleOf, stepSpeedMpsOf, wrapAngleRad } from './characterMotion.ts';
 import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
+import { createSpring, resetSpring, stepAngleSpring } from './characterSpring.ts';
+import {
+  breathPeriodMsOf,
+  createBreathState,
+  type LifeInputs,
+  resetBreath,
+  stepBreath,
+} from './lifeLayer.ts';
 import type { CharacterMotionConfig } from './papaView.ts';
+
+/** The bone the baby's life layer writes over his clips (story 7.8, D3): the torso. His head is the gaze. */
+export const BABY_LIFE_BONES = ['spine'] as const;
+const DEG_TO_RAD = Math.PI / 180;
 
 /** Smallest body radius read, in metres: a feel with no radius still has a (tiny) shadow. */
 const BABY_MIN_RADIUS_M = 0.01;
@@ -68,13 +81,20 @@ export interface BabyView {
     layDownPct?: number,
   ): void;
   /**
-   * Plays the loop the world says now, turns his body toward his gaze, his head at once on the gaze
-   * itself (the eyes are what the player reads), and advances his mixer by `dtMs` of sim time; a `dtMs`
-   * of 0 holds him. Allocates nothing once the clips have played once.
+   * Plays the loop the world says now (fading in over its passage's fade), turns his body on its spring
+   * toward his gaze, his head at once on the gaze itself (the eyes are what the player reads), advances
+   * his mixer by `dtMs` of sim time, then lays his breath over the clip (story 7.8). A `dtMs` of 0 holds
+   * him. Allocates nothing once the clips have played once.
    */
-  animate(baby: Readonly<BabySlice>, dtMs: number): void;
-  /** Plays a clip once, over his loop. */
-  playOnce(clip: string): void;
+  animate(baby: Readonly<BabySlice>, dtMs: number, life: Readonly<LifeInputs>): void;
+  /** Plays a clip once, over his loop, fading in over `fadeMs`. */
+  playOnce(clip: string, fadeMs: number): void;
+  /** Where he was last drawn (interpolated; a gag's slide, `setSlideM`, is apart), for Papa's gaze. */
+  readonly pose: Readonly<BabyPose>;
+  /** The way his drawn body faces, in radians: it springs, his head and his gaze do not wait for it. */
+  readonly bodyYawRad: number;
+  /** His breath's pitch now, in degrees; 0 under reduced motion. */
+  readonly breathDeg: number;
   /** The clip the player sees. */
   readonly clipName: string | null;
   /** Scales his body, from the point his feet are at (the squash); the shadow stays. Allocates nothing. */
@@ -109,7 +129,7 @@ export function createBabyView(
   blobs: BlobKit,
   radiusM: number,
   rig: CharacterRig,
-  motion: Pick<CharacterMotionConfig, 'turnRateDegPerSec' | 'clips'>,
+  motion: Pick<CharacterMotionConfig, 'clips'>,
   laidHeightM: number = BABY_CARRIED_HEIGHT_M,
 ): BabyView {
   const bodyRadiusM = Math.max(radiusM, BABY_MIN_RADIUS_M);
@@ -128,7 +148,17 @@ export function createBabyView(
   group.add(body, shadow);
   scene.add(group);
   const pose: BabyPose = { xM: 0, zM: 0, yawRad: 0 };
-  let bodyYawRad: number | null = null;
+  /** Whether the body spring has been put on his gaze yet (his first frame, or after a restart). */
+  let isBodyPlaced = false;
+  const bodySpring = createSpring(0);
+  // The life layer (story 7.8): the loop's passage and the breath on his torso.
+  const spine = rig.node('spine');
+  let loopClip: string | null = null;
+  let isLoopTravelling = false;
+  const breath = createBreathState();
+  let breathNowDeg = 0;
+  const offsetEuler = new Euler(0, 0, 0, 'XYZ');
+  const offset = new Quaternion();
   let slideXM = 0;
   let slideZM = 0;
   /** How much lower than the floor the baby sits at the bottom of the stairs (story 3.15). */
@@ -161,31 +191,69 @@ export function createBabyView(
         wantedLiftM = Math.max(0, heightM - bodyRadiusM);
       }
       group.position.set(pose.xM + slideXM, 0, pose.zM + slideZM);
-      if (bodyYawRad === null) {
-        bodyYawRad = pose.yawRad;
-        body.rotation.y = bodyYawRad;
+      if (!isBodyPlaced) {
+        isBodyPlaced = true;
+        resetSpring(bodySpring, pose.yawRad);
+        body.rotation.y = pose.yawRad;
       }
       if (wantedLiftM !== carriedLiftM) {
         carriedLiftM = wantedLiftM;
         placeY();
       }
     },
-    animate(baby, dtMs) {
-      bodyYawRad = turnToward(
-        bodyYawRad ?? pose.yawRad,
+    animate(baby, dtMs, life) {
+      const { characters } = life;
+      const isReduced = life.isMotionReduced;
+      // The loop, and the passage it is (D4).
+      const clip = babyClipOf(baby);
+      const isTravelling = isBabyTravelling(baby);
+      let fadeMs = characters.fades.otherMs;
+      if (clip !== loopClip) {
+        fadeMs = fadeMsOf(isLoopTravelling, isTravelling, 'loop', characters.fades);
+        loopClip = clip;
+        isLoopTravelling = isTravelling;
+      }
+      rig.play(clip, clipTimeScaleOf(clip, stepSpeedMpsOf(baby), motion.clips), fadeMs);
+      if (!isBodyPlaced) {
+        isBodyPlaced = true;
+        resetSpring(bodySpring, pose.yawRad);
+      }
+      const { turn } = characters;
+      const bodyYawRad = stepAngleSpring(
+        bodySpring,
         pose.yawRad,
-        motion.turnRateDegPerSec,
         dtMs,
+        turn.reachMs,
+        isReduced ? 1 : turn.dampingRatio,
+        turn.overshootMaxDeg * DEG_TO_RAD,
       );
       body.rotation.y = bodyYawRad;
-      // The gaze never waits: the head makes up for whatever the body has not turned yet.
+      // The gaze never waits: the head makes up for whatever the body has not turned yet, swing included.
       headBone.rotation.y = wrapAngleRad(pose.yawRad - bodyYawRad);
-      const clip = babyClipOf(baby);
-      rig.play(clip, clipTimeScaleOf(clip, stepSpeedMpsOf(baby), motion.clips));
-      rig.update(dtMs);
+      rig.update(dtMs, characters.fades.returnMs);
+      // His breath over the clip (D3, D7): the same period as Papa's, never held.
+      const breathFactor = stepBreath(
+        breath,
+        dtMs,
+        breathPeriodMsOf(characters.breath, life.isAlert),
+        false,
+        isReduced,
+      );
+      breathNowDeg = breathFactor * characters.breath.babyAmplitudeDeg;
+      offsetEuler.set(breathNowDeg * DEG_TO_RAD, 0, 0);
+      spine.quaternion.multiply(offset.setFromEuler(offsetEuler));
     },
-    playOnce(clip) {
-      rig.playOnce(clip);
+    playOnce(clip, fadeMs) {
+      rig.playOnce(clip, fadeMs);
+    },
+    get pose() {
+      return pose;
+    },
+    get bodyYawRad() {
+      return isBodyPlaced ? bodySpring.drawn : pose.yawRad;
+    },
+    get breathDeg() {
+      return breathNowDeg;
     },
     get clipName() {
       return rig.clipName;
@@ -200,6 +268,12 @@ export function createBabyView(
       rig.reset();
       body.scale.set(1, 1, 1);
       eyelids.scale.y = EYELIDS_OPEN_SCALE;
+      // A restart starts at rest (story 7.8): the body back on his gaze at the next frame.
+      isBodyPlaced = false;
+      loopClip = null;
+      isLoopTravelling = false;
+      resetBreath(breath);
+      breathNowDeg = 0;
     },
     setLiftM(heightM) {
       hopM = heightM;

@@ -9,6 +9,7 @@ import {
   MAX_WALK_SPEED_MPS,
   MIN_TIME_SCALE,
   PARTICLE_MAX_PER_BURST,
+  SCREEN_FLASH_MIN_INTERVAL_MS,
   STAR_COUNT_MAX,
 } from '@shared/constants';
 import { z } from 'zod';
@@ -877,6 +878,148 @@ const CameraSchema = z
     'The follow camera of a level with `camera: "follow"` (story 9.2): its frame, dead zone, edge margin and catch-up. Client only.',
   );
 
+/** A fade of the characters' clips, in sim ms: 0 is a cut. */
+const fadeMs = (maxMs: number, description: string) =>
+  z.number().min(0).max(maxMs).describe(description);
+/** A time to reach a target, in sim ms. */
+const reachMs = (description: string) => z.number().min(50).max(1000).describe(description);
+/** An angle of the life layer, in degrees. */
+const lifeDeg = (maxDeg: number, description: string) =>
+  z.number().min(0).max(maxDeg).describe(description);
+/** A breathing cycle, in sim ms: never under the 3 Hz flash cap. */
+const breathPeriodMs = (description: string) =>
+  z.number().min(SCREEN_FLASH_MIN_INTERVAL_MS).max(20000).describe(description);
+
+const CharactersSchema = z
+  .strictObject({
+    fades: z
+      .strictObject({
+        startMs: fadeMs(
+          400,
+          'From a still loop to a travelling one (he starts off), in sim ms. Eased in and out.',
+        ),
+        stopMs: fadeMs(400, 'From a travelling loop to a still one (he stops), in sim ms.'),
+        returnMs: fadeMs(
+          200,
+          'From a one-shot back to the loop, in sim ms. A one-shot hands back this long before its end.',
+        ),
+        otherMs: fadeMs(
+          400,
+          'Every other passage (into a one-shot, still to still, travelling to travelling), in sim ms.',
+        ),
+      })
+      .describe(
+        'How long each passage between two clips fades, on an ease-in-out curve (story 7.8). The weights always add up to 1.',
+      ),
+    turn: z
+      .strictObject({
+        reachMs: reachMs(
+          'Time the drawn body takes to cover 95 % of a new facing, in sim ms (as the camera: it first reaches it a little later when it swings past). The sim heading and the markers never wait for it.',
+        ),
+        dampingRatio: z
+          .number()
+          .min(0.3)
+          .max(1)
+          .describe(
+            'Damping of the turn spring: 1 = no overshoot; below, he swings past and comes back (0.6 = about 8° on a 90° turn).',
+          ),
+        overshootMaxDeg: lifeDeg(45, 'The most the body swings past its facing, in degrees.'),
+      })
+      .describe("Papa's and the baby's body turn, a spring on the drawn yaw (story 7.8)."),
+    lean: z
+      .strictObject({
+        maxAccelDeg: lifeDeg(
+          45,
+          "How far Papa's torso pitches into a start or back from a stop, in degrees.",
+        ),
+        maxTurnDeg: lifeDeg(45, 'How far his torso leans into a turn, in degrees.'),
+        fullAccelMps2: z
+          .number()
+          .positive()
+          .max(100)
+          .describe(
+            'The drawn acceleration that gives the full pitch, in m/s². The drawn speed is a spring of `reachMs`, whose peak acceleration for a speed step is about 1.74 × step / (reachMs in s): at 120 ms, 14.5 × the step in m/s². 45 is therefore full at the walking speed (3 m/s) and a crawl (0.6 m/s) pitches him a fifth as far.',
+          ),
+        fullTurnDegPerSec: z
+          .number()
+          .positive()
+          .max(3600)
+          .describe("The body's turn rate that gives the full lean, in degrees per sim second."),
+        reachMs: reachMs('Time the lean takes to reach its target, in sim ms (no overshoot).'),
+      })
+      .describe("Papa's lean, from what is drawn (story 7.8). 0 under « Réduire les animations »."),
+    breath: z
+      .strictObject({
+        periodMs: breathPeriodMs('One calm breath, in sim ms.'),
+        alertPeriodMs: breathPeriodMs(
+          'One breath while the catastrophe gauge is above `catastrophe.alertPct`, in sim ms. Not above `periodMs`.',
+        ),
+        papaAmplitudeDeg: lifeDeg(10, "How far Papa's torso rises and falls, in degrees."),
+        babyAmplitudeDeg: lifeDeg(10, "How far the baby's torso rises and falls, in degrees."),
+      })
+      .refine((breath) => breath.alertPeriodMs <= breath.periodMs, {
+        path: ['alertPeriodMs'],
+        error: 'alertPeriodMs must not be above periodMs: alarmed, he breathes faster',
+      })
+      .describe(
+        'The breathing over the clips (story 7.8). Papa holds it during the stealth exit; 0 under « Réduire les animations ».',
+      ),
+    gaze: z
+      .strictObject({
+        maxYawDeg: lifeDeg(90, "How far Papa's head turns from his body, in degrees."),
+        behindDeg: lifeDeg(
+          180,
+          'Past this angle from his front, what he would look at is behind him and he looks ahead instead of whipping his head from one side to the other. Not under `maxYawDeg`.',
+        ),
+        reachMs: reachMs('Time his head takes to reach what it looks at, in sim ms.'),
+      })
+      .refine((gaze) => gaze.behindDeg >= gaze.maxYawDeg, {
+        path: ['behindDeg'],
+        error:
+          'behindDeg must not be under maxYawDeg: it starts where the head has stopped turning',
+      })
+      .describe(
+        "Papa's gaze (story 7.8): the baby on screen, else the visible threat whose ring is the most advanced, else ahead.",
+      ),
+    stoop: z
+      .strictObject({
+        maxDeg: lifeDeg(45, "How far Papa's torso pitches forward at fatigue 100, in degrees."),
+      })
+      .describe(
+        'The fatigue stoop (story 7.8): in proportion to the fatigue gauge. His eyelids never follow it.',
+      ),
+    look: z
+      .strictObject({
+        outlineWidthPct: z
+          .number()
+          .min(50)
+          .max(300)
+          .describe(
+            "The characters' ink hull, in % of the furniture's and props' (`feedback.json › render.outlines.widthM`).",
+          ),
+        rimStrengthPct: pct('How bright the light rim on their silhouette is, in %.'),
+        rimWidthPct: z
+          .number()
+          .min(1)
+          .max(100)
+          .describe(
+            'How far the rim reaches in from the silhouette, in %. Not 0: the shader would get a `smoothstep` with equal edges, which is undefined.',
+          ),
+        isFourthToneOn: z
+          .boolean()
+          .describe(
+            "Whether the characters' shading has a 4th, darkest tone (a test, off at first).",
+          ),
+        fourthTonePct: pct(
+          'The 4th tone, in % of white: below the darkest of `render.toonTones` (`content:check`).',
+        ),
+      })
+      .describe("The characters' own look, to stand out from the room (story 7.8)."),
+  })
+  .describe(
+    "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, rim and outline. Client only.",
+  );
+
 const MusicSchema = z
   .strictObject({
     tense: z
@@ -1028,6 +1171,7 @@ export const FeelSchema = z
     gags: GagsSchema,
     fx: FxSchema,
     camera: CameraSchema,
+    characters: CharactersSchema,
     music: MusicSchema,
     calibration: CalibrationSchema,
   })

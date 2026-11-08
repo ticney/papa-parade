@@ -9,6 +9,7 @@ import {
   freezeSalon,
   startCall,
   startDrinking,
+  TURN_SETTLE_MS,
   wrapRad,
   YAW_TOLERANCE_RAD,
 } from './support/busyPapa.ts';
@@ -579,7 +580,7 @@ test.describe('Papa busy under « Réduire les animations » (story 2.13)', () =
     await startDrinking(page);
     if (reducedMotion) await expect(html(page)).toHaveAttribute('data-pp-motion', 'reduced');
     else await expect(html(page)).not.toHaveAttribute('data-pp-motion', /./);
-    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    const first = await advanceAndRead(page, Math.ceil(TURN_SETTLE_MS / STEP_MS));
     const eighthSteps = Math.max(1, Math.round(busyProps.steamPeriodMs / 8 / STEP_MS));
     const second = await advanceAndRead(page, eighthSteps);
     const third = await advanceAndRead(page, eighthSteps);
@@ -622,7 +623,7 @@ test.describe('Papa busy under « Réduire les animations » (story 2.13)', () =
     await seedSettings(page, { reducedMotion: true });
     await freezeSalon(page);
     await startCall(page);
-    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    const first = await advanceAndRead(page, Math.ceil(TURN_SETTLE_MS / STEP_MS));
     const eighthSteps = Math.max(1, Math.round(busyProps.blablaPeriodMs / 8 / STEP_MS));
     const second = await advanceAndRead(page, eighthSteps);
     expect(first.papaClip).toBe('on_phone');

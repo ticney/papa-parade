@@ -52,8 +52,6 @@ export function createTestFeedback(): FeedbackTable {
     papaHint: { holdMs: 1200 },
     bombDrop: { laidHeightM: 0.3 },
     characters: {
-      crossFadeMs: 100,
-      turnRateDegPerSec: 720,
       squash: [],
       clipSpeeds: [],
       papaClipFacing: [],

@@ -298,6 +298,32 @@
     "dampingRatio": 0.8,
     "reducedCatchUpMs": 800
   },
+  "characters": {
+    "fades": { "startMs": 100, "stopMs": 200, "returnMs": 150, "otherMs": 100 },
+    "turn": { "reachMs": 250, "dampingRatio": 0.6, "overshootMaxDeg": 10 },
+    "lean": {
+      "maxAccelDeg": 10,
+      "maxTurnDeg": 8,
+      "fullAccelMps2": 45,
+      "fullTurnDegPerSec": 360,
+      "reachMs": 120
+    },
+    "breath": {
+      "periodMs": 3000,
+      "alertPeriodMs": 1500,
+      "papaAmplitudeDeg": 1.5,
+      "babyAmplitudeDeg": 2
+    },
+    "gaze": { "maxYawDeg": 60, "behindDeg": 150, "reachMs": 200 },
+    "stoop": { "maxDeg": 15 },
+    "look": {
+      "outlineWidthPct": 150,
+      "rimStrengthPct": 35,
+      "rimWidthPct": 30,
+      "isFourthToneOn": false,
+      "fourthTonePct": 24
+    }
+  },
   "music": {
     "tense": { "fadeInMs": 600, "fadeOutMs": 1500, "calmGainPct": 60 },
     "slowMo": {

@@ -5,7 +5,6 @@ import {
   clipTimeScaleOf,
   papaFacingYawRad,
   stepSpeedMpsOf,
-  turnToward,
   wrapAngleRad,
 } from './characterMotion.ts';
 
@@ -37,23 +36,6 @@ describe('wrapAngleRad', () => {
     expect(wrapAngleRad(0)).toBeCloseTo(0, 12);
     expect(wrapAngleRad(1.5 * Math.PI)).toBeCloseTo(-0.5 * Math.PI, 12);
     expect(wrapAngleRad(-1.5 * Math.PI)).toBeCloseTo(0.5 * Math.PI, 12);
-  });
-});
-
-describe('turnToward', () => {
-  it('goes by at most the rate, and lands exactly', () => {
-    expect(turnToward(0, 1, 180, 100)).toBeCloseTo(Math.PI / 10, 12);
-    expect(turnToward(0, 0.1, 180, 1000)).toBe(0.1);
-  });
-
-  it('holds on a dt of 0', () => {
-    expect(turnToward(0.3, 2, 180, 0)).toBe(0.3);
-  });
-
-  it('takes the shortest arc across the half turn', () => {
-    const from = 3;
-    const to = -3;
-    expect(turnToward(from, to, 180, 10)).toBeGreaterThan(from);
   });
 });
 

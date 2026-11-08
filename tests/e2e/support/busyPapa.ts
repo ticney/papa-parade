@@ -37,6 +37,17 @@ export const CAMERA_YAW_RAD = (ISO_YAW_DEG * Math.PI) / 180;
 /** How close a body's yaw must be to the one it was asked to take, in radians. */
 export const YAW_TOLERANCE_RAD = 0.05;
 
+const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
+  characters: { turn: { reachMs: number } };
+};
+/**
+ * How long his body takes to settle on a new facing, in sim ms (story 7.8): it turns on a spring that
+ * swings past and comes back. Five reach times leave about 0.002 rad of a half turn at the shipped
+ * damping of 0.6, well under `YAW_TOLERANCE_RAD` (a damping under about 0.45 would need longer). Read
+ * from the live feel: Geo retunes it.
+ */
+export const TURN_SETTLE_MS = 5 * liveFeel.characters.turn.reachMs;
+
 /** `angleRad` wrapped to the half turn around 0. */
 export const wrapRad = (angleRad: number): number =>
   Math.atan2(Math.sin(angleRad), Math.cos(angleRad));

@@ -530,6 +530,8 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
             })),
             laidHeightM: deps.content.feedback.bombDrop.laidHeightM,
             characters: deps.content.feedback.characters,
+            // The live feel, read at each call: a `SetFeel` of the panel shows on the next frame (story 7.8).
+            liveCharacters: () => sim.world.feel.characters,
             door: deps.content.feedback.door,
             render: deps.content.feedback.render,
             isMotionReduced: deps.isMotionReduced ?? (() => false),
