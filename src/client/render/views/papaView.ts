@@ -375,7 +375,13 @@ export function createPapaView(
       gazeInput.babyZM = life.babyZM;
       gazeInput.isResponding = life.isResponding;
       gazeInput.isAsleep = papa.state === 'asleep';
-      papaGazeOf(gazeInput, life.gazeSight, characters.gaze.maxYawDeg * DEG_TO_RAD, gazeAim);
+      papaGazeOf(
+        gazeInput,
+        life.gazeSight,
+        characters.gaze.maxYawDeg * DEG_TO_RAD,
+        characters.gaze.behindDeg * DEG_TO_RAD,
+        gazeAim,
+      );
       const headYawRad = stepSpring(
         headSpring,
         gazeAim.yawRad,

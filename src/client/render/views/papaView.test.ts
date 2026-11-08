@@ -666,6 +666,32 @@ describe('his life layer (story 7.8)', () => {
     expect(view.breathDeg).toBe(0);
   });
 
+  it('pins the lean on the rig: forward into a start, toward his left into a left turn (D3, D6)', () => {
+    // Held breath: the torso moves by the lean alone.
+    const life = createTestLife({ isBreathHeld: true });
+    const start = buildView();
+    const still = papa({ state: 'idle', prevXM: 2, xM: 2 });
+    start.view.update(still, 1);
+    start.view.animate(still, FREE_BABY, 100, life);
+    const gliding = papa({ state: 'glide', prevXM: 2, xM: 2.05 });
+    for (let i = 0; i < 6; i++) start.view.animate(gliding, FREE_BABY, 10, life);
+    // A positive pitch about X leans the top forward, toward +z; breathing and stoop are 0.
+    expect(start.view.leanDeg).toBeGreaterThan(0);
+    expect(spineUp(start.named).z).toBeGreaterThan(0);
+
+    const turn = buildView();
+    const north = papa({ headingX: 0, headingZ: 1 });
+    turn.view.update(north, 1);
+    turn.view.animate(north, FREE_BABY, 100, life);
+    // Turning toward +x, his left: the body spring's velocity is positive, so the roll is negative
+    // and the top of his torso leans toward +x.
+    const east = papa({ headingX: 1, headingZ: 0 });
+    turn.view.update(east, 1);
+    for (let i = 0; i < 6; i++) turn.view.animate(east, FREE_BABY, 10, life);
+    expect(turn.view.leanRollDeg).toBeLessThan(0);
+    expect(spineUp(turn.named).x).toBeGreaterThan(0);
+  });
+
   it('turns his head toward the baby he sees, within maxYawDeg, then ahead (D8)', () => {
     const { view, named } = buildView();
     view.update(papa(STILL_AT_0), 1);
@@ -695,7 +721,7 @@ describe('his life layer (story 7.8)', () => {
     expect(view.headYawDeg).toBeCloseTo(-45, 4);
   });
 
-  it('gives the same pose for the same frames, and starts at rest after a reset (D12)', () => {
+  it('starts at rest after a reset, and gives the same pose for the same frames (D12, the architecture test greps the rest)', () => {
     const run = () => {
       const { view, named } = buildView();
       view.update(papa({ headingX: 1, headingZ: 0 }), 1);

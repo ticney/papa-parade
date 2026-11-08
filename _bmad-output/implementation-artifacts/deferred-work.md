@@ -1214,3 +1214,7 @@ New:
 - **The gaze sight is one frame late** (D8): boot fills it after the markers and the bubbles, the scene applies it at its next `update`. 16 ms of a cosmetic head turn.
 - **The gaze ignores a threat whose marker is off the follow frame** (D8, Geo's question 2 in the story): a threat in an off-screen bubble does not turn his head. One line in `boot.ts` (`gazeIsOnScreen`) if Geo wants the bubbles to count.
 - **The lean's acceleration is the rate of change of a spring on the drawn speed** (D6), not the raw difference between two sim steps: a glide starts and stops at once in the sim, so the raw difference is a single 10 ms spike that a damped spring would not show. Same `lean.reachMs` for both springs; split it if Geo wants the weight and the settle tuned apart.
+
+## Deferred from: code review of story-7-8-couche-de-vie-et-personnages-detaches-du-decor (2026-11-08)
+
+- **Overshoot cap stops the body dead** (`characterSpring.ts`): when the overshoot cap clamps the position it also zeroes the velocity, so a turn above ~105° (the camera-facing clips) halts for one 10 ms step and then creeps back; Papa's lean roll, which reads the body spring's velocity, snaps to 0 at that instant. Cosmetic and rare; a soft limit (clamp the velocity instead) if Geo sees it in the playtest.

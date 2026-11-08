@@ -937,7 +937,9 @@ const CharactersSchema = z
           .number()
           .positive()
           .max(100)
-          .describe('The drawn acceleration that gives the full pitch, in m/s².'),
+          .describe(
+            'The drawn acceleration that gives the full pitch, in m/s². The drawn speed is a spring of `reachMs`, whose peak acceleration for a speed step is about 1.74 × step / (reachMs in s): at 120 ms, 14.5 × the step in m/s². 45 is therefore full at the walking speed (3 m/s) and a crawl (0.6 m/s) pitches him a fifth as far.',
+          ),
         fullTurnDegPerSec: z
           .number()
           .positive()
@@ -965,7 +967,16 @@ const CharactersSchema = z
     gaze: z
       .strictObject({
         maxYawDeg: lifeDeg(90, "How far Papa's head turns from his body, in degrees."),
+        behindDeg: lifeDeg(
+          180,
+          'Past this angle from his front, what he would look at is behind him and he looks ahead instead of whipping his head from one side to the other. Not under `maxYawDeg`.',
+        ),
         reachMs: reachMs('Time his head takes to reach what it looks at, in sim ms.'),
+      })
+      .refine((gaze) => gaze.behindDeg >= gaze.maxYawDeg, {
+        path: ['behindDeg'],
+        error:
+          'behindDeg must not be under maxYawDeg: it starts where the head has stopped turning',
       })
       .describe(
         "Papa's gaze (story 7.8): the baby on screen, else the visible threat whose ring is the most advanced, else ahead.",
@@ -987,7 +998,13 @@ const CharactersSchema = z
             "The characters' ink hull, in % of the furniture's and props' (`feedback.json › render.outlines.widthM`).",
           ),
         rimStrengthPct: pct('How bright the light rim on their silhouette is, in %.'),
-        rimWidthPct: pct('How far the rim reaches in from the silhouette, in %.'),
+        rimWidthPct: z
+          .number()
+          .min(1)
+          .max(100)
+          .describe(
+            'How far the rim reaches in from the silhouette, in %. Not 0: the shader would get a `smoothstep` with equal edges, which is undefined.',
+          ),
         isFourthToneOn: z
           .boolean()
           .describe(

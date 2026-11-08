@@ -100,12 +100,15 @@ const GAZE_MIN_DISTANCE_M = 0.05;
 
 /**
  * The gaze, in this order (D8): the baby when he is shown and Papa is not responding; else the visible
- * threat whose ring is the most advanced; else ahead. Asleep, ahead. Writes `aim`.
+ * threat whose ring is the most advanced; else ahead. Asleep, ahead. A target further than `behindRad`
+ * from his front is behind him: he looks ahead, rather than whip his head from one clamp to the other as
+ * the bearing crosses the seam behind his back. Writes `aim`.
  */
 export function papaGazeOf(
   input: Readonly<PapaGazeInput>,
   sight: Readonly<PapaGazeSight>,
   maxYawRad: number,
+  behindRad: number,
   aim: PapaGazeAim,
 ): void {
   aim.kind = 'ahead';
@@ -128,5 +131,9 @@ export function papaGazeOf(
   const dz = zM - input.papaZM;
   if (Math.hypot(dx, dz) < GAZE_MIN_DISTANCE_M) return;
   const relative = wrapAngleRad(Math.atan2(dx, dz) - input.bodyYawRad);
+  if (Math.abs(relative) > behindRad) {
+    aim.kind = 'ahead';
+    return;
+  }
   aim.yawRad = Math.min(maxYawRad, Math.max(-maxYawRad, relative));
 }

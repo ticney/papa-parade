@@ -1396,13 +1396,29 @@ describe('the life layer and the characters look (story 7.8)', () => {
     level.dispose();
   });
 
-  it('adds no mesh: each character mesh has one hull, as before the story', () => {
-    const level = buildLive();
-    for (const name of ['papa', 'baby']) {
+  it('adds no mesh: each character draws its own meshes once, and each has one hull', () => {
+    const characters = createTestCharacters();
+    const sourceMeshes = {
+      papa: meshesUnder(characters.papa.scene).length,
+      baby: meshesUnder(characters.baby.scene).length,
+    };
+    const level = createLevelScene(
+      {
+        id: 'test_room',
+        geometry: createTestLevelGeometry('test_room'),
+        model: buildModel(),
+        characters,
+      },
+      liveBodies,
+    );
+    for (const name of ['papa', 'baby'] as const) {
       const meshes = meshesUnder(level.scene.getObjectByName(name));
       const hulls = meshes.filter((mesh) => mesh.name.startsWith('outline_'));
       const drawn = meshes.filter((mesh) => !mesh.name.startsWith('outline_'));
-      // Every rig mesh under the body has its one hull (the « Z » is beside the body, with none, as in 7.3).
+      // The meshes of the asset, none more (the life layer and the rim add none) ...
+      expect(sourceMeshes[name], name).toBeGreaterThan(0);
+      expect(drawn.length, name).toBeLessThanOrEqual(sourceMeshes[name]);
+      // ... and every rig mesh under the body has its one hull (the « Z » is beside the body, with none).
       expect(hulls.length, name).toBeGreaterThan(0);
       expect(hulls.length, name).toBe(drawn.length);
     }
@@ -1463,18 +1479,33 @@ describe('the life layer and the characters look (story 7.8)', () => {
   });
 
   it('has no lean nor breath under reduced motion, and keeps the stoop', () => {
-    const level = buildLive({ ...liveBodies, isMotionReduced: () => true });
-    level.update(fakeWorldAt(0), 0, asRealMs(0));
-    level.update(fakeWorldAt(750), 0, asRealMs(0));
-    const fx = level.realFxState();
+    const { papa } = effectsWorld;
+    const saved = { state: papa.state, xM: papa.xM, prevXM: papa.prevXM };
+    // Papa glides, which would lean him; the same glide with the setting off is the positive control.
+    papa.state = 'glide';
+    papa.prevXM = papa.xM - 0.05;
+    const mostLeanOf = (isMotionReduced: boolean) => {
+      const level = buildLive({ ...liveBodies, isMotionReduced: () => isMotionReduced });
+      let mostLeanDeg = 0;
+      for (let t = 0; t <= 200; t += 10) {
+        level.update(fakeWorldAt(t), 0, asRealMs(0));
+        mostLeanDeg = Math.max(mostLeanDeg, Math.abs(level.realFxState().papaLeanDeg));
+      }
+      level.update(fakeWorldAt(950), 0, asRealMs(0));
+      const fx = level.realFxState();
+      level.dispose();
+      return { mostLeanDeg, fx };
+    };
+    expect(mostLeanOf(false).mostLeanDeg).toBeGreaterThan(0.5);
+    const { mostLeanDeg, fx } = mostLeanOf(true);
+    expect(mostLeanDeg).toBe(0);
     expect(fx.papaBreathDeg).toBe(0);
     expect(fx.babyBreathDeg).toBe(0);
-    expect(fx.papaLeanDeg).toBe(0);
     expect(fx.papaStoopDeg).toBeCloseTo(
       (effectsWorld.gauges.fatigue * effectsWorld.feel.characters.stoop.maxDeg) / 100,
       12,
     );
-    level.dispose();
+    Object.assign(papa, saved);
   });
 
   it('applies the gaze sight boot gives at its next update, and looks ahead while he glides', () => {
@@ -1506,9 +1537,14 @@ describe('the life layer and the characters look (story 7.8)', () => {
     const sofa = meshesUnder(level.scene.getObjectByName('sofa')).find(
       (mesh) => mesh.material instanceof MeshToonMaterial,
     ) as Mesh;
-    const spies = [papaBody.material, hull.material, sofa.material].map((material) =>
-      vi.spyOn(material as MeshToonMaterial, 'dispose'),
-    );
+    const roomHull = level.scene.getObjectByName('outline_PROP_mug_01');
+    expect(roomHull, 'a hull of the room').toBeDefined();
+    const spies = [
+      papaBody.material,
+      hull.material,
+      sofa.material,
+      (roomHull as Mesh).material,
+    ].map((material) => vi.spyOn(material as MeshToonMaterial, 'dispose'));
     level.dispose();
     for (const spy of spies) expect(spy).toHaveBeenCalled();
   });

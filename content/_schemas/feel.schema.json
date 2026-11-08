@@ -1779,7 +1779,7 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "maximum": 100,
-              "description": "The drawn acceleration that gives the full pitch, in m/s²."
+              "description": "The drawn acceleration that gives the full pitch, in m/s². The drawn speed is a spring of `reachMs`, whose peak acceleration for a speed step is about 1.74 × step / (reachMs in s): at 120 ms, 14.5 × the step in m/s². 45 is therefore full at the walking speed (3 m/s) and a crawl (0.6 m/s) pitches him a fifth as far."
             },
             "fullTurnDegPerSec": {
               "type": "number",
@@ -1850,6 +1850,12 @@
               "maximum": 90,
               "description": "How far Papa's head turns from his body, in degrees."
             },
+            "behindDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 180,
+              "description": "Past this angle from his front, what he would look at is behind him and he looks ahead instead of whipping his head from one side to the other. Not under `maxYawDeg`."
+            },
             "reachMs": {
               "type": "number",
               "minimum": 50,
@@ -1859,6 +1865,7 @@
           },
           "required": [
             "maxYawDeg",
+            "behindDeg",
             "reachMs"
           ],
           "additionalProperties": false,
@@ -1897,9 +1904,9 @@
             },
             "rimWidthPct": {
               "type": "number",
-              "minimum": 0,
+              "minimum": 1,
               "maximum": 100,
-              "description": "How far the rim reaches in from the silhouette, in %."
+              "description": "How far the rim reaches in from the silhouette, in %. Not 0: the shader would get a `smoothstep` with equal edges, which is undefined."
             },
             "isFourthToneOn": {
               "type": "boolean",

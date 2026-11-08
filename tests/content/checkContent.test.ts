@@ -586,17 +586,24 @@ describe('checkContent on level geometry files', () => {
       expect(await checkContent(root)).toEqual([]);
     });
 
-    it('refuses a 4th tone as light as the darkest of the ramp, even switched off', async () => {
-      // 38 % of white is 96.9, at or above 96.
-      await setFourthTonePct(38);
-      expect(await checkContent(root)).toEqual([
-        expect.objectContaining({
-          file: 'content/feel.json',
-          jsonPath: 'characters.look.fourthTonePct',
-          message: expect.stringContaining('the 4th tone is the darkest band'),
-        }),
-      ]);
-    });
+    it.each([
+      // 37.6 % of white is 95.88: the runtime draws 96, which is the darkest tone, not under it.
+      ['37.6', 37.6],
+      // 38 % of white is 96.9, above 96.
+      ['38', 38],
+    ])(
+      'refuses a 4th tone as light as the darkest of the ramp (%s %%), even switched off',
+      async (_name, pct) => {
+        await setFourthTonePct(pct);
+        expect(await checkContent(root)).toEqual([
+          expect.objectContaining({
+            file: 'content/feel.json',
+            jsonPath: 'characters.look.fourthTonePct',
+            message: expect.stringContaining('the 4th tone is the darkest band'),
+          }),
+        ]);
+      },
+    );
   });
 
   it('reports a stale generated geometry schema', async () => {

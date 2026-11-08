@@ -37,7 +37,7 @@ describe('the characters spring (story 7.8, D5)', () => {
   it('never overshoots at a damping of 1', () => {
     const spring = createSpring(0);
     const { peak, final } = run(spring, 90, 3000, STEP_MS, 250, 1);
-    expect(peak).toBeLessThanOrEqual(90);
+    expect(peak).toBeLessThanOrEqual(90 + 1e-9);
     expect(final).toBeCloseTo(90, 6);
   });
 

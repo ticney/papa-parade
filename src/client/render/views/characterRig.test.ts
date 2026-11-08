@@ -113,7 +113,7 @@ describe('createCharacterRig', () => {
     expect(timeMs).toBeCloseTo(300, 5);
   });
 
-  it('crossfades between loops over crossFadeMs, and stops running the old one', () => {
+  it('crossfades between loops over the fade it was given, and stops running the old one', () => {
     const { rig } = build();
     rig.play('idle', 1, FADE_MS);
     rig.update(10, RETURN_MS);
@@ -206,6 +206,17 @@ describe('createCharacterRig', () => {
     expect(rig.clipName).toBe('stumble');
     rig.update(500, RETURN_MS);
     expect(rig.clipName).toBe('stumble');
+  });
+
+  it('never hands a one-shot back before half of it, whatever the return fade (a hot returnMs)', () => {
+    const { rig } = build();
+    rig.play('idle', 1, FADE_MS);
+    rig.playOnce('stumble', FADE_MS);
+    // A return fade far longer than the clip would hand it back at its very first update.
+    rig.update(10, 100000);
+    expect(rig.clipName).toBe('stumble');
+    rig.update(2000, 100000);
+    expect(rig.clipName).toBe('idle');
   });
 
   it('holds a one-shot on a dt of 0', () => {

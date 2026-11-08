@@ -2,7 +2,7 @@ import type { BabySlice, PapaSlice } from '@sim';
 import { Euler, Group, type Object3D, Quaternion } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
-import { BABY_TRAVELLING, babyClipOf } from './characterClips.ts';
+import { babyClipOf, isBabyTravelling } from './characterClips.ts';
 import { fadeMsOf } from './characterFades.ts';
 import { clipTimeScaleOf, stepSpeedMpsOf, wrapAngleRad } from './characterMotion.ts';
 import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
@@ -206,7 +206,7 @@ export function createBabyView(
       const isReduced = life.isMotionReduced;
       // The loop, and the passage it is (D4).
       const clip = babyClipOf(baby);
-      const isTravelling = BABY_TRAVELLING[baby.state];
+      const isTravelling = isBabyTravelling(baby);
       let fadeMs = characters.fades.otherMs;
       if (clip !== loopClip) {
         fadeMs = fadeMsOf(isLoopTravelling, isTravelling, 'loop', characters.fades);

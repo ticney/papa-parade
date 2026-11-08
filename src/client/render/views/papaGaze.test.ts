@@ -11,6 +11,7 @@ import {
 
 const DEG = Math.PI / 180;
 const MAX_YAW_RAD = 60 * DEG;
+const BEHIND_RAD = 150 * DEG;
 
 const INPUT: PapaGazeInput = {
   papaXM: 0,
@@ -30,7 +31,7 @@ describe('the gaze target (story 7.8, D8)', () => {
   it('follows the baby when he is shown and Papa is not responding', () => {
     const aim = createPapaGazeAim();
     const sight = { ...createPapaGazeSight(), isBabyShown: true, hasThreat: true, threatXM: -1 };
-    papaGazeOf(INPUT, sight, MAX_YAW_RAD, aim);
+    papaGazeOf(INPUT, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
     expect(aim.kind).toBe('baby');
     // The baby is at 45° toward +x, his left: a positive head yaw.
     expect(aim.yawRad).toBeCloseTo(45 * DEG, 9);
@@ -44,19 +45,19 @@ describe('the gaze target (story 7.8, D8)', () => {
       threatXM: -1,
       threatZM: 1,
     };
-    papaGazeOf({ ...INPUT, isResponding: true }, sight, MAX_YAW_RAD, aim);
+    papaGazeOf({ ...INPUT, isResponding: true }, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
     expect(aim.kind).toBe('threat');
     expect(aim.yawRad).toBeCloseTo(-45 * DEG, 9);
-    papaGazeOf(INPUT, { ...sight, isBabyShown: false }, MAX_YAW_RAD, aim);
+    papaGazeOf(INPUT, { ...sight, isBabyShown: false }, MAX_YAW_RAD, BEHIND_RAD, aim);
     expect(aim.kind).toBe('threat');
   });
 
   it('looks ahead with nothing to see, and asleep', () => {
     const aim = createPapaGazeAim();
-    papaGazeOf(INPUT, createPapaGazeSight(), MAX_YAW_RAD, aim);
+    papaGazeOf(INPUT, createPapaGazeSight(), MAX_YAW_RAD, BEHIND_RAD, aim);
     expect(aim).toEqual({ kind: 'ahead', yawRad: 0 });
     const sight = { isBabyShown: true, hasThreat: true, threatXM: 1, threatZM: 0 };
-    papaGazeOf({ ...INPUT, isAsleep: true }, sight, MAX_YAW_RAD, aim);
+    papaGazeOf({ ...INPUT, isAsleep: true }, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
     expect(aim).toEqual({ kind: 'ahead', yawRad: 0 });
   });
 
@@ -64,19 +65,39 @@ describe('the gaze target (story 7.8, D8)', () => {
     const aim = createPapaGazeAim();
     const sight = { ...createPapaGazeSight(), isBabyShown: true };
     // The baby behind him to his left: past the clamp.
-    papaGazeOf({ ...INPUT, babyXM: 1, babyZM: -1 }, sight, MAX_YAW_RAD, aim);
+    papaGazeOf({ ...INPUT, babyXM: 1, babyZM: -1 }, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
     expect(aim.yawRad).toBeCloseTo(60 * DEG, 9);
-    papaGazeOf({ ...INPUT, babyXM: -1, babyZM: -1 }, sight, MAX_YAW_RAD, aim);
+    papaGazeOf({ ...INPUT, babyXM: -1, babyZM: -1 }, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
     expect(aim.yawRad).toBeCloseTo(-60 * DEG, 9);
     // Relative to the body: turned 90° to his left, the baby straight ahead of the world's +x is ahead.
-    papaGazeOf({ ...INPUT, bodyYawRad: 90 * DEG, babyXM: 2, babyZM: 0 }, sight, MAX_YAW_RAD, aim);
+    papaGazeOf(
+      { ...INPUT, bodyYawRad: 90 * DEG, babyXM: 2, babyZM: 0 },
+      sight,
+      MAX_YAW_RAD,
+      BEHIND_RAD,
+      aim,
+    );
     expect(aim.yawRad).toBeCloseTo(0, 9);
+  });
+
+  it('looks ahead at what is behind him, instead of flipping from one clamp to the other', () => {
+    const aim = createPapaGazeAim();
+    const sight = { ...createPapaGazeSight(), isBabyShown: true };
+    // 170° off his front, to either side: behind him.
+    papaGazeOf({ ...INPUT, babyXM: 0.17, babyZM: -0.98 }, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
+    expect(aim).toEqual({ kind: 'ahead', yawRad: 0 });
+    papaGazeOf({ ...INPUT, babyXM: -0.17, babyZM: -0.98 }, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
+    expect(aim).toEqual({ kind: 'ahead', yawRad: 0 });
+    // 140°: past the clamp, but not behind him: the head stays at the clamp.
+    papaGazeOf({ ...INPUT, babyXM: 0.64, babyZM: -0.77 }, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
+    expect(aim.kind).toBe('baby');
+    expect(aim.yawRad).toBeCloseTo(60 * DEG, 9);
   });
 
   it('looks ahead at a baby in his arms, on top of him', () => {
     const aim = createPapaGazeAim();
     const sight = { ...createPapaGazeSight(), isBabyShown: true };
-    papaGazeOf({ ...INPUT, babyXM: 0.01, babyZM: 0.01 }, sight, MAX_YAW_RAD, aim);
+    papaGazeOf({ ...INPUT, babyXM: 0.01, babyZM: 0.01 }, sight, MAX_YAW_RAD, BEHIND_RAD, aim);
     expect(aim.yawRad).toBe(0);
   });
 });

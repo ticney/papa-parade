@@ -254,10 +254,14 @@ export function createCharacterRig(
       mixer.update(dtMs / 1000);
       captureLifeBones();
       if (oneShot !== null) {
-        const leftS = oneShot.action.getClip().duration - oneShot.action.time;
-        if (leftS * 1000 <= returnFadeMs) {
+        const durationS = oneShot.action.getClip().duration;
+        const leftS = durationS - oneShot.action.time;
+        // Never more than half the clip: a hot `returnMs` must not hand a short one-shot back at its
+        // first update, before it was ever seen (the schema allows up to 200 ms).
+        const handBackMs = Math.min(returnFadeMs, (durationS * 1000) / 2);
+        if (leftS * 1000 <= handBackMs) {
           oneShot = null;
-          if (loop !== null) fadeTo(loop, returnFadeMs);
+          if (loop !== null) fadeTo(loop, handBackMs);
         }
       }
     },

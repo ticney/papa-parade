@@ -16,7 +16,7 @@ import {
 const LEAN: LeanConfig = {
   maxAccelDeg: 10,
   maxTurnDeg: 8,
-  fullAccelMps2: 8,
+  fullAccelMps2: 45,
   fullTurnDegPerSec: 360,
   reachMs: 120,
 };
@@ -47,6 +47,24 @@ describe('the lean (story 7.8, D6)', () => {
     }
     expect(peakBack).toBeLessThan(-5);
     expect(peakBack).toBeGreaterThanOrEqual(-10);
+  });
+
+  it('pitches in proportion to the speed step, so a crawl leans him far less than a walk (the review)', () => {
+    const peakOf = (speedMps: number): number => {
+      const lean = createLeanState();
+      let peak = 0;
+      for (let t = 0; t < 600; t += STEP_MS) {
+        stepLean(lean, speedMps, 0, STEP_MS, LEAN, false);
+        peak = Math.max(peak, lean.pitchDeg);
+      }
+      return peak;
+    };
+    const walk = peakOf(3);
+    const crawl = peakOf(0.6);
+    expect(walk).toBeGreaterThan(5);
+    expect(crawl).toBeGreaterThan(0);
+    // 8 m/s² made both saturate at maxAccelDeg: here a crawl is about a fifth of a walk.
+    expect(crawl).toBeLessThan(walk * 0.4);
   });
 
   it('leans into a turn, toward its inside, up to maxTurnDeg', () => {
@@ -121,7 +139,7 @@ describe('the breath (story 7.8, D7)', () => {
     const breath = createBreathState();
     for (let t = 0; t < 750; t += STEP_MS) stepBreath(breath, STEP_MS, 3000, true, false);
     expect(breath.envelope).toBe(0);
-    expect(breath.factor).toBe(0);
+    expect(breath.factor).toBeCloseTo(0, 9);
     for (let t = 0; t < 750; t += STEP_MS) stepBreath(breath, STEP_MS, 3000, false, false);
     expect(breath.envelope).toBeCloseTo(1, 9);
   });

@@ -8,6 +8,7 @@ import {
   babyClipOf,
   babyLidsAfter,
   babyOneShotOf,
+  isBabyTravelling,
   PAPA_CONTRACT,
   PAPA_TRAVELLING,
   papaClipOf,
@@ -28,6 +29,14 @@ describe('the travelling states (story 7.8, D4)', () => {
       .filter(([, isTravelling]) => isTravelling)
       .map(([state]) => state);
     expect(travelling.sort()).toEqual(['approach', 'mischiefSilent', 'wander']);
+  });
+
+  it('counts a crying baby as still, whatever his state (the cry is a still clip)', () => {
+    expect(isBabyTravelling({ state: 'wander', cryEndsAt: null } as BabySlice)).toBe(true);
+    expect(isBabyTravelling({ state: 'wander', cryEndsAt: asSimMs(9000) } as BabySlice)).toBe(
+      false,
+    );
+    expect(isBabyTravelling({ state: 'babble', cryEndsAt: null } as BabySlice)).toBe(false);
   });
 });
 

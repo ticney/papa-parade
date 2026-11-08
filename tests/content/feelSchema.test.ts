@@ -667,11 +667,12 @@ describe('feel.characters (story 7.8)', () => {
         [p('breath.papaAmplitudeDeg'), 0],
         [p('breath.babyAmplitudeDeg'), 0],
         [p('gaze.maxYawDeg'), 0],
+        [p('gaze.behindDeg'), 0],
         [p('gaze.reachMs'), 50],
         [p('stoop.maxDeg'), 0],
         [p('look.outlineWidthPct'), 50],
         [p('look.rimStrengthPct'), 0],
-        [p('look.rimWidthPct'), 0],
+        [p('look.rimWidthPct'), 1],
         [p('look.fourthTonePct'), 0],
       ),
     ).toMatchObject({ ok: true });
@@ -694,6 +695,7 @@ describe('feel.characters (story 7.8)', () => {
         [p('breath.papaAmplitudeDeg'), 10],
         [p('breath.babyAmplitudeDeg'), 10],
         [p('gaze.maxYawDeg'), 90],
+        [p('gaze.behindDeg'), 180],
         [p('gaze.reachMs'), 1000],
         [p('stoop.maxDeg'), 45],
         [p('look.outlineWidthPct'), 300],
@@ -768,12 +770,19 @@ describe('feel.characters (story 7.8)', () => {
       [p('breath.babyAmplitudeDeg')],
     ],
     ['a gaze over 90°', [[p('gaze.maxYawDeg'), 91]], [p('gaze.maxYawDeg')]],
+    ['a behind angle over 180°', [[p('gaze.behindDeg'), 181]], [p('gaze.behindDeg')]],
+    ['a behind angle under the head clamp', [[p('gaze.behindDeg'), 59]], [p('gaze.behindDeg')]],
     ['a gaze reach over 1000 ms', [[p('gaze.reachMs'), 1001]], [p('gaze.reachMs')]],
     ['a stoop over 45°', [[p('stoop.maxDeg'), 46]], [p('stoop.maxDeg')]],
     ['an outline under 50 %', [[p('look.outlineWidthPct'), 49]], [p('look.outlineWidthPct')]],
     ['an outline over 300 %', [[p('look.outlineWidthPct'), 301]], [p('look.outlineWidthPct')]],
     ['a rim over 100 %', [[p('look.rimStrengthPct'), 101]], [p('look.rimStrengthPct')]],
-    ['a negative rim width', [[p('look.rimWidthPct'), -1]], [p('look.rimWidthPct')]],
+    [
+      'a rim width of 0 (an undefined smoothstep)',
+      [[p('look.rimWidthPct'), 0]],
+      [p('look.rimWidthPct')],
+    ],
+    ['a rim width over 100 %', [[p('look.rimWidthPct'), 101]], [p('look.rimWidthPct')]],
     ['a 4th tone over 100 %', [[p('look.fourthTonePct'), 101]], [p('look.fourthTonePct')]],
     [
       'a 4th tone switch that is a number',
@@ -787,19 +796,19 @@ describe('feel.characters (story 7.8)', () => {
     expect(failedPaths(mutated(...changes))).toEqual(paths);
   });
 
-  it('starts from the GDD values (D1)', () => {
+  it('starts from the D1 values (the review retuned lean.fullAccelMps2 and added gaze.behindDeg)', () => {
     expect(real.characters).toEqual({
       fades: { startMs: 100, stopMs: 200, returnMs: 150, otherMs: 100 },
       turn: { reachMs: 250, dampingRatio: 0.6, overshootMaxDeg: 10 },
       lean: {
         maxAccelDeg: 10,
         maxTurnDeg: 8,
-        fullAccelMps2: 8,
+        fullAccelMps2: 45,
         fullTurnDegPerSec: 360,
         reachMs: 120,
       },
       breath: { periodMs: 3000, alertPeriodMs: 1500, papaAmplitudeDeg: 1.5, babyAmplitudeDeg: 2 },
-      gaze: { maxYawDeg: 60, reachMs: 200 },
+      gaze: { maxYawDeg: 60, behindDeg: 150, reachMs: 200 },
       stoop: { maxDeg: 15 },
       look: {
         outlineWidthPct: 150,

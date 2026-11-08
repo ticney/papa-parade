@@ -1,12 +1,9 @@
+import type { Feel } from '@content/schemas/feel';
+
 // How long a passage between two clips fades, and on which curve (story 7.8, D4). Pure, no Three.
 
 /** `feel.json › characters.fades`, in sim ms. */
-export interface FadesConfig {
-  readonly startMs: number;
-  readonly stopMs: number;
-  readonly returnMs: number;
-  readonly otherMs: number;
-}
+export type FadesConfig = Feel['characters']['fades'];
 
 /** What comes in: the loop the state says, a one-shot over it, or the loop again after a one-shot. */
 export type FadeKind = 'loop' | 'oneShot' | 'return';

@@ -5,6 +5,7 @@ import type { Group } from 'three';
 import type { SoundedNote } from '../audio/beatScheduler.ts';
 import type { InputDevice } from '../input/inputMapper.ts';
 import type { RenderStats } from '../render/renderer.ts';
+import type { PapaGazeKind } from '../render/views/papaGaze.ts';
 import type { LevelSession, StartedLevel } from './levelSession.ts';
 import type { PauseState } from './pauseController.ts';
 
@@ -68,7 +69,7 @@ export interface FxState {
   /** Papa's head turn from his body, in degrees, positive toward his left (story 7.8). */
   readonly papaHeadYawDeg: number;
   /** What Papa's head follows (story 7.8): the baby on screen, a ringed threat, or ahead. */
-  readonly papaGaze: 'baby' | 'threat' | 'ahead';
+  readonly papaGaze: PapaGazeKind;
   /** Papa's breath, in degrees of his torso (story 7.8); 0 held or under reduced motion. */
   readonly papaBreathDeg: number;
   /** The baby's breath, in degrees of his torso (story 7.8); 0 under reduced motion. */

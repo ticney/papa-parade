@@ -1685,17 +1685,6 @@ function checkPropReferences(
   return problems;
 }
 
-/**
- * The tuning rules of `feel.json › physics` that no single field can state. For each kind:
- * (1) a breakable kind breaks at `breakImpulseNs`, but the sim reads no impact under
- * `impactMinImpulseNs`, so the first must not be under the second (it could never break at its own
- * threshold); (2) a prop at rest takes `massKg · g · STEP` of impulse each step, which must stay
- * under `impactMinImpulseNs` or it would report an impact all the time it rests; (3) the largest
- * push gives it a speed that must carry it less than half a wall of the room in one step, or it
- * could cross the wall; (4) a gag's push (`feel.gags.tableObjectFall.pushImpulseNs`) must not be
- * above `maxPushImpulseNs`, which `pushProp` holds every push to (a strict sim throws on a longer
- * one, a normal one clamps it and reports `InvariantViolated` at every gag).
- */
 /** 0-255 per percent of white: the scale of `render.toonTones`. */
 const TONE_PER_PCT = 255 / 100;
 
@@ -1708,7 +1697,9 @@ const TONE_PER_PCT = 255 / 100;
 function checkCharacterLook(feel: Feel, feedback: FeedbackTable): ContentProblem[] {
   const { fourthTonePct } = feel.characters.look;
   const darkest = feedback.render.toonTones[0];
-  if (darkest === undefined || fourthTonePct * TONE_PER_PCT < darkest) return [];
+  // Rounded like the runtime's `fourthToneOf`: 37.6 % draws 96, which is not under a darkest tone of 96.
+  const fourthTone = Math.round(fourthTonePct * TONE_PER_PCT);
+  if (darkest === undefined || fourthTone < darkest) return [];
   return [
     {
       file: `content/${FEEL_FILE.file}`,
@@ -1718,6 +1709,17 @@ function checkCharacterLook(feel: Feel, feedback: FeedbackTable): ContentProblem
   ];
 }
 
+/**
+ * The tuning rules of `feel.json › physics` that no single field can state. For each kind:
+ * (1) a breakable kind breaks at `breakImpulseNs`, but the sim reads no impact under
+ * `impactMinImpulseNs`, so the first must not be under the second (it could never break at its own
+ * threshold); (2) a prop at rest takes `massKg · g · STEP` of impulse each step, which must stay
+ * under `impactMinImpulseNs` or it would report an impact all the time it rests; (3) the largest
+ * push gives it a speed that must carry it less than half a wall of the room in one step, or it
+ * could cross the wall; (4) a gag's push (`feel.gags.tableObjectFall.pushImpulseNs`) must not be
+ * above `maxPushImpulseNs`, which `pushProp` holds every push to (a strict sim throws on a longer
+ * one, a normal one clamps it and reports `InvariantViolated` at every gag).
+ */
 function checkPhysicsTuning(feel: Feel): ContentProblem[] {
   const problems: ContentProblem[] = [];
   const { physics } = feel;

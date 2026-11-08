@@ -54,21 +54,10 @@ const BREATH_ENVELOPE_SNAP = 1e-9;
 const LEAN_SPEED_EPSILON_MPS = 1e-4;
 
 /** `feel.json › characters.lean`. */
-export interface LeanConfig {
-  readonly maxAccelDeg: number;
-  readonly maxTurnDeg: number;
-  readonly fullAccelMps2: number;
-  readonly fullTurnDegPerSec: number;
-  readonly reachMs: number;
-}
+export type LeanConfig = CharactersFeel['lean'];
 
 /** `feel.json › characters.breath`. */
-export interface BreathConfig {
-  readonly periodMs: number;
-  readonly alertPeriodMs: number;
-  readonly papaAmplitudeDeg: number;
-  readonly babyAmplitudeDeg: number;
-}
+export type BreathConfig = CharactersFeel['breath'];
 
 /** Papa's lean, smoothed: his drawn speed (whose rate of change is the acceleration), the pitch, the roll. */
 export interface LeanState {

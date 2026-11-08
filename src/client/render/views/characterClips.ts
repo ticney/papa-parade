@@ -68,6 +68,14 @@ export const BABY_TRAVELLING: Readonly<Record<BabyState, boolean>> = {
   carriedUp: false,
 };
 
+/**
+ * Whether the baby's clip travels now (D4). His cry is a timer apart from his state and overlays any of
+ * them with a still clip: a crawler who starts to cry is stopping, not crawling.
+ */
+export function isBabyTravelling(baby: Readonly<BabySlice>): boolean {
+  return baby.cryEndsAt === null && BABY_TRAVELLING[baby.state];
+}
+
 /** The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`). */
 export function papaClipOf(papa: Readonly<PapaSlice>, baby: Readonly<BabySlice>): string {
   const clip = PAPA_LOOPS[papa.state];

@@ -67,8 +67,6 @@ function createGradientMap(data: Uint8Array): DataTexture {
   return texture;
 }
 
-const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-
 /**
  * Writes `tones` as equal bands over the whole of `data` (D10): with `NearestFilter`, a ramp of 12 texels
  * drawn as 3 bands of 4 shades exactly as one of 3 texels, so the 4th tone needs no new texture.
@@ -86,14 +84,15 @@ export function fourthToneOf(fourthTonePct: number): number {
 
 // The rim (story 7.8, D10): a share of paper added on the silhouette, in view space. The camera is
 // orthographic, so the view direction is the view's -z everywhere and `1 - normal.z` is how far the
-// surface turns from the camera. Unlit on purpose: it is the edge that reads, not a light.
+// surface turns from the camera. Unlit on purpose: it is the edge that reads, not a light. The width
+// is held off 0: `smoothstep` with equal edges is undefined in GLSL (the schema's minimum is 1 %).
 const RIM_PARS = /* glsl */ `
 uniform vec3 rimColor;
 uniform float rimStrength;
 uniform float rimWidth;
 `;
 const RIM_FRAGMENT = /* glsl */ `
-outgoingLight += rimColor * rimStrength * smoothstep( 1.0 - rimWidth, 1.0, 1.0 - normalize( normal ).z );
+outgoingLight += rimColor * rimStrength * smoothstep( 1.0 - max( rimWidth, 0.0001 ), 1.0, 1.0 - normalize( normal ).z );
 #include <opaque_fragment>
 `;
 const RIM_PROGRAM_KEY = 'pp_toon_rim';
@@ -108,7 +107,7 @@ export interface ToonCacheOptions {
  * Shares one `MeshToonMaterial` per colour (draw calls and memory), all with the same ramp: `tones`,
  * darkest to lightest, as 0-255 (`feedback.json › render.toonTones`, ADR-008). The room's cache is just
  * that. The characters' (`isCharacters`, story 7.8) adds a rim on every material through one shared
- * program and one set of uniforms, and a ramp of `lcm(n, n + 1)` texels that draws the `n` tones or,
+ * program and one set of uniforms, and a ramp of `n × (n + 1)` texels (`n` and `n + 1` share no divisor, so it is also their lcm) that draws the `n` tones or,
  * with the 4th tone on, `n + 1` with the extra one darkest; both follow `setLook` in place.
  */
 export function createToonMaterialCache(
@@ -117,7 +116,7 @@ export function createToonMaterialCache(
 ): ToonMaterialCache {
   const { isCharacters } = options;
   const n = tones.length;
-  const texels = isCharacters ? (n * (n + 1)) / gcd(n, n + 1) : n;
+  const texels = isCharacters ? n * (n + 1) : n;
   const data = new Uint8Array(texels);
   writeToonBands(data, tones);
   const gradientMap = createGradientMap(data);

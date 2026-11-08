@@ -125,6 +125,28 @@ describe('createBabyView', () => {
     expect(head.rotation.y).toBeCloseTo(0, 9);
   });
 
+  it('swings past a 90° turn by at most overshootMaxDeg and settles; under reduced motion it never passes (D5, D11)', () => {
+    const peakYawOf = (life: ReturnType<typeof createTestLife>): number => {
+      const { scene, view } = build();
+      view.update(baby({ gazeX: 0, gazeZ: 1 }), 1);
+      const looking = baby({ gazeX: 1, gazeZ: 0 });
+      view.update(looking, 1);
+      const body = scene.getObjectByName('baby') as Mesh;
+      let peak = 0;
+      for (let i = 0; i < 100; i++) {
+        view.animate(looking, 10, life);
+        peak = Math.max(peak, body.rotation.y);
+      }
+      expect(body.rotation.y).toBeCloseTo(Math.PI / 2, 2);
+      return peak;
+    };
+    const { overshootMaxDeg } = LIFE.characters.turn;
+    const overshootDeg = (peak: number): number => (peak * 180) / Math.PI - 90;
+    expect(overshootDeg(peakYawOf(LIFE))).toBeGreaterThan(1);
+    expect(overshootDeg(peakYawOf(LIFE))).toBeLessThanOrEqual(overshootMaxDeg + 1e-6);
+    expect(overshootDeg(peakYawOf(createTestLife({ isMotionReduced: true })))).toBeLessThan(1e-6);
+  });
+
   it('breathes over his clip on the sim clock, and not under reduced motion (story 7.8)', () => {
     const { view } = build();
     view.update(baby(), 1);

@@ -215,7 +215,7 @@
     "lean": {
       "maxAccelDeg": 10,
       "maxTurnDeg": 8,
-      "fullAccelMps2": 8,
+      "fullAccelMps2": 45,
       "fullTurnDegPerSec": 360,
       "reachMs": 120
     },
@@ -225,7 +225,7 @@
       "papaAmplitudeDeg": 1.5,
       "babyAmplitudeDeg": 2
     },
-    "gaze": { "maxYawDeg": 60, "reachMs": 200 },
+    "gaze": { "maxYawDeg": 60, "behindDeg": 150, "reachMs": 200 },
     "stoop": { "maxDeg": 15 },
     "look": {
       "outlineWidthPct": 150,
