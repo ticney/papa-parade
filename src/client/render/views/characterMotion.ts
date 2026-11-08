@@ -46,22 +46,6 @@ export function wrapAngleRad(angleRad: number): number {
   return (wrapped < 0 ? wrapped + FULL_TURN_RAD : wrapped) - Math.PI;
 }
 
-/**
- * `fromRad` turned toward `toRad` by the shortest arc, by at most `turnRateDegPerSec` for `dtMs` of sim
- * time. A `dtMs` of 0 holds it, so a pause and a hitstop hold the turn too. Pure.
- */
-export function turnToward(
-  fromRad: number,
-  toRad: number,
-  turnRateDegPerSec: number,
-  dtMs: number,
-): number {
-  const gapRad = wrapAngleRad(toRad - fromRad);
-  const stepRad = (((turnRateDegPerSec * Math.PI) / 180) * dtMs) / MS_PER_S;
-  if (Math.abs(gapRad) <= stepRad) return toRad;
-  return fromRad + Math.sign(gapRad) * stepRad;
-}
-
 /** Where one of Papa's clips turns his body (`feedback.json › characters.papaClipFacing`). */
 export interface ClipFacing {
   readonly clip: string;

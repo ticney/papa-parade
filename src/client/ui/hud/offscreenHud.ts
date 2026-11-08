@@ -34,6 +34,9 @@ import type { ThreatMarkerEntry } from '../world/threatMarkers.ts';
 // level costs nothing. The screen is measured on the first frame after `invalidate` (a resize, a new
 // level), never per frame.
 
+/** No inset at all: « drawn on screen » for Papa's gaze (story 7.8), not « seen past the HUD ». */
+const NO_INSETS: FollowInsets = { leftPx: 0, rightPx: 0, topPx: 0, bottomPx: 0 };
+
 /** The screen as the HUD sees it, in CSS px from the HUD root's top left. Written by `OffscreenHudDeps.measure`. */
 export interface OffscreenScreen {
   /** The HUD root's top left on the page: a pointer's client point minus it is a HUD point. */
@@ -97,6 +100,16 @@ export interface OffscreenHud {
    * bubble's outer radius; false when the threat has no bubble.
    */
   chipOf(threatId: number, out: OffscreenChip): boolean;
+  /**
+   * Whether the marker of `threatId` was off the follow frame at the last `update` (it has a bubble, or
+   * waits behind the cap for one): Papa's gaze does not see it (story 7.8, D8). False in a fixed level.
+   */
+  isOffscreen(threatId: number): boolean;
+  /**
+   * Whether the room point (`xM`, `yM`, `zM`) is drawn inside the follow frame, with no inset (story 7.8:
+   * is the baby on screen). True in a fixed level, and before the screen is measured.
+   */
+  isPointOnScreen(xM: number, yM: number, zM: number): boolean;
   /** The bubbles shown, `"<threatId>:<edge>:<x>:<y>:<angle>"` sorted by id, joined by `;` (the debug mirror). */
   mirrorText(): string;
   /** True when the bubbles shown changed in the last `update` (the mirror is rewritten only then). */
@@ -321,6 +334,35 @@ export function createOffscreenHud(deps: OffscreenHudDeps): OffscreenHud {
         return true;
       }
       return false;
+    },
+    isOffscreen(threatId) {
+      for (let i = 0; i < entries.length; i++) {
+        if ((entries[i] as ThreatMarkerEntry).threatId === threatId) return wasOutside[i] === true;
+      }
+      return false;
+    },
+    isPointOnScreen(xM, yM, zM) {
+      if (deps.follow.mode !== 'follow' || !isMeasured) return true;
+      const { frame, centreUM, centreVM } = deps.follow;
+      followFramePointOf(
+        frame,
+        centreUM,
+        centreVM,
+        viewUM(xM, zM),
+        viewVM(xM, yM, zM),
+        screen.canvasWidthPx,
+        screen.canvasHeightPx,
+        point,
+      );
+      return isInFollowFrame(
+        point.xPx,
+        point.yPx,
+        screen.canvasWidthPx,
+        screen.canvasHeightPx,
+        NO_INSETS,
+        false,
+        0,
+      );
     },
     mirrorText() {
       const shown = slots.filter((slot) => slot.threatId !== -1);

@@ -92,6 +92,11 @@ import type { LevelFx, LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer, type RenderStats } from './render/renderer.ts';
 import { BABY_CARRIED_FORWARD_M, BABY_CARRIED_HEIGHT_M } from './render/views/babyView.ts';
+import {
+  createPapaGazeSight,
+  isBabyShownForGaze,
+  pickGazeThreat,
+} from './render/views/papaGaze.ts';
 import { createSaveStore } from './save/saveStore.ts';
 import { loadFonts } from './ui/fonts.ts';
 import { createCatastropheFace } from './ui/hud/catastropheFace.ts';
@@ -124,6 +129,7 @@ import { applyActivityBubbleMetrics } from './ui/world/activityBubble.ts';
 import { createChoreMirror } from './ui/world/choreMirror.ts';
 import { applyChronoRingMetrics, chronoJudgedMirror } from './ui/world/chronoRing.ts';
 import { applyOffscreenBubbleMetrics, createOffscreenBubbles } from './ui/world/offscreenBubble.ts';
+import type { ThreatMarkerEntry } from './ui/world/threatMarkers.ts';
 import { createWorldUi } from './ui/world/worldUi.ts';
 
 /** The timer's slot in the HUD batch. */
@@ -312,6 +318,13 @@ export async function boot(): Promise<void> {
   const backdrop = new Scene();
   backdrop.background = new Color(PALETTE.ink);
   let currentLevel: LevelScene | null = null;
+  // Papa's gaze (story 7.8, D8): what the screen shows him, once per frame after the markers and the
+  // bubbles. The two readers are made once: nothing is allocated per frame.
+  let gazeEntries: readonly ThreatMarkerEntry[] = [];
+  const gazeSight = createPapaGazeSight();
+  const gazePermilleOf = (threatId: number): number | null =>
+    worldUi.chronoDrawOf(threatId)?.permille ?? null;
+  const gazeIsOnScreen = (threatId: number): boolean => !offscreenHud.isOffscreen(threatId);
   /** The debug views' group in the level scene, made on demand (a debug build only asks); null per new scene. */
   let debugGroup: Group | null = null;
   let room: RoomSize | null = null;
@@ -1335,6 +1348,7 @@ export async function boot(): Promise<void> {
       debugGroup = null; // the previous scene (and so its group) is gone
       worldUi.mountThreats(threatEntries);
       offscreenHud.setLevel(threatEntries);
+      gazeEntries = threatEntries;
       if (isMirrored) mirror('ppOffscreen', '');
       highlightedThreatId = null;
       choreography.reset();
@@ -1599,6 +1613,21 @@ export async function boot(): Promise<void> {
         !silenceBubble.element.hidden,
       );
       if (isMirrored && offscreenHud.hasChanged) mirror('ppOffscreen', offscreenHud.mirrorText());
+      // Papa's gaze (story 7.8, D8), after the markers and the bubbles: the rings as drawn, the frame as
+      // seen. The scene applies it at its next update, one frame late (a cosmetic head turn).
+      if (world !== undefined && currentLevel !== null) {
+        pickGazeThreat(gazeEntries, gazePermilleOf, gazeIsOnScreen, gazeSight);
+        const babyPoint = currentLevel.babyPoint;
+        currentLevel.setPapaGazeSight(
+          isBabyShownForGaze(
+            world.baby.state,
+            offscreenHud.isPointOnScreen(babyPoint.xM, 0, babyPoint.zM),
+          ),
+          gazeSight.hasThreat,
+          gazeSight.threatXM,
+          gazeSight.threatZM,
+        );
+      }
       showGlyphChip(world, targetedId, device);
       if (isMirrored) {
         mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
@@ -2465,6 +2494,13 @@ export async function boot(): Promise<void> {
             hasHairOnEnd: real?.papaLook.hasHairOnEnd ?? false,
             isShirtInsideOut: real?.papaLook.isShirtInsideOut ?? false,
           },
+          papaLeanDeg: real?.papaLeanDeg ?? 0,
+          papaStoopDeg: real?.papaStoopDeg ?? 0,
+          papaHeadYawDeg: real?.papaHeadYawDeg ?? 0,
+          papaGaze: real?.papaGaze ?? 'ahead',
+          papaBreathDeg: real?.papaBreathDeg ?? 0,
+          babyBreathDeg: real?.babyBreathDeg ?? 0,
+          papaEyelidsPct: real?.papaEyelidsPct ?? 0,
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),

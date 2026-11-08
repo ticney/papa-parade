@@ -61,6 +61,20 @@ export interface FxState {
   readonly choreShards: number;
   /** The look the view draws on Papa: the world's parts or the debug overlay's (story 3.7). */
   readonly papaLook: Readonly<PapaLook>;
+  /** Papa's lean into a start or a stop, in degrees (story 7.8); 0 under reduced motion. */
+  readonly papaLeanDeg: number;
+  /** Papa's fatigue stoop, in degrees forward (story 7.8). */
+  readonly papaStoopDeg: number;
+  /** Papa's head turn from his body, in degrees, positive toward his left (story 7.8). */
+  readonly papaHeadYawDeg: number;
+  /** What Papa's head follows (story 7.8): the baby on screen, a ringed threat, or ahead. */
+  readonly papaGaze: 'baby' | 'threat' | 'ahead';
+  /** Papa's breath, in degrees of his torso (story 7.8); 0 held or under reduced motion. */
+  readonly papaBreathDeg: number;
+  /** The baby's breath, in degrees of his torso (story 7.8); 0 under reduced motion. */
+  readonly babyBreathDeg: number;
+  /** How shut Papa's eyelids are drawn, 0 (open) to 100: the micro-sleep or his sleep only (story 7.8). */
+  readonly papaEyelidsPct: number;
 }
 
 /** A cue the feedback director played: what it drew and how it vibrated (story 2.4). */

@@ -17,11 +17,11 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // unit gets a deliberate, commented entry here.
 // `pulses` is a count of rings, not a quantity: it has no unit. `laidHeightM` is a height in metres (story 4.8).
 // The door (story 3.5) adds `openAngleDeg` (degrees) and its size in metres: `widthM`, `heightM`, `thicknessM`.
-// The characters (story 7.2) add `speedMps` and `turnRateDegPerSec`. The look (story 7.3) adds `pulseHz`,
+// The characters (story 7.2) add `speedMps` (their `turnRateDegPerSec` moved to `feel.json › characters.turn` in story 7.8). The look (story 7.3) adds `pulseHz`,
 // `radiusM`, `sunOffsetM`, and two numbers with no unit: a light's `…Intensity` and the 0-255 `toonTones`.
 // The end photo (story 3.6) adds the size of its canvas in pixels, `widthPx` and `heightPx`, spelled out for the same reason.
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses)$/;
+  /(?:Pct|Ms|Mps|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses)$/;
 
 type Json = Record<string, unknown>;
 

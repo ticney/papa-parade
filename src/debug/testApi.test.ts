@@ -606,6 +606,13 @@ describe('fx (story 2.5)', () => {
       mischiefDecals: 0,
       choreShards: 0,
       papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+      papaLeanDeg: 0,
+      papaStoopDeg: 0,
+      papaHeadYawDeg: 0,
+      papaGaze: 'ahead',
+      papaBreathDeg: 0,
+      babyBreathDeg: 0,
+      papaEyelidsPct: 0,
     };
     const host = createFakeTestHost();
     (host as { fxState: () => typeof state }).fxState = () => state;
@@ -627,6 +634,14 @@ describe('fx (story 2.5)', () => {
       mischiefDecals: 2,
       choreShards: 0,
       papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+      // The life layer (story 7.8) goes through as it is.
+      papaLeanDeg: 6.5,
+      papaStoopDeg: 15,
+      papaHeadYawDeg: -32,
+      papaGaze: 'threat',
+      papaBreathDeg: -1.2,
+      babyBreathDeg: 0.8,
+      papaEyelidsPct: 100,
     };
     expect(api.fx()).toEqual(state);
   });

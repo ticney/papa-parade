@@ -239,3 +239,41 @@ describe('createOffscreenHud (story 9.3)', () => {
     expect(hud.chipOf(2, chip)).toBe(false);
   });
 });
+
+describe('what Papa’s gaze may see (story 7.8, D8)', () => {
+  it('says which markers were off the frame at the last update, bubble or not', () => {
+    const { hud } = setup();
+    hud.setLevel([entryAt(1, -80, 200), entryAt(2, 400, 200), entryAt(3, 2000, 200)]);
+    hud.update(true, [threat(1), threat(2), threat(3)], null, null, false);
+    expect(hud.isOffscreen(1)).toBe(true);
+    expect(hud.isOffscreen(2)).toBe(false);
+    expect(hud.isOffscreen(3)).toBe(true);
+    expect(hud.isOffscreen(99)).toBe(false);
+    // A level that is not live has none: everything is back on screen.
+    hud.update(false, [threat(1), threat(2), threat(3)], null, null, false);
+    expect(hud.isOffscreen(1)).toBe(false);
+  });
+
+  it('says nothing is off screen in a fixed level', () => {
+    const { hud } = setup('fixed');
+    hud.setLevel([entryAt(1, -80, 200)]);
+    hud.update(true, [threat(1)], null, null, false);
+    expect(hud.isOffscreen(1)).toBe(false);
+    expect(hud.isPointOnScreen(500, 0, 500)).toBe(true);
+  });
+
+  it('says whether a room point is drawn inside the follow frame, with no inset', () => {
+    const { hud } = setup();
+    hud.setLevel([entryAt(1, 400, 200)]);
+    // Before a measure, it cannot say: on screen.
+    expect(hud.isPointOnScreen(500, 0, 500)).toBe(true);
+    hud.update(true, [threat(1)], null, null, false);
+    const inside = entryAt(9, 400, 200);
+    const nearEdge = entryAt(9, 3, 200);
+    const outside = entryAt(9, -10, 200);
+    expect(hud.isPointOnScreen(inside.xM, inside.yM, inside.zM)).toBe(true);
+    // 3 px from the edge is drawn: no icon inset for the baby's own point.
+    expect(hud.isPointOnScreen(nearEdge.xM, nearEdge.yM, nearEdge.zM)).toBe(true);
+    expect(hud.isPointOnScreen(outside.xM, outside.yM, outside.zM)).toBe(false);
+  });
+});

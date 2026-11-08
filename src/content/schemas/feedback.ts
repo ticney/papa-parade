@@ -548,16 +548,6 @@ const BusyPropsSchema = z
 
 const CharactersSchema = z
   .strictObject({
-    crossFadeMs: z
-      .int()
-      .positive()
-      .describe('How long a clip takes to replace another, in sim ms.'),
-    turnRateDegPerSec: z
-      .number()
-      .positive()
-      .describe(
-        "How fast a character's body turns to face its way, in degrees per sim second. The sim's heading and the baby's eyes do not wait for it.",
-      ),
     squash: z.array(SquashRowSchema).describe('Which events squash and stretch whom.'),
     clipSpeeds: z.array(ClipSpeedSchema).describe('The natural speed of the travelling clips.'),
     papaClipFacing: z
@@ -604,7 +594,7 @@ const CharactersSchema = z
     }
   })
   .describe(
-    'The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it.',
+    'The animated characters (story 7.2): squash, clip speeds, facings, busy props. Read by the views on the sim clock; the sim never reads it. Their fades and turn are `feel.json › characters` (story 7.8).',
   );
 
 /** `#RRGGBB`, the form of the colours of DESIGN.md. */

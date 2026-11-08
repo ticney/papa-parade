@@ -100,7 +100,7 @@ describe('the carried baby lowered onto the mattress (story 4.8)', () => {
       gazeX: 0,
       gazeZ: 1,
     }) as unknown as BabySlice;
-  const MOTION = { turnRateDegPerSec: 720, clips: [] };
+  const MOTION = { clips: [] };
   const viewOf = (scene: Scene, laid?: number) =>
     createBabyView(
       scene,
@@ -109,7 +109,6 @@ describe('the carried baby lowered onto the mattress (story 4.8)', () => {
       createCharacterRig(
         createTestBaby(),
         createToonMaterialCache(TOON_TONES),
-        100,
         createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
       ),
       MOTION,

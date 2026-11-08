@@ -1192,3 +1192,25 @@ Open:
 - **The 60-character cap of `mama-lines.json` was never rendered**: the longest live line is 37 characters (`scream_home`), so the fit specs (`mamaReactions.spec.ts` FITS) never come near the cap, and the `[ASSUMPTION]` « fits 750 × 340 » is untested. « Pas si près de l'escalier ! » already wraps with the « ! » alone at 750 × 340 (`text-wrap: balance` on the bubble would fix it). Test a 60-character line at 844 × 390 and 750 × 340 when Geo rewrites the lines.
 - **Save writes are unordered with an async storage backend**: `recordMamaMemory` and `setSettings` each snapshot `save` and call `storage.set` with no queue. Safe with the synchronous `localStorage` port; with a Capacitor port (E8) an older snapshot could land last. Pre-existing for `setSettings`.
 - **The live-content tests of 3.8 run on `salon_crawler` only**: `dishwasher_first`, `tablecloth_again` and `plant_again` are checked by schema and `content:check`, but no test shows their gags can fire in `salon_kitchen`, the first level. A reachability check (the gags a level can produce versus the tags `mama-lines.json` names) would catch a dead line.
+
+## Story 7-8-couche-de-vie-et-personnages-detaches-du-decor (2026-11-08)
+
+Closed:
+
+- **« A one-shot no longer than `crossFadeMs` ends at its first update » (7.2 review):** `crossFadeMs` is gone; the return fade is `feel.json › characters.fades.returnMs`, bounded to 200 ms by the schema, and `tests/architecture/characterAssets.test.ts` holds every one-shot the code plays (events, responses, gags, both characters) to at least twice the committed `returnMs`.
+- **« Papa's yaw has no smoothing » (1.7, closed by 7.2 with `turnToward`):** the turn is now a spring on the drawn yaw (`characterSpring.ts`, `feel.json › characters.turn`: reach, damping, overshoot cap), for Papa and the baby; `turnToward` and `turnRateDegPerSec` are gone. `pose.yawRad`, the sim's heading and the markers still never wait for it.
+
+Still open, as they were:
+
+- **A squash restarted mid-run snaps back to scale 1** (7.2 review): untouched.
+- **The baby's head is not limited against his body** (7.2 review): still true with the spring, and the swing past the gaze (up to `turn.overshootMaxDeg`) adds to it for a moment; the head stays exact on the gaze. Judge it in play.
+- **Only `idle` and `walk` have carried variants** (7.2 review): untouched.
+- **The forelock** (7.9: needs the v2 skeleton) and **the shuffling walk above 70 fatigue** (7.14): not in this story.
+
+New:
+
+- **The rim is unlit** (D10): `toonMaterial.ts` adds paper on the silhouette after the lights, so in the pénombre (story 3.15) and the outlet's flash the characters keep a bright edge while the room darkens. Reason: the edge is what reads; Geo's call once he has seen a dark room. Scaling it by the scene's light factor would be one uniform.
+- **The rim also catches the top of a baby hidden behind the sofa** (7.3 AC 3, accepted by Geo then): unchanged, as the story asked; now with a light edge on it.
+- **The gaze sight is one frame late** (D8): boot fills it after the markers and the bubbles, the scene applies it at its next `update`. 16 ms of a cosmetic head turn.
+- **The gaze ignores a threat whose marker is off the follow frame** (D8, Geo's question 2 in the story): a threat in an off-screen bubble does not turn his head. One line in `boot.ts` (`gazeIsOnScreen`) if Geo wants the bubbles to count.
+- **The lean's acceleration is the rate of change of a spring on the drawn speed** (D6), not the raw difference between two sim steps: a glide starts and stops at once in the sim, so the raw difference is a single 10 ms spike that a damped spring would not show. Same `lean.reachMs` for both springs; split it if Geo wants the weight and the settle tuned apart.

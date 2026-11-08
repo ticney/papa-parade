@@ -37,6 +37,9 @@ import {
 import { createLevelScene, eyelidsAmountAt, type SceneBodies } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
 
+/** The test feel's life layer and look (story 7.8): what `world.feel.characters` says in the test worlds. */
+const TEST_CHARACTERS_FEEL = createTestContent().feel.characters;
+
 const BODIES = {
   papaRadiusM: 0.25,
   babyRadiusM: 0.2,
@@ -57,6 +60,7 @@ const BODIES = {
       { event: 'BabyWoke', character: 'baby', amountPct: 20, durationMs: 200 },
     ],
   } as SceneBodies['characters'],
+  liveCharacters: () => TEST_CHARACTERS_FEEL,
   door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
   render: createTestFeedback().render,
   isMotionReduced: () => false,
@@ -508,6 +512,14 @@ describe('createLevelScene', () => {
       mischiefDecals: 0,
       choreShards: 0,
       papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+      // The sim clock stands still here: the life layer has not moved, except the stoop, which is state.
+      papaLeanDeg: 0,
+      papaStoopDeg: (world.gauges.fatigue * TEST_CHARACTERS_FEEL.stoop.maxDeg) / 100,
+      papaHeadYawDeg: 0,
+      papaGaze: 'ahead',
+      papaBreathDeg: 0,
+      babyBreathDeg: 0,
+      papaEyelidsPct: 0,
     });
   });
 
@@ -1280,12 +1292,13 @@ describe("the busy Papa's body (story 2.13)", () => {
 
   it('turns for the camera while he drinks, and turns his back to the baby on the phone', () => {
     const { update, realFxState } = build();
+    // 5 s of sim time each: the turn spring (story 7.8) has settled on its facing by then.
     update(withState('drink', 0), 0);
-    update(withState('drink', 1000), 0);
+    update(withState('drink', 5000), 0);
     expect(realFxState().papaBodyYawRad).toBeCloseTo(CAMERA_YAW_RAD, 6);
-    const world = withState('onPhone', 2000);
+    const world = withState('onPhone', 6000);
     update(world, 0);
-    update(withState('onPhone', 3000), 0);
+    update(withState('onPhone', 11000), 0);
     const toBabyX = world.baby.xM - world.papa.xM;
     const toBabyZ = world.baby.zM - world.papa.zM;
     expect(Math.hypot(toBabyX, toBabyZ)).toBeGreaterThan(0.05);
@@ -1321,5 +1334,182 @@ describe("the busy Papa's body (story 2.13)", () => {
       else expect(body.scale.y).toBeGreaterThan(1);
       level.dispose();
     }
+  });
+});
+
+describe('the life layer and the characters look (story 7.8)', () => {
+  /** The live world's feel, restored after each test: these tests retune it as the panel would. */
+  const savedCharacters = structuredClone(effectsWorld.feel.characters);
+  const savedCatastrophePct = effectsWorld.gauges.catastrophePct;
+  afterEach(() => {
+    Object.assign(effectsWorld.feel.characters, structuredClone(savedCharacters));
+    effectsWorld.gauges.catastrophePct = savedCatastrophePct;
+    effectsWorld.sequence.stealth.breathHeldAt = null;
+    effectsWorld.papa.state = 'idle';
+  });
+  const liveBodies = { ...BODIES, liveCharacters: () => effectsWorld.feel.characters };
+  const buildLive = (bodies: SceneBodies = liveBodies) =>
+    createLevelScene(
+      {
+        id: 'test_room',
+        geometry: createTestLevelGeometry('test_room'),
+        model: buildModel(),
+        characters: createTestCharacters(),
+      },
+      bodies,
+    );
+  const meshesUnder = (root: Object3D | undefined): Mesh[] => {
+    const found: Mesh[] = [];
+    root?.traverse((node) => {
+      if (node instanceof Mesh) found.push(node);
+    });
+    return found;
+  };
+  const hullWidthOf = (scene: Object3D, name: string): number => {
+    const hull = scene.getObjectByName(`outline_${name}`) as Mesh;
+    return (hull.material as unknown as { uniforms: { widthM: { value: number } } }).uniforms.widthM
+      .value;
+  };
+
+  it('gives the characters their own toon materials, never the room’s, and the room keeps its own', () => {
+    const level = buildLive();
+    const characterMeshes = [
+      ...meshesUnder(level.scene.getObjectByName('papa')),
+      ...meshesUnder(level.scene.getObjectByName('baby')),
+    ].filter((mesh) => mesh.material instanceof MeshToonMaterial);
+    expect(characterMeshes.length).toBeGreaterThan(0);
+    const roomMeshes = meshesUnder(level.scene.getObjectByName('sofa')).filter(
+      (mesh) => mesh.material instanceof MeshToonMaterial,
+    );
+    expect(roomMeshes.length).toBeGreaterThan(0);
+    const roomMaterials = new Set(roomMeshes.map((mesh) => mesh.material));
+    for (const mesh of characterMeshes) {
+      expect(roomMaterials.has(mesh.material), mesh.name).toBe(false);
+      expect(
+        (mesh.material as MeshToonMaterial).name.startsWith('toon_character_'),
+        mesh.name,
+      ).toBe(true);
+    }
+    for (const mesh of roomMeshes) {
+      expect((mesh.material as MeshToonMaterial).name.startsWith('toon_character_')).toBe(false);
+    }
+    level.dispose();
+  });
+
+  it('adds no mesh: each character mesh has one hull, as before the story', () => {
+    const level = buildLive();
+    for (const name of ['papa', 'baby']) {
+      const meshes = meshesUnder(level.scene.getObjectByName(name));
+      const hulls = meshes.filter((mesh) => mesh.name.startsWith('outline_'));
+      const drawn = meshes.filter((mesh) => !mesh.name.startsWith('outline_'));
+      // Every rig mesh under the body has its one hull (the « Z » is beside the body, with none, as in 7.3).
+      expect(hulls.length, name).toBeGreaterThan(0);
+      expect(hulls.length, name).toBe(drawn.length);
+    }
+    level.dispose();
+  });
+
+  it('draws the characters’ hulls outlineWidthPct of the props’, and follows a feel change at the next frame', () => {
+    const level = buildLive();
+    const propWidthM = BODIES.render.outlines.widthM;
+    expect(hullWidthOf(level.scene, 'papa_body')).toBeCloseTo((propWidthM * 150) / 100, 12);
+    expect(hullWidthOf(level.scene, 'PROP_mug_01')).toBe(propWidthM);
+    effectsWorld.feel.characters.look.outlineWidthPct = 200;
+    level.update(fakeWorldAt(0), 0, asRealMs(0));
+    expect(hullWidthOf(level.scene, 'papa_body')).toBeCloseTo(propWidthM * 2, 12);
+    expect(hullWidthOf(level.scene, 'baby_body')).toBeCloseTo(propWidthM * 2, 12);
+    expect(hullWidthOf(level.scene, 'PROP_mug_01')).toBe(propWidthM);
+    level.dispose();
+  });
+
+  it('turns the 4th tone on from the feel, on the characters only', () => {
+    const level = buildLive();
+    const papaBody = level.scene.getObjectByName('papa_body') as Mesh;
+    const ramp = (papaBody.material as MeshToonMaterial).gradientMap as unknown as {
+      image: { data: Uint8Array };
+    };
+    const sofa = meshesUnder(level.scene.getObjectByName('sofa')).find(
+      (mesh) => mesh.material instanceof MeshToonMaterial,
+    ) as Mesh;
+    const roomRamp = (sofa.material as MeshToonMaterial).gradientMap as unknown as {
+      image: { data: Uint8Array };
+    };
+    const before = papaBody.material;
+    effectsWorld.feel.characters.look.isFourthToneOn = true;
+    level.update(fakeWorldAt(0), 0, asRealMs(0));
+    expect(new Set(ramp.image.data).size).toBe(4);
+    expect(new Set(roomRamp.image.data).size).toBe(3);
+    expect(papaBody.material).toBe(before);
+    level.dispose();
+  });
+
+  it('quickens the breath above the catastrophe alert, and holds Papa’s during the stealth exit', () => {
+    const level = buildLive();
+    const { breath } = effectsWorld.feel.characters;
+    effectsWorld.gauges.catastrophePct = effectsWorld.feel.catastrophe.alertPct + 1;
+    level.update(fakeWorldAt(0), 0, asRealMs(0));
+    level.update(fakeWorldAt(breath.alertPeriodMs / 4), 0, asRealMs(0));
+    expect(level.realFxState().papaBreathDeg).toBeCloseTo(breath.papaAmplitudeDeg, 6);
+    expect(level.realFxState().babyBreathDeg).toBeCloseTo(breath.babyAmplitudeDeg, 6);
+    effectsWorld.sequence.stealth.breathHeldAt = asSimMs(0);
+    let t = breath.alertPeriodMs / 4;
+    for (let i = 0; i < 100; i++) {
+      t += 10;
+      level.update(fakeWorldAt(t), 0, asRealMs(0));
+    }
+    expect(Math.abs(level.realFxState().papaBreathDeg)).toBe(0);
+    expect(level.realFxState().babyBreathDeg).not.toBe(0);
+    level.dispose();
+  });
+
+  it('has no lean nor breath under reduced motion, and keeps the stoop', () => {
+    const level = buildLive({ ...liveBodies, isMotionReduced: () => true });
+    level.update(fakeWorldAt(0), 0, asRealMs(0));
+    level.update(fakeWorldAt(750), 0, asRealMs(0));
+    const fx = level.realFxState();
+    expect(fx.papaBreathDeg).toBe(0);
+    expect(fx.babyBreathDeg).toBe(0);
+    expect(fx.papaLeanDeg).toBe(0);
+    expect(fx.papaStoopDeg).toBeCloseTo(
+      (effectsWorld.gauges.fatigue * effectsWorld.feel.characters.stoop.maxDeg) / 100,
+      12,
+    );
+    level.dispose();
+  });
+
+  it('applies the gaze sight boot gives at its next update, and looks ahead while he glides', () => {
+    const level = buildLive();
+    level.update(fakeWorldAt(0), 0, asRealMs(0));
+    level.setPapaGazeSight(true, false, 0, 0);
+    expect(level.realFxState().papaGaze).toBe('ahead');
+    level.update(fakeWorldAt(10), 0, asRealMs(0));
+    expect(level.realFxState().papaGaze).toBe('baby');
+    // The baby point boot reads is where he is drawn.
+    expect(level.babyPoint.xM).toBeCloseTo(effectsWorld.baby.xM, 6);
+    // Gliding, he is responding: his eyes go to the threat, or ahead with none.
+    effectsWorld.papa.state = 'glide';
+    level.update(fakeWorldAt(20), 0, asRealMs(0));
+    expect(level.realFxState().papaGaze).toBe('ahead');
+    level.setPapaGazeSight(true, true, effectsWorld.papa.xM + 1, effectsWorld.papa.zM);
+    level.update(fakeWorldAt(30), 0, asRealMs(0));
+    expect(level.realFxState().papaGaze).toBe('threat');
+    level.resetFx();
+    level.update(fakeWorldAt(40), 0, asRealMs(0));
+    expect(level.realFxState().papaGaze).toBe('ahead');
+    level.dispose();
+  });
+
+  it('frees both toon caches and both outline kits on dispose', () => {
+    const level = buildLive();
+    const papaBody = level.scene.getObjectByName('papa_body') as Mesh;
+    const hull = level.scene.getObjectByName('outline_papa_body') as Mesh;
+    const sofa = meshesUnder(level.scene.getObjectByName('sofa')).find(
+      (mesh) => mesh.material instanceof MeshToonMaterial,
+    ) as Mesh;
+    const spies = [papaBody.material, hull.material, sofa.material].map((material) =>
+      vi.spyOn(material as MeshToonMaterial, 'dispose'),
+    );
+    level.dispose();
+    for (const spy of spies) expect(spy).toHaveBeenCalled();
   });
 });

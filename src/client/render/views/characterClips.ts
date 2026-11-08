@@ -36,6 +36,38 @@ const BABY_LOOPS: Readonly<Record<BabyState, string>> = {
   carriedUp: 'carried',
 };
 
+/**
+ * Papa's states that travel (story 7.8, D4): a passage into one is a start, out of one a stop. By state,
+ * not by `clipSpeeds`, so that `glide` (which has no speed row on purpose) is one. A new state is a type error.
+ */
+export const PAPA_TRAVELLING: Readonly<Record<PapaState, boolean>> = {
+  idle: false,
+  walkPath: true,
+  walkDir: true,
+  glide: true,
+  drink: false,
+  asleep: false,
+  onPhone: false,
+  onToilet: false,
+  electrified: false,
+  carryingUp: false,
+  pickingUp: false,
+  chore: false,
+};
+
+/** The baby's states that travel (story 7.8, D4): he crawls in each. */
+export const BABY_TRAVELLING: Readonly<Record<BabyState, boolean>> = {
+  wander: true,
+  babble: false,
+  targetLocked: false,
+  approach: true,
+  act: false,
+  mischiefSilent: true,
+  carried: false,
+  downstairs: false,
+  carriedUp: false,
+};
+
 /** The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`). */
 export function papaClipOf(papa: Readonly<PapaSlice>, baby: Readonly<BabySlice>): string {
   const clip = PAPA_LOOPS[papa.state];

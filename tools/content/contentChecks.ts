@@ -1696,6 +1696,28 @@ function checkPropReferences(
  * above `maxPushImpulseNs`, which `pushProp` holds every push to (a strict sim throws on a longer
  * one, a normal one clamps it and reports `InvariantViolated` at every gag).
  */
+/** 0-255 per percent of white: the scale of `render.toonTones`. */
+const TONE_PER_PCT = 255 / 100;
+
+/**
+ * The characters' 4th tone (story 7.8, D10) is a darker band under the ramp: `feel.json ›
+ * characters.look.fourthTonePct` (in % of white) must stay below the darkest of `feedback.json ›
+ * render.toonTones`, whether or not it is on, so that switching it on in the panel never draws a band
+ * lighter than the shadow above it.
+ */
+function checkCharacterLook(feel: Feel, feedback: FeedbackTable): ContentProblem[] {
+  const { fourthTonePct } = feel.characters.look;
+  const darkest = feedback.render.toonTones[0];
+  if (darkest === undefined || fourthTonePct * TONE_PER_PCT < darkest) return [];
+  return [
+    {
+      file: `content/${FEEL_FILE.file}`,
+      jsonPath: formatJsonPath(['characters', 'look', 'fourthTonePct']),
+      message: `feel.json › characters.look.fourthTonePct (${fourthTonePct} %, ${(fourthTonePct * TONE_PER_PCT).toFixed(1)} of 255) must be darker than the darkest of feedback.json › render.toonTones (${darkest}): the 4th tone is the darkest band`,
+    },
+  ];
+}
+
 function checkPhysicsTuning(feel: Feel): ContentProblem[] {
   const problems: ContentProblem[] = [];
   const { physics } = feel;
@@ -1872,6 +1894,9 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   if (feel !== undefined) {
     problems.push(...checkPropReferences(families.geometries, feel));
     problems.push(...checkPhysicsTuning(feel));
+  }
+  if (feel !== undefined && feedback !== undefined) {
+    problems.push(...checkCharacterLook(feel, feedback));
   }
 
   if (feedback !== undefined)

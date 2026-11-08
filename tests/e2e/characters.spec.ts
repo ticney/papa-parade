@@ -9,6 +9,7 @@ import {
   headingYawRad,
   startCall,
   startDrinking,
+  TURN_SETTLE_MS,
   wrapRad,
   YAW_TOLERANCE_RAD,
 } from './support/busyPapa.ts';
@@ -194,7 +195,7 @@ test.describe('Papa busy', () => {
       YAW_TOLERANCE_RAD,
     );
 
-    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    const first = await advanceAndRead(page, Math.ceil(TURN_SETTLE_MS / STEP_MS));
     expect(first.papaClip).toBe('drink');
     expect(Math.abs(wrapRad(first.papaBodyYawRad - CAMERA_YAW_RAD))).toBeLessThan(
       YAW_TOLERANCE_RAD,
@@ -236,7 +237,11 @@ test.describe('Papa busy', () => {
     const awayRad = Math.atan2(world.papa.xM - world.baby.xM, world.papa.zM - world.baby.zM);
     expect(Math.abs(wrapRad(headingYawRad(world) - awayRad))).toBeGreaterThan(YAW_TOLERANCE_RAD);
 
-    const first = await advanceAndRead(page, Math.ceil(300 / STEP_MS));
+    // Long enough for his body's spring to settle (story 7.8), and on the wobble's phase the spec read
+    // before it (300 ms into the call): two reads an eighth apart around a crest would read the same.
+    const periodMs = busyProps.blablaPeriodMs;
+    const phaseFixMs = (((300 - TURN_SETTLE_MS) % periodMs) + periodMs) % periodMs;
+    const first = await advanceAndRead(page, Math.round((TURN_SETTLE_MS + phaseFixMs) / STEP_MS));
     const now = await ppWorld(page);
     expect(now.papa.state).toBe('onPhone');
     expect(first.papaClip).toBe('on_phone');

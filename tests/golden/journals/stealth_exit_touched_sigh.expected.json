@@ -1,6 +1,6 @@
 {
   "untilSimMs": 9000,
-  "worldHash": "12bda3929b5a48",
+  "worldHash": "145b0022d2b84c",
   "eventTypes": [
     "SequenceStarted",
     "SequenceStepStarted",

@@ -23,7 +23,7 @@ import {
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import type { LevelCameraSetup } from '../render/followRig.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
-import type { LevelFx, LevelScene } from '../render/levelScene.ts';
+import type { LevelFx, LevelScene, SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import type { ThreatMarkerEntry } from '../ui/world/threatMarkers.ts';
 import { type AppState, createAppFsm } from './appFsm.ts';
@@ -61,6 +61,13 @@ const NO_REAL_FX = () => ({
   mischiefDecals: 0,
   choreShards: 0,
   papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+  papaLeanDeg: 0,
+  papaStoopDeg: 0,
+  papaHeadYawDeg: 0,
+  papaGaze: 'ahead' as const,
+  papaBreathDeg: 0,
+  babyBreathDeg: 0,
+  papaEyelidsPct: 0,
 });
 
 interface Deferred<T> {
@@ -174,6 +181,8 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
+        setPapaGazeSight: () => {},
+        babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {
           record.resets++;
         },
@@ -283,6 +292,8 @@ describe('createLevelSession', () => {
           resetFx: () => {},
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
+          setPapaGazeSight: () => {},
+          babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},
         };
@@ -299,11 +310,15 @@ describe('createLevelSession', () => {
         choreStations: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
+        liveCharacters: expect.any(Function),
         door: content.feedback.door,
         render: content.feedback.render,
         isMotionReduced: expect.any(Function),
       },
     ]);
+    // The life layer reads the live world's feel at each call, never a copy (story 7.8, D1).
+    const live = (bodies[0] as SceneBodies).liveCharacters;
+    expect(live()).toBe(session.active?.sim.world.feel.characters);
   });
 
   it('hands the scene the planned threats that aim at an anchor, and no other', async () => {
@@ -322,6 +337,8 @@ describe('createLevelSession', () => {
           resetFx: () => {},
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
+          setPapaGazeSight: () => {},
+          babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},
         };
@@ -359,6 +376,8 @@ describe('createLevelSession', () => {
             resetFx: () => {},
             realFxState: NO_REAL_FX,
             setPapaLook: () => {},
+            setPapaGazeSight: () => {},
+            babyPoint: { xM: 0, zM: 0 },
             update: () => {},
             dispose: () => {},
           };
@@ -581,6 +600,8 @@ describe('createLevelSession', () => {
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
+        setPapaGazeSight: () => {},
+        babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {},
         update: (_world, _alpha, nowReal) => {
           calls.push('update');
@@ -615,6 +636,8 @@ describe('createLevelSession', () => {
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
+        setPapaGazeSight: () => {},
+        babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {},
         // The level ends inside the frame (a step's LevelScored), before the camera is moved.
         update: () => {
@@ -994,6 +1017,8 @@ describe('createLevelSession', () => {
             resetFx: () => {},
             realFxState: NO_REAL_FX,
             setPapaLook: () => {},
+            setPapaGazeSight: () => {},
+            babyPoint: { xM: 0, zM: 0 },
             update: () => {},
             dispose: () => {},
           };
@@ -1232,6 +1257,8 @@ describe('createLevelSession › start options and outcomes', () => {
           resetFx: () => {},
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
+          setPapaGazeSight: () => {},
+          babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},
         };
@@ -1254,6 +1281,7 @@ describe('createLevelSession › start options and outcomes', () => {
         choreStations: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
+        liveCharacters: expect.any(Function),
         door: content.feedback.door,
         render: content.feedback.render,
         isMotionReduced: expect.any(Function),

@@ -146,7 +146,7 @@ development_status:
 
   # Animation v2.4 (2026-11-08) — après 3.8, avant 3.9. Ordre de production du GDD :
   # couche de vie, squelette v2, première vague, puis le reste.
-  7-8-couche-de-vie-et-personnages-detaches-du-decor: ready-for-dev
+  7-8-couche-de-vie-et-personnages-detaches-du-decor: review
   7-9-squelette-v2-et-animations-reprises: backlog
   7-10-visages-sourcils-et-expressions: backlog
   7-11-premiere-vague-deplacement-et-attentes-de-papa: backlog

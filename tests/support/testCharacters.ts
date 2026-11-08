@@ -1,5 +1,6 @@
 import type { CharacterAsset } from '@client/assets/gltf';
 import { BABY_CONTRACT, PAPA_CONTRACT } from '@client/render/views/characterClips';
+import { createLifeInputs, type LifeInputs } from '@client/render/views/lifeLayer';
 import {
   AnimationClip,
   Bone,
@@ -15,6 +16,7 @@ import {
   Uint16BufferAttribute,
   VectorKeyframeTrack,
 } from 'three';
+import { createTestContent } from './testContent.ts';
 
 /** How long each clip of the fixture lasts, in seconds: loops and one-shots alike. */
 export const TEST_CLIP_S = 1;
@@ -85,6 +87,17 @@ export const createTestPapa = (): CharacterAsset => {
   return asset;
 };
 export const createTestBaby = (): CharacterAsset => createTestCharacter(BABY_CONTRACT);
+
+/**
+ * The life layer's inputs of a frame (story 7.8), on the test feel's `characters` (its own copy: a test
+ * may retune it), with `patch` laid over: fatigue 0, no alert, nothing seen, motion not reduced.
+ */
+export function createTestLife(patch: Partial<LifeInputs> = {}): LifeInputs {
+  return Object.assign(
+    createLifeInputs(structuredClone(createTestContent().feel.characters)),
+    patch,
+  );
+}
 export const createTestCharacters = (): { papa: CharacterAsset; baby: CharacterAsset } => ({
   papa: createTestPapa(),
   baby: createTestBaby(),

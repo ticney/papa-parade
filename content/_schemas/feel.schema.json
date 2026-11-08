@@ -1690,6 +1690,251 @@
       "additionalProperties": false,
       "description": "The follow camera of a level with `camera: \"follow\"` (story 9.2): its frame, dead zone, edge margin and catch-up. Client only."
     },
+    "characters": {
+      "type": "object",
+      "properties": {
+        "fades": {
+          "type": "object",
+          "properties": {
+            "startMs": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "From a still loop to a travelling one (he starts off), in sim ms. Eased in and out."
+            },
+            "stopMs": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "From a travelling loop to a still one (he stops), in sim ms."
+            },
+            "returnMs": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 200,
+              "description": "From a one-shot back to the loop, in sim ms. A one-shot hands back this long before its end."
+            },
+            "otherMs": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "Every other passage (into a one-shot, still to still, travelling to travelling), in sim ms."
+            }
+          },
+          "required": [
+            "startMs",
+            "stopMs",
+            "returnMs",
+            "otherMs"
+          ],
+          "additionalProperties": false,
+          "description": "How long each passage between two clips fades, on an ease-in-out curve (story 7.8). The weights always add up to 1."
+        },
+        "turn": {
+          "type": "object",
+          "properties": {
+            "reachMs": {
+              "type": "number",
+              "minimum": 50,
+              "maximum": 1000,
+              "description": "Time the drawn body takes to cover 95 % of a new facing, in sim ms (as the camera: it first reaches it a little later when it swings past). The sim heading and the markers never wait for it."
+            },
+            "dampingRatio": {
+              "type": "number",
+              "minimum": 0.3,
+              "maximum": 1,
+              "description": "Damping of the turn spring: 1 = no overshoot; below, he swings past and comes back (0.6 = about 8° on a 90° turn)."
+            },
+            "overshootMaxDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 45,
+              "description": "The most the body swings past its facing, in degrees."
+            }
+          },
+          "required": [
+            "reachMs",
+            "dampingRatio",
+            "overshootMaxDeg"
+          ],
+          "additionalProperties": false,
+          "description": "Papa's and the baby's body turn, a spring on the drawn yaw (story 7.8)."
+        },
+        "lean": {
+          "type": "object",
+          "properties": {
+            "maxAccelDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 45,
+              "description": "How far Papa's torso pitches into a start or back from a stop, in degrees."
+            },
+            "maxTurnDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 45,
+              "description": "How far his torso leans into a turn, in degrees."
+            },
+            "fullAccelMps2": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "description": "The drawn acceleration that gives the full pitch, in m/s²."
+            },
+            "fullTurnDegPerSec": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 3600,
+              "description": "The body's turn rate that gives the full lean, in degrees per sim second."
+            },
+            "reachMs": {
+              "type": "number",
+              "minimum": 50,
+              "maximum": 1000,
+              "description": "Time the lean takes to reach its target, in sim ms (no overshoot)."
+            }
+          },
+          "required": [
+            "maxAccelDeg",
+            "maxTurnDeg",
+            "fullAccelMps2",
+            "fullTurnDegPerSec",
+            "reachMs"
+          ],
+          "additionalProperties": false,
+          "description": "Papa's lean, from what is drawn (story 7.8). 0 under « Réduire les animations »."
+        },
+        "breath": {
+          "type": "object",
+          "properties": {
+            "periodMs": {
+              "type": "number",
+              "minimum": 334,
+              "maximum": 20000,
+              "description": "One calm breath, in sim ms."
+            },
+            "alertPeriodMs": {
+              "type": "number",
+              "minimum": 334,
+              "maximum": 20000,
+              "description": "One breath while the catastrophe gauge is above `catastrophe.alertPct`, in sim ms. Not above `periodMs`."
+            },
+            "papaAmplitudeDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "How far Papa's torso rises and falls, in degrees."
+            },
+            "babyAmplitudeDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "How far the baby's torso rises and falls, in degrees."
+            }
+          },
+          "required": [
+            "periodMs",
+            "alertPeriodMs",
+            "papaAmplitudeDeg",
+            "babyAmplitudeDeg"
+          ],
+          "additionalProperties": false,
+          "description": "The breathing over the clips (story 7.8). Papa holds it during the stealth exit; 0 under « Réduire les animations »."
+        },
+        "gaze": {
+          "type": "object",
+          "properties": {
+            "maxYawDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 90,
+              "description": "How far Papa's head turns from his body, in degrees."
+            },
+            "reachMs": {
+              "type": "number",
+              "minimum": 50,
+              "maximum": 1000,
+              "description": "Time his head takes to reach what it looks at, in sim ms."
+            }
+          },
+          "required": [
+            "maxYawDeg",
+            "reachMs"
+          ],
+          "additionalProperties": false,
+          "description": "Papa's gaze (story 7.8): the baby on screen, else the visible threat whose ring is the most advanced, else ahead."
+        },
+        "stoop": {
+          "type": "object",
+          "properties": {
+            "maxDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 45,
+              "description": "How far Papa's torso pitches forward at fatigue 100, in degrees."
+            }
+          },
+          "required": [
+            "maxDeg"
+          ],
+          "additionalProperties": false,
+          "description": "The fatigue stoop (story 7.8): in proportion to the fatigue gauge. His eyelids never follow it."
+        },
+        "look": {
+          "type": "object",
+          "properties": {
+            "outlineWidthPct": {
+              "type": "number",
+              "minimum": 50,
+              "maximum": 300,
+              "description": "The characters' ink hull, in % of the furniture's and props' (`feedback.json › render.outlines.widthM`)."
+            },
+            "rimStrengthPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "How bright the light rim on their silhouette is, in %."
+            },
+            "rimWidthPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "How far the rim reaches in from the silhouette, in %."
+            },
+            "isFourthToneOn": {
+              "type": "boolean",
+              "description": "Whether the characters' shading has a 4th, darkest tone (a test, off at first)."
+            },
+            "fourthTonePct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "The 4th tone, in % of white: below the darkest of `render.toonTones` (`content:check`)."
+            }
+          },
+          "required": [
+            "outlineWidthPct",
+            "rimStrengthPct",
+            "rimWidthPct",
+            "isFourthToneOn",
+            "fourthTonePct"
+          ],
+          "additionalProperties": false,
+          "description": "The characters' own look, to stand out from the room (story 7.8)."
+        }
+      },
+      "required": [
+        "fades",
+        "turn",
+        "lean",
+        "breath",
+        "gaze",
+        "stoop",
+        "look"
+      ],
+      "additionalProperties": false,
+      "description": "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, rim and outline. Client only."
+    },
     "music": {
       "type": "object",
       "properties": {
@@ -1884,6 +2129,7 @@
     "gags",
     "fx",
     "camera",
+    "characters",
     "music",
     "calibration"
   ],

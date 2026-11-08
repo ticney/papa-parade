@@ -3,13 +3,13 @@ import { asSimMs } from '@shared/time';
 import type { BabySlice, PapaSlice } from '@sim';
 import { type Object3D, Scene, SkinnedMesh, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createTestPapa } from '../../../../tests/support/testCharacters.ts';
+import { createTestLife, createTestPapa } from '../../../../tests/support/testCharacters.ts';
 import type { CharacterAsset } from '../../assets/gltf.ts';
 import { createBlobKit } from '../blobShadow.ts';
 import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import { createCharacterRig } from './characterRig.ts';
-import { createPapaView, type PapaPose, papaPoseAt } from './papaView.ts';
+import { createPapaView, PAPA_LIFE_BONES, type PapaPose, papaPoseAt } from './papaView.ts';
 
 const TOON_TONES = [96, 178, 255];
 
@@ -67,9 +67,9 @@ function isShown(node: Object3D | null): boolean {
   return true;
 }
 
-const CROSS_FADE_MS = 100;
+/** The life layer's inputs of a frame: the test feel's `characters` (turn: 250 ms, damping 0.6, cap 10°). */
+const LIFE = createTestLife();
 const MOTION = {
-  turnRateDegPerSec: 360,
   clips: [{ clip: 'walk', speedMps: 3 }],
   clipFacing: [
     { clip: 'drink', facing: 'camera' },
@@ -99,8 +99,8 @@ function buildView(radiusM = 0.25, prepare?: (asset: CharacterAsset) => void) {
   const rig = createCharacterRig(
     asset,
     toon,
-    CROSS_FADE_MS,
     createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
+    PAPA_LIFE_BONES,
   );
   const view = createPapaView(scene, toon, blobs, radiusM, rig, MOTION);
   return {
@@ -184,22 +184,22 @@ describe('his animation (story 7.2)', () => {
   it("plays the loop of his state, and the carried one when the baby's state says so", () => {
     const { view } = buildView();
     view.update(papa(), 1);
-    view.animate(papa(), FREE_BABY, 10);
+    view.animate(papa(), FREE_BABY, 10, LIFE);
     expect(view.clipName).toBe('idle');
-    view.animate(papa(), CARRIED_BABY, 10);
+    view.animate(papa(), CARRIED_BABY, 10, LIFE);
     expect(view.clipName).toBe('carry_idle');
-    view.animate(papa({ state: 'walkPath' }), CARRIED_BABY, 10);
+    view.animate(papa({ state: 'walkPath' }), CARRIED_BABY, 10, LIFE);
     expect(view.clipName).toBe('carry_walk');
-    view.animate(papa({ state: 'onPhone' }), FREE_BABY, 10);
+    view.animate(papa({ state: 'onPhone' }), FREE_BABY, 10, LIFE);
     expect(view.clipName).toBe('on_phone');
   });
 
   it('holds the mixer on a dt of 0', () => {
     const { view } = buildView();
     view.update(papa(), 1);
-    view.animate(papa(), FREE_BABY, 200);
+    view.animate(papa(), FREE_BABY, 200, LIFE);
     const timeMs = view.mixerTimeMs;
-    view.animate(papa(), FREE_BABY, 0);
+    view.animate(papa(), FREE_BABY, 0, LIFE);
     expect(view.mixerTimeMs).toBe(timeMs);
   });
 
@@ -208,23 +208,50 @@ describe('his animation (story 7.2)', () => {
     const action = (): number => rig.node('spine').position.y;
     view.update(papa({ state: 'walkPath', prevXM: 0, xM: 0.015 }), 1);
     // 0.015 m in a 10 ms step is 1.5 m/s, half the clip's 3 m/s.
-    view.animate(papa({ state: 'walkPath', prevXM: 0, xM: 0.015 }), FREE_BABY, 400);
+    view.animate(papa({ state: 'walkPath', prevXM: 0, xM: 0.015 }), FREE_BABY, 400, LIFE);
     expect(action()).toBeCloseTo(0.2, 5);
   });
 
-  it("turns his body by the shortest arc at the turn rate, while the pose says the sim's heading at once", () => {
+  it("turns his body on its spring, while the pose says the sim's heading at once (story 7.8, D5)", () => {
     const { view, named } = buildView();
     view.update(papa({ headingX: 0, headingZ: 1 }), 1);
     const east = papa({ headingX: 1, headingZ: 0 });
     view.update(east, 1);
     expect(view.pose.yawRad).toBeCloseTo(Math.PI / 2, 12);
     expect(named('papa').rotation.y).toBe(0);
-    view.animate(east, FREE_BABY, 125); // 360 °/s for 125 ms is 45°
-    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 4, 12);
-    view.animate(east, FREE_BABY, 0);
-    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 4, 12);
-    view.animate(east, FREE_BABY, 1000);
-    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 2, 12);
+    view.animate(east, FREE_BABY, 120, LIFE);
+    const midway = named('papa').rotation.y;
+    expect(midway).toBeGreaterThan(0.1);
+    expect(midway).toBeLessThan(Math.PI / 2);
+    expect(view.bodyYawRad).toBe(midway);
+    view.animate(east, FREE_BABY, 0, LIFE);
+    expect(named('papa').rotation.y).toBe(midway);
+    // It swings past (5 to 10° on a quarter turn), then settles on the heading.
+    let peak = 0;
+    for (let i = 0; i < 100; i++) {
+      view.animate(east, FREE_BABY, 10, LIFE);
+      peak = Math.max(peak, named('papa').rotation.y);
+    }
+    expect((peak - Math.PI / 2) * (180 / Math.PI)).toBeGreaterThanOrEqual(5);
+    expect((peak - Math.PI / 2) * (180 / Math.PI)).toBeLessThanOrEqual(10);
+    view.animate(east, FREE_BABY, 5000, LIFE);
+    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 2, 9);
+    expect(view.pose.yawRad).toBeCloseTo(Math.PI / 2, 12);
+  });
+
+  it('turns with no overshoot under reduced motion (story 7.8, D11)', () => {
+    const { view, named } = buildView();
+    view.update(papa({ headingX: 0, headingZ: 1 }), 1);
+    const east = papa({ headingX: 1, headingZ: 0 });
+    view.update(east, 1);
+    const reduced = createTestLife({ isMotionReduced: true });
+    let peak = 0;
+    for (let i = 0; i < 200; i++) {
+      view.animate(east, FREE_BABY, 10, reduced);
+      peak = Math.max(peak, named('papa').rotation.y);
+    }
+    expect(peak).toBeLessThanOrEqual(Math.PI / 2 + 1e-9);
+    expect(named('papa').rotation.y).toBeCloseTo(Math.PI / 2, 3);
   });
 
   it('scales the body and not the shadow for the squash, and puts it back on a reset', () => {
@@ -315,7 +342,7 @@ describe('the nap and the coffee (story 1.19)', () => {
     const { view, named } = buildView();
     view.update(papa(), 1);
     view.setEyelids(0.7);
-    view.animate(papa(), FREE_BABY, 100);
+    view.animate(papa(), FREE_BABY, 100, LIFE);
     expect(lidsOf(named)).toBe(0.7);
   });
 
@@ -369,9 +396,10 @@ describe('the nap and the coffee (story 1.19)', () => {
 });
 
 describe('his facing (story 2.13, D5)', () => {
+  // Long enough for the turn spring to settle on its target exactly (story 7.8).
   const settle = (view: ReturnType<typeof buildView>['view'], p: PapaSlice, baby: BabySlice) => {
-    view.animate(p, baby, 1000);
-    view.animate(p, baby, 1000);
+    view.animate(p, baby, 5000, LIFE);
+    view.animate(p, baby, 5000, LIFE);
   };
 
   it("turns to face the camera while he drinks, and his heading stays the sim's", () => {
@@ -415,25 +443,28 @@ describe('his facing (story 2.13, D5)', () => {
     view.update(idle, 1);
     settle(view, idle, FREE_BABY);
     expect(view.bodyYawRad).toBeCloseTo(0, 12);
-    view.playOnce('coffee_kick');
-    view.animate(idle, FREE_BABY, 10);
+    view.playOnce('coffee_kick', 100);
+    view.animate(idle, FREE_BABY, 10, LIFE);
     expect(view.clipName).toBe('coffee_kick');
-    // 200 ms is more than the 125 ms the 45° take, and less than the fixture's 1 s clip.
-    view.animate(idle, FREE_BABY, 200);
+    // 800 ms settles the 250 ms spring to within a degree, and leaves more than the 150 ms return of the
+    // fixture's 1 s clip.
+    view.animate(idle, FREE_BABY, 800, LIFE);
     expect(view.clipName).toBe('coffee_kick');
-    expect(view.bodyYawRad).toBeCloseTo(CAMERA_YAW_RAD, 12);
+    expect(Math.abs(view.bodyYawRad - CAMERA_YAW_RAD)).toBeLessThan(Math.PI / 180);
   });
 
-  it('turns at the turn rate, and a pause holds the turn', () => {
+  it('turns on its spring, and a pause holds the turn', () => {
     const { view } = buildView();
     const drinking = papa({ state: 'drink', headingX: 0, headingZ: 1 });
     view.update(drinking, 1);
-    view.animate(drinking, FREE_BABY, 0);
+    view.animate(drinking, FREE_BABY, 0, LIFE);
     expect(view.bodyYawRad).toBe(0);
-    view.animate(drinking, FREE_BABY, 62.5); // 360 °/s for 62.5 ms is 22.5°
-    expect(view.bodyYawRad).toBeCloseTo(CAMERA_YAW_RAD / 2, 12);
-    view.animate(drinking, FREE_BABY, 0);
-    expect(view.bodyYawRad).toBeCloseTo(CAMERA_YAW_RAD / 2, 12);
+    view.animate(drinking, FREE_BABY, 62.5, LIFE);
+    const turned = view.bodyYawRad;
+    expect(turned).toBeGreaterThan(0);
+    expect(turned).toBeLessThan(CAMERA_YAW_RAD);
+    view.animate(drinking, FREE_BABY, 0, LIFE);
+    expect(view.bodyYawRad).toBe(turned);
   });
 });
 
@@ -525,7 +556,7 @@ describe('the steam and the bla-bla (story 2.13, D3, D4)', () => {
     const calling = papa({ state: 'onPhone', headingX: 1, headingZ: 0 });
     view.update(calling, 1);
     const before = bubble.position.clone();
-    view.animate(calling, { state: 'wander', xM: 9, zM: 9 } as BabySlice, 1000);
+    view.animate(calling, { state: 'wander', xM: 9, zM: 9 } as BabySlice, 1000, LIFE);
     expect(bubble.position.toArray()).toEqual(before.toArray());
   });
 
@@ -566,5 +597,121 @@ describe('the steam and the bla-bla (story 2.13, D3, D4)', () => {
     }
     view.dispose();
     expect(freed).toBe(geometries.length);
+  });
+});
+
+describe('his life layer (story 7.8)', () => {
+  const DEG = Math.PI / 180;
+  /** Where his torso's top points: the spine bone's up, in his body's frame (+z forward, +x his left). */
+  const spineUp = (named: (name: string) => Object3D): Vector3 =>
+    new Vector3(0, 1, 0).applyQuaternion(named('spine').quaternion);
+  const headForward = (named: (name: string) => Object3D): Vector3 =>
+    new Vector3(0, 0, 1).applyQuaternion(named('head').quaternion);
+  const STILL_AT_0 = { xM: 0, zM: 0, prevXM: 0, prevZM: 0 };
+
+  it('stoops him forward at fatigue 100, by stoop.maxDeg, and leaves his eyelids open (D9)', () => {
+    const { view, named } = buildView();
+    const tired = createTestLife({ fatigue: 100, isMotionReduced: true });
+    view.update(papa(), 1);
+    view.setEyelids(0);
+    view.animate(papa(), FREE_BABY, 16, tired);
+    expect(view.stoopDeg).toBe(tired.characters.stoop.maxDeg);
+    const up = spineUp(named);
+    // A positive pitch about X leans his top forward, toward +z (D3).
+    expect(up.z).toBeGreaterThan(0);
+    expect(Math.atan2(up.z, up.y) / DEG).toBeCloseTo(tired.characters.stoop.maxDeg, 6);
+    expect(named('eyelids').scale.y).toBeLessThan(0.05);
+    view.animate(papa(), FREE_BABY, 16, createTestLife({ fatigue: 0, isMotionReduced: true }));
+    expect(spineUp(named).z).toBeCloseTo(0, 9);
+  });
+
+  it('breathes on the sim clock, holds on a frozen one, and holds his breath (D7)', () => {
+    const { view } = buildView();
+    view.update(papa(), 1);
+    const life = createTestLife();
+    view.animate(papa(), FREE_BABY, life.characters.breath.periodMs / 4, life);
+    expect(view.breathDeg).toBeCloseTo(life.characters.breath.papaAmplitudeDeg, 6);
+    view.animate(papa(), FREE_BABY, 0, life);
+    expect(view.breathDeg).toBeCloseTo(life.characters.breath.papaAmplitudeDeg, 6);
+    const held = createTestLife({ isBreathHeld: true });
+    for (let i = 0; i < 100; i++) view.animate(papa(), FREE_BABY, 10, held);
+    expect(Math.abs(view.breathDeg)).toBe(0);
+  });
+
+  it('quickens his breath above the catastrophe alert', () => {
+    const { view } = buildView();
+    view.update(papa(), 1);
+    const alert = createTestLife({ isAlert: true });
+    // A quarter of the alarmed period is the sine's peak.
+    view.animate(papa(), FREE_BABY, alert.characters.breath.alertPeriodMs / 4, alert);
+    expect(view.breathDeg).toBeCloseTo(alert.characters.breath.papaAmplitudeDeg, 6);
+  });
+
+  it('leans into a glide start, and has no lean nor breath under reduced motion (D6, D11)', () => {
+    const { view } = buildView();
+    const still = papa({ state: 'idle', prevXM: 2, xM: 2 });
+    const gliding = papa({ state: 'glide', prevXM: 2, xM: 2.05 });
+    view.update(still, 1);
+    view.animate(still, FREE_BABY, 100, createTestLife());
+    let peak = 0;
+    for (let i = 0; i < 20; i++) {
+      view.animate(gliding, FREE_BABY, 10, createTestLife());
+      peak = Math.max(peak, view.leanDeg);
+    }
+    expect(peak).toBeGreaterThan(5);
+    const reduced = createTestLife({ isMotionReduced: true });
+    view.animate(gliding, FREE_BABY, 10, reduced);
+    expect(view.leanDeg).toBe(0);
+    expect(view.leanRollDeg).toBe(0);
+    expect(view.breathDeg).toBe(0);
+  });
+
+  it('turns his head toward the baby he sees, within maxYawDeg, then ahead (D8)', () => {
+    const { view, named } = buildView();
+    view.update(papa(STILL_AT_0), 1);
+    const life = createTestLife({ babyXM: 1, babyZM: 1, isMotionReduced: true });
+    life.gazeSight.isBabyShown = true;
+    view.animate(papa(STILL_AT_0), FREE_BABY, 3000, life);
+    expect(view.gazeKind).toBe('baby');
+    expect(view.headYawDeg).toBeCloseTo(45, 4);
+    // A positive yaw about Y turns his head toward his left, +x (D3).
+    expect(headForward(named).x).toBeGreaterThan(0);
+    life.gazeSight.isBabyShown = false;
+    view.animate(papa(STILL_AT_0), FREE_BABY, 3000, life);
+    expect(view.gazeKind).toBe('ahead');
+    expect(view.headYawDeg).toBeCloseTo(0, 4);
+  });
+
+  it('looks at the threat, not the baby, while he responds', () => {
+    const { view } = buildView();
+    view.update(papa(STILL_AT_0), 1);
+    const life = createTestLife({ babyXM: 1, babyZM: 1, isResponding: true });
+    life.gazeSight.isBabyShown = true;
+    life.gazeSight.hasThreat = true;
+    life.gazeSight.threatXM = -1;
+    life.gazeSight.threatZM = 1;
+    view.animate(papa(STILL_AT_0), FREE_BABY, 3000, life);
+    expect(view.gazeKind).toBe('threat');
+    expect(view.headYawDeg).toBeCloseTo(-45, 4);
+  });
+
+  it('gives the same pose for the same frames, and starts at rest after a reset (D12)', () => {
+    const run = () => {
+      const { view, named } = buildView();
+      view.update(papa({ headingX: 1, headingZ: 0 }), 1);
+      const life = createTestLife({ fatigue: 40 });
+      for (let i = 0; i < 37; i++) {
+        view.animate(papa({ state: 'walkPath', xM: 2 + 0.01 * i }), FREE_BABY, 16, life);
+      }
+      return { view, spine: named('spine').quaternion.toArray(), yaw: view.bodyYawRad };
+    };
+    const a = run();
+    const b = run();
+    expect(b.spine).toEqual(a.spine);
+    expect(b.yaw).toBe(a.yaw);
+    a.view.resetAnimation();
+    expect(a.view.leanDeg).toBe(0);
+    expect(a.view.breathDeg).toBe(0);
+    expect(a.view.headYawDeg).toBe(0);
   });
 });

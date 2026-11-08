@@ -103,6 +103,10 @@ export interface OutlineKit {
   isHull(material: Material | Material[]): boolean;
   /** The materials that get no hull (`feedback.json › render.outlines.skipMaterials`). */
   isSkipped(materialName: string): boolean;
+  /** The hull's width now, in metres (the shared uniform). */
+  readonly widthM: number;
+  /** Writes the hulls' width, in metres, when it changed (the characters' kit follows the feel, story 7.8). */
+  setWidthM(widthM: number): void;
   dispose(): void;
 }
 
@@ -128,6 +132,12 @@ export function createOutlineKit(outlines: FeedbackTable['render']['outlines']):
     materialFor: (mesh) => (mesh instanceof SkinnedMesh ? skinnedMaterial : staticMaterial),
     isHull: (material) => material === skinnedMaterial || material === staticMaterial,
     isSkipped: (materialName) => skipped.has(materialName),
+    get widthM() {
+      return uniforms.widthM.value;
+    },
+    setWidthM(widthM) {
+      if (uniforms.widthM.value !== widthM) uniforms.widthM.value = widthM;
+    },
     dispose: () => {
       skinnedMaterial.dispose();
       staticMaterial.dispose();

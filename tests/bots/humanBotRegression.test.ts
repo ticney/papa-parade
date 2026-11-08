@@ -25,9 +25,12 @@ import {
 //
 // Story 3.7 re-pinned them once more, for the same reason: the feel gained `mama.laughPerLookPartPoints`,
 // which moves the feel hash in the journal's header. `PINNED_COMMANDS` still hold.
+//
+// Story 7.8 re-pinned them once more, for the same reason: the feel gained `characters` (the client's
+// life layer and look), which the sim never reads. `PINNED_COMMANDS` were not touched and still hold.
 const PINNED: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
-  test: { 1: '13e8290839ad3b', 2: '1af869fef7f81c', 3: '0e712f1ac7a4b2' },
-  trio: { 1: '148de76c308c4f', 2: '05c4f1753d4d3e', 3: '1b9e32ec0e51c9' },
+  test: { 1: '07303bf89ec0b1', 2: '14148e8e97f2e1', 3: '17b154e6f39563' },
+  trio: { 1: '14db7edb4cfeed', 2: '1c1e22ae34b04c', 3: '192c5e347e26ee' },
 };
 const PINNED_COMMANDS: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
   test: { 1: '0632f181689687', 2: '158358e075a1a2', 3: '111636e2c690a2' },
