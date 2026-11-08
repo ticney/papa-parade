@@ -889,6 +889,103 @@ const lifeDeg = (maxDeg: number, description: string) =>
 /** A breathing cycle, in sim ms: never under the 3 Hz flash cap. */
 const breathPeriodMs = (description: string) =>
   z.number().min(SCREEN_FLASH_MIN_INTERVAL_MS).max(20000).describe(description);
+/** How long a moment of a face shows, in sim ms (story 7.10): 0 never shows it. */
+const momentMs = (maxMs: number, description: string) =>
+  z.number().min(0).max(maxMs).describe(description);
+
+/**
+ * One expression's brow pose (story 7.10, D2): four numbers, mirrored on both brows, added to their rest.
+ * The signs read in the character's own axes (X his left, Y up, Z forward).
+ */
+const BrowPoseSchema = z
+  .strictObject({
+    raiseOffsetM: z
+      .number()
+      .min(-0.02)
+      .max(0.05)
+      .describe('Both brows up (+) or down (−) along the head, in metres.'),
+    tiltDeg: z
+      .number()
+      .min(-45)
+      .max(45)
+      .describe(
+        'The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown).',
+      ),
+    inwardOffsetM: z
+      .number()
+      .min(0)
+      .max(0.02)
+      .describe('Both brows toward the nose (the knot), in metres.'),
+    skewOffsetM: z
+      .number()
+      .min(-0.02)
+      .max(0.02)
+      .describe(
+        'The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much.',
+      ),
+  })
+  .describe('A brow pose (story 7.10): added to the rest of both brows, mirrored.');
+
+const browScalePct = z
+  .number()
+  .min(50)
+  .max(250)
+  .describe(
+    "Both brows' size, in % of the modelled bar, about its centre: the knob if they do not read at phone size.",
+  );
+
+const ExpressionsSchema = z
+  .strictObject({
+    reachMs: reachMs(
+      'Time the brows take to cover 95 % of the way to a new pose, in sim ms, with no overshoot.',
+    ),
+    papa: z
+      .strictObject({
+        browScalePct,
+        surprisedMs: momentMs(
+          5000,
+          'How long his surprise at a telegraph shows, in sim ms (0: never).',
+        ),
+        firmAfterMs: momentMs(
+          3000,
+          'How long his frown stays after a successful Firmness, in sim ms (it covers `respond_firm`).',
+        ),
+        proudMs: momentMs(
+          5000,
+          'How long his pride at a perfect shows, in sim ms (it covers the glide and `respond_perfect`).',
+        ),
+        poses: z
+          .strictObject({
+            surprised: BrowPoseSchema,
+            firm: BrowPoseSchema,
+            tired: BrowPoseSchema,
+            proud: BrowPoseSchema,
+          })
+          .describe("Papa's four brow poses; `neutral` is the rest."),
+      })
+      .describe("Papa's face: his brows' size, his moments' durations and his four poses."),
+    baby: z
+      .strictObject({
+        browScalePct,
+        delightedMs: momentMs(
+          5000,
+          'How long his delight shows, in sim ms (it covers `laugh` and `gag_delight`).',
+        ),
+        sulkyMs: momentMs(5000, 'How long he sulks after a Firmness, in sim ms.'),
+        poses: z
+          .strictObject({
+            delighted: BrowPoseSchema,
+            sulky: BrowPoseSchema,
+            focused: BrowPoseSchema,
+            sleepy: BrowPoseSchema,
+          })
+          .describe("The baby's four brow poses; `neutral` is the rest."),
+      })
+      .describe("The baby's face: his brows' size, his moments' durations and his four poses."),
+  })
+  .describe(
+    'The faces (story 7.10): one expression per character, carried by the brows alone, blended on springs of the sim clock. The same under « Réduire les animations ».',
+  );
 
 const CharactersSchema = z
   .strictObject({
@@ -1008,6 +1105,7 @@ const CharactersSchema = z
       .describe(
         "Papa's forelock (story 7.9): a pendulum on his head, stepped on the sim clock, that trails whatever moves the head. At rest under « Réduire les animations ».",
       ),
+    expressions: ExpressionsSchema,
     look: z
       .strictObject({
         outlineWidthPct: z
@@ -1037,7 +1135,7 @@ const CharactersSchema = z
       .describe("The characters' own look, to stand out from the room (story 7.8)."),
   })
   .describe(
-    "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), rim and outline. Client only.",
+    "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), expressions (story 7.10), rim and outline. Client only.",
   );
 
 const MusicSchema = z

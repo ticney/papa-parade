@@ -1258,3 +1258,20 @@ Closed here: « Rigid parts, no elbows » (7.2), « Code-driven bones assume an 
 - **Loop seamlessness, « nothing moves before its own event » and the calm of the duel / stealth / feint loops are pinned by no test** (7.9 D5, D6, AC 10). Reason: judged by Geo's eye and the first playtest.
 - **Reduced motion switched on mid-swing, and a non-uniform squash with the forelock, have no test** (`papaView.test.ts`). Reason: the logic reads right (it rests every frame while reduced), no defect found.
 - **The forelock's determinism is proven for a held target only**: the view samples the head once per frame, so a moving head gives slightly different angles at 30 and 120 fps. Reason: client-only, no golden reads it.
+
+## Story 7-10-visages-sourcils-et-expressions (2026-11-08)
+
+All eight expressions show at least once in the live headless runs (`tests/bots/expressionsLive.test.ts`). Left open for Geo (story « Open for Geo »), none settled here:
+
+- **Brows only (D1):** no expression lowers the baby's lids (the duel's signals) or widens Papa's eyes (`coffee_kick`'s). In the captures, the baby's `sleepy` sags his brows but reads close to `neutral` at real size. Reason: half-shut lids would look like the fake sleep's peek (principle 4).
+- **The poses and their size (D10):** starting values kept as written, `browScalePct` started at 120 for both (the T0 measure gave about 5.9 physical px for Papa's brow and 5.6 for the baby's at DPR 2, under the 6 px of D10). At real size a brow is 6-7 px; the four of each character are told apart on the ×4 crops, barely at 1:1. Reason: the look is Geo's call, in the feel panel with `__PP__.setExpressions`.
+- **Papa's surprise on every telegraph, off-screen ones included (D4),** never on his own micro-sleep. Reason: Geo's call.
+- **Tired reads the gameplay threshold (D7)**, so the face and the window penalty move together. Reason: Geo's call.
+- **Pride and delight on a perfect chore beat (D4).** Reason: Geo's call.
+- **`SceneBodies.hasBedtimeCycle` has no session test with a real cycle level**: `levelSession.test.ts` pins `false` for its test levels; the live test reads `level.cycle` as the session does. Reason: a cycle level in the session fake needs the bedroom's sequences.
+
+## Deferred from: code review of story-7-10-visages-sourcils-et-expressions (2026-11-08)
+
+- **« The blend never overshoots » holds for a fixed target only**: `stepBrows` passes `Infinity` as the overshoot cap, so a pose retargeted in flight overshoots (a tilt heading to 22° retargeted at 5.4° to 6.4° peaks at 11.25°). Reason: Papa's head and forelock springs behave the same, the spec prescribes « no overshoot cap needed », and the effect is a few degrees on a 6 px brow; pass a finite cap to `stepSpring` in `brows.ts` if Geo sees it.
+- **The schema bounds of `characters.expressions` are the D10 table's and independent per field**: Geo's tuning can cross the brows over the midline (`browScalePct` 250, `inwardOffsetM` 0.02) or into the eyes, and a moment can last 0 to 5000 ms with no flicker floor; T0's confirmation of the bounds against the geometry is not in the story's Debug Log. Reason: the panel is Geo's sandbox and the bounds are the spec's; a cross-field limit (a `superRefine`, or a clamp in `writeBrowBones`) is the fix if a tuning goes wrong.
+- **`tests/bots/expressionsLive.test.ts` re-implements `levelScene`'s wiring** (the guard, the notes, the faces, the clock, `hasBedtimeCycle` read from the level by hand), so a bug in the scene's own order, clock or flag source is out of its reach. Reason: the story asks for this shape (`highlightReplayLive.test.ts`); extracting the per-frame face driver into a pure module used by both would close it.

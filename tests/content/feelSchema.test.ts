@@ -29,6 +29,14 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 const UNIT_SUFFIX =
   /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|WidthM|DepthM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM|dampingRatio|nearMiss|mess|microSleep|choreBeat)$/;
 
+/** The four numbers of a brow pose (story 7.10), whatever their values. */
+const BROW_POSE_SHAPE = {
+  raiseOffsetM: expect.any(Number),
+  tiltDeg: expect.any(Number),
+  inwardOffsetM: expect.any(Number),
+  skewOffsetM: expect.any(Number),
+};
+
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
 }
@@ -673,6 +681,18 @@ describe('feel.characters (story 7.8)', () => {
         [p('forelock.reachMs'), 50],
         [p('forelock.dampingRatio'), 0.3],
         [p('forelock.maxDeg'), 0],
+        [p('expressions.reachMs'), 50],
+        [p('expressions.papa.browScalePct'), 50],
+        [p('expressions.papa.surprisedMs'), 0],
+        [p('expressions.papa.firmAfterMs'), 0],
+        [p('expressions.papa.proudMs'), 0],
+        [p('expressions.papa.poses.firm.raiseOffsetM'), -0.02],
+        [p('expressions.papa.poses.firm.tiltDeg'), -45],
+        [p('expressions.papa.poses.firm.inwardOffsetM'), 0],
+        [p('expressions.papa.poses.firm.skewOffsetM'), -0.02],
+        [p('expressions.baby.browScalePct'), 50],
+        [p('expressions.baby.delightedMs'), 0],
+        [p('expressions.baby.sulkyMs'), 0],
         [p('look.outlineWidthPct'), 50],
         [p('look.rimStrengthPct'), 0],
         [p('look.rimWidthPct'), 1],
@@ -704,6 +724,18 @@ describe('feel.characters (story 7.8)', () => {
         [p('forelock.reachMs'), 1000],
         [p('forelock.dampingRatio'), 1],
         [p('forelock.maxDeg'), 40],
+        [p('expressions.reachMs'), 1000],
+        [p('expressions.papa.browScalePct'), 250],
+        [p('expressions.papa.surprisedMs'), 5000],
+        [p('expressions.papa.firmAfterMs'), 3000],
+        [p('expressions.papa.proudMs'), 5000],
+        [p('expressions.baby.poses.sleepy.raiseOffsetM'), 0.05],
+        [p('expressions.baby.poses.sleepy.tiltDeg'), 45],
+        [p('expressions.baby.poses.sleepy.inwardOffsetM'), 0.02],
+        [p('expressions.baby.poses.sleepy.skewOffsetM'), 0.02],
+        [p('expressions.baby.browScalePct'), 250],
+        [p('expressions.baby.delightedMs'), 5000],
+        [p('expressions.baby.sulkyMs'), 5000],
         [p('look.outlineWidthPct'), 300],
         [p('look.rimStrengthPct'), 100],
         [p('look.rimWidthPct'), 100],
@@ -797,6 +829,102 @@ describe('feel.characters (story 7.8)', () => {
     ['a negative forelock turn', [[p('forelock.maxDeg'), -1]], [p('forelock.maxDeg')]],
     ['a missing forelock group', [[p('forelock'), undefined]], [p('forelock')]],
     ['an unknown forelock key', [[p('forelock.lengthM'), 0.1]], [p('forelock.lengthM')]],
+    // Story 7.10: the faces. Strict at every level; the poses keep the brows on the forehead.
+    ['a brow reach under 50 ms', [[p('expressions.reachMs'), 49]], [p('expressions.reachMs')]],
+    ['a brow reach over 1000 ms', [[p('expressions.reachMs'), 1001]], [p('expressions.reachMs')]],
+    [
+      "Papa's brows under 50 %",
+      [[p('expressions.papa.browScalePct'), 49]],
+      [p('expressions.papa.browScalePct')],
+    ],
+    [
+      "the baby's brows over 250 %",
+      [[p('expressions.baby.browScalePct'), 251]],
+      [p('expressions.baby.browScalePct')],
+    ],
+    [
+      'a negative surprise',
+      [[p('expressions.papa.surprisedMs'), -1]],
+      [p('expressions.papa.surprisedMs')],
+    ],
+    [
+      'a surprise over 5 s',
+      [[p('expressions.papa.surprisedMs'), 5001]],
+      [p('expressions.papa.surprisedMs')],
+    ],
+    [
+      'a frown after over 3 s',
+      [[p('expressions.papa.firmAfterMs'), 3001]],
+      [p('expressions.papa.firmAfterMs')],
+    ],
+    ['a pride over 5 s', [[p('expressions.papa.proudMs'), 5001]], [p('expressions.papa.proudMs')]],
+    [
+      'a delight over 5 s',
+      [[p('expressions.baby.delightedMs'), 5001]],
+      [p('expressions.baby.delightedMs')],
+    ],
+    ['a negative sulk', [[p('expressions.baby.sulkyMs'), -1]], [p('expressions.baby.sulkyMs')]],
+    [
+      'a raise over 5 cm',
+      [[p('expressions.papa.poses.surprised.raiseOffsetM'), 0.051]],
+      [p('expressions.papa.poses.surprised.raiseOffsetM')],
+    ],
+    [
+      'a drop under 2 cm',
+      [[p('expressions.baby.poses.sulky.raiseOffsetM'), -0.021]],
+      [p('expressions.baby.poses.sulky.raiseOffsetM')],
+    ],
+    [
+      'a tilt over 45°',
+      [[p('expressions.papa.poses.tired.tiltDeg'), 46]],
+      [p('expressions.papa.poses.tired.tiltDeg')],
+    ],
+    [
+      'a tilt under −45°',
+      [[p('expressions.baby.poses.focused.tiltDeg'), -46]],
+      [p('expressions.baby.poses.focused.tiltDeg')],
+    ],
+    [
+      'brows apart (a negative inward)',
+      [[p('expressions.papa.poses.firm.inwardOffsetM'), -0.001]],
+      [p('expressions.papa.poses.firm.inwardOffsetM')],
+    ],
+    [
+      'an inward over 2 cm',
+      [[p('expressions.baby.poses.sulky.inwardOffsetM'), 0.021]],
+      [p('expressions.baby.poses.sulky.inwardOffsetM')],
+    ],
+    [
+      'a skew over 2 cm',
+      [[p('expressions.papa.poses.proud.skewOffsetM'), 0.021]],
+      [p('expressions.papa.poses.proud.skewOffsetM')],
+    ],
+    [
+      'a missing pose',
+      [[p('expressions.papa.poses.proud'), undefined]],
+      [p('expressions.papa.poses.proud')],
+    ],
+    [
+      "a pose of the other character's",
+      [
+        [
+          p('expressions.papa.poses.sleepy'),
+          { raiseOffsetM: 0, tiltDeg: 0, inwardOffsetM: 0, skewOffsetM: 0 },
+        ],
+      ],
+      [p('expressions.papa.poses.sleepy')],
+    ],
+    [
+      'an unknown pose key',
+      [[p('expressions.baby.poses.sulky.raiseM'), 0.01]],
+      [p('expressions.baby.poses.sulky.raiseM')],
+    ],
+    [
+      'an unknown face key',
+      [[p('expressions.baby.neutralMs'), 100]],
+      [p('expressions.baby.neutralMs')],
+    ],
+    ['a missing expressions group', [[p('expressions'), undefined]], [p('expressions')]],
     ['an outline under 50 %', [[p('look.outlineWidthPct'), 49]], [p('look.outlineWidthPct')]],
     ['an outline over 300 %', [[p('look.outlineWidthPct'), 301]], [p('look.outlineWidthPct')]],
     ['a rim over 100 %', [[p('look.rimStrengthPct'), 101]], [p('look.rimStrengthPct')]],
@@ -819,7 +947,7 @@ describe('feel.characters (story 7.8)', () => {
     expect(failedPaths(mutated(...changes))).toEqual(paths);
   });
 
-  it('starts from the D1 values (the review retuned lean.fullAccelMps2 and added gaze.behindDeg; 7.9 the forelock)', () => {
+  it('starts from the D1 values (the review retuned lean.fullAccelMps2 and added gaze.behindDeg; 7.9 the forelock; 7.10 the faces, by shape only)', () => {
     expect(real.characters).toEqual({
       fades: { startMs: 100, stopMs: 200, returnMs: 150, otherMs: 100 },
       turn: { reachMs: 250, dampingRatio: 0.6, overshootMaxDeg: 10 },
@@ -834,6 +962,34 @@ describe('feel.characters (story 7.8)', () => {
       gaze: { maxYawDeg: 60, behindDeg: 150, reachMs: 200 },
       stoop: { maxDeg: 15 },
       forelock: { reachMs: 100, dampingRatio: 0.6, maxDeg: 30 },
+      // Story 7.10: the faces' starting values are Geo's to tune in the feel panel (golden rule), so only their
+      // shape is pinned here: the groups and every key, never a number (the bounds tests above hold the ranges).
+      expressions: {
+        reachMs: expect.any(Number),
+        papa: {
+          browScalePct: expect.any(Number),
+          surprisedMs: expect.any(Number),
+          firmAfterMs: expect.any(Number),
+          proudMs: expect.any(Number),
+          poses: {
+            surprised: BROW_POSE_SHAPE,
+            firm: BROW_POSE_SHAPE,
+            tired: BROW_POSE_SHAPE,
+            proud: BROW_POSE_SHAPE,
+          },
+        },
+        baby: {
+          browScalePct: expect.any(Number),
+          delightedMs: expect.any(Number),
+          sulkyMs: expect.any(Number),
+          poses: {
+            delighted: BROW_POSE_SHAPE,
+            sulky: BROW_POSE_SHAPE,
+            focused: BROW_POSE_SHAPE,
+            sleepy: BROW_POSE_SHAPE,
+          },
+        },
+      },
       look: {
         outlineWidthPct: 150,
         rimStrengthPct: 35,

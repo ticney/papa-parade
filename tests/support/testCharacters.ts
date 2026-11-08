@@ -10,10 +10,12 @@ import {
   Group,
   Mesh,
   MeshStandardMaterial,
+  type Object3D,
   QuaternionKeyframeTrack,
   Skeleton,
   SkinnedMesh,
   Uint16BufferAttribute,
+  Vector3,
   VectorKeyframeTrack,
 } from 'three';
 import { createTestContent } from './testContent.ts';
@@ -89,6 +91,45 @@ export const TEST_FORELOCK_ROOT_M = [0.012, 0.3, 0.08] as const;
 export const TEST_FORELOCK_TIP_M = [0, -0.04, 0.03] as const;
 
 /**
+ * Where `brow_l` rests under `head` in the fixtures, in metres (`brow_r` mirrored in x): `papa.glb`'s and
+ * `baby.glb`'s own (story 7.10), so that a wrong frame, mirror or sign in the views' maths fails a test.
+ */
+export const TEST_PAPA_BROW_REST_M = [0.075, 0.262, 0.115] as const;
+export const TEST_BABY_BROW_REST_M = [0.062, 0.187, 0.1] as const;
+
+/**
+ * A brow's two ends and its centre, as world points brought into its head's axes (X his left, Y up, Z
+ * forward): `inner` is the end nearer the nose (the smaller |x|). `halfLengthM` is half the bar, along the
+ * bone's own X. Call `updateMatrixWorld` on the scene first.
+ */
+export function browEndsInHead(
+  head: Object3D,
+  brow: Object3D,
+  halfLengthM: number,
+): { inner: Vector3; outer: Vector3; centre: Vector3 } {
+  const inHead = (x: number): Vector3 => head.worldToLocal(brow.localToWorld(new Vector3(x, 0, 0)));
+  const a = inHead(halfLengthM);
+  const b = inHead(-halfLengthM);
+  const isAInner = Math.abs(a.x) < Math.abs(b.x);
+  return { inner: isAInner ? a : b, outer: isAInner ? b : a, centre: inHead(0) };
+}
+
+/** Puts both brows under the head, at `rest` (his left) and its mirror (his right), as the files have them. */
+function placeBrows(asset: CharacterAsset, rest: readonly [number, number, number]): void {
+  const head = asset.scene.getObjectByName('head');
+  for (const [name, sign] of [
+    ['brow_l', 1],
+    ['brow_r', -1],
+  ] as const) {
+    const brow = asset.scene.getObjectByName(name);
+    if (head === undefined || brow === undefined) continue;
+    head.add(brow);
+    brow.position.set(sign * rest[0], rest[1], rest[2]);
+  }
+  asset.scene.updateMatrixWorld(true);
+}
+
+/**
  * As `papa.glb` has it, the steam is the mug's child: it shows and hides with the mug (story 2.13). The
  * forelock hangs from the head and its tip marker from the forelock (story 7.9), as the steam from the mug.
  */
@@ -105,9 +146,14 @@ export const createTestPapa = (): CharacterAsset => {
     tip.position.set(...TEST_FORELOCK_TIP_M);
     forelock.add(tip);
   }
+  placeBrows(asset, TEST_PAPA_BROW_REST_M);
   return asset;
 };
-export const createTestBaby = (): CharacterAsset => createTestCharacter(BABY_CONTRACT);
+export const createTestBaby = (): CharacterAsset => {
+  const asset = createTestCharacter(BABY_CONTRACT);
+  placeBrows(asset, TEST_BABY_BROW_REST_M);
+  return asset;
+};
 
 /**
  * The life layer's inputs of a frame (story 7.8), on the test feel's `characters` (its own copy: a test

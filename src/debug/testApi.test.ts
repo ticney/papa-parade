@@ -327,6 +327,42 @@ describe('setPapaLook(look)', () => {
   });
 });
 
+describe('setExpressions(faces) (story 7.10)', () => {
+  it("hands each character's expression, the rest or null to the host", async () => {
+    const { api, host } = await createRig();
+    const setFaces = vi.spyOn(host, 'setExpressions');
+    api.setExpressions({ papa: 'proud', baby: 'sleepy' });
+    api.setExpressions({ papa: 'neutral', baby: null });
+    api.setExpressions({ papa: null, baby: 'delighted' });
+    expect(setFaces.mock.calls).toEqual([
+      ['proud', 'sleepy'],
+      ['neutral', null],
+      [null, 'delighted'],
+    ]);
+  });
+
+  it("throws on a name that is not the character's, and on anything but { papa, baby }", async () => {
+    const { api, host } = await createRig();
+    const setFaces = vi.spyOn(host, 'setExpressions');
+    const bad = [
+      null,
+      'proud',
+      {},
+      { papa: 'proud' },
+      { papa: 'sleepy', baby: null },
+      { papa: null, baby: 'proud' },
+      { papa: 'angry', baby: null },
+      { papa: undefined, baby: null },
+    ];
+    for (const value of bad) {
+      expect(() => api.setExpressions(value as never), JSON.stringify(value)).toThrow(
+        '__PP__.setExpressions',
+      );
+    }
+    expect(setFaces).not.toHaveBeenCalled();
+  });
+});
+
 describe('loadLevel(id, seed)', () => {
   it('starts that level with that seed and resolves once the countdown is over', async () => {
     const { api, host, session } = await createRig();
@@ -629,6 +665,7 @@ describe('installTestApi', () => {
         'pagePoint',
         'perf',
         'send',
+        'setExpressions',
         'setFeel',
         'setPapaLook',
         'state',

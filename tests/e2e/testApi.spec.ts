@@ -61,6 +61,7 @@ test.describe('window.__PP__', () => {
       'pagePoint',
       'perf',
       'send',
+      'setExpressions',
       'setFeel',
       'setPapaLook',
       'state',

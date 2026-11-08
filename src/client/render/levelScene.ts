@@ -51,6 +51,20 @@ import {
 } from './views/characterClips.ts';
 import { createCharacterRig } from './views/characterRig.ts';
 import { createDoorView, type DoorLook, doorPlacementOf } from './views/doorView.ts';
+import {
+  type BabyExpression,
+  type BabyFace,
+  babyExpressionAt,
+  clearExpressions,
+  createFaceTrack,
+  dropMoment,
+  noteBabyEvent,
+  notePapaEvent,
+  type PapaExpression,
+  type PapaFace,
+  papaExpressionAt,
+} from './views/expressions.ts';
+import { babyFocusOf, isPapaTired, isSignalOnly } from './views/faceInputs.ts';
 import { type CharactersFeel, createLifeInputs } from './views/lifeLayer.ts';
 import type { PapaGazeKind } from './views/papaGaze.ts';
 import { createPapaView, PAPA_LIFE_BONES, type PapaPose } from './views/papaView.ts';
@@ -70,6 +84,8 @@ export interface SceneBodies {
   microSleepDefId: string | null;
   /** The ids of the level's threats judged on a release (story 4.8): the baby is lowered while one runs. */
   layDownDefIds: readonly string[];
+  /** The level has a bedtime `cycle` (story 7.10, D8): the baby looks sleepy, outside the signals' moments. */
+  hasBedtimeCycle: boolean;
   /** The ids of the level's threats aimed at an anchor: only they show the alert tint (story 7.3, D6). */
   anchorThreatDefIds: readonly string[];
   /**
@@ -136,8 +152,9 @@ export interface LevelFx {
   /** Papa's pose for a response he has arrived at (P3: the sound fired at the judgement). */
   playResponseClip(response: string, quality: string): void;
   /**
-   * What a sim event plays on the characters: one-shots, the baby's lids and, unless `isMotionReduced`,
-   * the squash. The clips stay under reduced motion: a pose carries state (story 7.2, D7).
+   * What a sim event plays on the characters: one-shots, the baby's lids, the moments of their faces (story
+   * 7.10: none while only the signals count) and, unless `isMotionReduced`, the squash. The clips and the
+   * faces stay under reduced motion: a pose carries state (story 7.2, D7).
    */
   playCharacterEvent(
     event: Readonly<SimEvent>,
@@ -217,6 +234,14 @@ export interface LevelScene {
     babyBreathDeg: number;
     /** How shut Papa's eyelids are drawn, 0 (open) to 100: the micro-sleep or his sleep only (story 7.8, D9). */
     papaEyelidsPct: number;
+    /** What Papa's face shows now, the debug overlay included (story 7.10). */
+    papaExpression: PapaFace;
+    /** What the baby's face shows now, the debug overlay included (story 7.10). */
+    babyExpression: BabyFace;
+    /** Papa's brows' drawn tilt, in degrees, positive inner ends up (story 7.10). */
+    papaBrowTiltDeg: number;
+    /** The baby's brows' drawn tilt, in degrees, positive inner ends up (story 7.10). */
+    babyBrowTiltDeg: number;
   };
   /**
    * What the screen shows Papa's gaze (story 7.8, D8), from boot after the markers and the bubbles: the
@@ -236,6 +261,11 @@ export interface LevelScene {
    * (story 3.7: what the gags did) or this overlay says so. Cleared by `resetFx`.
    */
   setPapaLook(look: Readonly<PapaLook>): void;
+  /**
+   * The debug overlay of the faces (story 7.10, D11): an expression shows over what the game says, `null`
+   * gives the face back. Applied at the next `update`, whatever the guard of the signals; cleared by `resetFx`.
+   */
+  setExpressionOverlay(papa: PapaFace | null, baby: BabyFace | null): void;
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
   /**
@@ -685,6 +715,11 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   /** A one-shot that waits for Papa's glide and response pose to end (the victory dance, story 7.4). */
   let pendingPapaOneShot: string | null = null;
   let babyLids = 0;
+  // The faces (story 7.10): one track per character, fed by the events, read each frame with the world.
+  const papaFaceTrack = createFaceTrack<PapaExpression>();
+  const babyFaceTrack = createFaceTrack<BabyExpression>();
+  let overlayPapaFace: PapaFace | null = null;
+  let overlayBabyFace: BabyFace | null = null;
   const papaSquash: SquashRun = { startAt: null, amountPct: 0, durationMs: 0 };
   const babySquash: SquashRun = { startAt: null, amountPct: 0, durationMs: 0 };
   const squashScale: SquashScale = { xz: 1, y: 1 };
@@ -734,6 +769,15 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       if (babyClip !== null) baby.playOnce(babyClip, fadeMs);
       babyLids = babyLidsAfter(event, babyLids);
       baby.setEyelids(babyLids);
+      // The faces' moments (D4): none while only the signals count, and the running ones dropped (D5).
+      if (isSignalOnly(world)) {
+        dropMoment(papaFaceTrack);
+        dropMoment(babyFaceTrack);
+      } else {
+        const faces = world.feel.characters.expressions;
+        notePapaEvent(papaFaceTrack, event, world.papa.state === 'asleep', faces.papa);
+        noteBabyEvent(babyFaceTrack, event, faces.baby);
+      }
       if (isMotionReduced) return;
       for (let i = 0; i < squash.length; i++) {
         const row = squash[i] as (typeof squash)[number];
@@ -783,6 +827,10 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         papaBreathDeg: papa.breathDeg,
         babyBreathDeg: baby.breathDeg,
         papaEyelidsPct: papa.eyelidsPct,
+        papaExpression: life.papaExpression,
+        babyExpression: life.babyExpression,
+        papaBrowTiltDeg: papa.browTiltDeg,
+        babyBrowTiltDeg: baby.browTiltDeg,
       };
     },
     setPapaGazeSight(isBabyShown, hasThreat, threatXM, threatZM) {
@@ -797,6 +845,10 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       overlayLook.hasHairOnEnd = look.hasHairOnEnd;
       overlayLook.isShirtInsideOut = look.isShirtInsideOut;
       applyLook();
+    },
+    setExpressionOverlay(papaFace, babyFace) {
+      overlayPapaFace = papaFace;
+      overlayBabyFace = babyFace;
     },
     update(world, alpha, nowReal) {
       papa.update(world.papa, alpha);
@@ -829,6 +881,27 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       life.gazeSight.hasThreat = pendingSight.hasThreat;
       life.gazeSight.threatXM = pendingSight.threatXM;
       life.gazeSight.threatZM = pendingSight.threatZM;
+      // The faces (D3-D8): the moments of the tracks, the lasting states of the world, the guard of the
+      // signals every frame, and the debug overlay over all of it (D11). A lasting state that begins is dated
+      // with the world's sim time, the clock of the events, never with the interpolated frame clock.
+      const isGuarded = isSignalOnly(world);
+      const papaFace = papaExpressionAt(
+        papaFaceTrack,
+        clockMs,
+        world.time.sim,
+        isPapaTired(world),
+        isGuarded,
+      );
+      const babyFace = babyExpressionAt(
+        babyFaceTrack,
+        clockMs,
+        world.time.sim,
+        babyFocusOf(world),
+        bodies.hasBedtimeCycle,
+        isGuarded,
+      );
+      life.papaExpression = overlayPapaFace ?? papaFace;
+      life.babyExpression = overlayBabyFace ?? babyFace;
       if (
         pendingPapaOneShot !== null &&
         ((world.papa.state !== 'glide' && !isResponseClip(papa.clipName)) || !isFlowLive(world))
@@ -935,6 +1008,12 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       babySquash.startAt = null;
       pendingPapaOneShot = null;
       babyLids = 0;
+      clearExpressions(papaFaceTrack);
+      clearExpressions(babyFaceTrack);
+      overlayPapaFace = null;
+      overlayBabyFace = null;
+      life.papaExpression = 'neutral';
+      life.babyExpression = 'neutral';
       papa.resetAnimation();
       baby.resetAnimation();
       pendingSight.isBabyShown = false;

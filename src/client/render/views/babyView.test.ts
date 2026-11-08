@@ -1,8 +1,13 @@
 import { asSimMs } from '@shared/time';
 import type { BabySlice, PapaSlice } from '@sim';
-import { type Mesh, Scene, Vector3 } from 'three';
+import { type Mesh, type Object3D, Scene, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createTestBaby, createTestLife } from '../../../../tests/support/testCharacters.ts';
+import {
+  browEndsInHead,
+  createTestBaby,
+  createTestLife,
+  TEST_BABY_BROW_REST_M,
+} from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
 import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
@@ -14,6 +19,7 @@ import {
   createBabyView,
 } from './babyView.ts';
 import { createCharacterRig } from './characterRig.ts';
+import { BABY_EXPRESSIONS, type BabyFace } from './expressions.ts';
 
 const TOON_TONES = [96, 178, 255];
 
@@ -87,20 +93,133 @@ describe('createBabyView', () => {
     return { scene, toon, rig, view };
   }
 
-  it('never writes a brow: both rest after frames with every life input set (story 7.9, AC 5)', () => {
-    const { scene, view } = build();
-    const busy = createTestLife({ fatigue: 80, isAlert: true, isResponding: true, babyXM: 1 });
-    for (let i = 0; i < 60; i++) {
-      const crawling = baby({ gazeX: Math.sin(i / 7), gazeZ: Math.cos(i / 7), xM: 2 + 0.01 * i });
-      view.update(crawling, 1);
-      view.animate(crawling, 16, busy);
-    }
-    for (const name of ['brow_l', 'brow_r']) {
-      const brow = scene.getObjectByName(name);
-      expect(brow?.quaternion.toArray(), name).toEqual([0, 0, 0, 1]);
-      expect(brow?.position.toArray(), name).toEqual([0, 0, 0]);
-      expect(brow?.scale.toArray(), name).toEqual([1, 1, 1]);
-    }
+  describe('his brows (story 7.10)', () => {
+    const [RX, RY, RZ] = TEST_BABY_BROW_REST_M;
+    const named = (scene: Scene, name: string) => scene.getObjectByName(name) as Object3D;
+    const drive = (
+      view: ReturnType<typeof build>['view'],
+      expression: BabyFace,
+      frames: number,
+      dtMs: number,
+      life = createTestLife({ fatigue: 80, isAlert: true, isResponding: true, babyXM: 1 }),
+    ) => {
+      life.babyExpression = expression;
+      for (let i = 0; i < frames; i++) {
+        const crawling = baby({ gazeX: Math.sin(i / 7), gazeZ: Math.cos(i / 7) });
+        view.update(crawling, 1);
+        view.animate(crawling, dtMs, life);
+      }
+      return life;
+    };
+    const snapshot = (scene: Scene) =>
+      ['brow_l', 'brow_r'].flatMap((name) => [
+        ...named(scene, name).position.toArray(),
+        ...named(scene, name).quaternion.toArray(),
+        ...named(scene, name).scale.toArray(),
+      ]);
+
+    it('at neutral, both brows sit at their rest, at browScalePct', () => {
+      const { scene, view } = build();
+      const life = drive(view, 'neutral', 30, 16);
+      const scale = life.characters.expressions.baby.browScalePct / 100;
+      expect(named(scene, 'brow_l').position.toArray()).toEqual([RX, RY, RZ]);
+      expect(named(scene, 'brow_r').position.toArray()).toEqual([-RX, RY, RZ]);
+      for (const name of ['brow_l', 'brow_r']) {
+        expect(named(scene, name).quaternion.toArray(), name).toEqual([0, 0, 0, 1]);
+        expect(named(scene, name).scale.toArray(), name).toEqual([scale, scale, scale]);
+      }
+    });
+
+    it.each(BABY_EXPRESSIONS)('%s brings both brows to their rest plus its pose', (expression) => {
+      const { scene, view } = build();
+      const life = drive(view, expression, 100, 10);
+      const pose = life.characters.expressions.baby.poses[expression];
+      const left = named(scene, 'brow_l').position;
+      const right = named(scene, 'brow_r').position;
+      expect(left.x).toBeCloseTo(RX - pose.inwardOffsetM, 9);
+      expect(left.y).toBeCloseTo(RY + pose.raiseOffsetM + pose.skewOffsetM, 9);
+      expect(right.x).toBeCloseTo(-RX + pose.inwardOffsetM, 9);
+      expect(right.y).toBeCloseTo(RY + pose.raiseOffsetM - pose.skewOffsetM, 9);
+      expect(view.browTiltDeg).toBeCloseTo(pose.tiltDeg, 6);
+    });
+
+    it("pins the signs of D2 on world points of each brow's two ends", () => {
+      const { scene, view } = build();
+      const life = createTestLife();
+      const poses = life.characters.expressions.baby.poses;
+      const read = (pose: typeof poses.sulky) => {
+        poses.sulky = pose;
+        drive(view, 'sulky', 100, 10, life);
+        scene.updateMatrixWorld(true);
+        const head = named(scene, 'head');
+        return {
+          l: browEndsInHead(head, named(scene, 'brow_l'), 0.033),
+          r: browEndsInHead(head, named(scene, 'brow_r'), 0.033),
+        };
+      };
+      const zero = { raiseOffsetM: 0, tiltDeg: 0, inwardOffsetM: 0, skewOffsetM: 0 };
+      const tilted = read({ ...zero, tiltDeg: 20 });
+      for (const side of [tilted.l, tilted.r]) {
+        expect(side.inner.y).toBeGreaterThan(side.outer.y + 0.01);
+      }
+      const frown = read({ ...zero, tiltDeg: -20 });
+      for (const side of [frown.l, frown.r]) expect(side.inner.y).toBeLessThan(side.outer.y - 0.01);
+      const knot = read({ ...zero, inwardOffsetM: 0.01 });
+      expect(knot.l.centre.x).toBeCloseTo(RX - 0.01, 9);
+      expect(knot.r.centre.x).toBeCloseTo(-RX + 0.01, 9);
+      const cocked = read({ ...zero, skewOffsetM: 0.01 });
+      expect(cocked.l.centre.x).toBeGreaterThan(0);
+      expect(cocked.l.centre.y).toBeCloseTo(RY + 0.01, 9);
+      expect(cocked.r.centre.y).toBeCloseTo(RY - 0.01, 9);
+    });
+
+    it("no expression writes his lids: they stay the duel signals' (D1)", () => {
+      for (const expression of BABY_EXPRESSIONS) {
+        const { scene, view } = build();
+        view.setEyelids(0.5);
+        drive(view, expression, 60, 16);
+        expect(named(scene, 'eyelids').scale.y, expression).toBe(0.5);
+      }
+    });
+
+    it('gives the same pose under reduced motion', () => {
+      const a = build();
+      const b = build();
+      drive(a.view, 'sleepy', 40, 16);
+      drive(b.view, 'sleepy', 40, 16, createTestLife({ isMotionReduced: true }));
+      expect(snapshot(b.scene)).toEqual(snapshot(a.scene));
+    });
+
+    it('resetAnimation puts them at rest at once; the next frame snaps', () => {
+      const { scene, view } = build();
+      drive(view, 'delighted', 1, 16);
+      const poses = createTestLife().characters.expressions.baby.poses;
+      expect(view.browTiltDeg).toBe(poses.delighted.tiltDeg);
+      view.resetAnimation();
+      expect(view.browTiltDeg).toBe(0);
+      expect(named(scene, 'brow_r').position.toArray()).toEqual([-RX, RY, RZ]);
+      drive(view, 'sulky', 1, 16);
+      expect(view.browTiltDeg).toBe(poses.sulky.tiltDeg);
+    });
+
+    it('gives the same brows for 1, 3 or 7 frames over the same span', () => {
+      const run = (frames: number) => {
+        const { scene, view } = build();
+        drive(view, 'neutral', 1, 16);
+        const life = createTestLife({ babyExpression: 'focused' });
+        for (let i = 0; i < frames; i++) {
+          view.update(baby(), 1);
+          view.animate(baby(), 63 / frames, life);
+        }
+        return snapshot(scene);
+      };
+      const one = run(1);
+      for (const frames of [3, 7]) {
+        for (const [i, value] of run(frames).entries()) {
+          expect(value).toBeCloseTo(one[i] as number, 9);
+        }
+      }
+    });
   });
 
   it('draws the rig and a flat shadow, never culling his skinned mesh', () => {

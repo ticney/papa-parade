@@ -1,5 +1,6 @@
 import type { Feel } from '@content/schemas/feel';
 import { createSpring, resetSpring, type Spring, stepSpring } from './characterSpring.ts';
+import type { BabyFace, PapaFace } from './expressions.ts';
 import { createPapaGazeSight, type PapaGazeSight } from './papaGaze.ts';
 
 /** `feel.json › characters` (story 7.8): read from `world.feel` every frame, so the feel panel shows at once. */
@@ -24,6 +25,10 @@ export interface LifeInputs {
   /** Where the baby is drawn. */
   babyXM: number;
   babyZM: number;
+  /** What Papa's face shows (story 7.10): the scene's choice from the events, the world and the debug overlay. */
+  papaExpression: PapaFace;
+  /** What the baby's face shows (story 7.10). */
+  babyExpression: BabyFace;
   characters: CharactersFeel;
 }
 
@@ -37,6 +42,8 @@ export function createLifeInputs(characters: CharactersFeel): LifeInputs {
     gazeSight: createPapaGazeSight(),
     babyXM: 0,
     babyZM: 0,
+    papaExpression: 'neutral',
+    babyExpression: 'neutral',
     characters,
   };
 }

@@ -1,6 +1,6 @@
 {
   "untilSimMs": 16000,
-  "worldHash": "1b3aea1f508a26",
+  "worldHash": "0e973692162892",
   "eventTypes": [
     "FatigueThresholdCrossed",
     "BabyStateChanged",

@@ -4,16 +4,20 @@ import type { BabySlice, PapaSlice } from '@sim';
 import { type Object3D, Scene, SkinnedMesh, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
+  browEndsInHead,
   createTestLife,
   createTestPapa,
   TEST_FORELOCK_ROOT_M,
   TEST_FORELOCK_TIP_M,
+  TEST_PAPA_BROW_REST_M,
 } from '../../../../tests/support/testCharacters.ts';
 import type { CharacterAsset } from '../../assets/gltf.ts';
 import { createBlobKit } from '../blobShadow.ts';
 import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
-import { createCharacterRig } from './characterRig.ts';
+import type { BrowPose } from './brows.ts';
+import { createCharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
+import { PAPA_EXPRESSIONS, type PapaFace } from './expressions.ts';
 import { createPapaView, PAPA_LIFE_BONES, type PapaPose, papaPoseAt } from './papaView.ts';
 
 const TOON_TONES = [96, 178, 255];
@@ -891,26 +895,146 @@ describe('his forelock (story 7.9, D7)', () => {
     };
     expect(run()).toBe(run());
   });
+});
 
-  it('never writes a brow: both rest after frames with every life input set (AC 5)', () => {
-    const { view, named } = buildView();
-    const busy = createTestLife({
-      fatigue: 80,
-      isAlert: true,
-      isResponding: true,
-      babyXM: 1,
-      babyZM: 2,
-    });
-    busy.gazeSight.isBabyShown = true;
-    for (let i = 0; i < 60; i++) {
-      view.update(at(2 + 0.03 * i), 1);
-      view.animate(papa({ state: 'walkPath', xM: 2 + 0.03 * i }), FREE_BABY, 16, busy);
+describe('his brows (story 7.10)', () => {
+  const at = (xM: number, zM = 1) => papa({ xM, zM, prevXM: xM, prevZM: zM });
+  const HALF_BAR_M = 0.035;
+  const [RX, RY, RZ] = TEST_PAPA_BROW_REST_M;
+  /** His face held at `expression` for `frames` frames of `dtMs`, the rest of the life layer busy. */
+  const drive = (
+    view: ReturnType<typeof buildView>['view'],
+    expression: PapaFace,
+    frames: number,
+    dtMs: number,
+    life = createTestLife({ fatigue: 80, isAlert: true, babyXM: 1, babyZM: 2 }),
+  ) => {
+    life.papaExpression = expression;
+    for (let i = 0; i < frames; i++) {
+      view.update(at(2), 1);
+      view.animate(at(2), FREE_BABY, dtMs, life);
     }
+    return life;
+  };
+  const snapshot = (named: (name: string) => Object3D) =>
+    ['brow_l', 'brow_r'].flatMap((name) => [
+      ...named(name).position.toArray(),
+      ...named(name).quaternion.toArray(),
+      ...named(name).scale.toArray(),
+    ]);
+
+  it('at neutral, both brows sit at their rest, at browScalePct', () => {
+    const { view, named } = buildView();
+    const life = drive(view, 'neutral', 30, 16);
+    const scale = life.characters.expressions.papa.browScalePct / 100;
+    expect(named('brow_l').position.toArray()).toEqual([RX, RY, RZ]);
+    expect(named('brow_r').position.toArray()).toEqual([-RX, RY, RZ]);
     for (const name of ['brow_l', 'brow_r']) {
-      const brow = named(name);
-      expect(brow.quaternion.toArray(), name).toEqual([0, 0, 0, 1]);
-      expect(brow.position.toArray(), name).toEqual([0, 0, 0]);
-      expect(brow.scale.toArray(), name).toEqual([1, 1, 1]);
+      expect(named(name).quaternion.toArray(), name).toEqual([0, 0, 0, 1]);
+      expect(named(name).scale.toArray(), name).toEqual([scale, scale, scale]);
+    }
+    expect(view.browTiltDeg).toBe(0);
+  });
+
+  it.each(PAPA_EXPRESSIONS)('%s brings both brows to their rest plus its pose', (expression) => {
+    const { view, named } = buildView();
+    const life = drive(view, expression, 100, 10);
+    const pose: BrowPose = life.characters.expressions.papa.poses[expression];
+    const left = named('brow_l').position;
+    const right = named('brow_r').position;
+    expect(left.x).toBeCloseTo(RX - pose.inwardOffsetM, 9);
+    expect(left.y).toBeCloseTo(RY + pose.raiseOffsetM + pose.skewOffsetM, 9);
+    expect(right.x).toBeCloseTo(-RX + pose.inwardOffsetM, 9);
+    expect(right.y).toBeCloseTo(RY + pose.raiseOffsetM - pose.skewOffsetM, 9);
+    expect(left.z).toBe(RZ);
+    expect(view.browTiltDeg).toBeCloseTo(pose.tiltDeg, 6);
+  });
+
+  it("pins the signs of D2 on world points of each brow's two ends", () => {
+    const { view, named, scene } = buildView();
+    const life = createTestLife();
+    const poses = life.characters.expressions.papa.poses;
+    const read = (pose: BrowPose) => {
+      poses.firm = pose;
+      drive(view, 'firm', 100, 10, life);
+      scene.updateMatrixWorld(true);
+      return {
+        l: browEndsInHead(named('head'), named('brow_l'), HALF_BAR_M),
+        r: browEndsInHead(named('head'), named('brow_r'), HALF_BAR_M),
+      };
+    };
+    const zero = { raiseOffsetM: 0, tiltDeg: 0, inwardOffsetM: 0, skewOffsetM: 0 };
+    const tilted = read({ ...zero, tiltDeg: 20 });
+    for (const side of [tilted.l, tilted.r])
+      expect(side.inner.y).toBeGreaterThan(side.outer.y + 0.01);
+    const frown = read({ ...zero, tiltDeg: -20 });
+    for (const side of [frown.l, frown.r]) expect(side.inner.y).toBeLessThan(side.outer.y - 0.01);
+    const knot = read({ ...zero, inwardOffsetM: 0.01 });
+    expect(knot.l.centre.x).toBeCloseTo(RX - 0.01, 9);
+    expect(knot.r.centre.x).toBeCloseTo(-RX + 0.01, 9);
+    const cocked = read({ ...zero, skewOffsetM: 0.01 });
+    // His left brow is `brow_l`, at +x in his head's axes: it goes up.
+    expect(cocked.l.centre.x).toBeGreaterThan(0);
+    expect(cocked.l.centre.y).toBeCloseTo(RY + 0.01, 9);
+    expect(cocked.r.centre.y).toBeCloseTo(RY - 0.01, 9);
+    const raised = read({ ...zero, raiseOffsetM: 0.02 });
+    expect(raised.l.centre.y).toBeCloseTo(RY + 0.02, 9);
+    expect(raised.r.centre.y).toBeCloseTo(RY + 0.02, 9);
+  });
+
+  it('no expression moves his lids or his eyes (AC 4)', () => {
+    for (const expression of PAPA_EXPRESSIONS) {
+      const { view, named } = buildView();
+      const eyes = named('eyes');
+      const eyesBefore = [
+        ...eyes.position.toArray(),
+        ...eyes.quaternion.toArray(),
+        ...eyes.scale.toArray(),
+      ];
+      drive(view, expression, 60, 16);
+      expect(view.eyelidsPct, expression).toBe(0);
+      expect(named('eyelids').scale.y, expression).toBe(EYELIDS_OPEN_SCALE);
+      expect([
+        ...eyes.position.toArray(),
+        ...eyes.quaternion.toArray(),
+        ...eyes.scale.toArray(),
+      ]).toEqual(eyesBefore);
+    }
+  });
+
+  it('gives the same pose under reduced motion', () => {
+    const a = buildView();
+    const b = buildView();
+    drive(a.view, 'tired', 40, 16);
+    drive(b.view, 'tired', 40, 16, createTestLife({ fatigue: 80, isMotionReduced: true }));
+    expect(snapshot(b.named)).toEqual(snapshot(a.named));
+  });
+
+  it('snaps on the first frame, and resetAnimation puts them at rest at once', () => {
+    const { view, named } = buildView();
+    drive(view, 'surprised', 1, 16);
+    const pose = createTestLife().characters.expressions.papa.poses.surprised;
+    expect(view.browTiltDeg).toBe(pose.tiltDeg);
+    view.resetAnimation();
+    expect(view.browTiltDeg).toBe(0);
+    expect(named('brow_l').position.toArray()).toEqual([RX, RY, RZ]);
+    expect(named('brow_l').quaternion.toArray()).toEqual([0, 0, 0, 1]);
+    // The first frame after it snaps on the expression, with no blend (D9).
+    drive(view, 'firm', 1, 16);
+    expect(view.browTiltDeg).toBe(createTestLife().characters.expressions.papa.poses.firm.tiltDeg);
+  });
+
+  it('gives the same brows for 1, 3 or 7 frames over the same span', () => {
+    const run = (frames: number) => {
+      const { view, named } = buildView();
+      drive(view, 'neutral', 1, 16);
+      drive(view, 'proud', frames, 63 / frames);
+      return snapshot(named);
+    };
+    const one = run(1);
+    for (const frames of [3, 7]) {
+      const many = run(frames);
+      for (const [i, value] of many.entries()) expect(value).toBeCloseTo(one[i] as number, 9);
     }
   });
 });

@@ -2746,6 +2746,10 @@ export async function boot(): Promise<void> {
           papaBreathDeg: real?.papaBreathDeg ?? 0,
           babyBreathDeg: real?.babyBreathDeg ?? 0,
           papaEyelidsPct: real?.papaEyelidsPct ?? 0,
+          papaExpression: real?.papaExpression ?? 'neutral',
+          babyExpression: real?.babyExpression ?? 'neutral',
+          papaBrowTiltDeg: real?.papaBrowTiltDeg ?? 0,
+          babyBrowTiltDeg: real?.babyBrowTiltDeg ?? 0,
           fireworksAlive: real?.fireworksAlive ?? 0,
           celebrating: celebration.isRunning(performance.now()),
           framing: {
@@ -2758,6 +2762,7 @@ export async function boot(): Promise<void> {
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),
+      setExpressions: (papa, baby) => currentLevel?.setExpressionOverlay(papa, baby),
       celebrate: () => {
         const active = levelSession.active;
         if (active === null) throw new Error('__PP__.celebrate: no level is running');

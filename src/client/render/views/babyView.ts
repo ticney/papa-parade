@@ -2,6 +2,7 @@ import type { BabySlice, PapaSlice } from '@sim';
 import { Euler, Group, type Object3D, Quaternion } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
+import { createBrowState, REST_BROW_POSE, stepBrows, unplaceBrows } from './brows.ts';
 import { babyClipOf, isBabyTravelling } from './characterClips.ts';
 import { fadeMsOf } from './characterFades.ts';
 import { clipTimeScaleOf, stepSpeedMpsOf, wrapAngleRad } from './characterMotion.ts';
@@ -14,7 +15,7 @@ import {
   resetBreath,
   stepBreath,
 } from './lifeLayer.ts';
-import type { CharacterMotionConfig } from './papaView.ts';
+import { browBonesOf, type CharacterMotionConfig, writeBrowBones } from './papaView.ts';
 
 /** The bone the baby's life layer writes over his clips (story 7.8, D3): the torso. His head is the gaze. */
 export const BABY_LIFE_BONES = ['spine'] as const;
@@ -84,7 +85,7 @@ export interface BabyView {
    * Plays the loop the world says now (fading in over its passage's fade), turns his body on its spring
    * toward his gaze, his head at once on the gaze itself (the eyes are what the player reads), advances
    * his mixer by `dtMs` of sim time, then lays his breath over the clip (story 7.8). A `dtMs` of 0 holds
-   * him. Allocates nothing once the clips have played once.
+   * him. His brows go on his expression last (story 7.10). Allocates nothing once the clips have played once.
    */
   animate(baby: Readonly<BabySlice>, dtMs: number, life: Readonly<LifeInputs>): void;
   /** Plays a clip once, over his loop, fading in over `fadeMs`. */
@@ -95,6 +96,8 @@ export interface BabyView {
   readonly bodyYawRad: number;
   /** His breath's pitch now, in degrees; 0 under reduced motion. */
   readonly breathDeg: number;
+  /** His brows' drawn tilt now, in degrees, positive inner ends up (story 7.10). */
+  readonly browTiltDeg: number;
   /** The clip the player sees. */
   readonly clipName: string | null;
   /** Scales his body, from the point his feet are at (the squash); the shadow stays. Allocates nothing. */
@@ -159,6 +162,10 @@ export function createBabyView(
   let breathNowDeg = 0;
   const offsetEuler = new Euler(0, 0, 0, 'XYZ');
   const offset = new Quaternion();
+  // The brows (story 7.10): written last, from rests read once. His lids are the duel's (`setEyelids`).
+  const brows = browBonesOf(rig);
+  const browState = createBrowState();
+  let browScaleNowPct = 100;
   let slideXM = 0;
   let slideZM = 0;
   /** How much lower than the floor the baby sits at the bottom of the stairs (story 3.15). */
@@ -242,6 +249,16 @@ export function createBabyView(
       breathNowDeg = breathFactor * characters.breath.babyAmplitudeDeg;
       offsetEuler.set(breathNowDeg * DEG_TO_RAD, 0, 0);
       spine.quaternion.multiply(offset.setFromEuler(offsetEuler));
+      // His brows on his expression, last (D2, D9, D14).
+      const face = characters.expressions.baby;
+      stepBrows(
+        browState,
+        life.babyExpression === 'neutral' ? REST_BROW_POSE : face.poses[life.babyExpression],
+        dtMs,
+        characters.expressions.reachMs,
+      );
+      browScaleNowPct = face.browScalePct;
+      writeBrowBones(brows, browState.drawn, browScaleNowPct);
     },
     playOnce(clip, fadeMs) {
       rig.playOnce(clip, fadeMs);
@@ -254,6 +271,9 @@ export function createBabyView(
     },
     get breathDeg() {
       return breathNowDeg;
+    },
+    get browTiltDeg() {
+      return browState.drawn.tiltDeg;
     },
     get clipName() {
       return rig.clipName;
@@ -274,6 +294,9 @@ export function createBabyView(
       isLoopTravelling = false;
       resetBreath(breath);
       breathNowDeg = 0;
+      // The brows at rest now; the next frame snaps them on his expression (D9).
+      unplaceBrows(browState);
+      writeBrowBones(brows, browState.drawn, browScaleNowPct);
     },
     setLiftM(heightM) {
       hopM = heightM;

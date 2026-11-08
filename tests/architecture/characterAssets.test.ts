@@ -749,8 +749,20 @@ describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred 
 });
 
 describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
-  /** The life layer's modules (story 7.8): the springs, the fades, the lean and breath, the gaze; the forelock (7.9). */
-  const LIFE_VIEWS = ['characterSpring', 'characterFades', 'lifeLayer', 'papaGaze', 'forelock'];
+  /**
+   * The life layer's modules (story 7.8): the springs, the fades, the lean and breath, the gaze; the forelock
+   * (7.9); the faces' expressions, brows and world inputs (7.10).
+   */
+  const LIFE_VIEWS = [
+    'characterSpring',
+    'characterFades',
+    'lifeLayer',
+    'papaGaze',
+    'forelock',
+    'expressions',
+    'brows',
+    'faceInputs',
+  ];
   const VIEWS = [
     'characterClips',
     'characterRig',
@@ -812,6 +824,11 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
 
   it('characterClips.ts takes no threat', () => {
     expect(clips).not.toMatch(/ThreatInstance|\.threats\b/);
+  });
+
+  // Story 7.10, D6: the faces choose from events and booleans; only `faceInputs.ts` reads a threat's state.
+  it('expressions.ts takes no threat', () => {
+    expect(viewSource('expressions')).not.toMatch(/ThreatInstance|\.threats\b/);
   });
 
   it('levelScene.ts reads `windowOpenAt` only in its two helpers, which check the def first', () => {

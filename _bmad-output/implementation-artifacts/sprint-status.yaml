@@ -148,7 +148,7 @@ development_status:
   # couche de vie, squelette v2, première vague, puis le reste.
   7-8-couche-de-vie-et-personnages-detaches-du-decor: done
   7-9-squelette-v2-et-animations-reprises: done
-  7-10-visages-sourcils-et-expressions: backlog
+  7-10-visages-sourcils-et-expressions: done
   7-11-premiere-vague-deplacement-et-attentes-de-papa: backlog
   7-12-premiere-vague-taches-reponses-reactions-et-bebe: backlog
   # Playtest de l'animation (indicateur « Papa se lit sans sa bulle ») : npm run ci, puis le lien.

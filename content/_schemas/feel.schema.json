@@ -1917,6 +1917,415 @@
           "additionalProperties": false,
           "description": "Papa's forelock (story 7.9): a pendulum on his head, stepped on the sim clock, that trails whatever moves the head. At rest under « Réduire les animations »."
         },
+        "expressions": {
+          "type": "object",
+          "properties": {
+            "reachMs": {
+              "type": "number",
+              "minimum": 50,
+              "maximum": 1000,
+              "description": "Time the brows take to cover 95 % of the way to a new pose, in sim ms, with no overshoot."
+            },
+            "papa": {
+              "type": "object",
+              "properties": {
+                "browScalePct": {
+                  "type": "number",
+                  "minimum": 50,
+                  "maximum": 250,
+                  "description": "Both brows' size, in % of the modelled bar, about its centre: the knob if they do not read at phone size."
+                },
+                "surprisedMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 5000,
+                  "description": "How long his surprise at a telegraph shows, in sim ms (0: never)."
+                },
+                "firmAfterMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 3000,
+                  "description": "How long his frown stays after a successful Firmness, in sim ms (it covers `respond_firm`)."
+                },
+                "proudMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 5000,
+                  "description": "How long his pride at a perfect shows, in sim ms (it covers the glide and `respond_perfect`)."
+                },
+                "poses": {
+                  "type": "object",
+                  "properties": {
+                    "surprised": {
+                      "type": "object",
+                      "properties": {
+                        "raiseOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.05,
+                          "description": "Both brows up (+) or down (−) along the head, in metres."
+                        },
+                        "tiltDeg": {
+                          "type": "number",
+                          "minimum": -45,
+                          "maximum": 45,
+                          "description": "The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown)."
+                        },
+                        "inwardOffsetM": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.02,
+                          "description": "Both brows toward the nose (the knot), in metres."
+                        },
+                        "skewOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.02,
+                          "description": "The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much."
+                        }
+                      },
+                      "required": [
+                        "raiseOffsetM",
+                        "tiltDeg",
+                        "inwardOffsetM",
+                        "skewOffsetM"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A brow pose (story 7.10): added to the rest of both brows, mirrored."
+                    },
+                    "firm": {
+                      "type": "object",
+                      "properties": {
+                        "raiseOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.05,
+                          "description": "Both brows up (+) or down (−) along the head, in metres."
+                        },
+                        "tiltDeg": {
+                          "type": "number",
+                          "minimum": -45,
+                          "maximum": 45,
+                          "description": "The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown)."
+                        },
+                        "inwardOffsetM": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.02,
+                          "description": "Both brows toward the nose (the knot), in metres."
+                        },
+                        "skewOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.02,
+                          "description": "The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much."
+                        }
+                      },
+                      "required": [
+                        "raiseOffsetM",
+                        "tiltDeg",
+                        "inwardOffsetM",
+                        "skewOffsetM"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A brow pose (story 7.10): added to the rest of both brows, mirrored."
+                    },
+                    "tired": {
+                      "type": "object",
+                      "properties": {
+                        "raiseOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.05,
+                          "description": "Both brows up (+) or down (−) along the head, in metres."
+                        },
+                        "tiltDeg": {
+                          "type": "number",
+                          "minimum": -45,
+                          "maximum": 45,
+                          "description": "The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown)."
+                        },
+                        "inwardOffsetM": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.02,
+                          "description": "Both brows toward the nose (the knot), in metres."
+                        },
+                        "skewOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.02,
+                          "description": "The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much."
+                        }
+                      },
+                      "required": [
+                        "raiseOffsetM",
+                        "tiltDeg",
+                        "inwardOffsetM",
+                        "skewOffsetM"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A brow pose (story 7.10): added to the rest of both brows, mirrored."
+                    },
+                    "proud": {
+                      "type": "object",
+                      "properties": {
+                        "raiseOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.05,
+                          "description": "Both brows up (+) or down (−) along the head, in metres."
+                        },
+                        "tiltDeg": {
+                          "type": "number",
+                          "minimum": -45,
+                          "maximum": 45,
+                          "description": "The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown)."
+                        },
+                        "inwardOffsetM": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.02,
+                          "description": "Both brows toward the nose (the knot), in metres."
+                        },
+                        "skewOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.02,
+                          "description": "The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much."
+                        }
+                      },
+                      "required": [
+                        "raiseOffsetM",
+                        "tiltDeg",
+                        "inwardOffsetM",
+                        "skewOffsetM"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A brow pose (story 7.10): added to the rest of both brows, mirrored."
+                    }
+                  },
+                  "required": [
+                    "surprised",
+                    "firm",
+                    "tired",
+                    "proud"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Papa's four brow poses; `neutral` is the rest."
+                }
+              },
+              "required": [
+                "browScalePct",
+                "surprisedMs",
+                "firmAfterMs",
+                "proudMs",
+                "poses"
+              ],
+              "additionalProperties": false,
+              "description": "Papa's face: his brows' size, his moments' durations and his four poses."
+            },
+            "baby": {
+              "type": "object",
+              "properties": {
+                "browScalePct": {
+                  "type": "number",
+                  "minimum": 50,
+                  "maximum": 250,
+                  "description": "Both brows' size, in % of the modelled bar, about its centre: the knob if they do not read at phone size."
+                },
+                "delightedMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 5000,
+                  "description": "How long his delight shows, in sim ms (it covers `laugh` and `gag_delight`)."
+                },
+                "sulkyMs": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 5000,
+                  "description": "How long he sulks after a Firmness, in sim ms."
+                },
+                "poses": {
+                  "type": "object",
+                  "properties": {
+                    "delighted": {
+                      "type": "object",
+                      "properties": {
+                        "raiseOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.05,
+                          "description": "Both brows up (+) or down (−) along the head, in metres."
+                        },
+                        "tiltDeg": {
+                          "type": "number",
+                          "minimum": -45,
+                          "maximum": 45,
+                          "description": "The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown)."
+                        },
+                        "inwardOffsetM": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.02,
+                          "description": "Both brows toward the nose (the knot), in metres."
+                        },
+                        "skewOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.02,
+                          "description": "The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much."
+                        }
+                      },
+                      "required": [
+                        "raiseOffsetM",
+                        "tiltDeg",
+                        "inwardOffsetM",
+                        "skewOffsetM"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A brow pose (story 7.10): added to the rest of both brows, mirrored."
+                    },
+                    "sulky": {
+                      "type": "object",
+                      "properties": {
+                        "raiseOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.05,
+                          "description": "Both brows up (+) or down (−) along the head, in metres."
+                        },
+                        "tiltDeg": {
+                          "type": "number",
+                          "minimum": -45,
+                          "maximum": 45,
+                          "description": "The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown)."
+                        },
+                        "inwardOffsetM": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.02,
+                          "description": "Both brows toward the nose (the knot), in metres."
+                        },
+                        "skewOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.02,
+                          "description": "The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much."
+                        }
+                      },
+                      "required": [
+                        "raiseOffsetM",
+                        "tiltDeg",
+                        "inwardOffsetM",
+                        "skewOffsetM"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A brow pose (story 7.10): added to the rest of both brows, mirrored."
+                    },
+                    "focused": {
+                      "type": "object",
+                      "properties": {
+                        "raiseOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.05,
+                          "description": "Both brows up (+) or down (−) along the head, in metres."
+                        },
+                        "tiltDeg": {
+                          "type": "number",
+                          "minimum": -45,
+                          "maximum": 45,
+                          "description": "The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown)."
+                        },
+                        "inwardOffsetM": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.02,
+                          "description": "Both brows toward the nose (the knot), in metres."
+                        },
+                        "skewOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.02,
+                          "description": "The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much."
+                        }
+                      },
+                      "required": [
+                        "raiseOffsetM",
+                        "tiltDeg",
+                        "inwardOffsetM",
+                        "skewOffsetM"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A brow pose (story 7.10): added to the rest of both brows, mirrored."
+                    },
+                    "sleepy": {
+                      "type": "object",
+                      "properties": {
+                        "raiseOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.05,
+                          "description": "Both brows up (+) or down (−) along the head, in metres."
+                        },
+                        "tiltDeg": {
+                          "type": "number",
+                          "minimum": -45,
+                          "maximum": 45,
+                          "description": "The slant, in degrees: positive lifts the inner ends, toward the nose (worry, sag); negative lowers them (a frown)."
+                        },
+                        "inwardOffsetM": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.02,
+                          "description": "Both brows toward the nose (the knot), in metres."
+                        },
+                        "skewOffsetM": {
+                          "type": "number",
+                          "minimum": -0.02,
+                          "maximum": 0.02,
+                          "description": "The cocked brow, in metres: positive raises his left brow (`brow_l`) and lowers his right by as much."
+                        }
+                      },
+                      "required": [
+                        "raiseOffsetM",
+                        "tiltDeg",
+                        "inwardOffsetM",
+                        "skewOffsetM"
+                      ],
+                      "additionalProperties": false,
+                      "description": "A brow pose (story 7.10): added to the rest of both brows, mirrored."
+                    }
+                  },
+                  "required": [
+                    "delighted",
+                    "sulky",
+                    "focused",
+                    "sleepy"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The baby's four brow poses; `neutral` is the rest."
+                }
+              },
+              "required": [
+                "browScalePct",
+                "delightedMs",
+                "sulkyMs",
+                "poses"
+              ],
+              "additionalProperties": false,
+              "description": "The baby's face: his brows' size, his moments' durations and his four poses."
+            }
+          },
+          "required": [
+            "reachMs",
+            "papa",
+            "baby"
+          ],
+          "additionalProperties": false,
+          "description": "The faces (story 7.10): one expression per character, carried by the brows alone, blended on springs of the sim clock. The same under « Réduire les animations »."
+        },
         "look": {
           "type": "object",
           "properties": {
@@ -1968,10 +2377,11 @@
         "gaze",
         "stoop",
         "forelock",
+        "expressions",
         "look"
       ],
       "additionalProperties": false,
-      "description": "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), rim and outline. Client only."
+      "description": "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), expressions (story 7.10), rim and outline. Client only."
     },
     "music": {
       "type": "object",

@@ -228,6 +228,62 @@
     "gaze": { "maxYawDeg": 60, "behindDeg": 150, "reachMs": 200 },
     "stoop": { "maxDeg": 15 },
     "forelock": { "reachMs": 100, "dampingRatio": 0.6, "maxDeg": 30 },
+    "expressions": {
+      "reachMs": 100,
+      "papa": {
+        "browScalePct": 120,
+        "surprisedMs": 900,
+        "firmAfterMs": 700,
+        "proudMs": 1600,
+        "poses": {
+          "surprised": {
+            "raiseOffsetM": 0.03,
+            "tiltDeg": 10,
+            "inwardOffsetM": 0,
+            "skewOffsetM": 0
+          },
+          "firm": {
+            "raiseOffsetM": -0.012,
+            "tiltDeg": -28,
+            "inwardOffsetM": 0.008,
+            "skewOffsetM": 0
+          },
+          "tired": { "raiseOffsetM": -0.01, "tiltDeg": 22, "inwardOffsetM": 0, "skewOffsetM": 0 },
+          "proud": {
+            "raiseOffsetM": 0.008,
+            "tiltDeg": -10,
+            "inwardOffsetM": 0,
+            "skewOffsetM": 0.02
+          }
+        }
+      },
+      "baby": {
+        "browScalePct": 120,
+        "delightedMs": 1200,
+        "sulkyMs": 1500,
+        "poses": {
+          "delighted": {
+            "raiseOffsetM": 0.025,
+            "tiltDeg": 6,
+            "inwardOffsetM": 0,
+            "skewOffsetM": 0
+          },
+          "sulky": {
+            "raiseOffsetM": -0.008,
+            "tiltDeg": -25,
+            "inwardOffsetM": 0.008,
+            "skewOffsetM": 0
+          },
+          "focused": {
+            "raiseOffsetM": -0.004,
+            "tiltDeg": -8,
+            "inwardOffsetM": 0.004,
+            "skewOffsetM": -0.012
+          },
+          "sleepy": { "raiseOffsetM": -0.01, "tiltDeg": 18, "inwardOffsetM": 0, "skewOffsetM": 0 }
+        }
+      }
+    },
     "look": {
       "outlineWidthPct": 150,
       "rimStrengthPct": 35,
