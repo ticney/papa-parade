@@ -3,8 +3,8 @@ title: Papa Parade — Game Design Document
 game_type: Action chaotique à timing, solo (hybride Fighting / Party Game / Rhythm)
 platforms: [web, ios, android]
 created: 2026-10-26
-updated: 2026-11-03
-version: 2.3
+updated: 2026-11-08
+version: 2.4
 sources:
   - docs/Papa Parade — Game Design Doc.pdf (GDD v1, 2026-10-23)
   - _bmad-output/brainstorming/brainstorm-papa-parade-gameplay-2026-10-26/.memlog.md
@@ -425,6 +425,7 @@ Les boss sont des situations, pas des personnages : change de couche, lavage de 
   - le palier Assistance, assumé.
 - **Plafond haut :** les réponses parfaites, les combos x8 encaissés, le dosage calme / ferme et l'enchaînement des menaces en freeflow.
 - **Daltonisme :** le code bleu / rouge est doublé par une forme d'icône (cercle = parable, triangle = esquive). Le dernier arc de l'anneau-chrono se distingue par son épaisseur, pas seulement par sa couleur.
+- **Mouvement réduit :** un réglage, qui suit par défaut la préférence de l'appareil. Il calme la caméra et les effets, et arrête la couche de vie des personnages (« Animation des personnages ») ; les poses qui portent un état restent.
 - **Contenu :** tout public. Aucune blessure montrée.
 
 ### Timing et latence
@@ -511,7 +512,7 @@ Les réactions de Maman se souviennent des parties précédentes (« *Encore* l'
 
 - **Une pièce par niveau**, en vue isométrique. Le gameplay reste sur le plan du sol. Une petite pièce (la chambre) tient dans l'écran, avec une caméra fixe. Une grande pièce (le salon avec cuisine ouverte) est filmée par une **caméra qui suit papa** ; les menaces hors cadre sont signalées par une bulle d'info au bord de l'écran (mécanique 12).
 - **Grand salon avec cuisine ouverte (v2.3) :** il remplace le salon du prototype. Environ 13 à 14 m × 7 m (le salon actuel fait 9 × 6 m) : coin salon (canapé, table basse, escalier, prise), coin repas (table et nappe), cuisine ouverte (plaque de cuisson, lave-vaisselle, placards bas, poubelle). À l'écran, les personnages gardent leur taille actuelle. [ASSUMPTION: dimensions et plan à valider dans Blender.]
-- **Caméra qui suit :** zone morte autour de papa ; la caméra rattrape la glissade sans à-coup et ne tourne jamais, sauf la courte rotation d'une réponse parfaite. Pendant les ralentis et les cadrages serrés, elle cadre la menace jugée. [ASSUMPTION: taille de la zone morte et vitesse de rattrapage, réglables comme le reste du feeling.]
+- **Caméra qui suit :** zone morte autour de papa ; la caméra rattrape la glissade sans à-coup et ne tourne jamais, sauf la courte rotation d'une réponse parfaite. Pendant les ralentis et les cadrages serrés, elle cadre la menace jugée. [ASSUMPTION: taille de la zone morte et vitesse de rattrapage, réglables comme le reste du feeling.] [NOTE FOR DESIGNER: la v2.4 propose de resserrer le cadrage à 7,5 m de large pour des personnages environ 20 % plus grands, au prix de plus de menaces hors cadre, signalées par leur bulle d'info. Cela reviendrait sur « les personnages gardent leur taille actuelle » ci-dessus : à trancher par Geo en jouant.]
 - **Variante Sieste :** Maman dort dans la pièce voisine ; la jauge de bruit est l'enjeu principal. Adaptée aux âges bébé et petite enfance, et aux niveaux de nuit.
 - **Variante Retour :** Maman est sortie ; le chrono mène à son retour. Adaptée aux âges plus grands.
 - Les deux variantes partagent la même fin : porte, rush final, photo, note. Si la jauge de catastrophe est pleine, la porte s'ouvre sans rush final et le niveau est perdu.
@@ -531,12 +532,81 @@ Les réactions de Maman se souviennent des parties précédentes (« *Encore* l'
 Un cartoon 3D low poly, rond et exagéré, pensé pour rester cohérent quand il est produit avec l'aide de l'IA.
 
 - **Vue :** 3D low poly, vue isométrique, une pièce par niveau ; caméra fixe dans une petite pièce, qui suit papa dans le grand salon.
-- **Personnages :** formes simples, bébé à tête énorme, expressions portées par les yeux. Squash and stretch pour compenser des animations courtes. La dégaine de papa se dégrade visiblement pendant le niveau.
+- **Personnages :** formes simples, bébé à tête énorme, expressions portées par les yeux. Squash and stretch pour compenser des animations courtes. La dégaine de papa se dégrade visiblement pendant le niveau. Le mouvement, les visages et la variété des animations sont décrits dans « Animation des personnages » ci-dessous.
 - **Rendu :** couleurs par sommet ou petite texture-palette partagée, rendu toon avec contours. Le rendu de l'outil de modélisation ne se transpose pas tel quel en jeu ; le style est défini côté jeu.
 - **Couleurs :** palette vive et limitée. Une teinte d'alerte est réservée aux dangers ; le bleu signale « parable », le rouge « esquive ».
 - **Effets de feeling :** hitstop, tremblement d'écran, particules. Sur réponse parfaite : ralenti, zoom et courte rotation de caméra, qui revient ensuite à son angle de départ. Sur la dernière réponse d'un niveau : célébration démesurée (chœur d'opéra, feu d'artifice, façon Peggle).
 - **Cadrages parodiques :** chaque séquence spéciale emprunte la grammaire visuelle de sa référence (film d'action, infiltration, prise d'otage, désamorçage).
 - **Fin de niveau :** photo de fin figée, puis replay façon match de sport des meilleurs moments. Après un niveau perdu, le replay montre la cascade de catastrophes qui a fait rentrer Maman.
+
+### Animation des personnages
+
+Constat de Geo (2026-11-08) : les personnages manquent de fluidité et de variété. Papa pivote d'un bloc, ses bras et ses jambes bougent sans coude ni genou, il reste planté pendant les temps forts de la cuisine, l'infiltration montre une marche au ralenti, et chaque réponse rejoue la même pose. Sur un téléphone en paysage, papa mesure une quarantaine de pixels et le bébé une vingtaine : des polygones en plus ne se verraient pas. À cette taille, ce qui se lit, c'est la silhouette, la netteté des poses, le timing et les yeux.
+
+**Principes.**
+
+1. **Le corps raconte l'état.** Ce que fait papa (tâche, café, téléphone, infiltration, fatigue, bébé dans les bras) se lit sur son corps sans la bulle d'activité (pilier 3).
+2. **Le jeu décide, le corps suit.** Une animation ne change jamais une position, une durée ni une fenêtre, et ne contredit jamais le mouvement : le bébé ne s'assoit que lorsqu'il est à l'arrêt.
+3. **Rien ne retarde une réponse.** Un tap coupe sur-le-champ toute attente, toute réaction et tout démarrage. La latence tap → retour visuel reste de 50 ms au plus.
+4. **Varier sans brouiller.** Les variantes d'une réponse gardent la silhouette de cette réponse : une variante change le style, jamais le sens. Aucune attente, aucune expression et aucun déplacement, de papa comme du bébé, ne ressemble à un télégraphe : le bébé ne se hisse jamais près d'un meuble, ne fixe jamais un point, n'accélère jamais hors d'une menace ; hors micro-sieste, les paupières de papa ne tombent jamais (piliers 1 et 3).
+5. **Aucune animation ne trahit une information cachée.** Le bébé ne montre que ce que le joueur sait déjà, sauf les indices voulus de son état caché (mécanique 10) : pointer un objet ou prendre un air concentré n'arrive qu'après le télégraphe de la menace. Le regard de papa ne suit jamais un bébé hors cadre ni caché. Pendant le duel du coucher, la sortie en infiltration et les feintes (faux sommeil, fausses alertes), ni papa ni le bébé n'ont de variante ni d'attente : seuls les signaux comptent.
+
+**La couche de vie (pilier 3).** Par-dessus chaque animation, papa et le bébé bougent en continu. Valeurs de départ, réglables sans toucher à la logique :
+
+- **Transitions :** un fondu qui démarre et finit en douceur, avec une durée par passage : 0,1 s pour se mettre en route, 0,2 s pour s'arrêter, 0,15 s pour revenir d'une pose ponctuelle.
+- **Demi-tour :** en 0,25 s environ ; il démarre et freine en douceur et dépasse sa cible de 5 à 10° avant de s'y poser.
+- **Élan :** le buste de papa penche jusqu'à 10° quand il accélère ou freine, et jusqu'à 8° vers l'intérieur d'un virage.
+- **Respiration :** un cycle de 3 s au repos, de 1,5 s quand la jauge de catastrophe dépasse 70 %. Elle s'arrête quand papa retient son souffle.
+- **Regard :** la tête de papa suit le bébé quand il est à l'écran, sinon la menace visible dont l'anneau-chrono est le plus avancé, jusqu'à 60° de chaque côté ; jamais le silence suspect.
+- **Mouvement secondaire :** la mèche de papa suit ses gestes avec un temps de retard.
+- **Dégaine qui se dégrade :** papa se voûte avec la fatigue, jusqu'à 15° à fatigue 100. Au-dessus de 70, il traîne les pieds. Cette posture s'ajoute aux parties de la dégaine (purée sur la joue, cheveux en pétard, t-shirt à l'envers).
+
+**Les visages (pilier 3).** Les yeux portent l'expression ; à cette taille, des sourcils mobiles font le reste. Chaque personnage a quatre expressions, déclenchées par des moments que le joueur voit. Quand deux moments se chevauchent, le plus récent l'emporte.
+
+| Expression | Papa | Bébé |
+|---|---|---|
+| Surprise / joie | Surpris quand une menace est télégraphiée | Ravi quand il rit, quand papa le prend ou après un gag |
+| Fermeté / bouderie | Sourcils froncés pendant une Fermeté | Boudeur juste après une Fermeté |
+| Fatigue / concentration | Épuisé au-dessus de 70 de fatigue (sourcils affaissés, paupières ouvertes) | Concentré pendant une bêtise déjà télégraphiée |
+| Fierté / sommeil | Fier après une réponse parfaite | Ensommeillé dans le cycle du dodo, hors des moments du principe 5 |
+
+**Panel de papa.** ⭐ = première vague.
+
+| Famille | Animations | Piliers |
+|---|---|---|
+| Déplacement | ⭐ démarrage avec élan ; ⭐ freinage ; ⭐ pointe des pieds, joues gonflées pendant qu'il retient son souffle (infiltration) ; course paniquée quand la catastrophe dépasse 70 % (à la même vitesse : seule l'allure change) ; marche traînante au-dessus de 70 de fatigue | 3 |
+| Attente | ⭐ trois variantes : il se gratte la tête, se masse la nuque, s'étire le dos. La première vient après 4 s d'immobilité, les suivantes toutes les 5 à 8 s, jamais deux fois la même de suite | 2, 3 |
+| Tâches | ⭐ remuer la casserole ; ⭐ ramasser un débris ; vider le lave-vaisselle ; goûter la purée | 1, 3 |
+| Réponses | ⭐ une deuxième variante de Parer ; puis deux ou trois variantes pour chaque réponse, jamais deux fois la même de suite ; un geste propre à certaines menaces (fermer le placard, plaquer la main sur la prise) ; une pose qui s'emballe avec le combo, à x3 puis à x6 | 1, 2 |
+| Réactions | ⭐ soupir de soulagement après une réussite dans le dernier quart de la fenêtre, tolérance cachée comprise ; après un gag, un facepalm ou un regard caméra ; effondrement quand Maman rentre ; danse de victoire en fin de niveau réussie (elle alimente la célébration finale) | 2 |
+
+Une réaction n'occupe jamais papa : c'est du jeu d'acteur, pas une séquelle, et un tap la coupe.
+
+**Panel du bébé.** ⭐ = première vague.
+
+| Famille | Animations | Piliers |
+|---|---|---|
+| Déplacement | ⭐ s'asseoir, puis repartir à quatre pattes | 3 (un bébé calme fait ressortir le télégraphe) |
+| Attente | ⭐ taper des mains ; jouer avec ses orteils ; sucer son pouce | 3 |
+| Réactions | ⭐ un deuxième rire ; un troisième rire ; moue boudeuse après une Fermeté ; applaudir une réponse parfaite ; bâiller et se frotter les yeux (cycle du dodo, hors des moments du principe 5) ; pointer l'objet de la menace, une fois celle-ci télégraphée | 1, 2 |
+
+La première vague compte treize animations : dix pour papa, trois pour le bébé. Le reste du panel suit, puis les enfants des âges suivants, Maman et le chien, avec les mêmes principes.
+
+**Netteté à l'écran (pilier 3).** Pas de polygones en plus : la silhouette d'abord.
+
+- **Personnages détachés du décor :** un liseré clair sur leur pourtour, et un contour 1,5 fois plus épais que celui des meubles.
+- **Taille à l'écran :** voir le cadrage de la caméra qui suit (« Cadre de level design »), point laissé à Geo.
+- [NOTE FOR DESIGNER: un quatrième ton d'ombrage sur les personnages, à essayer en jeu avant de le retenir.]
+
+**Garde-fous.**
+
+- **Reproductible :** une même partie rejouée montre les mêmes animations (replay, photo de fin, captures de test).
+- **Mouvement réduit :** la respiration, l'élan, la mèche et les attentes s'arrêtent ; les poses qui portent un état restent.
+- **Performances :** 60 FPS stables sur les appareils de référence, dans les budgets d'affichage de l'architecture.
+
+**Ordre de production.** (1) La couche de vie, sans nouvel asset : l'effet se voit dès la première partie ; la mèche arrive avec le squelette v2. (2) Le squelette v2 (voir « Besoins en assets »), avec les animations existantes reprises en soignant l'anticipation, le dépassement et les trajectoires en arc, et les sourcils. (3) La première vague des deux panels. (4) Le reste des panels.
+
+[ASSUMPTION: durées des fondus, inertie du demi-tour, angles d'élan et de posture, respiration, angle du regard, cadence des attentes, paliers du combo, quart de fenêtre du soulagement et épaisseur du contour des personnages sont des valeurs de départ, à régler en jouant.]
 
 ### Audio et musique
 
@@ -570,6 +640,7 @@ Le son est le système nerveux du jeu.
 
 - Pièces entières modélisées dans Blender, qui sert d'éditeur de niveaux. L'IA pilote via Blender MCP le blocage des pièces, les meubles et les scripts d'export. Le pipeline d'export est défini dans l'architecture.
 - Personnages, rig et animations faits à la main : papa, bébé (puis un enfant par âge), Maman, chien.
+- **Squelette v2 (v2.4) :** une vingtaine d'os par personnage, 32 au plus, contre 11 pour papa et 9 pour le bébé aujourd'hui. Papa gagne coudes, genoux, pieds, cou, bassin, une mèche et des sourcils ; le bébé gagne coudes, genoux, mains, pieds et des sourcils. Le nombre de triangles par personnage ne change pas. Les animations existantes sont reprises sur ce squelette ; la couche de vie s'y ajoute en jeu, sans les remplacer.
 - Audio : un son par télégraphe, un son par type de réponse, des pleurs typés, une musique adaptative par âge.
 - **Poids d'un niveau :** la pièce et l'audio d'un niveau tiennent aujourd'hui dans 3 Mio ; la géométrie du salon pèse 58 Kio et l'audio fait l'essentiel. Le grand salon peut relever ce plafond si ses nouveaux sons l'exigent (décision de Geo, 2026-11-03), tant qu'un niveau se charge en moins de 5 s en 4G.
 
@@ -589,7 +660,7 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 | E4 | Cycle du dodo | Rester éveillé, 100 pas, duel du coucher, dépose-bombe, sortie en infiltration, combo encaissé, bras-bébé | Deuxième prototype |
 | E5 | Hygiène et état caché | Couche de Schrödinger, odeur, pleurs typés, change de couche boss, rhabillage, soins | v1 |
 | E6 | Âges suivants | Petite enfance, enfance, adolescence, adulte | v1 |
-| E7 | Production art et audio | Pipeline Blender, personnages, DA, musique | v1 |
+| E7 | Production art et audio | Pipeline Blender, personnages, animation (couche de vie, squelette v2, visages, panel), DA, musique | v1 |
 | E8 | Distribution | Capacitor iOS et Android, stores | v1 |
 | E9 | Grand salon et maison | Salon avec cuisine ouverte, caméra qui suit, bulles hors cadre, tâches de la maison, nouvelles bêtises | Troisième prototype |
 
@@ -631,6 +702,7 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 | La défaite est possible sans être un mur | En parties simulées au palier Normal : un joueur simulé humain (réactions et erreurs réalistes) perd le niveau dans 10 à 30 % des parties ; un joueur simulé parfait ne le perd jamais ; un joueur simulé inactif le perd avant la fin du chrono. Le rythme des menaces se règle pour tenir ces cibles |
 | Le bon moment se voit | ≥ 4 testeurs sur 5 réussissent au moins une réponse parfaite voulue dès leur première partie |
 | Le joueur simulé humain joue comme un humain | Sur un même niveau, son score moyen reste à moins d'une étoile de la médiane des testeurs, et il ne réussit pas plus de parfaites qu'eux. Au playtest du 2026-11-03, il faisait 84 points et 4 étoiles quand Geo restait à 20 points et 1 étoile |
+| Papa se lit sans sa bulle | Sur des extraits joués sans la bulle d'activité, ≥ 4 testeurs sur 5 nomment ce que fait papa (tâche, café, téléphone, infiltration, fatigue, bébé dans les bras) ; aucun ne trouve spontanément une pose répétitive |
 
 [ASSUMPTION: seuils de départ, panel de 5 testeurs minimum.]
 
@@ -645,6 +717,7 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 - Narration scriptée longue (le fil entre les âges est mécanique).
 - Personnalisation du personnage.
 - Game over sec, qui arrête le niveau au premier raté ou montre le bébé blessé : la défaite passe toujours par la jauge de catastrophe et se termine en gag.
+- Synchronisation labiale et visage entièrement animé : les yeux, les paupières et les sourcils portent l'expression.
 
 **Reporté après le lancement :**
 
@@ -680,8 +753,9 @@ Le détail des epics et des stories de haut niveau est dans `epics.md`.
 9. Bulle d'activité de papa : pictogrammes et durée des poses.
 10. Tâches de la maison : nombre de temps forts, espacement, points de la ligne Maison.
 11. Équité de trajet : marge de 0,3 s.
-12. Grand salon : dimensions et plan ; zone morte et vitesse de la caméra.
+12. Grand salon : dimensions et plan ; zone morte, vitesse et cadrage de la caméra.
 13. Pentes de la note de Maman v2.3 : Rire par réussite, Calme du bébé, Soupir, Hurlement.
+14. Animation des personnages : durées des fondus, inertie du demi-tour, angles d'élan et de posture, respiration, angle du regard, cadence des attentes, paliers du combo, quart de fenêtre du soulagement, épaisseur du contour des personnages, nombre d'os du squelette v2.
 
 ---
 

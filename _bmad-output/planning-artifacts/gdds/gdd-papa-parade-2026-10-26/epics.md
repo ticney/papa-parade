@@ -108,6 +108,7 @@ Détail des epics résumés dans `gdd.md`. Les stories sont de haut niveau ; ell
 
 - Pipeline Blender : pièces entières, Blender comme éditeur de niveaux, blocage et exports pilotés par l'IA via Blender MCP.
 - Personnages : papa (dégaine qui se dégrade), bébé, enfants par âge, Maman, chien.
+- Animation v2.4 (GDD, « Animation des personnages ») : couche de vie (transitions, demi-tour, élan, respiration, regard, posture de fatigue), squelette v2 et animations reprises, sourcils et expressions, panel de papa et du bébé (première vague d'une douzaine d'animations, puis le reste), personnages détachés du décor (liseré clair, contour plus épais).
 - Rendu toon avec contours, palette limitée avec teinte d'alerte.
 - Effets : hitstop, tremblement, particules, célébration finale.
 - Musique adaptative par âge, bibliothèque de sons.
