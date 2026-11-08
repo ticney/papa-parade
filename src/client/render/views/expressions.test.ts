@@ -77,17 +77,42 @@ const beat = (t: number, quality: 'perfect' | 'success' | 'fail'): SimEvent => (
 const cancelled = (t: number, threatId = 1): SimEvent =>
   ({ type: 'ThreatCancelled', t: asSimMs(t), threatId, reason: 'carried' }) as unknown as SimEvent;
 
+/**
+ * Papa's face at `nowMs`, read from a world whose sim time is `simMs`: the same with no render leftover
+ * (the default), later when the frame is read between two steps (`nowMs` over `simMs`).
+ */
+function papaFaceAt(
+  track: FaceTrack<PapaExpression>,
+  nowMs: number,
+  isTired: boolean,
+  isSignalOnly: boolean,
+  simMs = nowMs,
+): PapaFace {
+  return papaExpressionAt(track, nowMs, simMs, isTired, isSignalOnly);
+}
+
+function babyFaceAt(
+  track: FaceTrack<BabyExpression>,
+  nowMs: number,
+  isFocused: boolean,
+  isSleepy: boolean,
+  isSignalOnly: boolean,
+  simMs = nowMs,
+): BabyFace {
+  return babyExpressionAt(track, nowMs, simMs, isFocused, isSleepy, isSignalOnly);
+}
+
 /** A Papa track fed `events`, read at `nowMs` (not tired, no guard). */
 function papaAfter(events: SimEvent[], nowMs: number, isAsleep = false): PapaFace {
   const track = createFaceTrack<PapaExpression>();
   for (const event of events) notePapaEvent(track, event, isAsleep, PAPA);
-  return papaExpressionAt(track, nowMs, false, false);
+  return papaFaceAt(track, nowMs, false, false);
 }
 
 function babyAfter(events: SimEvent[], nowMs: number): BabyFace {
   const track = createFaceTrack<BabyExpression>();
   for (const event of events) noteBabyEvent(track, event, BABY);
-  return babyExpressionAt(track, nowMs, false, false, false);
+  return babyFaceAt(track, nowMs, false, false, false);
 }
 
 describe('the triggers of D4, one row each', () => {
@@ -112,8 +137,8 @@ describe('the triggers of D4, one row each', () => {
 
   it('Papa is tired while the scene says so, and only then', () => {
     const track = createFaceTrack<PapaExpression>();
-    expect(papaExpressionAt(track, 0, true, false)).toBe('tired');
-    expect(papaExpressionAt(track, 10, false, false)).toBe('neutral');
+    expect(papaFaceAt(track, 0, true, false)).toBe('tired');
+    expect(papaFaceAt(track, 10, false, false)).toBe('neutral');
   });
 
   it.each<[string, SimEvent]>([
@@ -137,10 +162,10 @@ describe('the triggers of D4, one row each', () => {
 
   it('the baby is focused, then sleepy, as the scene says; focus wins over sleep', () => {
     const track = createFaceTrack<BabyExpression>();
-    expect(babyExpressionAt(track, 0, true, false, false)).toBe('focused');
-    expect(babyExpressionAt(track, 10, false, true, false)).toBe('sleepy');
-    expect(babyExpressionAt(track, 20, true, true, false)).toBe('focused');
-    expect(babyExpressionAt(track, 30, false, false, false)).toBe('neutral');
+    expect(babyFaceAt(track, 0, true, false, false)).toBe('focused');
+    expect(babyFaceAt(track, 10, false, true, false)).toBe('sleepy');
+    expect(babyFaceAt(track, 20, true, true, false)).toBe('focused');
+    expect(babyFaceAt(track, 30, false, false, false)).toBe('neutral');
   });
 });
 
@@ -216,26 +241,26 @@ describe('the most recent wins (D3)', () => {
 
   it('a lasting state shows again when the moment that covered it is over', () => {
     const track = createFaceTrack<PapaExpression>();
-    expect(papaExpressionAt(track, 500, true, false)).toBe('tired');
+    expect(papaFaceAt(track, 500, true, false)).toBe('tired');
     notePapaEvent(track, telegraph(1000), false, PAPA);
-    expect(papaExpressionAt(track, 1000, true, false)).toBe('surprised');
-    expect(papaExpressionAt(track, 1000 + PAPA.surprisedMs, true, false)).toBe('tired');
+    expect(papaFaceAt(track, 1000, true, false)).toBe('surprised');
+    expect(papaFaceAt(track, 1000 + PAPA.surprisedMs, true, false)).toBe('tired');
   });
 
   it('a lasting state that starts after a moment covers it, and the moment does not come back', () => {
     const track = createFaceTrack<BabyExpression>();
     noteBabyEvent(track, { type: 'BabyPickedUp', t: asSimMs(1000) }, BABY);
-    expect(babyExpressionAt(track, 1010, false, false, false)).toBe('delighted');
-    expect(babyExpressionAt(track, 1020, true, false, false)).toBe('focused');
+    expect(babyFaceAt(track, 1010, false, false, false)).toBe('delighted');
+    expect(babyFaceAt(track, 1020, true, false, false)).toBe('focused');
     // The focus ends while the delight would still run: it is over in the player's eyes.
-    expect(babyExpressionAt(track, 1030, false, false, false)).toBe('neutral');
+    expect(babyFaceAt(track, 1030, false, false, false)).toBe('neutral');
   });
 
   it('a lasting state that ends starts nothing', () => {
     const track = createFaceTrack<PapaExpression>();
     notePapaEvent(track, telegraph(1000), false, PAPA);
-    expect(papaExpressionAt(track, 1010, true, false)).toBe('tired');
-    expect(papaExpressionAt(track, 1020, false, false)).toBe('neutral');
+    expect(papaFaceAt(track, 1010, true, false)).toBe('tired');
+    expect(papaFaceAt(track, 1020, false, false)).toBe('neutral');
   });
 });
 
@@ -256,6 +281,61 @@ describe("Papa's held frown (D3)", () => {
   it('turns proud on a perfect', () => {
     expect(papaAfter([held(1000), resolved(1500, 'perfect')], 1500)).toBe('proud');
   });
+
+  it('comes back after a surprise at another threat, while its threat is still held', () => {
+    const events = [held(1000), telegraph(1500, 'stove', 2)];
+    expect(papaAfter([held(1000)], 1400)).toBe('firm');
+    expect(papaAfter(events, 1500)).toBe('surprised');
+    expect(papaAfter(events, 1500 + PAPA.surprisedMs - 1)).toBe('surprised');
+    expect(papaAfter(events, 1500 + PAPA.surprisedMs)).toBe('firm');
+    expect(papaAfter(events, 60_000)).toBe('firm');
+  });
+
+  it('comes back after the pride of another threat, and ends with its own threat', () => {
+    const events = [held(1000, 1), resolved(1500, 'perfect', 'parry', 2)];
+    expect(papaAfter(events, 1600)).toBe('proud');
+    expect(papaAfter(events, 1500 + PAPA.proudMs)).toBe('firm');
+    const ended = [...events, resolved(5000, 'success', 'firm', 1)];
+    expect(papaAfter(ended, 5000 + PAPA.firmAfterMs - 1)).toBe('firm');
+    expect(papaAfter(ended, 5000 + PAPA.firmAfterMs)).toBe('neutral');
+  });
+
+  it('ends with its threat while a surprise still runs: nothing comes back after it', () => {
+    const events = [held(1000), telegraph(1500, 'stove', 2), resolved(1600, 'fail')];
+    expect(papaAfter(events, 1700)).toBe('surprised');
+    expect(papaAfter(events, 1500 + PAPA.surprisedMs)).toBe('neutral');
+    const succeeded = [held(1000), telegraph(1500, 'stove', 2), resolved(1600, 'success')];
+    expect(papaAfter(succeeded, 1600 + PAPA.firmAfterMs)).toBe('surprised');
+    expect(papaAfter(succeeded, 1500 + PAPA.surprisedMs)).toBe('neutral');
+  });
+
+  it('is covered by a lasting state that begins after it, and shows over one that began before', () => {
+    const before = createFaceTrack<PapaExpression>();
+    expect(papaFaceAt(before, 500, true, false)).toBe('tired');
+    notePapaEvent(before, held(1000), false, PAPA);
+    expect(papaFaceAt(before, 1010, true, false)).toBe('firm');
+    expect(papaFaceAt(before, 1020, false, false)).toBe('firm');
+    const after = createFaceTrack<PapaExpression>();
+    notePapaEvent(after, held(1000), false, PAPA);
+    expect(papaFaceAt(after, 1010, false, false)).toBe('firm');
+    expect(papaFaceAt(after, 1020, true, false)).toBe('tired');
+  });
+
+  it('is dropped by the guard of the signals and does not come back', () => {
+    const track = createFaceTrack<PapaExpression>();
+    notePapaEvent(track, held(1000), false, PAPA);
+    expect(papaFaceAt(track, 1010, false, true)).toBe('neutral');
+    expect(papaFaceAt(track, 1020, false, false)).toBe('neutral');
+  });
+
+  it('is cut by the gag of any threat, even while a surprise covers it', () => {
+    const track = createFaceTrack<PapaExpression>();
+    notePapaEvent(track, held(1000), false, PAPA);
+    notePapaEvent(track, telegraph(1100, 'stove', 2), false, PAPA);
+    notePapaEvent(track, gag(1200, 9), false, PAPA);
+    expect(papaFaceAt(track, 1200, false, false)).toBe('neutral');
+    expect(papaFaceAt(track, 1100 + PAPA.surprisedMs, false, false)).toBe('neutral');
+  });
 });
 
 describe("a gag cuts Papa's moment (D15)", () => {
@@ -271,7 +351,7 @@ describe("a gag cuts Papa's moment (D15)", () => {
     const track = createFaceTrack<PapaExpression>();
     notePapaEvent(track, resolved(1000, 'perfect', 'parry'), false, PAPA);
     notePapaEvent(track, gag(1100), false, PAPA);
-    expect(papaExpressionAt(track, 1100, true, false)).toBe('tired');
+    expect(papaFaceAt(track, 1100, true, false)).toBe('tired');
   });
 });
 
@@ -281,13 +361,95 @@ describe('only the signals count (D5)', () => {
     const baby = createFaceTrack<BabyExpression>();
     notePapaEvent(papa, telegraph(1000), false, PAPA);
     noteBabyEvent(baby, { type: 'BabyPickedUp', t: asSimMs(1000) }, BABY);
-    expect(papaExpressionAt(papa, 1010, true, true)).toBe('neutral');
-    expect(babyExpressionAt(baby, 1010, true, true, true)).toBe('neutral');
+    expect(papaFaceAt(papa, 1010, true, true)).toBe('neutral');
+    expect(babyFaceAt(baby, 1010, true, true, true)).toBe('neutral');
     // The guard ends: the dropped moments do not come back; a lasting state still there starts again.
-    expect(papaExpressionAt(papa, 1020, false, false)).toBe('neutral');
-    expect(babyExpressionAt(baby, 1020, false, false, false)).toBe('neutral');
-    expect(papaExpressionAt(papa, 1030, true, false)).toBe('tired');
-    expect(babyExpressionAt(baby, 1030, false, true, false)).toBe('sleepy');
+    expect(papaFaceAt(papa, 1020, false, false)).toBe('neutral');
+    expect(babyFaceAt(baby, 1020, false, false, false)).toBe('neutral');
+    expect(papaFaceAt(papa, 1030, true, false)).toBe('tired');
+    expect(babyFaceAt(baby, 1030, false, true, false)).toBe('sleepy');
+  });
+});
+
+describe('the baby in a bedtime level (D3, D8)', () => {
+  // `sleepy` holds all along; the focus begins and ends over it. A focus that ends is a fall back to
+  // `sleepy`, which begins nothing: the moment that ended it (a perfect, a Firmness) keeps showing. The frame
+  // that sees the focus end reads the world a step after the event (two steps in a frame at 30 fps), so a
+  // fall that was dated as a beginning would cover the moment.
+  const focusedThen = (event: SimEvent, simMs: number, nowMs: number) => {
+    const track = createFaceTrack<BabyExpression>();
+    expect(babyFaceAt(track, 500, false, true, false)).toBe('sleepy');
+    expect(babyFaceAt(track, 1000, true, true, false)).toBe('focused');
+    noteBabyEvent(track, event, BABY);
+    return { track, face: babyFaceAt(track, nowMs, false, true, false, simMs) };
+  };
+
+  it.each([0, 0.5, 0.99])(
+    'a perfect that ends the focus delights him, then he is sleepy again (leftover %s of a step)',
+    (alpha) => {
+      const at = (sinceMs: number) => 2000 + sinceMs + alpha * 10;
+      const { track, face } = focusedThen(resolved(2000, 'perfect', 'parry'), 2010, at(10));
+      expect(face).toBe('delighted');
+      expect(
+        babyFaceAt(
+          track,
+          at(BABY.delightedMs - 20),
+          false,
+          true,
+          false,
+          2000 + BABY.delightedMs - 20,
+        ),
+      ).toBe('delighted');
+      expect(
+        babyFaceAt(track, at(BABY.delightedMs), false, true, false, 2000 + BABY.delightedMs),
+      ).toBe('sleepy');
+    },
+  );
+
+  it('a Firmness that ends the focus makes him sulk, then he is sleepy again', () => {
+    const { track, face } = focusedThen(resolved(2000, 'success', 'firm'), 2010, 2015);
+    expect(face).toBe('sulky');
+    expect(babyFaceAt(track, 2000 + BABY.sulkyMs, false, true, false)).toBe('sleepy');
+  });
+
+  it('a focus that begins covers the moment that started before it, and that moment does not come back', () => {
+    const track = createFaceTrack<BabyExpression>();
+    expect(babyFaceAt(track, 500, false, true, false)).toBe('sleepy');
+    noteBabyEvent(track, { type: 'BabyPickedUp', t: asSimMs(1000) }, BABY);
+    expect(babyFaceAt(track, 1005, false, true, false, 1000)).toBe('delighted');
+    expect(babyFaceAt(track, 1105, true, true, false, 1100)).toBe('focused');
+    expect(babyFaceAt(track, 1205, false, true, false, 1200)).toBe('sleepy');
+  });
+
+  it('the end of the guard is a return of his sleep, not a beginning: the last result of a duel still delights him', () => {
+    const track = createFaceTrack<BabyExpression>();
+    expect(babyFaceAt(track, 900, false, true, true)).toBe('neutral');
+    // The result is the first step of the frame in which the guard ends: the frame reads the world a step
+    // later, and the sleep that returns must not cover it.
+    noteBabyEvent(track, resolved(1000, 'perfect', 'wait'), BABY);
+    expect(babyFaceAt(track, 1015, false, true, false, 1010)).toBe('delighted');
+    expect(babyFaceAt(track, 1000 + BABY.delightedMs, false, true, false)).toBe('sleepy');
+  });
+
+  it("Papa's fatigue returns with the guard the same way", () => {
+    const track = createFaceTrack<PapaExpression>();
+    expect(papaFaceAt(track, 900, true, true)).toBe('neutral');
+    notePapaEvent(track, resolved(1000, 'perfect', 'wait'), false, PAPA);
+    expect(papaFaceAt(track, 1015, true, false, 1010)).toBe('proud');
+    expect(papaFaceAt(track, 1000 + PAPA.proudMs, true, false)).toBe('tired');
+  });
+});
+
+describe('the leftover of a step does not change which faces show', () => {
+  it.each([0, 0.5, 0.99])('a lasting state and a moment in one frame, leftover %s', (alpha) => {
+    const track = createFaceTrack<PapaExpression>();
+    // Tired begins at sim time 2000; his pride is noted at 2000 too, and shows (the later or equal).
+    notePapaEvent(track, resolved(2000, 'perfect', 'parry'), false, PAPA);
+    expect(papaFaceAt(track, 2000 + alpha * 10, true, false, 2000)).toBe('proud');
+    // A moment noted before the step that made him tired is covered, whatever the leftover.
+    const earlier = createFaceTrack<PapaExpression>();
+    notePapaEvent(earlier, resolved(1990, 'perfect', 'parry'), false, PAPA);
+    expect(papaFaceAt(earlier, 2000 + alpha * 10, true, false, 2000)).toBe('tired');
   });
 });
 
@@ -295,9 +457,9 @@ describe('reproducible', () => {
   it('clearExpressions puts the faces at rest', () => {
     const track: FaceTrack<PapaExpression> = createFaceTrack();
     notePapaEvent(track, held(1000), false, PAPA);
-    papaExpressionAt(track, 1000, true, false);
+    papaFaceAt(track, 1000, true, false);
     clearExpressions(track);
-    expect(papaExpressionAt(track, 1010, false, false)).toBe('neutral');
+    expect(papaFaceAt(track, 1010, false, false)).toBe('neutral');
   });
 
   it('the same events twice give the same faces', () => {
@@ -321,8 +483,8 @@ describe('reproducible', () => {
           next++;
         }
         faces.push(
-          papaExpressionAt(papa, nowMs, nowMs > 2000, false),
-          babyExpressionAt(baby, nowMs, nowMs > 3000, false, false),
+          papaFaceAt(papa, nowMs, nowMs > 2000, false),
+          babyFaceAt(baby, nowMs, nowMs > 3000, false, false),
         );
       }
       return faces;

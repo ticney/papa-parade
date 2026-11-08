@@ -29,6 +29,14 @@ const real: Record<string, Record<string, unknown>> = JSON.parse(readFileSync(FE
 const UNIT_SUFFIX =
   /(?:Ms|Pct|PerSec|Mps|Mps2|Deg|Px|Scale|Multiplier|Points|Count|Stars|RadiusM|DistM|ReachM|OffsetM|WidthM|DepthM|Kg|Ns|Hz|Taps)$|^(?:perSec|friction|restitution|amplitudeM|sizeM|count|bpm|reachM|dampingRatio|nearMiss|mess|microSleep|choreBeat)$/;
 
+/** The four numbers of a brow pose (story 7.10), whatever their values. */
+const BROW_POSE_SHAPE = {
+  raiseOffsetM: expect.any(Number),
+  tiltDeg: expect.any(Number),
+  inwardOffsetM: expect.any(Number),
+  skewOffsetM: expect.any(Number),
+};
+
 function parse(value: unknown) {
   return parseContentFile('content/feel.json', JSON.stringify(value), FeelSchema);
 }
@@ -939,7 +947,7 @@ describe('feel.characters (story 7.8)', () => {
     expect(failedPaths(mutated(...changes))).toEqual(paths);
   });
 
-  it('starts from the D1 values (the review retuned lean.fullAccelMps2 and added gaze.behindDeg; 7.9 the forelock; 7.10 the faces)', () => {
+  it('starts from the D1 values (the review retuned lean.fullAccelMps2 and added gaze.behindDeg; 7.9 the forelock; 7.10 the faces, by shape only)', () => {
     expect(real.characters).toEqual({
       fades: { startMs: 100, stopMs: 200, returnMs: 150, otherMs: 100 },
       turn: { reachMs: 250, dampingRatio: 0.6, overshootMaxDeg: 10 },
@@ -954,7 +962,34 @@ describe('feel.characters (story 7.8)', () => {
       gaze: { maxYawDeg: 60, behindDeg: 150, reachMs: 200 },
       stoop: { maxDeg: 15 },
       forelock: { reachMs: 100, dampingRatio: 0.6, maxDeg: 30 },
-      expressions: expect.any(Object),
+      // Story 7.10: the faces' starting values are Geo's to tune in the feel panel (golden rule), so only their
+      // shape is pinned here: the groups and every key, never a number (the bounds tests above hold the ranges).
+      expressions: {
+        reachMs: expect.any(Number),
+        papa: {
+          browScalePct: expect.any(Number),
+          surprisedMs: expect.any(Number),
+          firmAfterMs: expect.any(Number),
+          proudMs: expect.any(Number),
+          poses: {
+            surprised: BROW_POSE_SHAPE,
+            firm: BROW_POSE_SHAPE,
+            tired: BROW_POSE_SHAPE,
+            proud: BROW_POSE_SHAPE,
+          },
+        },
+        baby: {
+          browScalePct: expect.any(Number),
+          delightedMs: expect.any(Number),
+          sulkyMs: expect.any(Number),
+          poses: {
+            delighted: BROW_POSE_SHAPE,
+            sulky: BROW_POSE_SHAPE,
+            focused: BROW_POSE_SHAPE,
+            sleepy: BROW_POSE_SHAPE,
+          },
+        },
+      },
       look: {
         outlineWidthPct: 150,
         rimStrengthPct: 35,

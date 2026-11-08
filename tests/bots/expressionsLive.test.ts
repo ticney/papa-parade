@@ -3,6 +3,7 @@ import type { BotId } from '@bots/bot';
 import { botResponsesOf, releaseDefIdsOf, safeSpotOf } from '@bots/botResponses';
 import { botViewOf } from '@bots/botView';
 import { createBot } from '@bots/createBot';
+import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { createSim, isFlowLive, type SimCommand } from '@sim';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -37,6 +38,10 @@ const TIMEOUT_MS = 600_000;
 const LEVELS = ['salon_kitchen', 'salon_crawler', 'chambre_night'] as const;
 const SEEDS = [1, 2, 3];
 const BOTS: readonly BotId[] = ['human', 'perfect'];
+/** How far into a step the render reads the faces: the frame's leftover, never 0 in a real frame. */
+const FRAME_ALPHA = 0.5;
+/** Sim steps per rendered frame: more than one at 30 fps, so an event can be a step older than the frame. */
+const STEPS_PER_FRAME = 2;
 
 const levels = new Map<string, SimLevel>();
 
@@ -91,11 +96,15 @@ async function playFaces(levelId: string, botId: BotId, seed: number): Promise<F
     out.length = 0;
     bot.value.act(sim.world, out);
     for (const command of out) sim.enqueue(command);
-    sim.step();
+    // A frame of the scene at 30 fps: two steps, then one read of the world and of both steps' events.
+    for (let i = 0; i < STEPS_PER_FRAME; i++) sim.step();
     const { world } = sim;
-    const nowMs = world.time.sim;
+    const simMs = world.time.sim;
+    // The scene's clock is the sim's plus the render's leftover of a step: read mid-frame, as it does.
+    const nowMs = simMs + FRAME_ALPHA * STEP_MS;
     const feel = world.feel.characters.expressions;
     const isGuarded = isSignalOnly(world);
+    let isPerfectNoted = false;
     for (const event of sim.drainEvents()) {
       if (event.type === 'ThreatTelegraphed') telegraphed.add(event.threatId);
       if (isGuarded) {
@@ -103,13 +112,15 @@ async function playFaces(levelId: string, botId: BotId, seed: number): Promise<F
         dropMoment(babyTrack);
         continue;
       }
+      if (event.type === 'ResponseResolved' && event.quality === 'perfect') isPerfectNoted = true;
       notePapaEvent(papaTrack, event, world.papa.state === 'asleep', feel.papa);
       noteBabyEvent(babyTrack, event, feel.baby);
     }
-    const papaFace = papaExpressionAt(papaTrack, nowMs, isPapaTired(world), isGuarded);
+    const papaFace = papaExpressionAt(papaTrack, nowMs, simMs, isPapaTired(world), isGuarded);
     const babyFace = babyExpressionAt(
       babyTrack,
       nowMs,
+      simMs,
       babyFocusOf(world),
       hasBedtimeCycle,
       isGuarded,
@@ -117,7 +128,12 @@ async function playFaces(levelId: string, botId: BotId, seed: number): Promise<F
     faces.push(papaFace, babyFace);
     seen.add(`papa:${papaFace}`);
     seen.add(`baby:${babyFace}`);
-    const at = `${levelId}/${botId}/${seed} at ${nowMs} ms`;
+    const at = `${levelId}/${botId}/${seed} at ${simMs} ms`;
+    // A perfect makes the baby laugh, bedtime or not: only a focus on another threat that begins in that very
+    // step may show over his delight (the sleepy of a bedroom must never swallow it).
+    if (isPerfectNoted && babyFace !== 'delighted' && babyFace !== 'focused') {
+      violations.push(`${at}: a perfect left the baby ${babyFace}`);
+    }
     if (babyFace === 'focused') {
       if (world.baby.state === 'mischiefSilent')
         violations.push(`${at}: focused in mischiefSilent`);
@@ -137,9 +153,20 @@ async function playFaces(levelId: string, botId: BotId, seed: number): Promise<F
   return { faces, seen, violations, guardedSteps };
 }
 
-describe('the faces on the live levels (story 7.10, AC 5, 6, 9)', () => {
-  const seenEverywhere = new Set<string>();
+// Each game is played once and shared by the tests below, so that none depends on another having run
+// (a filtered, sharded or shuffled run gives the same answers).
+const runs = new Map<string, Promise<FacesRun>>();
+function runOf(levelId: string, botId: BotId, seed: number): Promise<FacesRun> {
+  const key = `${levelId}/${botId}/${seed}`;
+  let run = runs.get(key);
+  if (run === undefined) {
+    run = playFaces(levelId, botId, seed);
+    runs.set(key, run);
+  }
+  return run;
+}
 
+describe('the faces on the live levels (story 7.10, AC 5, 6, 9)', () => {
   for (const levelId of LEVELS) {
     for (const botId of BOTS) {
       it(
@@ -147,10 +174,9 @@ describe('the faces on the live levels (story 7.10, AC 5, 6, 9)', () => {
         async () => {
           let guardedSteps = 0;
           for (const seed of SEEDS) {
-            const run = await playFaces(levelId, botId, seed);
+            const run = await runOf(levelId, botId, seed);
             expect(run.violations).toEqual([]);
             guardedSteps += run.guardedSteps;
-            for (const face of run.seen) seenEverywhere.add(face);
           }
           // The bedroom's duels and stealth exit run in every game: the guard is exercised there.
           if (levelId === 'chambre_night') expect(guardedSteps).toBeGreaterThan(0);
@@ -160,18 +186,31 @@ describe('the faces on the live levels (story 7.10, AC 5, 6, 9)', () => {
     }
   }
 
-  it('shows each of the eight expressions at least once over the runs', () => {
-    const wanted = [
-      ...PAPA_EXPRESSIONS.map((face) => `papa:${face}`),
-      ...BABY_EXPRESSIONS.map((face) => `baby:${face}`),
-    ];
-    expect(wanted.filter((face) => !seenEverywhere.has(face))).toEqual([]);
-  });
+  it(
+    'shows each of the eight expressions at least once over the runs',
+    async () => {
+      const seenEverywhere = new Set<string>();
+      for (const levelId of LEVELS) {
+        for (const botId of BOTS) {
+          for (const seed of SEEDS) {
+            for (const face of (await runOf(levelId, botId, seed)).seen) seenEverywhere.add(face);
+          }
+        }
+      }
+      const wanted = [
+        ...PAPA_EXPRESSIONS.map((face) => `papa:${face}`),
+        ...BABY_EXPRESSIONS.map((face) => `baby:${face}`),
+      ];
+      expect(wanted.filter((face) => !seenEverywhere.has(face))).toEqual([]);
+    },
+    TIMEOUT_MS,
+  );
 
   it.each(LEVELS)(
     '%s: the same seed twice gives the same faces on every step',
     async (levelId) => {
-      const first = await playFaces(levelId, 'human', 1);
+      // The second game is played afresh: the shared one would only be compared with itself.
+      const first = await runOf(levelId, 'human', 1);
       const second = await playFaces(levelId, 'human', 1);
       expect(hashJson(second.faces)).toBe(hashJson(first.faces));
     },

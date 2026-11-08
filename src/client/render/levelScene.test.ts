@@ -91,11 +91,11 @@ function buildModel(): Group {
   return model;
 }
 
-function build() {
+function build(overrides: Partial<SceneBodies> = {}) {
   const geometry = createTestLevelGeometry('test_room');
   const level = createLevelScene(
     { id: 'test_room', geometry, model: buildModel(), characters: createTestCharacters() },
-    BODIES,
+    { ...BODIES, ...overrides },
   );
   return {
     geometry,
@@ -1668,6 +1668,7 @@ describe('the faces (story 7.10)', () => {
   afterEach(() => {
     effectsWorld.gauges.fatigue = savedFatigue;
     effectsWorld.sequence.duel.isRunning = false;
+    effectsWorld.sequence.stealth.isRunning = false;
   });
   const faces = effectsWorld.feel.characters.expressions;
   const telegraph = (t: number): SimEvent => ({
@@ -1709,21 +1710,79 @@ describe('the faces (story 7.10)', () => {
     expect(realFxState().papaExpression).toBe('neutral');
   });
 
-  it('shows both faces at rest in a duel step, and a moment noted then never shows', () => {
-    const { update, fx, realFxState } = build();
-    effectsWorld.gauges.fatigue = effectsWorld.feel.fatigue.thresholdPoints + 1;
-    effectsWorld.sequence.duel.isRunning = true;
+  it('shows both faces at rest through a duel or a stealth step, a feint or a real signal alike (AC 6)', () => {
+    for (const kind of ['duel', 'stealth'] as const) {
+      const rests: number[][] = [];
+      for (const type of ['WaitFeintGiven', 'WaitSignalGiven'] as const) {
+        const { update, fx, realFxState } = build();
+        effectsWorld.gauges.fatigue = effectsWorld.feel.fatigue.thresholdPoints + 1;
+        effectsWorld.sequence[kind].isRunning = true;
+        const world = fakeWorldAt(1000);
+        update(world, 0);
+        fx.playCharacterEvent({ type, t: asSimMs(1000), threatId: 1 }, world, false);
+        fx.playCharacterEvent(telegraph(1000), world, false);
+        fx.playCharacterEvent({ type: 'BabyPickedUp', t: asSimMs(1000) }, world, false);
+        for (let t = 1010; t <= 1400; t += 10) update(fakeWorldAt(t), 0);
+        const state = realFxState();
+        expect([state.papaExpression, state.babyExpression]).toEqual(['neutral', 'neutral']);
+        rests.push([state.papaBrowTiltDeg, state.babyBrowTiltDeg]);
+        effectsWorld.sequence[kind].isRunning = false;
+      }
+      // A feint and a real signal leave the same brows, and they are at rest.
+      expect(rests[0]).toEqual(rests[1]);
+      expect(rests[0]).toEqual([0, 0]);
+    }
+  });
+
+  it.each(['duel', 'stealth'] as const)(
+    'a moment noted during a %s step is dropped, and does not show once it ends (D5)',
+    (kind) => {
+      const { update, fx, realFxState } = build();
+      effectsWorld.sequence[kind].isRunning = true;
+      const world = fakeWorldAt(1000);
+      update(world, 0);
+      fx.playCharacterEvent(telegraph(1000), world, false);
+      fx.playCharacterEvent({ type: 'BabyPickedUp', t: asSimMs(1000) }, world, false);
+      // The step ends before the next frame: the first update after it must find no moment.
+      effectsWorld.sequence[kind].isRunning = false;
+      update(fakeWorldAt(1010), 0);
+      expect(realFxState().papaExpression).toBe('neutral');
+      expect(realFxState().babyExpression).toBe('neutral');
+    },
+  );
+
+  it('keeps the faces under reduced motion: the same moment, the same pose (AC 7)', () => {
+    const { update, fx, realFxState } = build({ isMotionReduced: () => true });
     const world = fakeWorldAt(1000);
     update(world, 0);
+    fx.playCharacterEvent(telegraph(1000), world, true);
+    for (let t = 1010; t < 1400; t += 10) update(fakeWorldAt(t), 0);
+    expect(realFxState().papaExpression).toBe('surprised');
+    expect(realFxState().papaBrowTiltDeg).toBeCloseTo(faces.papa.poses.surprised.tiltDeg, 3);
+  });
+
+  it('leaves the baby at rest outside a bedtime level', () => {
+    const { update, realFxState } = build();
+    update(fakeWorldAt(1000), 0);
+    expect(realFxState().babyExpression).toBe('neutral');
+  });
+
+  it('in a bedtime level the baby is sleepy, his moments show over it and the signals hide it (D8)', () => {
+    const { update, fx, realFxState } = build({ hasBedtimeCycle: true });
+    const world = fakeWorldAt(1000);
+    update(world, 0);
+    expect(realFxState().babyExpression).toBe('sleepy');
     fx.playCharacterEvent({ type: 'BabyPickedUp', t: asSimMs(1000) }, world, false);
-    fx.playCharacterEvent({ type: 'WaitFeintGiven', t: asSimMs(1000), threatId: 1 }, world, false);
     update(fakeWorldAt(1010), 0);
-    expect(realFxState().papaExpression).toBe('neutral');
+    expect(realFxState().babyExpression).toBe('delighted');
+    update(fakeWorldAt(1000 + faces.baby.delightedMs), 0);
+    expect(realFxState().babyExpression).toBe('sleepy');
+    effectsWorld.sequence.duel.isRunning = true;
+    update(fakeWorldAt(3000), 0);
     expect(realFxState().babyExpression).toBe('neutral');
     effectsWorld.sequence.duel.isRunning = false;
-    update(fakeWorldAt(1020), 0);
-    expect(realFxState().babyExpression).toBe('neutral');
-    expect(realFxState().papaExpression).toBe('tired');
+    update(fakeWorldAt(3010), 0);
+    expect(realFxState().babyExpression).toBe('sleepy');
   });
 
   it('the debug overlay wins over the game, and resetFx clears it and the brows', () => {

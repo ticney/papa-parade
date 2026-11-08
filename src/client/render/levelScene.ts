@@ -882,12 +882,20 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       life.gazeSight.threatXM = pendingSight.threatXM;
       life.gazeSight.threatZM = pendingSight.threatZM;
       // The faces (D3-D8): the moments of the tracks, the lasting states of the world, the guard of the
-      // signals every frame, and the debug overlay over all of it (D11).
+      // signals every frame, and the debug overlay over all of it (D11). A lasting state that begins is dated
+      // with the world's sim time, the clock of the events, never with the interpolated frame clock.
       const isGuarded = isSignalOnly(world);
-      const papaFace = papaExpressionAt(papaFaceTrack, clockMs, isPapaTired(world), isGuarded);
+      const papaFace = papaExpressionAt(
+        papaFaceTrack,
+        clockMs,
+        world.time.sim,
+        isPapaTired(world),
+        isGuarded,
+      );
       const babyFace = babyExpressionAt(
         babyFaceTrack,
         clockMs,
+        world.time.sim,
         babyFocusOf(world),
         bodies.hasBedtimeCycle,
         isGuarded,

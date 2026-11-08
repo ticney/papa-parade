@@ -1,3 +1,4 @@
+import { STEP_MS } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import {
   type BrowPose,
@@ -46,10 +47,11 @@ describe('the brows blend (story 7.10, D9)', () => {
     expect(lowestTiltDeg).toBeGreaterThanOrEqual(FROWN.tiltDeg - 1e-9);
   });
 
-  it('covers about 95 % of the way in reachMs', () => {
-    const drawn = drawnAfter(FROWN, REACH_MS, 10);
-    expect(drawn.tiltDeg / FROWN.tiltDeg).toBeGreaterThan(0.9);
-    expect(drawn.tiltDeg / FROWN.tiltDeg).toBeLessThan(1);
+  it('covers 95 % of the way in reachMs', () => {
+    // The spring reaches 95 % at `reachMs`; it is drawn between its last two steps, so one step behind.
+    const drawn = drawnAfter(FROWN, REACH_MS + STEP_MS, 11);
+    expect(drawn.tiltDeg / FROWN.tiltDeg).toBeCloseTo(0.95, 6);
+    expect(drawnAfter(FROWN, REACH_MS - STEP_MS, 9).tiltDeg / FROWN.tiltDeg).toBeLessThan(0.95);
   });
 
   it('1, 3 or 7 frames over the same span give the same pose', () => {
