@@ -2,9 +2,10 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { FIREWORK_TOKEN_HEX } from '../../src/client/render/vfx/fireworks.ts';
 import { isVisualNodeName } from '../../src/content/levelNodeNames.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
-import { FeedbackTableSchema } from '../../src/content/schemas/feedback.ts';
+import { FeedbackTableSchema, FIREWORK_COLOR_TOKENS } from '../../src/content/schemas/feedback.ts';
 import { LevelGeometrySchema } from '../../src/content/schemas/levelGeometry.ts';
 import {
   LEVEL_PAYLOAD_MAX_BYTES,
@@ -57,7 +58,9 @@ const feedbackFile = parseContentFile(
   FeedbackTableSchema,
 );
 if (!feedbackFile.ok) throw new Error('content/feedback.json does not parse');
-const { render } = feedbackFile.value;
+const { render: renderSettings, framingStyles } = feedbackFile.value;
+/** The look of the room, and the film grammars' grades that change its lights (story 7.4). */
+const render = { ...renderSettings, framing: { styles: framingStyles } };
 function colourToken(name: string): string {
   const token = designTokens.find((candidate) => candidate.name === `--pp-color-${name}`);
   if (token === undefined) throw new Error(`DESIGN.md has no colour "${name}"`);
@@ -155,10 +158,32 @@ describe.each(levelIds)('the committed %s level', (levelId) => {
     const light = floorLightOf(lights, render.toonTones, render.sunOffsetM);
     expect(floorContrastProblem(json, colourToken('ink'), light, FLOOR_SLAB_SIDES)).toBeNull();
   });
+
+  // Story 7.4 AC 13: each film grammar's grade, at full blend, keeps the walkable floor readable.
+  it.each(
+    Object.entries(render.framing.styles).flatMap(([style, look]) =>
+      look.grade === null ? [] : [[style, look.grade] as const],
+    ),
+  )('has walkable planks the ink shows on under the %s grade', (_style, grade) => {
+    const { json } = parseGlb(new Uint8Array(readFileSync(glbFile)));
+    const own = render.lights.byLevel[levelId] ?? render.lights.default;
+    const graded = {
+      ambientColor: grade.ambientColor,
+      ambientIntensity: own.ambientIntensity * grade.lightsFactor,
+      sunColor: grade.sunColor,
+      sunIntensity: own.sunIntensity * grade.lightsFactor,
+    };
+    const light = floorLightOf(graded, render.toonTones, render.sunOffsetM);
+    expect(floorContrastProblem(json, colourToken('ink'), light, FLOOR_SLAB_SIDES)).toBeNull();
+  });
 });
 
 describe('the lights of feedback.json', () => {
-  const rows = [render.lights.default, ...Object.values(render.lights.byLevel)];
+  // The film grammars' grades are lights too (story 7.4): none of them is vivid on a reserved hue.
+  const grades = Object.values(render.framing.styles).flatMap((style) =>
+    style.grade === null ? [] : [style.grade],
+  );
+  const rows = [render.lights.default, ...Object.values(render.lights.byLevel), ...grades];
   const toLinear = (channel: number): number =>
     channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
 
@@ -173,6 +198,27 @@ describe('the lights of feedback.json', () => {
       };
       const reserved = ['parry', 'dodge', 'alert'].map(colourToken);
       expect(reservedHueProblems(fixture, reserved)).toEqual([]);
+    },
+  );
+});
+
+describe('the colours of the fireworks (story 7.4, D7)', () => {
+  it.each([...FIREWORK_COLOR_TOKENS])(
+    '%s is the DESIGN.md colour, and on no reserved hue',
+    (token) => {
+      const hex = colourToken(token);
+      expect(`#${FIREWORK_TOKEN_HEX[token].toString(16).padStart(6, '0')}`).toBe(hex.toLowerCase());
+      const toLinear = (channel: number): number =>
+        channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      const channels = [1, 3, 5].map((at) =>
+        toLinear(Number.parseInt(hex.slice(at, at + 2), 16) / 255),
+      );
+      const fixture = {
+        materials: [{ name: token, pbrMetallicRoughness: { baseColorFactor: [...channels, 1] } }],
+      };
+      expect(reservedHueProblems(fixture, ['parry', 'dodge', 'alert'].map(colourToken))).toEqual(
+        [],
+      );
     },
   );
 });

@@ -116,7 +116,7 @@ export interface PapaView {
     life: Readonly<LifeInputs>,
   ): void;
   /** Plays a clip once, over his loop, fading in over `fadeMs`. */
-  playOnce(clip: string, fadeMs: number): void;
+  playOnce(clip: string, fadeMs: number, holdsLastPose?: boolean): void;
   /** The clip the player sees. */
   readonly clipName: string | null;
   /** His mixer's clock, in sim ms. */
@@ -393,8 +393,8 @@ export function createPapaView(
       offsetEuler.set(0, headYawRad, 0);
       head.quaternion.multiply(offset.setFromEuler(offsetEuler));
     },
-    playOnce(clip, fadeMs) {
-      rig.playOnce(clip, fadeMs);
+    playOnce(clip, fadeMs, holdsLastPose) {
+      rig.playOnce(clip, fadeMs, holdsLastPose);
     },
     get clipName() {
       return rig.clipName;

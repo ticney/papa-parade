@@ -20,7 +20,9 @@
   "framing": {
     "camera": { "zoomPct": 18, "focusPct": 60, "inMs": 900, "outMs": 700 },
     "musicLoop": "lullaby_walk",
-    "bar": { "labelKey": "hud.sequence_lullaby_walk", "fill": "player", "value": "calmLeft" }
+    "bar": { "labelKey": "hud.sequence_lullaby_walk", "fill": "player", "value": "calmLeft" },
+    "style": "rhythm",
+    "titleKey": "framing.title_rhythm"
   },
   "feedback": {
     "started": "sequence_started",

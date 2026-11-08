@@ -41,6 +41,7 @@
   "verb.no": "NON !",
   "verb.distract": "DÉTOURNE !",
   "stamp.perfect_parry": "PARADE PARFAITE",
+  "stamp.finale": "MISSION ACCOMPLIE",
   "stamp.replay": "REPLAY",
   "silence.bubble": "…",
   "gauge.fatigue": "Fatigue",
@@ -127,5 +128,11 @@
   "credits.body": "Papa Parade. Crédits à venir.",
   "oops.message": "Oups ! Quelque chose s'est renversé.",
   "oops.retry": "Réessayer",
-  "portrait.rotate": "Tourne ton téléphone"
+  "portrait.rotate": "Tourne ton téléphone",
+  "framing.title_action": "TENIR JUSQU'À L'AUBE",
+  "framing.title_rhythm": "LES 100 PAS",
+  "framing.title_duel": "LE DUEL",
+  "framing.title_defusal": "DÉSAMORÇAGE",
+  "framing.title_infiltration": "INFILTRATION",
+  "framing.title_hostage": "NÉGOCIATION"
 }

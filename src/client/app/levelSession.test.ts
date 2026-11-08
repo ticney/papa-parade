@@ -47,10 +47,20 @@ const NO_FX: LevelFx = {
   playResponseClip: () => {},
   playCharacterEvent: () => {},
 };
+/** The finale's fireworks and the film grammar's grade (story 7.4): a fake scene draws neither. */
+const NO_FILM_FX = {
+  startFireworks: () => {},
+  fireworksEndAtReal: null,
+  stopFireworks: () => {},
+  setGrade: () => {},
+} as const;
+
 const NO_REAL_FX = () => ({
   shakeOffsetXM: 0,
   shakeOffsetZM: 0,
   particlesAlive: 0,
+  fireworksAlive: 0,
+  gradeLightsFactor: 1,
   babyLayDownPct: 0,
   papaClip: null,
   babyClip: null,
@@ -185,6 +195,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
         setPapaGazeSight: () => {},
+        ...NO_FILM_FX,
         babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {
           record.resets++;
@@ -296,6 +307,7 @@ describe('createLevelSession', () => {
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
           setPapaGazeSight: () => {},
+          ...NO_FILM_FX,
           babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},
@@ -341,6 +353,7 @@ describe('createLevelSession', () => {
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
           setPapaGazeSight: () => {},
+          ...NO_FILM_FX,
           babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},
@@ -380,6 +393,7 @@ describe('createLevelSession', () => {
             realFxState: NO_REAL_FX,
             setPapaLook: () => {},
             setPapaGazeSight: () => {},
+            ...NO_FILM_FX,
             babyPoint: { xM: 0, zM: 0 },
             update: () => {},
             dispose: () => {},
@@ -604,6 +618,7 @@ describe('createLevelSession', () => {
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
         setPapaGazeSight: () => {},
+        ...NO_FILM_FX,
         babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {},
         update: (_world, _alpha, nowReal) => {
@@ -640,6 +655,7 @@ describe('createLevelSession', () => {
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
         setPapaGazeSight: () => {},
+        ...NO_FILM_FX,
         babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {},
         // The level ends inside the frame (a step's LevelScored), before the camera is moved.
@@ -1021,6 +1037,7 @@ describe('createLevelSession', () => {
             realFxState: NO_REAL_FX,
             setPapaLook: () => {},
             setPapaGazeSight: () => {},
+            ...NO_FILM_FX,
             babyPoint: { xM: 0, zM: 0 },
             update: () => {},
             dispose: () => {},
@@ -1261,6 +1278,7 @@ describe('createLevelSession › start options and outcomes', () => {
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
           setPapaGazeSight: () => {},
+          ...NO_FILM_FX,
           babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},

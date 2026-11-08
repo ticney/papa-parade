@@ -22,8 +22,10 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // The highlight replay (story 3.9) adds the frame of its camera in metres (`frameWidthM`, `frameDepthM`) and four numbers
 // with no unit: the `momentCount`, the `messyGagMinProps` and the `points` of each kind (`perfect`, `messyGag`, `nearMiss`, `waveLast`).
 // The end photo (story 3.6) adds the size of its canvas in pixels, `widthPx` and `heightPx`, spelled out for the same reason.
+// The finale (story 7.4) adds a spark's `sizeM` and the fireworks' `areaHalfM` (metres), and two numbers with no unit: a burst's `sparks` (a count) and a
+// grade's `lightsFactor` (a multiplier of the level's light intensities, themselves unitless).
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|Mps|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses|^frameWidthM|^frameDepthM|^momentCount|^messyGagMinProps|^perfect|^messyGag|^nearMiss|^waveLast)$/;
+  /(?:Pct|Ms|Mps|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses|^frameWidthM|^frameDepthM|^momentCount|^messyGagMinProps|^perfect|^messyGag|^nearMiss|^waveLast|^sizeM|^sparks|^lightsFactor|^areaHalfM)$/;
 
 type Json = Record<string, unknown>;
 

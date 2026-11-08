@@ -9,6 +9,7 @@ import type { SequenceDef } from '@content/schemas/sequence';
 import { createPlatform } from '@platform/createPlatform';
 import {
   DEFAULT_DIFFICULTY_TIER,
+  type FramingStyleId,
   MAX_TIMER_DELAY_MS,
   type MamaReactionId,
   MS_PER_S,
@@ -23,6 +24,7 @@ import {
   type BeatEntry,
   beatTimelineOf,
   chooseMamaLines,
+  type FinaleCause,
   isDuelStepRunning,
   isFlowLive,
   isPapaBusy,
@@ -63,6 +65,8 @@ import {
   createBeatScheduler,
   type SoundedNote,
 } from './audio/beatScheduler.ts';
+import { createCelebration } from './endOfLevel/celebration.ts';
+import { createEndHold } from './endOfLevel/endHold.ts';
 import { createHighlightReplay } from './endOfLevel/highlightReplay.ts';
 import { createHighlightRecorder, type Highlight } from './endOfLevel/highlights.ts';
 import { takeEndPhoto } from './endOfLevel/photo.ts';
@@ -84,6 +88,7 @@ import { createAdaptivePixelRatio } from './render/adaptivePixelRatio.ts';
 import {
   createCameraFx,
   createFramingChain,
+  createSequenceFraming,
   type SequenceFraming,
   sequenceFramingBlendAt,
 } from './render/cameraFx.ts';
@@ -103,6 +108,7 @@ import { createSaveStore } from './save/saveStore.ts';
 import { loadFonts } from './ui/fonts.ts';
 import { createCatastropheFace } from './ui/hud/catastropheFace.ts';
 import { createEpicStamp } from './ui/hud/epicStamp.ts';
+import { createFilmFraming, createFilmLook, filmLookInto } from './ui/hud/filmFraming.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
@@ -316,7 +322,7 @@ export async function boot(): Promise<void> {
   const followRig = createFollowRig(camera, cameraFx);
   // The special sequence's framing, one object written each frame (story 4.4), and the defs of the
   // level being played, set at its start.
-  const sequenceFraming: SequenceFraming = { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 };
+  const sequenceFraming: SequenceFraming = createSequenceFraming();
   const framingChain = createFramingChain();
   let currentSequences: Readonly<Record<string, SequenceDef>> | null = null;
   // Behind the start and « Oups » screens until a level has been loaded: an empty ink stage.
@@ -460,6 +466,9 @@ export async function boot(): Promise<void> {
       | 'ppEndReason'
       | 'ppResult'
       | 'ppPhoto'
+      | 'ppFinale'
+      | 'ppFramingStyle'
+      | 'ppEndHold'
       | 'ppReplayMoment'
       | 'ppCalibration'
       | 'ppCalibrationBeats',
@@ -490,6 +499,7 @@ export async function boot(): Promise<void> {
       medium: feedbackTable.haptics.medium.patternMs,
       heavy: feedbackTable.haptics.heavy.patternMs,
       heartbeat: feedbackTable.haptics.heartbeat.patternMs,
+      fanfare: feedbackTable.haptics.fanfare.patternMs,
     },
   });
   // The save (story 2.7): read before the start screen is up (below), so that `onStart` can decide
@@ -573,7 +583,35 @@ export async function boot(): Promise<void> {
   // The « PARADE PARFAITE » stamp (story 2.5): one overlay above the flash, on real time. It goes
   // with the flash, so that a perfect looks as it always did (the stamp over the flash's fade).
   const epicStamp = createEpicStamp(document, { text: t('stamp.perfect_parry') });
-  uiRoot.before(screenFlash.element, epicStamp.element);
+  // The finale's stamp (story 7.4): a second instance, so the perfect's stays as it was.
+  const finaleStamp = createEpicStamp(document, { text: t('stamp.finale') });
+  uiRoot.before(screenFlash.element, epicStamp.element, finaleStamp.element);
+  // The level's finale (story 7.4): the fireworks, the stamp and the music's mute, on real time, and
+  // the end of the level that waits for it (D3) or for Papa's collapse on an early return (D14).
+  const celebration = createCelebration({
+    startFireworks: (settings, startAtReal, isMotionReduced) =>
+      currentLevel?.startFireworks(
+        settings,
+        asRealMs(startAtReal),
+        isMotionReduced,
+        cameraFx.baseCentreXM,
+        cameraFx.baseCentreZM,
+      ),
+    fireworksEndAtReal: () => currentLevel?.fireworksEndAtReal ?? null,
+    stopFireworks: () => currentLevel?.stopFireworks(),
+    stamp: finaleStamp,
+  });
+  const endHold = createEndHold();
+  // The film grammar of a special sequence (story 7.4): its vignette, bars and title card, drawn from the
+  // world's sequence slice and the sim clock in `beforeRender`; placed before #pp-world with the HUD.
+  const filmFraming = createFilmFraming(document, t);
+  const filmLook = createFilmLook();
+  const filmSequence = {
+    style: undefined as FramingStyleId | undefined,
+    titleKey: undefined as string | undefined,
+    startedAt: 0,
+    endedAt: null as number | null,
+  };
   events.on('AppStateChanged', ({ to }) => {
     screenFlash.element.classList.toggle(SCREEN_FLASH_CLASSES.over, to === 'result');
   });
@@ -863,6 +901,9 @@ export async function boot(): Promise<void> {
       'ppEndReason',
       'ppResult',
       'ppPhoto',
+      'ppFinale',
+      'ppEndHold',
+      'ppFramingStyle',
       'ppSequence',
       'ppSequenceOutcome',
       'ppBeatHits',
@@ -1217,6 +1258,40 @@ export async function boot(): Promise<void> {
       return null;
     }
   };
+  /**
+   * The end of the level once its score is known (stories 1.22 and 3.6): the loop stops on the frozen
+   * room, the photo is taken, then the app enters `result`. Run at `LevelScored`, or once the finale's
+   * celebration or Papa's collapse is over (story 7.4, D3): after `finish()`, which resets the effects
+   * and the camera, so no firework, stamp or shake is in the picture.
+   */
+  const endTheLevel = (): void => {
+    pause.setRefused(false);
+    if (isMirrored) delete document.documentElement.dataset.ppEndHold;
+    levelSession.finish();
+    // After `finish()` (it resets the effects and the camera, so nothing mid-shake is in the
+    // picture) and before the app enters `result`. The capture leaves the viewport and the
+    // scissor as it found them, so `drawStatic` below draws the game camera's view as before.
+    resultPhoto = takeResultPhoto();
+    if (isMirrored) mirror('ppPhoto', resultPhoto === null ? 'none' : 'taken');
+    appFsm.enter('result');
+    drawStatic();
+  };
+  /** Starts the finale's celebration now (story 7.4) and mirrors its cause. */
+  const startCelebration = (cause: FinaleCause): void => {
+    celebration.start(feedbackTable.celebration, performance.now(), prefersReducedMotion());
+    if (isMirrored) mirror('ppFinale', cause);
+  };
+  /** Whether the end of the level has something to wait for (story 7.4): the celebration, or the collapse. */
+  const isEndHolding = (): boolean =>
+    celebration.isRunning(performance.now()) ||
+    (resultEndReason === 'mamaHome' && feedbackTable.celebration.collapseHoldMs > 0);
+  /** The most the end waits, in real ms: the celebration's cap, the collapse's, or the longer of both. */
+  const endHoldCapMs = (): number =>
+    Math.max(
+      celebration.isRunning(performance.now()) ? feedbackTable.celebration.endHoldMs : 0,
+      resultEndReason === 'mamaHome' ? feedbackTable.celebration.collapseHoldMs : 0,
+    );
+
   // The action behind « Copier le journal » (story 3.3): set at boot by the debug block, in
   // playtest builds only, and read when the Result screen is built.
   let playtestCopyLog: (() => Promise<CopyLogOutcome>) | null = null;
@@ -1387,8 +1462,20 @@ export async function boot(): Promise<void> {
         sequence.lastId === null || currentSequences === null
           ? undefined
           : currentSequences[sequence.lastId];
+      // Its film grammar (story 7.4): the look of `feedback.json › framingStyles.<style>`, through the
+      // same blend and the same chain as the zoom, so the bomb drop → stealth seam does not pop.
+      const framingStyleId = framingDef?.framing.style;
+      const framingStyle =
+        framingStyleId === undefined ? null : feedbackTable.framingStyles[framingStyleId];
       if (framingDef === undefined) {
         sequenceFraming.blend = 0;
+        sequenceFraming.rollDeg = 0;
+        sequenceFraming.letterboxPct = 0;
+        sequenceFraming.vignetteOpacityPct = 0;
+        sequenceFraming.grade = null;
+        sequenceFraming.gradeBlend = 0;
+        sequenceFraming.carriedGrade = null;
+        sequenceFraming.carriedGradeBlend = 0;
         framingChain.clear();
       } else {
         const { camera: framingCamera } = framingDef.framing;
@@ -1401,6 +1488,10 @@ export async function boot(): Promise<void> {
         );
         sequenceFraming.zoomPct = framingCamera.zoomPct;
         sequenceFraming.focusPct = framingCamera.focusPct;
+        sequenceFraming.rollDeg = framingStyle?.rollDeg ?? 0;
+        sequenceFraming.letterboxPct = framingStyle?.letterboxPct ?? 0;
+        sequenceFraming.vignetteOpacityPct = framingStyle?.vignetteOpacityPct ?? 0;
+        sequenceFraming.grade = framingStyle?.grade ?? null;
         framingChain.apply(sequenceFraming, sequence.startedAt, framingCamera.outMs, clockMs);
         sequenceFraming.xM = world.papa.xM;
         sequenceFraming.zM = world.papa.zM;
@@ -1418,21 +1509,59 @@ export async function boot(): Promise<void> {
           prefersReducedMotion(),
         );
       }
+      const isMotionReducedNow = prefersReducedMotion();
       cameraFx.update(
         world,
         clockMs,
         world.feel.fx.perfectCamera,
-        prefersReducedMotion(),
+        isMotionReducedNow,
         sequenceFraming,
       );
+      // The grade through the room's lights, the bars, the vignette and the title (story 7.4).
+      currentLevel?.setGrade(
+        sequenceFraming.grade,
+        sequenceFraming.gradeBlend,
+        sequenceFraming.carriedGrade,
+        sequenceFraming.carriedGradeBlend,
+      );
+      filmSequence.style = framingStyleId;
+      filmSequence.titleKey = framingDef?.framing.titleKey;
+      filmSequence.startedAt = sequence.startedAt;
+      filmSequence.endedAt = sequence.endedAt;
+      filmLookInto(
+        filmLook,
+        sequenceFraming,
+        framingDef === undefined ? null : filmSequence,
+        framingStyle,
+        clockMs,
+      );
+      filmFraming.update(filmLook, isMotionReducedNow);
+      if (isMirrored) {
+        if (filmLook.styleId === null) delete document.documentElement.dataset.ppFramingStyle;
+        else mirror('ppFramingStyle', filmLook.styleId);
+      }
     },
     onFxReset: () => {
       cameraFx.reset();
       epicStamp.cancel();
+      // The finale (story 7.4): its stamp, its music mute and a wait of the end all go with the loop.
+      celebration.reset();
+      if (endHold.isPending) {
+        endHold.clear();
+        pause.setRefused(false);
+        if (isMirrored) delete document.documentElement.dataset.ppEndHold;
+      }
+      filmFraming.reset();
+      if (isMirrored) delete document.documentElement.dataset.ppFramingStyle;
       // The loop stopped: no further frame would turn the vignette off (a restart, a crash recovery).
       instinctVignette.update(false);
     },
     onLevelFrame: (alpha, frameAtReal) => {
+      // The end of the level waits for the finale or the collapse (story 7.4, D3), on this real clock.
+      if (endHold.frame(frameAtReal, isEndHolding())) {
+        endTheLevel();
+        return;
+      }
       // The baby's babble loops while the sim says it babbles: an edge-triggered boolean per frame.
       // Once the level has ended the sim is frozen with `babbling` as it was: silence it.
       const babbleWorld = levelSession.active?.sim.world;
@@ -1459,8 +1588,10 @@ export async function boot(): Promise<void> {
         babbleWorld !== undefined && babbleWorld.flow.state === 'sequence'
           ? (currentSequences?.[babbleWorld.sequence.id ?? '']?.framing.musicLoop ?? null)
           : null;
-      audio.setSequenceMusic(sequenceMusicId);
-      audio.setMusicMuted(isSilent || isSequenceMusicOn);
+      // The finale's choir (story 7.4): the stems and a sequence's music give way while it sings.
+      const isChoirSinging = celebration.isMusicMuted(performance.now());
+      audio.setSequenceMusic(isChoirSinging ? null : sequenceMusicId);
+      audio.setMusicMuted(isSilent || isSequenceMusicOn || isChoirSinging);
       // The notes of a rhythm step (story 4.5), planned on the audio clock from the loop's continuous
       // clock: state, every frame, so a pause, a slow-mo, a restart or a level end needs no code.
       const beatWorld = levelSession.active?.sim.world;
@@ -1775,6 +1906,11 @@ export async function boot(): Promise<void> {
           }
         }
       }
+      // The level's finale (story 7.4): the cue played above; the fireworks, the stamp and the music's
+      // mute are the celebration's. The end of the level waits for it (`LevelScored` below).
+      if (event.type === 'FinaleReached') startCelebration(event.cause);
+      // Mama home early is no finished level (3.16): a finale before it is not celebrated on.
+      if (event.type === 'LevelEnded' && event.reason === 'mamaHome') celebration.reset();
       // The noise crossed the alert threshold upwards (story 3.1 D10): the haptic cue and its visual
       // twin, the shake of the gauge. A client feedback event, like the star stamps.
       if (isNoiseAlertCrossing(event, levelFeel().noise.alertPct)) {
@@ -1889,14 +2025,14 @@ export async function boot(): Promise<void> {
           mirror('ppStars', String(score.stars));
           mirror('ppLostStars', String(score.lostStars));
         }
-        levelSession.finish();
-        // After `finish()` (it resets the effects and the camera, so nothing mid-shake is in the
-        // picture) and before the app enters `result`. The capture leaves the viewport and the
-        // scissor as it found them, so `drawStatic` below draws the game camera's view as before.
-        resultPhoto = takeResultPhoto();
-        if (isMirrored) mirror('ppPhoto', resultPhoto === null ? 'none' : 'taken');
-        appFsm.enter('result');
-        drawStatic();
+        // The finale's celebration, or Papa's collapse on an early return (story 7.4, D3 and D14): the
+        // frozen room renders on, the sim keeps only its clock, and the end below waits for it.
+        if (endHold.request(isEndHolding(), endHoldCapMs()) === 'held') {
+          pause.setRefused(true);
+          if (isMirrored) mirror('ppEndHold', 'on');
+        } else {
+          endTheLevel();
+        }
       }
     },
     canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
@@ -2091,7 +2227,8 @@ export async function boot(): Promise<void> {
   hudRoot.append(silenceBubble.element);
   // Right before `#pp-world` (z-index 4 against its 5): it darkens the room, not the verbs and the icons.
   const instinctVignette = createInstinctVignette(document);
-  worldRoot.before(instinctVignette.element);
+  // The film grammar's vignette, bars and title (story 7.4): before it, under #pp-world too.
+  worldRoot.before(...filmFraming.elements, instinctVignette.element);
   // The latency calibration (story 2.7): the first launch's detour, and what story 2.8's Recalibrate
   // row will call. The flow outlives the screen, which the portrait overlay rebuilds.
   const calibrationFlow = createCalibrationFlow({
@@ -2279,7 +2416,7 @@ export async function boot(): Promise<void> {
     appFsm,
     pause,
     // An autoplay bot owns the game: the player's taps, keys and stick reach the sim no more.
-    getActive: () => (isGameInputBlocked ? null : levelSession.active),
+    getActive: () => (isGameInputBlocked || endHold.isPending ? null : levelSession.active),
     hitTester: createHitTester(camera),
     canvasRect: () => canvas.getBoundingClientRect(),
     held: heldKeys.held,
@@ -2291,7 +2428,7 @@ export async function boot(): Promise<void> {
         return levelFeel().input;
       },
       send: (command) => {
-        if (!isGameInputBlocked) levelSession.active?.sim.enqueue(command);
+        if (!isGameInputBlocked && !endHold.isPending) levelSession.active?.sim.enqueue(command);
       },
     }),
     // A press on an off-screen bubble is a press on its threat (story 9.3, D4): asked first.
@@ -2590,9 +2727,31 @@ export async function boot(): Promise<void> {
           papaBreathDeg: real?.papaBreathDeg ?? 0,
           babyBreathDeg: real?.babyBreathDeg ?? 0,
           papaEyelidsPct: real?.papaEyelidsPct ?? 0,
+          fireworksAlive: real?.fireworksAlive ?? 0,
+          celebrating: celebration.isRunning(performance.now()),
+          framing: {
+            style: filmLook.styleId,
+            blend: sequenceFraming.blend,
+            letterboxPct: filmLook.letterboxPct,
+            lightsFactor: real?.gradeLightsFactor ?? 1,
+            rollDeg: cameraFx.rollDeg,
+          },
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),
+      celebrate: () => {
+        const active = levelSession.active;
+        if (active === null) throw new Error('__PP__.celebrate: no level is running');
+        const event: SimEvent = {
+          type: 'FinaleReached',
+          t: active.sim.world.time.sim,
+          cause: 'lastWave',
+          threatId: null,
+        };
+        playSimEventFeedback(event, active, director);
+        currentLevel?.fx.playCharacterEvent(event, active.sim.world, prefersReducedMotion());
+        startCelebration(event.cause);
+      },
       pagePoint: (xM, yM, zM) => {
         const rect = canvas.getBoundingClientRect();
         const projected = new Vector3(xM, yM, zM).project(camera);

@@ -10,6 +10,8 @@ import {
   AFTER_EFFECT_KINDS,
   type AfterEffectKind,
   type BreathGaspReason,
+  FINALE_CAUSES,
+  type FinaleCause,
   LEVEL_END_REASONS,
   type LevelEndReason,
   type NoiseSource,
@@ -40,6 +42,10 @@ const emptyEndsByReason = (): Record<LevelEndReason, number> =>
     LevelEndReason,
     number
   >;
+
+/** Every `FinaleCause` at 0 (story 7.4): the report has both keys, whether or not a run reached a finale. */
+const emptyFinales = (): Record<FinaleCause, number> =>
+  Object.fromEntries(FINALE_CAUSES.map((cause) => [cause, 0])) as Record<FinaleCause, number>;
 
 const FAIL_REASONS = ['early', 'late', 'wrongResponse', 'released', 'acted'] as const;
 type FailReasonKey = (typeof FAIL_REASONS)[number];
@@ -220,6 +226,11 @@ export interface RunSummary {
   nothingResponses: number;
   /** The final rushes begun (`FinalRushStarted`, story 3.5): 0 or 1 a game, 0 in a level without a door. */
   finalRushes: number;
+  /**
+   * The finales of the run, by cause (`FinaleReached`, story 7.4): 0 or 1 in all, the success that closed the
+   * level's last wave (`lastWave`) or the bedtime cycle done (`cycleDone`).
+   */
+  finales: Record<FinaleCause, number>;
   /** The props put back in the final rush (`PropTidied`, story 3.5). */
   propsTidied: number;
   /**
@@ -408,6 +419,7 @@ export function createRunRecorder(
   const breathGasps = emptyBreathGasps();
   let nothingResponses = 0;
   let finalRushes = 0;
+  const finales = emptyFinales();
   let propsTidied = 0;
   let frozenNearMisses = 0;
   let lookParts = 0;
@@ -524,6 +536,8 @@ export function createRunRecorder(
         beatsStray++;
       } else if (event.type === 'FinalRushStarted') {
         finalRushes++;
+      } else if (event.type === 'FinaleReached') {
+        finales[event.cause]++;
       } else if (event.type === 'PropTidied') {
         propsTidied++;
       } else if (event.type === 'NearMissFrozen') {
@@ -674,6 +688,7 @@ export function createRunRecorder(
         breathGasps: { ...breathGasps },
         nothingResponses,
         finalRushes,
+        finales: { ...finales },
         propsTidied,
         frozenNearMisses,
         lookParts,
@@ -917,6 +932,8 @@ export interface SimReport {
   nothingResponses: number;
   /** The final rushes begun, over the runs (story 3.5). */
   finalRushes: number;
+  /** The finales over the runs, by cause (`FinaleReached`, story 7.4): at most one a run. */
+  finales: Record<FinaleCause, number>;
   /** The props put back in the final rush, over the runs (story 3.5). */
   propsTidied: number;
   /** The near misses frozen on the end photo, over the runs (`NearMissFrozen`, story 3.6). */
@@ -1060,6 +1077,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
   const breathGasps = emptyBreathGasps();
   let nothingResponses = 0;
   let finalRushes = 0;
+  const finales = emptyFinales();
   let propsTidied = 0;
   let frozenNearMisses = 0;
   let lookParts = 0;
@@ -1188,6 +1206,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     }
     nothingResponses += run.nothingResponses;
     finalRushes += run.finalRushes;
+    for (const cause of FINALE_CAUSES) finales[cause] += run.finales[cause];
     propsTidied += run.propsTidied;
     frozenNearMisses += run.frozenNearMisses;
     lookParts += run.lookParts;
@@ -1346,6 +1365,7 @@ export function summarizeRuns(input: ReportInput, runs: readonly RunSummary[]): 
     breathGasps,
     nothingResponses,
     finalRushes,
+    finales,
     propsTidied,
     frozenNearMisses,
     lookParts,

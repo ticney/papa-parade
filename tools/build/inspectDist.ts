@@ -111,6 +111,11 @@ export const PROD_FORBIDDEN_MARKERS: readonly string[] = [
   'ppOffscreen',
   // Story 9.4: the house chores' mirror (`data-pp-chore`), the same way.
   'ppChore',
+  // Story 7.4: the finale's, the end hold's and the film grammar's mirrors (`data-pp-finale`,
+  // `data-pp-end-hold`, `data-pp-framing-style`), the same way.
+  'ppFinale',
+  'ppEndHold',
+  'ppFramingStyle',
 ];
 
 /**

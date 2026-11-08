@@ -459,6 +459,29 @@ describe('the end of the level', () => {
     expect(run.world.score.final?.lostStars).toBe(0);
   });
 
+  it('names the finale between CycleCompleted and LevelEnded, at one t (story 7.4)', async () => {
+    const run = await runOf(NO_THREATS);
+    await winTo(run, 5);
+    const [completed] = only(run.events, 'CycleCompleted');
+    const ends = run.events.filter(
+      (event) =>
+        event.type === 'CycleCompleted' ||
+        event.type === 'FinaleReached' ||
+        event.type === 'LevelEnded',
+    );
+    expect(ends).toEqual([
+      { type: 'CycleCompleted', t: completed?.t },
+      { type: 'FinaleReached', t: completed?.t, cause: 'cycleDone', threatId: null },
+      { type: 'LevelEnded', t: completed?.t, reason: 'cycleDone' },
+    ]);
+  });
+
+  it('no finale while the cycle is not done', async () => {
+    const run = await runOf(NO_THREATS);
+    await winTo(run, 4);
+    expect(only(run.events, 'FinaleReached')).toEqual([]);
+  });
+
   it('a tie with the noise goes to Mama', async () => {
     const run = await runOf(oneEntry('bedtime_duel'));
     run.stepUntil(() => inSequence(run));
@@ -466,6 +489,10 @@ describe('the end of the level', () => {
     run.end('win');
     expect(only(run.events, 'CycleCompleted')).toHaveLength(1);
     expect(only(run.events, 'LevelEnded')).toMatchObject([{ reason: 'mamaWoke' }]);
+    // The finale was named before Mama woke (story 7.4): `advanceCycle` runs before `runFlow`.
+    const types = run.events.map((event) => event.type);
+    expect(types.indexOf('FinaleReached')).toBeGreaterThanOrEqual(0);
+    expect(types.indexOf('FinaleReached')).toBeLessThan(types.indexOf('MamaWoke'));
   });
 
   /** The infiltration of a level of `durationMs`, with no alert ever due: it runs until the test ends it. */

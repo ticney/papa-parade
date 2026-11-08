@@ -499,6 +499,8 @@ describe('createLevelScene', () => {
       shakeOffsetXM: 0,
       shakeOffsetZM: 0,
       particlesAlive: 0,
+      fireworksAlive: 0,
+      gradeLightsFactor: 1,
       babyLayDownPct: 0,
       papaClip: 'idle',
       babyClip: 'babble',
@@ -531,6 +533,79 @@ describe('createLevelScene', () => {
     expect(realFxState().particlesAlive).toBe(4);
     resetFx();
     expect(realFxState().particlesAlive).toBe(0);
+  });
+
+  describe('the finale and the film grammar (story 7.4)', () => {
+    const lightsOf = (scene: { children: Object3D[] }) =>
+      scene.children.filter(
+        (child) => 'isAmbientLight' in child || 'isDirectionalLight' in child,
+      ) as unknown as { intensity: number; color: Color }[];
+    const GRADE = { lightsFactor: 0.8, ambientColor: '#C0C8F0', sunColor: '#E0E4FF' };
+
+    it('puts the fireworks under the content root, hidden, and resetFx hides them', () => {
+      const { scene, startFireworks, update, resetFx, realFxState, fireworksEndAtReal } = build();
+      const mesh = scene.getObjectByName('content_root')?.getObjectByName('fireworks');
+      expect(mesh?.visible).toBe(false);
+      expect(fireworksEndAtReal).toBeNull();
+      startFireworks(createTestFeedback().celebration.fireworks, asRealMs(0), false, 0, 0);
+      update(fakeWorldAt(0), 0, asRealMs(10));
+      expect(mesh?.visible).toBe(true);
+      expect(realFxState().fireworksAlive).toBe(32);
+      resetFx();
+      expect(realFxState().fireworksAlive).toBe(0);
+      expect(mesh?.visible).toBe(false);
+    });
+
+    it('grades the lights: the factor at full weight, the colours lerped, back exactly at 0', () => {
+      const level = build();
+      const base = lightsOf(level.scene).map((light) => ({
+        intensity: light.intensity,
+        color: light.color.getHex(),
+      }));
+      level.setGrade(GRADE, 1, null, 0);
+      lightsOf(level.scene).forEach((light, i) => {
+        expect(light.intensity).toBeCloseTo((base[i]?.intensity as number) * 0.8, 9);
+      });
+      expect(lightsOf(level.scene)[0]?.color.getHexString()).toBe('c0c8f0');
+      expect(level.realFxState().gradeLightsFactor).toBeCloseTo(0.8, 12);
+      level.setGrade(GRADE, 0.5, null, 0);
+      lightsOf(level.scene).forEach((light, i) => {
+        expect(light.intensity).toBeCloseTo((base[i]?.intensity as number) * 0.9, 9);
+      });
+      level.setGrade(null, 0, null, 0);
+      expect(
+        lightsOf(level.scene).map((light) => ({
+          intensity: light.intensity,
+          color: light.color.getHex(),
+        })),
+      ).toEqual(base);
+    });
+
+    it('multiplies with the gag: the outlet darkness on top of the grade, never instead of it', () => {
+      const level = build();
+      const base = lightsOf(level.scene).map((light) => light.intensity);
+      level.setGrade(GRADE, 1, null, 0);
+      level.fx.gag('outlet_hair', asSimMs(1000));
+      level.update(fakeWorldAt(1000 + GAG_LIGHTS_FADE_MS + GAG_LIGHTS_DARK_MS / 2), 0);
+      lightsOf(level.scene).forEach((light, i) => {
+        expect(light.intensity).toBeCloseTo(
+          (base[i] as number) * 0.8 * (GAG_LIGHTS_MIN_PCT / 100),
+          6,
+        );
+      });
+    });
+
+    it('writes nothing when the grade is the same, and resetFx puts the level back', () => {
+      const level = build();
+      const base = lightsOf(level.scene).map((light) => light.intensity);
+      level.setGrade(GRADE, 1, null, 0);
+      const ambient = lightsOf(level.scene)[0] as { intensity: number };
+      ambient.intensity = 42; // a write would put it back to the graded value
+      level.setGrade(GRADE, 1, null, 0);
+      expect(ambient.intensity).toBe(42);
+      level.resetFx();
+      expect(lightsOf(level.scene).map((light) => light.intensity)).toEqual(base);
+    });
   });
 
   describe('the gag and the lift', () => {

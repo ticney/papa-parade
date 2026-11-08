@@ -219,6 +219,22 @@ describe('createCharacterRig', () => {
     expect(rig.clipName).toBe('idle');
   });
 
+  it('keeps a held one-shot on its last frame: no hand-back to the loop until reset (story 7.4)', () => {
+    const { rig } = build();
+    rig.play('idle', 1, FADE_MS);
+    rig.playOnce('stumble', FADE_MS, true);
+    rig.update(10, RETURN_MS);
+    rig.update(5000, RETURN_MS);
+    expect(rig.clipName).toBe('stumble');
+    expect(rig.isClipRunning('stumble')).toBe(true);
+    rig.reset();
+    rig.play('idle', 1, FADE_MS);
+    rig.playOnce('stumble', FADE_MS);
+    rig.update(10, RETURN_MS);
+    rig.update(5000, RETURN_MS);
+    expect(rig.clipName).toBe('idle');
+  });
+
   it('holds a one-shot on a dt of 0', () => {
     const { rig } = build();
     rig.play('idle', 1, FADE_MS);

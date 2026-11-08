@@ -1,6 +1,10 @@
+---
+baseline_commit: e4ebdb6508649c353827e29f101de9dd56c098d0
+---
+
 # Story 7.4: Célébration finale et cadrages parodiques
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -113,62 +117,62 @@ The epics' criteria are:
 
 ## Tasks / Subtasks
 
-- [ ] **T1. The event in the sim** (AC 1, 2, D1)
-  - [ ] `src/sim/events.ts`: add `{ type: 'FinaleReached'; t: SimMs; cause: FinaleCause; threatId: number | null }`, plus `FinaleCause = 'lastWave' | 'cycleDone'` and the `FINALE_CAUSES` list beside `LEVEL_END_REASONS`. Add it to `SIM_EVENT_TYPES` and export the type through `src/sim/index.ts`.
-  - [ ] `threatFsm.ts › resolveThreat`, inside the `isLastOfWave` branch, after `startSlowMo('lastThreat')`: when `threat.waveIndex === ctx.level.waves.length - 1`, push the event. **Do not compute `isLastOfWave` twice.**
-  - [ ] `sequences/cycleEnd.ts › advanceCycle`: push it right after `CycleCompleted`. `cycleEnd.ts` stays free of threat code.
-  - [ ] Unit tests, in sim steps:
+- [x] **T1. The event in the sim** (AC 1, 2, D1)
+  - [x] `src/sim/events.ts`: add `{ type: 'FinaleReached'; t: SimMs; cause: FinaleCause; threatId: number | null }`, plus `FinaleCause = 'lastWave' | 'cycleDone'` and the `FINALE_CAUSES` list beside `LEVEL_END_REASONS`. Add it to `SIM_EVENT_TYPES` and export the type through `src/sim/index.ts`.
+  - [x] `threatFsm.ts › resolveThreat`, inside the `isLastOfWave` branch, after `startSlowMo('lastThreat')`: when `threat.waveIndex === ctx.level.waves.length - 1`, push the event. **Do not compute `isLastOfWave` twice.**
+  - [x] `sequences/cycleEnd.ts › advanceCycle`: push it right after `CycleCompleted`. `cycleEnd.ts` stays free of threat code.
+  - [x] Unit tests, in sim steps:
     - a single-wave test level: the last success emits it and an earlier success does not;
     - a two-wave level: the last of wave 0 does not, the last of wave 1 does;
     - a `fail` on the last threat does not; a micro-sleep resolved later does not;
     - the cycle's last entry emits `CycleCompleted`, `FinaleReached{cycleDone}`, `LevelEnded{cycleDone}` in this order at one `t`;
     - a `mamaWoke` end in the same step as a last success: `runThreats` runs before `runFlow`, so the finale comes first. Pin the order, and say so in the notes.
-- [ ] **T2. Goldens and reports** (AC 2, 3, 9)
-  - [ ] Run `npm test` and list the goldens that fail. For each one, check that the diff of its `.expected.json` adds `FinaleReached` entries and changes nothing else (same final hash, same other events). Then run `npm run golden:update` and list them in the notes. **If anything else moves, stop: the event is not presentation-only.**
-  - [ ] `tools/sim/simReport.ts`: add `finales: { lastWave, cycleDone }`, plus its line in `simArgs.ts`'s help. Diff the reports of the four bots on both levels at seed 1 against `main` (AC 3).
-  - [ ] The « 0 or 1 finale, never after `LevelEnded` » test (AC 2), in `tests/` beside the other bot-level checks.
-- [ ] **T3. Data** (AC 4, 10, 11, D5, D9, D12)
-  - [ ] `src/content/schemas/feedback.ts`:
+- [x] **T2. Goldens and reports** (AC 2, 3, 9)
+  - [x] Run `npm test` and list the goldens that fail. For each one, check that the diff of its `.expected.json` adds `FinaleReached` entries and changes nothing else (same final hash, same other events). Then run `npm run golden:update` and list them in the notes. **If anything else moves, stop: the event is not presentation-only.**
+  - [x] `tools/sim/simReport.ts`: add `finales: { lastWave, cycleDone }`, plus its line in `simArgs.ts`'s help. Diff the reports of the four bots on both levels at seed 1 against `main` (AC 3).
+  - [x] The « 0 or 1 finale, never after `LevelEnded` » test (AC 2), in `tests/` beside the other bot-level checks.
+- [x] **T3. Data** (AC 4, 10, 11, D5, D9, D12)
+  - [x] `src/content/schemas/feedback.ts`:
     - `HAPTIC_KINDS` gains `fanfare`. Follow the six places `heartbeat` touched (story 2.9), listed under « What exists » below.
     - `celebration`: `{ endHoldMs, musicMuteMs, stampMs (≤ EPIC_STAMP_MAX_MS), fireworks: { bursts: { atMs, xPct, zPct, heightM, sparks }[], speedMps, lifeMs, sizeM, colorTokens } }`.
     - `framingStyles`: a strict record over `FRAMING_STYLE_IDS`.
 
     Bounds go in the schema and `tests/content/feedbackSchema.test.ts` keeps its unit-suffix rule (add a suffix only if a key needs it, anchored as 7.3 did).
-  - [ ] `src/content/schemas/sequence.ts › FramingSchema`: add `style?` and `titleKey?`, with a `superRefine` that refuses `titleKey` without `style`. Put `FRAMING_STYLE_IDS` in `src/shared/constants.ts`.
-  - [ ] `content/feedback.json`: the rows, the cue `finale_reached`, and `events.FinaleReached`. `content/sequences/*.json`: style and title. `content/strings.fr.json`: `stamp.finale` and the five `framing.title_*` (D10). Run `npm run content:schemas`.
-  - [ ] `tools/content/contentChecks.ts`:
+  - [x] `src/content/schemas/sequence.ts › FramingSchema`: add `style?` and `titleKey?`, with a `superRefine` that refuses `titleKey` without `style`. Put `FRAMING_STYLE_IDS` in `src/shared/constants.ts`.
+  - [x] `content/feedback.json`: the rows, the cue `finale_reached`, and `events.FinaleReached`. `content/sequences/*.json`: style and title. `content/strings.fr.json`: `stamp.finale` and the five `framing.title_*` (D10). Run `npm run content:schemas`.
+  - [x] `tools/content/contentChecks.ts`:
     - a `titleKey` that is not in the strings;
     - a `colorTokens` entry that is not a `DESIGN.md` colour, or is `alert`, `parry` or `dodge`;
     - a grade whose colours fail `reservedHueProblems`;
     - a burst outside its bounds.
 
     Each refusal gets a test, as 7.3's review asked.
-- [ ] **T4. The choir clip** (AC 4, D6)
-  - [ ] `tools/audio/makePlaceholderAudio.ts`: a placeholder `music_finale_choir`, a stacked « aah » chord swell of about `musicMuteMs`. Commit the `.m4a`.
-  - [ ] **The generated take needs Geo's OK before any credit is spent** (7.6's rule). Propose one ElevenLabs prompt and its cost in chat. Only once he agrees, generate, cut with `tools/audio/cutMusicLoop.ts` or by hand, record it in `docs/audio-sources.md` and add it to `GENERATED_CLIPS`. Without his OK, the placeholder ships and the notes say so.
-- [ ] **T5. Fireworks and the celebration** (AC 4 to 9, D3 to D7)
-  - [ ] `src/client/render/vfx/fireworks.ts`: one `InstancedMesh` of octahedra, with its own pool sized from the data's largest total (assert it is under a `FIREWORK_POOL_SIZE` constant). Colours go through `setColorAt` from `colorTokens`, resolved through `PALETTE` or the tokens. Each spark is placed by a golden-angle sphere, deterministic, with no `Math.random`. It runs on real time and `update` allocates nothing. `reset()` and `dispose()` exist and `aliveCount` is exposed. It is added under `content_root`. `resetFx` hides it.
-  - [ ] `src/client/endOfLevel/celebration.ts`: `createCelebration({ fireworks, stamp, … })` with `start(atReal, isMotionReduced)`, `isRunning(nowReal)`, `isMusicMuted(nowReal)`, `frame(nowReal)` and `reset()`. Reuse the epic stamp element, with a `show(text, …)` or a second instance. Keep the stamp under `EPIC_STAMP_MAX_MS`.
-  - [ ] `boot.ts`:
+- [x] **T4. The choir clip** (AC 4, D6)
+  - [x] `tools/audio/makePlaceholderAudio.ts`: a placeholder `music_finale_choir`, a stacked « aah » chord swell of about `musicMuteMs`. Commit the `.m4a`.
+  - [x] **The generated take needs Geo's OK before any credit is spent** (7.6's rule). Propose one ElevenLabs prompt and its cost in chat. Only once he agrees, generate, cut with `tools/audio/cutMusicLoop.ts` or by hand, record it in `docs/audio-sources.md` and add it to `GENERATED_CLIPS`. Without his OK, the placeholder ships and the notes say so.
+- [x] **T5. Fireworks and the celebration** (AC 4 to 9, D3 to D7)
+  - [x] `src/client/render/vfx/fireworks.ts`: one `InstancedMesh` of octahedra, with its own pool sized from the data's largest total (assert it is under a `FIREWORK_POOL_SIZE` constant). Colours go through `setColorAt` from `colorTokens`, resolved through `PALETTE` or the tokens. Each spark is placed by a golden-angle sphere, deterministic, with no `Math.random`. It runs on real time and `update` allocates nothing. `reset()` and `dispose()` exist and `aliveCount` is exposed. It is added under `content_root`. `resetFx` hides it.
+  - [x] `src/client/endOfLevel/celebration.ts`: `createCelebration({ fireworks, stamp, … })` with `start(atReal, isMotionReduced)`, `isRunning(nowReal)`, `isMusicMuted(nowReal)`, `frame(nowReal)` and `reset()`. Reuse the epic stamp element, with a `show(text, …)` or a second instance. Keep the stamp under `EPIC_STAMP_MAX_MS`.
+  - [x] `boot.ts`:
     - on `FinaleReached`, call `celebration.start` and mirror `data-pp-finale`;
     - in the music block, `setMusicMuted(isSilent || isSequenceMusicOn || celebration.isMusicMuted(now))`;
     - move the `LevelScored` block (`finish`, photo, `enter('result')`) into one function. When a celebration runs it is deferred until `isRunning` is false or `endHoldMs` has passed, counted on the frame loop's real clock;
     - refuse pause while it waits;
     - clear everything on `loading`, restart and error.
-  - [ ] `__PP__.fx()` gains `fireworksAlive` and `celebrating`. Add the test hook `__PP__.celebrate()` (debug only). It runs the client half with no sim, for specs that cannot reach a real finale fast.
-- [ ] **T5b. Papa's two clips** (AC 18 to 20, D14)
-  - [ ] `assets-src/blender/characters/papa.blend`: author `victory_dance` (no longer than `celebration.endHoldMs`) and `collapse` (ends lying down, and holds). Export with `npm run assets:character:export`, then `npm run assets:character:optimize`.
-  - [ ] `tools/assets/characterArt.ts`: add both clips to Papa's contract. `tests/architecture/characterAssets.test.ts` passes on the committed file.
-  - [ ] `characterClips.ts › papaOneShotOf`: `FinaleReached` → `victory_dance`; `LevelEnded` with `reason: 'mamaHome'` → `collapse`. Unit tests for both, and for the ends that play nothing.
-  - [ ] E2E: the dance after a finale (`celebration.spec.ts`); the collapse after a forced catastrophe, beside the e2e spec of the early return (story 3.16).
-- [ ] **T6. The framings** (AC 10 to 15, D8 to D11)
-  - [ ] `cameraFx.ts`: `SequenceFraming` gains `rollDeg`. Compose it like the perfect's yaw (additive, × blend, 0 under reduced motion). Extend the dirty check. **It does not start a refocus.** `createFramingChain` carries the old roll out.
-  - [ ] `levelScene.ts`: `setGrade(grade | null, blend)`. The lights are `level × lerp(1, grade.lightsFactor, blend) × gagFactor`, with the colours lerped. It allocates nothing and writes nothing when unchanged.
-  - [ ] `src/client/ui/hud/filmFraming.ts`: the letterbox (one element and its two pseudo-elements), the vignette, and the title card (one element in `pp-type-epic`, Web Animations as `epicStamp.ts` uses, no CSS keyframes). They are siblings placed before `#pp-world`, like the instinct vignette, so the HUD's 40-node budget is not touched. Check how `sequence.spec.ts:185` counts, and say so. `update(world, def, style, blend, clockMs, isMotionReduced)` writes only on change. Reduced-motion rules use `:where(:root[data-pp-motion="reduced"])`, placed after the rule they soften.
-  - [ ] `boot.ts › beforeRender`: one read of `currentSequences[world.sequence.lastId]` feeds the camera, the grade and `filmFraming`, through the same chain values. Add the mirrors, and the restart reset list (L720-735).
-  - [ ] The readability test (AC 13): the scan for `windowOpenAt` and `feintAt` covers `filmFraming.ts`, `fireworks.ts` and `celebration.ts`. The floor-contrast check of `tools/assets/roomArt.ts` runs with each graded light set in `levelAssets.test.ts`.
-- [ ] **T7. Tests** (AC 4 to 16)
-  - [ ] Unit tests:
+  - [x] `__PP__.fx()` gains `fireworksAlive` and `celebrating`. Add the test hook `__PP__.celebrate()` (debug only). It runs the client half with no sim, for specs that cannot reach a real finale fast.
+- [x] **T5b. Papa's two clips** (AC 18 to 20, D14)
+  - [x] `assets-src/blender/characters/papa.blend`: author `victory_dance` (no longer than `celebration.endHoldMs`) and `collapse` (ends lying down, and holds). Export with `npm run assets:character:export`, then `npm run assets:character:optimize`.
+  - [x] `tools/assets/characterArt.ts`: add both clips to Papa's contract. `tests/architecture/characterAssets.test.ts` passes on the committed file.
+  - [x] `characterClips.ts › papaOneShotOf`: `FinaleReached` → `victory_dance`; `LevelEnded` with `reason: 'mamaHome'` → `collapse`. Unit tests for both, and for the ends that play nothing.
+  - [x] E2E: the dance after a finale (`celebration.spec.ts`); the collapse after a forced catastrophe, beside the e2e spec of the early return (story 3.16).
+- [x] **T6. The framings** (AC 10 to 15, D8 to D11)
+  - [x] `cameraFx.ts`: `SequenceFraming` gains `rollDeg`. Compose it like the perfect's yaw (additive, × blend, 0 under reduced motion). Extend the dirty check. **It does not start a refocus.** `createFramingChain` carries the old roll out.
+  - [x] `levelScene.ts`: `setGrade(grade | null, blend)`. The lights are `level × lerp(1, grade.lightsFactor, blend) × gagFactor`, with the colours lerped. It allocates nothing and writes nothing when unchanged.
+  - [x] `src/client/ui/hud/filmFraming.ts`: the letterbox (one element and its two pseudo-elements), the vignette, and the title card (one element in `pp-type-epic`, Web Animations as `epicStamp.ts` uses, no CSS keyframes). They are siblings placed before `#pp-world`, like the instinct vignette, so the HUD's 40-node budget is not touched. Check how `sequence.spec.ts:185` counts, and say so. `update(world, def, style, blend, clockMs, isMotionReduced)` writes only on change. Reduced-motion rules use `:where(:root[data-pp-motion="reduced"])`, placed after the rule they soften.
+  - [x] `boot.ts › beforeRender`: one read of `currentSequences[world.sequence.lastId]` feeds the camera, the grade and `filmFraming`, through the same chain values. Add the mirrors, and the restart reset list (L720-735).
+  - [x] The readability test (AC 13): the scan for `windowOpenAt` and `feintAt` covers `filmFraming.ts`, `fireworks.ts` and `celebration.ts`. The floor-contrast check of `tools/assets/roomArt.ts` runs with each graded light set in `levelAssets.test.ts`.
+- [x] **T7. Tests** (AC 4 to 16)
+  - [x] Unit tests:
     - the schema bounds and refusals;
     - `fireworks` (pool, colours, reduced count, reset);
     - `celebration` (timing, music mute window, reset);
@@ -176,7 +180,7 @@ The epics' criteria are:
     - `cameraFx` (roll composition, reduced motion, chain);
     - `filmFraming` (blend, title window on the sim clock, pause holding it, reduced motion);
     - the boot end deferral, as an extracted pure decision helper.
-  - [ ] E2E. New `tests/e2e/celebration.spec.ts`, using `__PP__.celebrate()`:
+  - [x] E2E. New `tests/e2e/celebration.spec.ts`, using `__PP__.celebrate()`:
     - the cue and its visuals in `cueLog`, `fireworksAlive`, the music mute mirror, reduced motion;
     - `ForceThreat` and `advance` to the salon's end with a finale running: the Result waits, then the photo flashes and the phases run.
 
@@ -187,15 +191,15 @@ The epics' criteria are:
     - the bomb_drop → stealth seam without a pop.
 
     Pin the real finale in `chambreNight.spec.ts:103`.
-  - [ ] Specs to run on Chromium: `celebration`, `sequence`, `chambreNight`, `photo`, `finalRush`, `juice`, `reducedMotion`, `feedback`, `testApi`, `ui`, `bedtimeDuel`, `lullaby`, `bombDrop`, `stealthExit`, `render`, `level`. Check `chambreNight.spec.ts:268` `FRAMING_OUT_STEPS` against any new out-blend. `tests/e2e-dist/dist.spec.ts` also waits for a `cycleDone` end, and the hold of D3 delays its Result by up to `endHoldMs`. It runs only in `e2e:dist`, so read its timeouts now and say so.
-- [ ] **T8. Docs**
-  - [ ] Update `project-context.md`: a « The finale and the film framings (story 7.4) » paragraph, in the house style.
-  - [ ] Update `game-architecture.md`: the E7 row (L978), the `vfx/` tree (L515) gaining `fireworks.ts`, `client/endOfLevel/`, and P7 noting that `FinaleReached` exists for 3.9. Write in French.
-  - [ ] Update `deferred-work.md`: close L707 (« 7.4 owns the parody »).
-- [ ] **T9. Performance and delivery** (AC 16, 17). Run this under `caffeinate`, alone on the machine, **after the last visual edit**.
-  - [ ] Run `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`, then `npx playwright test -c playwright.dist.config.ts --project perf --workers=1` (salon). Record the numbers.
-  - [ ] Take the screenshots of AC 17, open them, and say which were opened.
-  - [ ] If an autoplay reference moves, regenerate it with `--update-snapshots=all`, open it and say so. A plain `--update-snapshots` let 7.3's soft change pass.
+  - [x] Specs to run on Chromium: `celebration`, `sequence`, `chambreNight`, `photo`, `finalRush`, `juice`, `reducedMotion`, `feedback`, `testApi`, `ui`, `bedtimeDuel`, `lullaby`, `bombDrop`, `stealthExit`, `render`, `level`. Check `chambreNight.spec.ts:268` `FRAMING_OUT_STEPS` against any new out-blend. `tests/e2e-dist/dist.spec.ts` also waits for a `cycleDone` end, and the hold of D3 delays its Result by up to `endHoldMs`. It runs only in `e2e:dist`, so read its timeouts now and say so.
+- [x] **T8. Docs**
+  - [x] Update `project-context.md`: a « The finale and the film framings (story 7.4) » paragraph, in the house style.
+  - [x] Update `game-architecture.md`: the E7 row (L978), the `vfx/` tree (L515) gaining `fireworks.ts`, `client/endOfLevel/`, and P7 noting that `FinaleReached` exists for 3.9. Write in French.
+  - [x] Update `deferred-work.md`: close L707 (« 7.4 owns the parody »).
+- [x] **T9. Performance and delivery** (AC 16, 17). Run this under `caffeinate`, alone on the machine, **after the last visual edit**.
+  - [x] Run `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`, then `npx playwright test -c playwright.dist.config.ts --project perf --workers=1` (salon). Record the numbers.
+  - [x] Take the screenshots of AC 17, open them, and say which were opened.
+  - [x] If an autoplay reference moves, regenerate it with `--update-snapshots=all`, open it and say so. A plain `--update-snapshots` let 7.3's soft change pass.
 
 ## Dev Notes
 
@@ -296,8 +300,138 @@ No new dependency. In the pinned `three@0.186.1`, `InstancedMesh.setColorAt` cre
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`), dev-story, 2026-11-08.
+
 ### Debug Log References
+
+- `main` (bcc9017) merged into the branch before T1 (`e4ebdb6`, the base recorded as `baseline_commit`): only `sprint-status.yaml` conflicted (main's version kept, this story set to `in-progress`). After the merge `ci:fast` was green (460 files, 10,206 tests). The level names, the snapshot version (28) and the line references were re-read on the merged code: three live levels now (`salon_kitchen`, `salon_crawler`, `chambre_night`), all three listing the five sequences.
+- Baseline `npm run sim` reports (4 bots × 3 levels, seed 1, 5 runs) were written before the first sim edit, then compared with the reports after T1 and again at the end (scratchpad, not committed).
+- `papa.blend` authored headless (`Blender -b … -P <scratchpad script>`, Blender 5.2.3), never through the live MCP session; the script stayed in the scratchpad, the `.blend1` backup was deleted.
 
 ### Completion Notes List
 
+**Sim (T1, T2).**
+- `FinaleReached{t, cause, threatId}` with `FinaleCause`, `FINALE_CAUSES` (and its completeness proof), in `SIM_EVENT_TYPES` and `@sim`. `resolveThreat` pushes `lastWave` inside the one `isLastOfWave` branch, right after the `lastThreat` slow-mo, when `threat.waveIndex === ctx.level.waves.length - 1`; `advanceCycle` pushes `cycleDone` right after `CycleCompleted` (`cycleEnd.ts` has no threat code).
+- Pinned order: a `mamaWoke` in the step of the last success comes **after** the finale (`runThreats`, and `advanceCycle` via the sequence end, run before `runFlow`): `CycleCompleted`, `FinaleReached{cycleDone}`, `MamaWoke`, `LevelEnded{mamaWoke}` in a cycle tie with the noise. Tests in `src/sim/threats/finale.test.ts` (one wave, two waves, a fail, a micro-sleep after the last wave closed, the mamaWoke tie) and `bedtimeCycle.test.ts`.
+- Goldens: only `bedtime_cycle_won` failed; its `.expected.json` gained `"FinaleReached"` in the event list and a new `eventsHash`, its `worldHash` unchanged; regenerated with `npm run golden:update` (deliberate). `golden:update` also rewrote `mama_woke.expected.json` with a different line wrapping only: reverted.
+- `simReport`: `finales: { lastWave, cycleDone }` per run and over the runs, help line in `simArgs.ts`. Reports vs the baseline (4 bots × 3 levels, seed 1, 5 runs): **identical except `finales` and `hashes.level`** (the sequence JSONs gained `style`/`titleKey`, D12). Finales seen: `perfect` 5/5 `lastWave` on `salon_kitchen`, 3/5 on `salon_crawler` (a wave can close with nothing of it active, 1.18 D7: no last threat, no finale), 5/5 `cycleDone` on `chambre_night`; `human` 3, 2 and 4; `idle` and `random` 0. `tests/bots/finaleLive.test.ts` plays the four bots on the **three** live levels (seed 1 to 5): 0 or 1 a game, never after `LevelEnded` (200 steps played past it), and the perfect bot does reach it.
+- `sim:replay` and the level hash (D12): a `papa-parade.run` recorded before this story is refused, exit 1: « cannot replay this game: the journal was recorded on another level than the given one (chambre_night) (was the content changed since it was recorded?) » (checked by replaying a run file with a stale `levelHash`).
+- Where a test goes: the finale's rules are proven in Vitest (sim tests, the live bots, the report); the e2e specs only check the client wiring.
+
+**Data (T3, T4).**
+- `HAPTIC_KINDS` gains `fanfare` (`[80, 420, 80, 520, 80, 620, 120]`: a pulse on each of the first four bursts), through the six places of 2.9 (`platform.ts`, `webHaptics.ts`, `boot.ts`, the fixtures, `tests/e2e/support/game.ts`).
+- `feedback.json › celebration` (`endHoldMs` 4000, `collapseHoldMs` 1600, `musicMuteMs` 3600, `stampMs` 900, `fireworks`: five bursts of 248 sparks in all, `areaHalfM` 3, `speedMps` 3.2, `lifeMs` 1500, `sizeM` 0.12, five colour tokens) and `framingStyles` (a strict object over `FRAMING_STYLE_IDS`). `FRAMING_STYLE_IDS`, `LETTERBOX_MAX_PCT` (12) and `FIREWORK_POOL_SIZE` (256) in `shared/constants.ts`. Bounds in the schema; the unit-suffix rule anchors `sizeM`, `areaHalfM`, `sparks` and `lightsFactor` (commented as 7.3 did).
+- `FramingSchema` gains `style` and `titleKey` (`framing.title_*`), a refine refuses a title with no style; the five live sequences name theirs (D9); the fixtures `tests/support/test*.sequence.json` are untouched, and `sequenceSchema.test.ts`'s same-shape check leaves the two presentation keys out.
+- Strings: `stamp.finale` « MISSION ACCOMPLIE » and the six `framing.title_*` of D10, as proposed.
+- **Variances, said here:** the colour tokens of a firework are a schema enum (`FIREWORK_COLOR_TOKENS`: `primary`, `gauge-calm`, `mama-calm`, `smell`, `paper`), so an unknown, reserved (`alert`, `parry`, `dodge`) or near-reserved (`star`, on `alert`'s hue) token is refused when the file is read, not only by `content:check`; an unknown `titleKey` is refused by `content:check`'s generic `…Key` rule (`checkStringReferences`), not a new check; a burst out of bounds and an overflowing pool are schema refusals. Each refusal has its test (`tests/content/checkFramings.test.ts`). The grade colours' reserved-hue rule and the floor contrast under each grade are in `tests/architecture/levelAssets.test.ts`, which has DESIGN.md's tokens (`content:check` does not read DESIGN.md).
+- **The choir (T4):** a synthesized placeholder, `synthFinaleChoir` (two detuned voices a note through two « ah » formants, C, F/C, C, a 0.9 s swell), 3.6 s, 33 KB. **No credit was spent:** the generated take waits for Geo's OK (prompt and cost in the closing message), so `docs/audio-sources.md` and `GENERATED_CLIPS` are unchanged.
+
+**Client (T5, T5b, T6).**
+- `render/vfx/fireworks.ts`: one `InstancedMesh` of `FIREWORK_POOL_SIZE` octahedra under `content_root`, every instance coloured before the first render, golden-angle spheres (no `Math.random`), real time, `update` allocates nothing, hidden (`visible = false`, `count` 0) when idle, so it costs a draw call only while shown. **Placement changed after the first screenshots:** on the room's whole floor the big room's follow camera showed almost none of them; the bursts now go off in a square of `areaHalfM` around the floor point the camera looks at, cut to the room (`fireworkAreaOf`), and the sparks were made bigger (0.07 → 0.12 m).
+- `endOfLevel/celebration.ts` (fireworks, the second stamp « MISSION ACCOMPLIE », the music mute window) and `endOfLevel/endHold.ts` (the pure decision of D3: `request` at `LevelScored`, `frame` each frame, each frame worth at most `END_HOLD_FRAME_CAP_MS` so a hidden tab holds the wait). `boot.ts`: the `LevelScored` block keeps the score, Mama's lines and the highlights at once and moves `finish()`, the photo and `enter('result')` into `endTheLevel()`, run at once with nothing to wait for (exactly as before) or by the frame loop when the hold ends. While it waits: the loop runs (the sim keeps only its clock, so the dance and the rings play; the exported journal replays to `world.time.sim` as before), `endHold.isPending` blocks the input mapper and the move intent, and `pause.setRefused(true)` refuses every pause (`pauseController.setRefused`, new). `onFxReset` resets the celebration and drops a wait.
+- **D14 variance:** the early return holds the end too, for `celebration.collapseHoldMs` (1.6 s), or Papa's collapse would never be seen (`finish()` resets the characters in the same frame). A `LevelEnded{mamaHome}` also resets a celebration under way (closes the 3.16 deferred item: a `mamaHome` is no finished level). This changes the `mamaHome` end by 1.6 s; `catastrophe.spec.ts` passes as it was.
+- Papa's two clips: `victory_dance` (84 frames, 2.8 s: a disco point switching sides every 12 frames, the hips swaying, then a V and back to rest; the lowest point −4 mm, under the 3 cm floor slack) and `collapse` (34 frames: the knees give, he tips over backwards and lies flat, arms and legs splayed; the root is lifted per frame by exactly what keeps his lowest point on the floor). `papa.glb` 65 KB (59 KB before), under `CHARACTER_GLB_MAX_BYTES`. `papaOneShotOf`: `FinaleReached` → `victory_dance`, `LevelEnded{mamaHome}` → `collapse`, nothing on the other ends. Two lists: `PAPA_HELD_ONE_SHOTS` (`collapse` stays on its last frame: `playOnce(…, holdsLastPose)` in the rig) and `PAPA_DEFERRED_ONE_SHOTS` (the finale comes with the last response, mid-glide, when a one-shot is dropped: the dance waits for the glide and the response pose to end, or plays at once once the level is over). The contract lives in `characterClips.ts › PAPA_CONTRACT` (which `tools/assets/characterArt.ts` checks), so that is where the clips were listed.
+- The framings: `SequenceFraming` gains the look (`rollDeg`, `letterboxPct`, `vignetteOpacityPct`, the grade and its weight, the carried grade and its weight; `createSequenceFraming()`), the chain carries all of it at a seam, `cameraFx` rolls about the view axis after the turn (dirty-checked, 0 under reduced motion, no refocus), `render/grade.ts` mixes up to two grades into the level's lights (weights scaled down past 1, exactly the level's lights at 0), `levelScene.setGrade` writes the lights only on change with the gags' factor on top, and `ui/hud/filmFraming.ts` draws the three layers (vignette, bars, title) before `#pp-world`. **The bars got a 2 px `ink-soft` inner edge after the first screenshots:** the scene's background is ink, so an ink bar alone did not read.
+- `sequence.spec.ts:185` counts `#pp-hud *`: the film layers are siblings outside `#pp-hud`, not counted (the HUD budget is untouched).
+- Mirrors `data-pp-finale`, `data-pp-end-hold`, `data-pp-framing-style` (in `PROD_FORBIDDEN_MARKERS` and the dist fixture); `__PP__.fx()` gains `fireworksAlive`, `celebrating`, `framing`; `__PP__.celebrate()` (debug only).
+
+**Tests (T7).** Unit: the schema refusals, `fireworks` (pool, colours, sphere, reduced count, reset, determinism, the area), `celebration`, `endHold`, `grade`, `setGrade` (lerp, gag product, no write, reset), `cameraFx` (roll, reduced motion, dirty check, no refocus, the seam with no drawn value jumping by a tenth), `filmFraming` (blend, title on the sim clock, pause, slow-mo, reduced motion, no CSS keyframes), the pause refusal, the clips and the held one-shot, `celebrate()`. E2E (extended tier, not in `SMOKE_SPECS`): new `celebration.spec.ts` and `framing.spec.ts`, a collapse test in `catastrophe.spec.ts`, the real `cycleDone` finale pinned in `chambreNight.spec.ts`'s perfect-bot test. `e2e:dist`: `dist.spec.ts` waits for `data-pp-end-reason="cycleDone"`, mirrored at `LevelEnded`, before the hold, and its Result waits have a 30 s margin over the level: the hold (≤ 4 s) fits (read, not run: `e2e:dist` is `ci`'s).
+
+**Performance and delivery (T9)**, run after the last visual edit, alone, under `caffeinate` (through the heavy-check lock):
+- `npm run build:playtest`, then `npm run dist:check -- --flavor playtest`: OK, the heaviest level payload 2,827.4 KiB (the choir adds 33 KB, `papa.glb` 6 KB), first load 4,497.8 KiB gzip.
+- `perf.spec.ts` (salon, a whole level at speed 1, 16,729 frames): p95 16.7 ms (mean 16.68, max 149.9), draw calls max 90 (87 in 7.3; the fireworks are one draw call, only while shown), triangles max 20,110. Budgets ≤ 20 ms, ≤ 100, ≤ 100k: held.
+- No autoplay screenshot reference was run or regenerated (the story changed nothing of a level at rest outside a sequence or a finale).
+- Screenshots (`7-4-screenshots/`, taken by a throwaway spec, not committed): the five sequences at full blend at 844 × 390, `bedtime_duel` and `stealth_exit` at 667 × 375, `bedtime_duel`'s title card, reduced motion on `bedtime_duel` and on the fireworks, the fireworks mid-burst in `salon_kitchen` and `chambre_night`, Papa mid-dance (three crops and the room) and collapsed (falling, down, and the room). **Opened** after the last edit: all five 844 × 390 sequences except `stay_awake` and `bedtime_duel`'s title (both opened before the bars' edge was added, same picture but for that edge), `667x375-stealth_exit`, both fireworks, the reduced fireworks, the reduced duel, `papa-dance-1`, `papa-collapse-falling`, the collapse room. **Not opened after the last edit:** `667x375-bedtime_duel-full-blend.png`, `844x390-papa-dance-room.png`, `papa-dance-2.png` and `papa-collapse-down.png` (opened in the first take, clips unchanged since), `papa-dance-3.png`. What they show: the bars read thanks to the inner edge; the grades are subtle; in the big room the fireworks stay small on screen (`sizeM` and `speedMps` are Geo's to tune). The merge waits for Geo's visual OK.
+
+**Docs (T8).** `project-context.md` (« The finale and the film framings »), `game-architecture.md` (the E7 row, the `vfx/`, `hud/` and `endOfLevel/` trees, P7's finale), `deferred-work.md` (L707 and the 3.16 `mamaHome` item closed), CLAUDE.md (`finales` in the sim report).
+
 ### File List
+- `CLAUDE.md`
+- `_bmad-output/implementation-artifacts/7-4-celebration-finale-et-cadrages-parodiques.md`
+- `_bmad-output/implementation-artifacts/7-4-screenshots/` (19 PNG, new)
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/planning-artifacts/game-architecture.md`
+- `_bmad-output/project-context.md`
+- `assets-src/blender/characters/papa.blend`
+- `content/_schemas/feedback.schema.json`
+- `content/_schemas/sequence.schema.json`
+- `content/feedback.json`
+- `content/sequences/bedtime_duel.json`
+- `content/sequences/bomb_drop.json`
+- `content/sequences/lullaby_walk.json`
+- `content/sequences/stay_awake.json`
+- `content/sequences/stealth_exit.json`
+- `content/strings.fr.json`
+- `public/assets/audio/music_finale_choir.m4a` (new)
+- `public/assets/characters/papa.glb`
+- `src/client/app/levelSession.test.ts`
+- `src/client/app/pauseController.test.ts`
+- `src/client/app/pauseController.ts`
+- `src/client/app/testHost.ts`
+- `src/client/boot.ts`
+- `src/client/endOfLevel/celebration.test.ts` (new)
+- `src/client/endOfLevel/celebration.ts` (new)
+- `src/client/endOfLevel/endHold.test.ts` (new)
+- `src/client/endOfLevel/endHold.ts` (new)
+- `src/client/feedback/feedbackDirector.test.ts`
+- `src/client/input/hitTest.test.ts`
+- `src/client/render/cameraFx.test.ts`
+- `src/client/render/cameraFx.ts`
+- `src/client/render/followRig.test.ts`
+- `src/client/render/grade.test.ts` (new)
+- `src/client/render/grade.ts` (new)
+- `src/client/render/levelScene.test.ts`
+- `src/client/render/levelScene.ts`
+- `src/client/render/vfx/fireworks.test.ts` (new)
+- `src/client/render/vfx/fireworks.ts` (new)
+- `src/client/render/views/characterClips.test.ts`
+- `src/client/render/views/characterClips.ts`
+- `src/client/render/views/characterRig.test.ts`
+- `src/client/render/views/characterRig.ts`
+- `src/client/render/views/papaView.ts`
+- `src/client/ui/hud/filmFraming.test.ts` (new)
+- `src/client/ui/hud/filmFraming.ts` (new)
+- `src/client/ui/styles/ui.css`
+- `src/content/schemas/feedback.ts`
+- `src/content/schemas/sequence.ts`
+- `src/debug/testApi.test.ts`
+- `src/debug/testApi.ts`
+- `src/platform/createPlatform.test.ts`
+- `src/platform/platform.ts`
+- `src/platform/web/webHaptics.test.ts`
+- `src/platform/web/webHaptics.ts`
+- `src/shared/constants.ts`
+- `src/sim/events.test.ts`
+- `src/sim/events.ts`
+- `src/sim/index.ts`
+- `src/sim/sequences/bedtimeCycle.test.ts`
+- `src/sim/sequences/cycleEnd.ts`
+- `src/sim/threats/finale.test.ts` (new)
+- `src/sim/threats/threatFsm.ts`
+- `tests/architecture/characterAssets.test.ts`
+- `tests/architecture/levelAssets.test.ts`
+- `tests/bots/finaleLive.test.ts` (new)
+- `tests/content/checkFramings.test.ts` (new)
+- `tests/content/feedbackSchema.test.ts`
+- `tests/content/sequenceSchema.test.ts`
+- `tests/e2e/catastrophe.spec.ts`
+- `tests/e2e/celebration.spec.ts` (new)
+- `tests/e2e/chambreNight.spec.ts`
+- `tests/e2e/framing.spec.ts` (new)
+- `tests/e2e/support/game.ts`
+- `tests/e2e/support/testApi.ts`
+- `tests/golden/journals/bedtime_cycle_won.expected.json`
+- `tests/support/fakeTestHost.ts`
+- `tests/support/testContent.ts`
+- `tests/tools/build/checkDist.test.ts`
+- `tests/tools/sim/finaleReport.test.ts` (new)
+- `tests/tools/sim/simReport.test.ts`
+- `tools/audio/makePlaceholderAudio.ts`
+- `tools/build/inspectDist.ts`
+- `tools/sim/simArgs.ts`
+- `tools/sim/simReport.ts`
+
+## Change Log
+
+- 2026-11-08: Story 7.4 implemented (dev-story): `FinaleReached` in the sim, the celebration and the end that waits for it, Papa's victory dance and collapse, the film grammars of the five sequences. Goldens: `bedtime_cycle_won` regenerated on purpose (one event added, world hash unchanged).

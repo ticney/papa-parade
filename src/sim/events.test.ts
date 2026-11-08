@@ -84,7 +84,9 @@ describe('the fatigue events (story 1.19)', () => {
     expect(names.indexOf('DecoyTapped')).toBe(names.indexOf('DecoyCued') + 1);
     expect(names.indexOf('FatigueThresholdCrossed')).toBe(names.indexOf('DecoyTapped') + 1);
     expect(names.indexOf('FinalRushStarted')).toBe(names.indexOf('FatigueThresholdCrossed') + 1);
-    expect(names.indexOf('FloorCreaked')).toBe(names.indexOf('FinalRushStarted') + 1);
+    // `FinaleReached` (story 7.4) sorts between them (`R` < `e`).
+    expect(names.indexOf('FinaleReached')).toBe(names.indexOf('FinalRushStarted') + 1);
+    expect(names.indexOf('FloorCreaked')).toBe(names.indexOf('FinaleReached') + 1);
     expect(names.indexOf('GagTriggered')).toBe(names.indexOf('FloorCreaked') + 1);
   });
 });

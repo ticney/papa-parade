@@ -20,11 +20,11 @@ const liveGeometry = JSON.parse(
 };
 /** The live feedback table, read here and never copied: Geo retunes it freely. */
 export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'utf8')) as {
-  haptics: Record<'light' | 'medium' | 'heavy' | 'heartbeat', { patternMs: number[] }>;
+  haptics: Record<'light' | 'medium' | 'heavy' | 'heartbeat' | 'fanfare', { patternMs: number[] }>;
   loops: { babble: { clip: string }; music: { stems: { calm: string; tense: string } } };
   cues: Record<
     string,
-    { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' | 'heartbeat' }
+    { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' | 'heartbeat' | 'fanfare' }
   >;
   events: Record<string, string>;
   resultScreen: { inputGraceMs: number; photoHoldMs: number; reactionHoldMs: number };

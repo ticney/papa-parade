@@ -120,6 +120,7 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     breathGasps: { empty: 0, early: 0, notHeld: 0 },
     nothingResponses: 0,
     finalRushes: 0,
+    finales: { lastWave: 0, cycleDone: 0 },
     propsTidied: 0,
     frozenNearMisses: 0,
     lookParts: 0,

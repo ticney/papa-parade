@@ -254,6 +254,15 @@ export function resolveThreat(
   if (quality === 'perfect') startSlowMo(world, ctx, 'perfect', ctx.feel.timing.slowMoPerfect);
   if (isLastOfWave(world, ctx, threat)) {
     startSlowMo(world, ctx, 'lastThreat', ctx.feel.timing.slowMoLastThreat);
+    // The last of the level's last wave is the finale (story 7.4 D1): nothing of it can follow.
+    if (threat.waveIndex === ctx.level.waves.length - 1) {
+      ctx.events.push({
+        type: 'FinaleReached',
+        t: world.time.sim,
+        cause: 'lastWave',
+        threatId: threat.id,
+      });
+    }
   }
   // The combo climbs on every response, perfect or success, the baby in the arms or not (story 4.2).
   addResponseToCombo(world, ctx);

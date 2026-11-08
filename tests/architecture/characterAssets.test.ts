@@ -483,6 +483,19 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     expect(source).not.toMatch(/windowOpenAt|feintAt|realWakePct|enteredAt/);
   });
 
+  // Story 7.4 AC 13: the finale and the film grammar read the sequence slice, the sim clock and real time,
+  // never a threat's timing: a title or a bar that moved with a window would give the answer away.
+  it.each([
+    ['ui', 'hud', 'filmFraming.ts'],
+    ['render', 'vfx', 'fireworks.ts'],
+    ['render', 'grade.ts'],
+    ['endOfLevel', 'celebration.ts'],
+    ['endOfLevel', 'endHold.ts'],
+  ])('%s/%s reads no `windowOpenAt` or `feintAt` of a threat', (...parts) => {
+    const source = readFileSync(join(root, 'src', 'client', ...parts), 'utf8');
+    expect(source).not.toMatch(/windowOpenAt|feintAt|realWakePct|\.threats\b/);
+  });
+
   it('characterClips.ts takes no threat', () => {
     expect(clips).not.toMatch(/ThreatInstance|\.threats\b/);
   });

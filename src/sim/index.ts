@@ -29,6 +29,8 @@ export {
   COMBO_CHANGE_REASONS,
   type ComboChangeReason,
   type FailReason,
+  FINALE_CAUSES,
+  type FinaleCause,
   LEVEL_END_REASONS,
   type LevelEndReason,
   type NoiseSource,

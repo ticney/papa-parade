@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createCameraFx,
   createFramingChain,
+  createSequenceFraming,
   perfectCameraBlendAt,
   type SequenceFraming,
   sequenceFramingBlendAt,
@@ -29,7 +30,14 @@ const PERFECT_CAMERA: Feel['fx']['perfectCamera'] = {
   refocusMs: 100,
 };
 /** No sequence: the framing every pre-4.4 call passes. */
-const NO_FRAMING: SequenceFraming = { blend: 0, zoomPct: 18, focusPct: 60, xM: 0, zM: 0 };
+const NO_FRAMING: SequenceFraming = {
+  ...createSequenceFraming(),
+  blend: 0,
+  zoomPct: 18,
+  focusPct: 60,
+  xM: 0,
+  zM: 0,
+};
 const ROOM = { widthM: 8, depthM: 6, heightM: 2.5 };
 
 const slowMo = (startedAt: number, holdUntil: number, endsAt: number, source = 'perfect') => ({
@@ -354,6 +362,7 @@ describe('sequenceFramingBlendAt (story 4.4)', () => {
 
 describe('the sequence framing in createCameraFx (story 4.4)', () => {
   const framing = (blend: number): SequenceFraming => ({
+    ...createSequenceFraming(),
     blend,
     zoomPct: 18,
     focusPct: 60,
@@ -444,6 +453,7 @@ describe('createFramingChain (story 4.10)', () => {
     clockMs: number,
   ): SequenceFraming => {
     const framing: SequenceFraming = {
+      ...createSequenceFraming(),
       blend: sequenceFramingBlendAt(startedAt, endedAt, clockMs, IN, OUT),
       zoomPct,
       focusPct: zoomPct * 2,
@@ -458,11 +468,14 @@ describe('createFramingChain (story 4.10)', () => {
   it('leaves a lone sequence as written, bit for bit', () => {
     const chain = createFramingChain();
     expect(framingAt(chain, 1000, null, 40, 1500)).toEqual({
+      ...createSequenceFraming(),
       blend: 0.5,
       zoomPct: 40,
       focusPct: 80,
       xM: 0,
       zM: 0,
+      // The grade's weight is the sequence's own blend (story 7.4).
+      gradeBlend: 0.5,
     });
   });
 
@@ -590,7 +603,14 @@ describe('the follow camera under createCameraFx (story 9.2, D4)', () => {
     fx.clampTo(frame);
     // A perfect leaning far beyond the wall, through a sequence framing too.
     fx.focusOn(-30, -30);
-    const framing: SequenceFraming = { blend: 1, zoomPct: 18, focusPct: 60, xM: -30, zM: -30 };
+    const framing: SequenceFraming = {
+      ...createSequenceFraming(),
+      blend: 1,
+      zoomPct: 18,
+      focusPct: 60,
+      xM: -30,
+      zM: -30,
+    };
     for (const clockMs of [1050, 1500, 2300]) {
       fx.update(worldWith(slowMo(1000, 2200, 2500)), clockMs, PERFECT_CAMERA, false, framing);
       const view = viewOf(camera, frame);
@@ -615,5 +635,173 @@ describe('the follow camera under createCameraFx (story 9.2, D4)', () => {
         view.minVM < frame.minVM ||
         view.maxVM > frame.maxVM,
     ).toBe(true);
+  });
+});
+
+describe('the film grammar roll in createCameraFx (story 7.4)', () => {
+  const rolled = (blend: number, rollDeg: number): SequenceFraming => ({
+    ...createSequenceFraming(),
+    blend,
+    zoomPct: 18,
+    focusPct: 60,
+    xM: 1,
+    zM: -1,
+    rollDeg,
+  });
+  /** The roll of the camera about its own view axis, in degrees: the angle of its up from the unrolled up. */
+  const rollOf = (camera: OrthographicCamera, unrolled: OrthographicCamera): number => {
+    const up = new Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+    const base = new Vector3(0, 1, 0).applyQuaternion(unrolled.quaternion);
+    const forward = new Vector3(0, 0, -1).applyQuaternion(unrolled.quaternion);
+    const sign = Math.sign(new Vector3().crossVectors(base, up).dot(forward)) || 1;
+    return (sign * Math.acos(Math.min(1, base.dot(up))) * 180) / Math.PI;
+  };
+
+  it('rolls by rollDeg × blend about the view axis, the zoom and pan as before', () => {
+    const plain = build();
+    plain.fx.update(worldWith(), 1500, PERFECT_CAMERA, false, rolled(0.5, 0));
+    const { camera, fx } = build();
+    fx.update(worldWith(), 1500, PERFECT_CAMERA, false, rolled(0.5, 4));
+    expect(fx.rollDeg).toBeCloseTo(2, 12);
+    expect(Math.abs(rollOf(camera, plain.camera))).toBeCloseTo(2, 6);
+    expect(camera.zoom).toBe(plain.camera.zoom);
+    expect(camera.position.toArray()).toEqual(plain.camera.position.toArray());
+  });
+
+  it('is 0 under reduced motion, the capped zoom unchanged', () => {
+    const plain = build();
+    plain.fx.update(worldWith(), 1500, PERFECT_CAMERA, true, rolled(1, 0));
+    const { camera, fx } = build();
+    fx.update(worldWith(), 1500, PERFECT_CAMERA, true, rolled(1, 4));
+    expect(fx.rollDeg).toBe(0);
+    expect(camera.quaternion.toArray()).toEqual(plain.camera.quaternion.toArray());
+    expect(camera.zoom).toBeCloseTo(1 + 0.18 * (REDUCED_MOTION_ZOOM_CAP_PCT / 100), 12);
+  });
+
+  it('writes the camera again when only the roll changes, and goes back bit for bit at 0', () => {
+    const { camera, fx } = build();
+    const before = snapshot(camera);
+    fx.update(worldWith(), 1500, PERFECT_CAMERA, false, rolled(1, 2));
+    const first = camera.quaternion.toArray();
+    fx.update(worldWith(), 1500, PERFECT_CAMERA, false, rolled(1, 3));
+    expect(camera.quaternion.toArray()).not.toEqual(first);
+    fx.update(worldWith(), 1600, PERFECT_CAMERA, false, rolled(0, 3));
+    expect(snapshot(camera)).toEqual(before);
+    expect(fx.rollDeg).toBe(0);
+  });
+
+  it('starts no refocus: a later perfect starts on its own point, with no glide', () => {
+    const withRoll = build();
+    withRoll.fx.update(worldWith(), 1000, PERFECT_CAMERA, false, rolled(1, 3));
+    withRoll.fx.focusOn(2, -1);
+    withRoll.fx.update(
+      worldWith(slowMo(1000, 2200, 2500)),
+      1500,
+      PERFECT_CAMERA,
+      false,
+      rolled(1, 3),
+    );
+    const without = build();
+    without.fx.focusOn(2, -1);
+    without.fx.update(
+      worldWith(slowMo(1000, 2200, 2500)),
+      1500,
+      PERFECT_CAMERA,
+      false,
+      rolled(1, 3),
+    );
+    expect(withRoll.camera.position.toArray()).toEqual(without.camera.position.toArray());
+  });
+});
+
+describe('createFramingChain and the film grammar (story 7.4)', () => {
+  const OUT = 700;
+  const IN = 1000;
+  const GRADE_A = { lightsFactor: 0.8, ambientColor: '#C0C8F0', sunColor: '#E0E4FF' };
+  const GRADE_B = { lightsFactor: 0.9, ambientColor: '#F0E0D0', sunColor: '#FFEAD4' };
+  const lookAt = (
+    chain: ReturnType<typeof createFramingChain>,
+    startedAt: number,
+    endedAt: number | null,
+    look: { rollDeg: number; letterboxPct: number; vignetteOpacityPct: number },
+    grade: typeof GRADE_A | null,
+    clockMs: number,
+  ): SequenceFraming => {
+    const framing: SequenceFraming = {
+      ...createSequenceFraming(),
+      blend: sequenceFramingBlendAt(startedAt, endedAt, clockMs, IN, OUT),
+      zoomPct: 40,
+      focusPct: 80,
+      ...look,
+      grade,
+    };
+    chain.apply(framing, startedAt, OUT, clockMs);
+    return framing;
+  };
+  const A = { rollDeg: 4, letterboxPct: 10, vignetteOpacityPct: 40 };
+  const B = { rollDeg: 0, letterboxPct: 12, vignetteOpacityPct: 60 };
+
+  it('carries the roll, the bars, the vignette and the grade out over the old outMs: no pop at the seam', () => {
+    const chain = createFramingChain();
+    const settled = lookAt(chain, 1000, null, A, GRADE_A, 5000);
+    expect(settled.rollDeg * settled.blend).toBe(4);
+    expect(settled.letterboxPct * settled.blend).toBe(10);
+    expect(settled.grade).toBe(GRADE_A);
+    expect(settled.gradeBlend).toBe(1);
+    // The next sequence starts one step later: the old look is still all there.
+    const seam = lookAt(chain, 5010, null, B, GRADE_B, 5010);
+    expect(seam.blend).toBe(1);
+    expect(seam.rollDeg).toBeCloseTo(4, 2);
+    expect(seam.letterboxPct).toBeCloseTo(10, 1);
+    expect(seam.vignetteOpacityPct).toBeCloseTo(40, 1);
+    expect(seam.grade).toBe(GRADE_B);
+    expect(seam.gradeBlend).toBe(0);
+    expect(seam.carriedGrade).toBe(GRADE_A);
+    expect(seam.carriedGradeBlend).toBeCloseTo(1, 6);
+    // Frame by frame, no drawn value (value × blend) jumps by more than a tenth of its range.
+    const drawn = (framing: SequenceFraming) => ({
+      letterboxPct: framing.letterboxPct * framing.blend,
+      rollDeg: framing.rollDeg * framing.blend,
+      vignettePct: framing.vignetteOpacityPct * framing.blend,
+      gradeBlend: framing.gradeBlend,
+      carriedGradeBlend: framing.carriedGradeBlend,
+    });
+    let last = drawn(seam);
+    for (let t = 5026; t <= 6200; t += 16) {
+      const next = drawn(lookAt(chain, 5010, null, B, GRADE_B, t));
+      expect(Math.abs(next.letterboxPct - last.letterboxPct) / 12, `bars at ${t}`).toBeLessThan(
+        0.1,
+      );
+      expect(Math.abs(next.rollDeg - last.rollDeg) / 6, `roll at ${t}`).toBeLessThan(0.1);
+      expect(Math.abs(next.vignettePct - last.vignettePct) / 80, `vignette at ${t}`).toBeLessThan(
+        0.1,
+      );
+      expect(Math.abs(next.carriedGradeBlend - last.carriedGradeBlend)).toBeLessThan(0.1);
+      expect(Math.abs(next.gradeBlend - last.gradeBlend)).toBeLessThan(0.1);
+      last = next;
+    }
+    // Past the old outMs, the new look stands on its own.
+    const after = lookAt(chain, 5010, null, B, GRADE_B, 5010 + OUT + 10);
+    expect(after.carriedGrade).toBeNull();
+    expect(after.carriedGradeBlend).toBe(0);
+  });
+
+  it('carries nothing with no look before: a lone styled sequence stays as written', () => {
+    const chain = createFramingChain();
+    const framing = lookAt(chain, 1000, null, A, GRADE_A, 1500);
+    expect(framing.blend).toBe(0.5);
+    expect(framing.rollDeg).toBe(4);
+    expect(framing.letterboxPct).toBe(10);
+    expect(framing.carriedGrade).toBeNull();
+    expect(framing.gradeBlend).toBe(0.5);
+  });
+
+  it('clear forgets the look', () => {
+    const chain = createFramingChain();
+    lookAt(chain, 1000, null, A, GRADE_A, 5000);
+    chain.clear();
+    const framing = lookAt(chain, 5010, null, B, null, 5010);
+    expect(framing.carriedGrade).toBeNull();
+    expect(framing.blend).toBe(0);
   });
 });
