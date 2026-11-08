@@ -1096,7 +1096,8 @@ body {
 }
 
 /* The highlight replay (story 3.9, UX-DR13/15). While it plays the scrim, the panel, the polaroid and
-   Mama are `visibility: hidden` (focus and layout stay, so the screen comes back as it was) and the
+   Mama are `visibility: hidden` (their layout stays, so the screen comes back as it was; the focus does
+   not, but the screen listens on its key target, not on a button) and the
    canvas shows the replayed moment under the « REPLAY » banner. The screen itself still takes the press
    that skips. The banner has the epic stamp's look (`pp-type-epic pp-stroked`), sits at the top and stays
    up for the whole replay; it is not the 900 ms « PARADE PARFAITE » stamp. */

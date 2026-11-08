@@ -317,6 +317,8 @@ export async function boot(): Promise<void> {
   const backdrop = new Scene();
   backdrop.background = new Color(PALETTE.ink);
   let currentLevel: LevelScene | null = null;
+  /** A highlight replay is playing a moment (story 3.9): the replay draws the canvas, not `drawStatic`. */
+  let isReplaying = false;
   /** The debug views' group in the level scene, made on demand (a debug build only asks); null per new scene. */
   let debugGroup: Group | null = null;
   let room: RoomSize | null = null;
@@ -325,9 +327,12 @@ export async function boot(): Promise<void> {
   const pause = createPauseController({ events });
 
   // Outside a level (start, loading) nothing steps and nothing draws on its own: draw the scene
-  // once, and again whenever a resize has cleared the canvas.
+  // once, and again whenever a resize has cleared the canvas. Not under a replay: it draws every frame
+  // through its own camera, and the game camera would show the moment's world for one frame.
   const drawStatic = (): void => {
-    if (appFsm.state !== 'level') renderer.render(currentLevel?.scene ?? backdrop, camera);
+    if (appFsm.state !== 'level' && !isReplaying) {
+      renderer.render(currentLevel?.scene ?? backdrop, camera);
+    }
   };
   // The layer of world-anchored UI (the tap marker): sized like the canvas, or the marker would
   // drift from the tapped point after a resize.
@@ -1872,7 +1877,6 @@ export async function boot(): Promise<void> {
   // The highlight replay (story 3.9). Its director is a second one with the same table and audio: no
   // vibration, no flash, no stamp (the banner is the replay's), and nothing it plays is counted, so the
   // live director's counters and its scene gate are as the live game left them (D7).
-  let isReplaying = false;
   const replayDirector = createFeedbackDirector({
     table: feedbackTable,
     audio,
@@ -2417,7 +2421,10 @@ export async function boot(): Promise<void> {
   });
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'loading') return;
-    // Before the scene and the sim of the old level are released, if the screen did not do it first.
+    // `levelSession.start()` releases the old sim before it enters `loading`, so this runs after that.
+    // The player survives it: a build in flight is stale and frees its own sim, and `drawLive` has no
+    // live world to draw. It covers a `loading` entered while a replay plays; the Result screen's
+    // `dispose()` cancels too.
     highlightReplay.cancel();
     resultScore = null;
     resultEndReason = 'timer';

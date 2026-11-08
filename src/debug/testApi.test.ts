@@ -558,8 +558,14 @@ describe('mamaLines (story 3.8)', () => {
 
 describe('highlights (story 3.9)', () => {
   const MOMENTS = [
-    { t: 12_000, threatId: 4, points: 4, kinds: ['perfect', 'waveLast'], anchorId: 'stairs' },
-    { t: 31_500, threatId: 9, points: 2, kinds: ['nearMiss'], anchorId: null },
+    {
+      t: asSimMs(12_000),
+      threatId: 4,
+      points: 4,
+      kinds: ['perfect', 'waveLast'],
+      anchorId: 'stairs',
+    },
+    { t: asSimMs(31_500), threatId: 9, points: 2, kinds: ['nearMiss'], anchorId: null },
   ] as const;
 
   it('is null before a level is scored, and [] for a game with no moment', () => {

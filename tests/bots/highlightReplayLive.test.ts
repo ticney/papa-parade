@@ -3,7 +3,7 @@ import type { BotId } from '@bots/bot';
 import { botResponsesOf, releaseDefIdsOf, safeSpotOf } from '@bots/botResponses';
 import { botViewOf } from '@bots/botView';
 import { createBot } from '@bots/createBot';
-import { STEP_MS } from '@shared/constants';
+import type { ReplaySettings } from '@content/schemas/feedback';
 import { hashJson } from '@shared/hash';
 import {
   createSim,
@@ -13,7 +13,7 @@ import {
   type SimCommand,
   type SimEvent,
 } from '@sim';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHighlightRecorder, type Highlight } from '../../src/client/endOfLevel/highlights.ts';
 import {
   createMomentSim,
@@ -64,8 +64,16 @@ interface LiveGame {
   readonly source: ReplaySource;
 }
 
-/** Plays one strict game the way the client's session does, then picks the moments. */
-async function playLive(levelId: string, botId: BotId, seed: number): Promise<LiveGame> {
+/**
+ * Plays one strict game the way the client's session does, then picks the moments. Without
+ * `isSnapshotted` the log stays empty: the same game with nothing taken, to show a snapshot is a read.
+ */
+async function playLive(
+  levelId: string,
+  botId: BotId,
+  seed: number,
+  options: { readonly isSnapshotted?: boolean } = {},
+): Promise<LiveGame> {
   const loaded = levels.get(levelId) as SimLevel;
   const { content, geometry, level } = loaded;
   const sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
@@ -95,7 +103,7 @@ async function playLive(levelId: string, botId: BotId, seed: number): Promise<Li
   const out: SimCommand[] = [];
   while (sim.world.time.sim < level.level.durationMs && isFlowLive(sim.world)) {
     // The snapshot first, then the bot (AC 1).
-    snapshots.take(sim);
+    if (options.isSnapshotted !== false) snapshots.take(sim);
     out.length = 0;
     bot.value.act(sim.world, out);
     for (const command of out) sim.enqueue(command);
@@ -158,18 +166,58 @@ async function eventsFromSnapshot(game: LiveGame, snapshotMs: number, untilMs: n
   }
 }
 
-/** The event that makes the moment a moment: its `t`, its threat, and the kind it scored for. */
-function momentEventOf(highlight: Highlight, events: readonly SimEvent[]): SimEvent | undefined {
-  return events.find((event) => {
-    if (event.t !== highlight.t || !('threatId' in event) || event.threatId !== highlight.threatId)
-      return false;
-    if (event.type === 'ResponseResolved') {
-      return highlight.kinds.includes('perfect') || highlight.kinds.includes('waveLast');
+/**
+ * What is missing from the live game for a moment to be what it says it is (empty when all is there).
+ * `span` is what the moment sim replays, `(fromMs, untilMs]`: the moment's own event must be inside it.
+ * `live` is the whole game: a mess is counted over its window, which may reach past the span.
+ */
+function momentProblemsOf(
+  highlight: Highlight,
+  span: readonly SimEvent[],
+  live: readonly SimEvent[],
+  rules: ReplaySettings,
+): string[] {
+  const atMoment = (event: SimEvent): boolean =>
+    event.t === highlight.t && 'threatId' in event && event.threatId === highlight.threatId;
+  const own = span.filter(atMoment);
+  const problems: string[] = [];
+  if (own.length === 0) problems.push('no event of the threat at its t inside the replayed span');
+  const hasGag = own.some((event) => event.type === 'GagTriggered');
+  for (const kind of highlight.kinds) {
+    if (
+      kind === 'perfect' &&
+      !own.some((event) => event.type === 'ResponseResolved' && event.quality === 'perfect')
+    ) {
+      problems.push('perfect: no ResponseResolved of quality perfect');
     }
-    if (event.type === 'GagTriggered') return true;
-    if (event.type === 'NearMiss') return highlight.kinds.includes('nearMiss');
-    return false;
-  });
+    if (kind === 'waveLast' && !own.some((event) => event.type === 'ResponseResolved')) {
+      problems.push('waveLast: no ResponseResolved');
+    }
+    if (kind === 'nearMiss' && !own.some((event) => event.type === 'NearMiss')) {
+      problems.push('nearMiss: no NearMiss');
+    }
+    if (kind === 'messyGag') {
+      if (!hasGag) problems.push('messyGag: no GagTriggered');
+      const props = new Set<string>();
+      for (const event of live) {
+        if (event.t < highlight.t || event.t > highlight.t + rules.messWindowMs) continue;
+        if (event.type === 'PropImpact') {
+          props.add(event.propId);
+          if (event.otherPropId !== null) props.add(event.otherPropId);
+        } else if (event.type === 'PropBroken') {
+          props.add(event.propId);
+        }
+      }
+      if (props.size < rules.messyGagMinProps) {
+        problems.push(
+          `messyGag: ${props.size} props hit in the window, not ${rules.messyGagMinProps}`,
+        );
+      }
+    }
+  }
+  // A cascade moment may score nothing: it is still a gag.
+  if (highlight.kinds.length === 0 && !hasGag) problems.push('a cascade moment without its gag');
+  return problems;
 }
 
 /** Builds each picked moment and checks it against the live game. */
@@ -179,11 +227,11 @@ async function checkMoments(game: LiveGame): Promise<void> {
     const { fromMs, untilMs } = momentWindowOf(highlight, rules, game.endedAt);
     const live = game.steps.flatMap((step) => step.events);
 
-    // (b) the moment's own event is in the span.
+    // (b) the moment's own event, of each kind it scored for, is in the span the moment sim replays.
     expect(
-      momentEventOf(highlight, eventsBetween(game.steps, fromMs - STEP_MS, untilMs)),
-      `seed ${game.seed}: no event for the moment ${JSON.stringify(highlight)}`,
-    ).toBeDefined();
+      momentProblemsOf(highlight, eventsBetween(game.steps, fromMs, untilMs), live, rules),
+      `seed ${game.seed}: the moment ${JSON.stringify(highlight)}`,
+    ).toEqual([]);
     expect(live.length).toBeGreaterThan(0);
 
     // (a) from the snapshot, by hand: (snapshotTime, untilMs]. `hashJson`, not `JSON.stringify`: a
@@ -219,41 +267,83 @@ async function checkMoments(game: LiveGame): Promise<void> {
   }
 }
 
-describe('the highlight replay, played live by bots (story 3.9, AC 17)', () => {
-  const games: LiveGame[] = [];
+/** The games of AC 17, played once each however many tests read them (or in whatever order). */
+const played = new Map<string, Promise<LiveGame>>();
+const playOnce = (levelId: string, botId: BotId, seed: number): Promise<LiveGame> => {
+  const key = `${levelId}/${botId}/${seed}`;
+  let game = played.get(key);
+  if (game === undefined) {
+    game = playLive(levelId, botId, seed);
+    played.set(key, game);
+  }
+  return game;
+};
 
-  for (const levelId of LEVELS) {
-    for (const botId of BOTS) {
-      for (const seed of SEEDS) {
-        it(
-          `${levelId}, ${botId} bot, seed ${seed}: every moment replays as it was lived`,
-          async () => {
-            const game = await playLive(levelId, botId, seed);
-            try {
-              const rules = game.loaded.content.feedback.replay;
-              // (c) the moments are spaced and in time order.
-              for (let index = 1; index < game.highlights.length; index++) {
-                const previous = game.highlights[index - 1] as Highlight;
-                const next = game.highlights[index] as Highlight;
-                expect(next.t - previous.t).toBeGreaterThanOrEqual(rules.minSpacingMs);
-              }
-              expect(game.highlights.length).toBeLessThanOrEqual(rules.momentCount);
-              await checkMoments(game);
-              games.push({ ...game });
-            } finally {
-              game.sim.dispose();
-            }
-          },
-          TIMEOUT_MS,
-        );
-      }
-    }
+afterAll(async () => {
+  for (const pending of played.values()) (await pending.catch(() => null))?.sim.dispose();
+});
+
+describe('the highlight replay, played live by bots (story 3.9, AC 17)', () => {
+  const cases = LEVELS.flatMap((levelId) =>
+    BOTS.flatMap((botId) => SEEDS.map((seed) => ({ levelId, botId, seed }))),
+  );
+
+  for (const { levelId, botId, seed } of cases) {
+    it(
+      `${levelId}, ${botId} bot, seed ${seed}: every moment replays as it was lived`,
+      async () => {
+        const game = await playOnce(levelId, botId, seed);
+        const rules = game.loaded.content.feedback.replay;
+        // The moments are spaced and in time order.
+        for (let index = 1; index < game.highlights.length; index++) {
+          const previous = game.highlights[index - 1] as Highlight;
+          const next = game.highlights[index] as Highlight;
+          expect(next.t - previous.t).toBeGreaterThanOrEqual(rules.minSpacingMs);
+        }
+        expect(game.highlights.length).toBeLessThanOrEqual(rules.momentCount);
+        await checkMoments(game);
+      },
+      TIMEOUT_MS,
+    );
   }
 
-  it('(c) at least one game has three moments', () => {
-    const counts = games.map((game) => game.highlights.length);
-    expect(Math.max(...counts), `moments per game: ${counts.join(', ')}`).toBe(3);
-  });
+  // Reads the same games, so it holds alone (`-t`) as in a full run.
+  it(
+    '(c) at least one game has three moments',
+    async () => {
+      const games = await Promise.all(
+        cases.map(({ levelId, botId, seed }) => playOnce(levelId, botId, seed)),
+      );
+      const counts = games.map((game) => game.highlights.length);
+      expect(Math.max(...counts), `moments per game: ${counts.join(', ')}`).toBe(3);
+    },
+    TIMEOUT_MS,
+  );
+});
+
+describe('taking snapshots is a read (story 3.9, AC 2)', () => {
+  it(
+    'the same game with and without the snapshot log has the same events, journal and world',
+    async () => {
+      const withLog = await playLive('salon_crawler', 'human', 1);
+      const withoutLog = await playLive('salon_crawler', 'human', 1, { isSnapshotted: false });
+      try {
+        // The log really was filled in one and left empty in the other.
+        expect(withLog.snapshots.latestAtOrBefore(0)).not.toBeNull();
+        expect(withoutLog.snapshots.latestAtOrBefore(Number.MAX_SAFE_INTEGER)).toBeNull();
+        expect(withLog.steps.length).toBeGreaterThan(1000);
+        expect(hashJson(withLog.steps)).toBe(hashJson(withoutLog.steps));
+        expect(hashJson(withLog.sim.journal())).toBe(hashJson(withoutLog.sim.journal()));
+        expect(hashJson(withLog.sim.snapshot().world)).toBe(
+          hashJson(withoutLog.sim.snapshot().world),
+        );
+      } finally {
+        withLog.sim.dispose();
+        withoutLog.sim.dispose();
+      }
+    },
+    TIMEOUT_MS,
+  );
 });
 
 describe('a mamaHome game replays the cascade (story 3.9, AC 7 and 17d)', () => {

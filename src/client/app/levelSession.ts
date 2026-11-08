@@ -314,6 +314,8 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   const snapshots = createSnapshotLog();
   let replayBase: Omit<ReplaySource, 'journal' | 'snapshots' | 'endedAt'> | null = null;
   let endedAt: number | null = null;
+  // Set when a snapshot threw: the game goes on without taking more (the replay is optional).
+  let isSnapshotLogBroken = false;
 
   const stopLoop = (): void => {
     loop?.stop();
@@ -331,6 +333,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     snapshots.clear();
     replayBase = null;
     endedAt = null;
+    isSnapshotLogBroken = false;
   };
 
   return {
@@ -491,6 +494,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         liveSim = sim;
         snapshots.clear();
         endedAt = null;
+        isSnapshotLogBroken = false;
         replayBase = { content, geometry: levelAssets.geometry, level: levelPlan, seed };
         if (tweaks !== null) {
           try {
@@ -594,7 +598,20 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           speed: deps.speed,
           // The snapshot first, then the bot: the state at `T` has no command of the step after `T`.
           beforeStep: (stepped) => {
-            snapshots.take(stepped);
+            if (!isSnapshotLogBroken) {
+              try {
+                snapshots.take(stepped);
+              } catch (cause) {
+                // The replay is an extra: a snapshot that cannot be taken must not stop the game. It
+                // goes on without more snapshots, and the replay restores from the last good one.
+                isSnapshotLogBroken = true;
+                log.warn('boot', 'cannot snapshot the sim: the replay will use the earlier ones', {
+                  id: levelId,
+                  atMs: stepped.world.time.sim,
+                  cause,
+                });
+              }
+            }
             deps.beforeStep?.(stepped);
           },
         });

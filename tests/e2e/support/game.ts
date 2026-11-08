@@ -520,9 +520,11 @@ export function settleAnimations(page: Page): Promise<unknown> {
  * Every warning of the audio engine (`[audio]`: unlock, resume, a clip, a loop, a one-shot, a
  * preload that gave up...) and of the feedback director (`[feedback]`) is here: the console sink
  * prints the channel in brackets, and a sound that silently fails to play fails every spec.
+ * So is a moment of the highlight replay that could not be built, framed, played or drawn
+ * (`[render] … replay`, story 3.9): the replay skips it and goes on, so only the warning tells.
  */
 export const OWN_WARNINGS =
-  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|\[(?:audio|feedback)\] /;
+  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|\[(?:audio|feedback)\] |\[render\] [^\n]*replay/;
 
 /**
  * Collects what must fail a session: console errors, page errors, and the app's own warnings about

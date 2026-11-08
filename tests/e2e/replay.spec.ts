@@ -68,6 +68,16 @@ const waitForPhase = (page: Page, phase: string | RegExp, timeoutMs = SEQUENCE_T
 /** Presses Space once, as a player skipping (the Result screen's input grace is over by the replay). */
 const press = (page: Page) => page.keyboard.press('Space');
 
+/** The banner is wholly inside the screen, whatever the phone. */
+async function expectBannerInside(page: Page): Promise<void> {
+  const box = await page.locator(BANNER).boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect((box?.x ?? -1) >= 0 && (box?.y ?? -1) >= 0).toBe(true);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(viewport?.height ?? 0);
+}
+
 test.describe('the highlight replay', () => {
   test('a game with moments goes photo, mama, rows, stars, replay, actions, and walks its moments in order', async ({
     page,
@@ -114,13 +124,7 @@ test.describe('the highlight replay', () => {
       'background-color',
       'rgba(0, 0, 0, 0)',
     );
-    // Inside the frame, whatever the phone.
-    const box = await banner.boundingBox();
-    const viewport = page.viewportSize();
-    expect(box).not.toBeNull();
-    expect((box?.x ?? -1) >= 0 && (box?.y ?? -1) >= 0).toBe(true);
-    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0);
-    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(viewport?.height ?? 0);
+    await expectBannerInside(page);
     // Still there for the whole replay, gone once the buttons are up.
     await press(page);
     await expect(banner).toBeVisible();
@@ -130,9 +134,26 @@ test.describe('the highlight replay', () => {
     await expect(page.locator(PANEL)).toBeVisible();
   });
 
+  // The three phones of the UX spec (DESIGN.md): 844 × 390, 667 × 375 and 750 × 340.
+  for (const viewport of [
+    { width: 844, height: 390 },
+    { width: 667, height: 375 },
+    { width: 750, height: 340 },
+  ]) {
+    test(`the banner fits at ${viewport.width} × ${viewport.height}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openEnd(page);
+      await waitForPhase(page, 'replay');
+      await expect(page.locator(BANNER)).toBeVisible();
+      await expectBannerInside(page);
+    });
+  }
+
   test('one press moves to the next moment, a second goes to the buttons without pressing « Rejouer »', async ({
     page,
   }) => {
+    // A moment that cannot be built or drawn is skipped with a warning: it must not pass unseen.
+    const problems = collectProblems(page);
     await openEnd(page);
     await momentsOf(page, 2);
     await waitForPhase(page, 'replay');
@@ -149,6 +170,7 @@ test.describe('the highlight replay', () => {
     await page.waitForTimeout(liveFeedback.resultScreen.inputGraceMs + GRACE_MARGIN_MS);
     await expect(html(page)).toHaveAttribute('data-pp-app', appBefore ?? 'result');
     await expect(html(page)).toHaveAttribute('data-pp-result', 'actions');
+    expect(problems).toEqual([]);
   });
 
   test('a press before the replay goes straight to the buttons, with no replay phase', async ({
@@ -221,6 +243,26 @@ test.describe('the highlight replay', () => {
     // The rebuilt screen reuses the pick: no second one.
     expect(await ppHighlights(page)).toEqual(moments);
     await expect(page.locator('#pp-hud')).toBeHidden();
+  });
+
+  test('a level started during the replay cancels it: no banner, no moment, no pick left, no error', async ({
+    page,
+  }) => {
+    const problems = collectProblems(page);
+    await openEnd(page);
+    await momentsOf(page, 2);
+    await waitForPhase(page, 'replay');
+    await expect(html(page)).toHaveAttribute('data-pp-replay-moment', '0');
+    // `loading` is entered while a moment is playing (the live sim is already released by then).
+    await ppLoadLevel(page, LEVEL, SEED);
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
+    await expect(html(page)).not.toHaveAttribute('data-pp-replay-moment', /.*/);
+    await expect(html(page)).not.toHaveAttribute('data-pp-result', /.*/);
+    await expect(page.locator(BANNER)).toBeHidden();
+    expect(await ppHighlights(page)).toBeNull();
+    // Let a build or a frame of the cancelled replay come late, if any is going to.
+    await page.waitForTimeout(500);
+    expect(problems).toEqual([]);
   });
 
   test('« Rejouer » after a replay starts a new game with no replay left over', async ({

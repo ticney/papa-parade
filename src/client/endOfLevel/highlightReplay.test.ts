@@ -20,7 +20,7 @@ const RULES = { ...createTestFeedback().replay, endHoldMs: 300 };
 const ROOM = { widthM: 9.1, depthM: 6.2, heightM: 2.5, centerXM: 0.35, centerZM: -0.1 };
 
 const highlightAt = (t: number, anchorId: string | null = null): Highlight => ({
-  t,
+  t: asSimMs(t),
   threatId: t,
   points: 3,
   kinds: ['perfect'],
@@ -73,11 +73,36 @@ function fakeMoment(
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+/** The warns logged while `body` runs (the suite logs errors only, so the level is raised for it). */
+async function warnsDuring(body: () => void | Promise<void>): Promise<string[]> {
+  log.setLevel('warn');
+  const before = log.buffer().length;
+  try {
+    await body();
+    await flush();
+  } finally {
+    log.setLevel('error');
+  }
+  return log
+    .buffer()
+    .slice(before)
+    .filter((entry) => entry.level === 'warn')
+    .map((entry) => entry.message);
+}
+
 function setup(
   options: {
     moments?: (FakeMoment | 'fail')[];
     anchors?: { id: string; positionM: number[] }[];
     hasLevel?: boolean;
+    /** Runs when the live world is redrawn (the end of a replay, a skip, a cancel). */
+    drawLive?: () => void;
+    /** Runs when a frame updates the scene on a moment world (it may throw). */
+    update?: (simMs: number) => void;
+    /** Runs when the director handles an event (it may throw). */
+    handle?: (name: string) => void;
+    speed?: number;
+    aspect?: () => number;
   } = {},
 ) {
   const scheduler = createFakeScheduler();
@@ -96,8 +121,10 @@ function setup(
     fx: {
       playCharacterEvent: (event: SimEvent) => characterEvents.push(event.type),
     },
-    update: (world: { time: { sim: number } }, _alpha: number, atReal: number) =>
-      updates.push({ atReal, simMs: world.time.sim }),
+    update: (world: { time: { sim: number } }, _alpha: number, atReal: number) => {
+      updates.push({ atReal, simMs: world.time.sim });
+      options.update?.(world.time.sim);
+    },
     resetFx: () => calls.push('resetFx'),
   } as unknown as LevelScene;
   const replayCamera = createIsoCamera();
@@ -112,16 +139,21 @@ function setup(
       },
     },
     replayCamera,
-    getAspect: () => 2,
+    getAspect: options.aspect ?? (() => 2),
     director: {
       handle: (name) => {
         handled.push(name);
+        options.handle?.(name);
       },
       playCue: () => {},
     },
     isMotionReduced: () => false,
-    drawLive: () => calls.push('drawLive'),
+    drawLive: () => {
+      calls.push('drawLive');
+      options.drawLive?.();
+    },
     scheduler,
+    speed: options.speed,
     createMomentSim: async (_source, highlight) => {
       built.push(highlight);
       const next = moments.shift();
@@ -203,6 +235,20 @@ describe('createHighlightReplay', () => {
     expect(moment.stats.steps).toBe(10);
   });
 
+  it('draws every frame of a moment through the replay camera, on the moment world', async () => {
+    const { play, scheduler, renders, replayCamera, updates } = setup({
+      moments: [fakeMoment(0, 100)],
+    });
+    play([highlightAt(2000)]);
+    await flush();
+    playToEnd(scheduler);
+    expect(renders.length).toBeGreaterThan(0);
+    expect(renders.every((camera) => camera === replayCamera)).toBe(true);
+    // The world it drew is the moment sim's (it started at 0 and ended at untilMs).
+    expect(updates.map((update) => update.simMs).at(-1)).toBe(100);
+    expect(updates.length).toBe(renders.length);
+  });
+
   it('keeps drawing the last frame during the hold', async () => {
     const moment = fakeMoment(0, 100);
     const { play, scheduler, updates } = setup({ moments: [moment] });
@@ -249,6 +295,31 @@ describe('createHighlightReplay', () => {
     const expected = createIsoCamera();
     fitFollowCamera(expected, ROOM, RULES.camera, 1.5, -0.5, 2);
     expect(replayCamera.position.toArray()).toEqual(expected.position.toArray());
+  });
+
+  it('refits the frame when the canvas aspect changes during a moment', async () => {
+    let aspect = 2;
+    const { play, scheduler, replayCamera } = setup({
+      moments: [fakeMoment(0, 100)],
+      anchors: [{ id: 'stairs', positionM: [3.2, 0, -1.4] }],
+      aspect: () => aspect,
+    });
+    play([highlightAt(2000, 'stairs')]);
+    await flush();
+    scheduler.tick(0);
+    const edgesOf = (camera: ReturnType<typeof createIsoCamera>) => [
+      camera.left,
+      camera.right,
+      camera.top,
+      camera.bottom,
+    ];
+    const before = edgesOf(replayCamera);
+    aspect = 1.5;
+    scheduler.tick(50);
+    const expected = createIsoCamera();
+    fitFollowCamera(expected, ROOM, RULES.camera, 3.2, -1.4, 1.5);
+    expect(edgesOf(replayCamera)).toEqual(edgesOf(expected));
+    expect(edgesOf(replayCamera)).not.toEqual(before);
   });
 
   it('does not route the end bookkeeping events, and routes the others', async () => {
@@ -389,6 +460,132 @@ describe('createHighlightReplay', () => {
       await flush();
       expect(moment.stats.disposed).toBe(1);
       expect(onDone).toEqual([]);
+    });
+  });
+
+  describe('when something goes wrong, the replay never leaves the screen waiting', () => {
+    it('skipAll calls onDone even when the live scene cannot be put back', async () => {
+      const moment = fakeMoment(0, 100);
+      let isBroken = false;
+      const { play, replay, onDone, onMomentTrace } = setup({
+        moments: [moment],
+        drawLive: () => {
+          if (isBroken) throw new Error('webgl context lost');
+        },
+      });
+      play([highlightAt(2000)]);
+      await flush();
+      isBroken = true;
+      const warns = await warnsDuring(() => replay.skipAll());
+      expect(onDone).toEqual(['done']);
+      expect(onMomentTrace.at(-1)).toBeNull();
+      expect(replay.isPlaying).toBe(false);
+      expect(moment.stats.disposed).toBe(1);
+      expect(warns).toEqual(['cannot put the live scene back after the replay']);
+    });
+
+    it('the end of the last moment calls onDone even when the live scene cannot be put back', async () => {
+      const moment = fakeMoment(0, 100);
+      let isBroken = false;
+      const { play, scheduler, onDone } = setup({
+        moments: [moment],
+        drawLive: () => {
+          if (isBroken) throw new Error('webgl context lost');
+        },
+      });
+      play([highlightAt(2000)]);
+      await flush();
+      isBroken = true;
+      const nowMs = playToEnd(scheduler);
+      scheduler.tick(nowMs + 400);
+      expect(onDone).toEqual(['done']);
+      expect(moment.stats.disposed).toBe(1);
+    });
+
+    it('cancel does not throw when the live scene cannot be put back, and still clears the moment', async () => {
+      const moment = fakeMoment(0, 100);
+      const { play, replay, onDone, onMomentTrace } = setup({
+        moments: [moment],
+        drawLive: () => {
+          throw new Error('webgl context lost');
+        },
+      });
+      play([highlightAt(2000)]);
+      await flush();
+      const warns = await warnsDuring(() => replay.cancel());
+      expect(onDone).toEqual([]);
+      expect(onMomentTrace.at(-1)).toBeNull();
+      expect(replay.isPlaying).toBe(false);
+      expect(moment.stats.disposed).toBe(1);
+      expect(warns).toEqual(['cannot put the live scene back after the replay']);
+    });
+
+    it('a moment whose loop cannot be created is skipped and its sim freed, then the replay ends', async () => {
+      const first = fakeMoment(0, 100);
+      const second = fakeMoment(0, 100);
+      // A loop speed of 0 breaks `createGameLoop`'s own check: a throw after the sim was handed over.
+      const { play, onDone, onMomentTrace, replay } = setup({ moments: [first, second], speed: 0 });
+      const warns = await warnsDuring(async () => {
+        play([highlightAt(2000), highlightAt(9000)]);
+        await flush();
+        await flush();
+      });
+      expect(first.stats.disposed).toBe(1);
+      expect(second.stats.disposed).toBe(1);
+      expect(onMomentTrace).toEqual([0, 1, null]);
+      expect(onDone).toEqual(['done']);
+      expect(replay.isPlaying).toBe(false);
+      expect(warns).toEqual([
+        'cannot play a moment of the replay: it is skipped',
+        'cannot play a moment of the replay: it is skipped',
+      ]);
+    });
+
+    it('a frame that cannot be drawn cuts the moment and the next one plays', async () => {
+      const first = fakeMoment(0, 100);
+      const second = fakeMoment(0, 100);
+      let isBroken = true;
+      const { play, scheduler, onMomentTrace, onDone } = setup({
+        moments: [first, second],
+        update: () => {
+          if (isBroken) throw new Error('bad view');
+        },
+      });
+      play([highlightAt(2000), highlightAt(9000)]);
+      await flush();
+      const warns = await warnsDuring(() => scheduler.tick(0));
+      expect(warns).toEqual(['cannot draw a moment of the replay: it is cut']);
+      expect(first.stats.disposed).toBe(1);
+      // `warnsDuring` let the next moment build: it is on, with its own frame pending.
+      expect(onMomentTrace).toEqual([0, 1]);
+      expect(scheduler.pending).toBe(true);
+      isBroken = false;
+      const nowMs = playToEnd(scheduler, 1000);
+      scheduler.tick(nowMs + 400);
+      expect(second.stats.disposed).toBe(1);
+      expect(onDone).toEqual(['done']);
+    });
+
+    it('a feedback that throws does not stop the moment', async () => {
+      const t = asSimMs(30);
+      const moment = fakeMoment(0, 100, [{ type: 'PapaBlocked', t } as unknown as SimEvent]);
+      const { play, scheduler, handled, onDone } = setup({
+        moments: [moment],
+        handle: () => {
+          throw new Error('audio context closed');
+        },
+      });
+      play([highlightAt(2000)]);
+      await flush();
+      const warns = await warnsDuring(() => {
+        const nowMs = playToEnd(scheduler);
+        scheduler.tick(nowMs + 400);
+      });
+      expect(handled).toEqual(['PapaBlocked']);
+      expect(warns).toEqual(['a feedback of the replay failed']);
+      expect(moment.sim.world.time.sim).toBe(100);
+      expect(moment.stats.disposed).toBe(1);
+      expect(onDone).toEqual(['done']);
     });
   });
 

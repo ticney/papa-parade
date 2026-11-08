@@ -900,14 +900,14 @@
       "properties": {
         "preRollMs": {
           "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Sim ms played before the moment itself, so the build-up is seen (story 3.9)."
+          "minimum": 10,
+          "maximum": 10000,
+          "description": "Sim ms played before the moment itself, so the build-up is seen (story 3.9). At least one step: the moment’s event is emitted by the step that ends at its `t`, so with less the replay would start after it."
         },
         "postRollMs": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991,
+          "maximum": 10000,
           "description": "Sim ms played after the moment, so its consequence is seen."
         },
         "minSpacingMs": {
@@ -995,13 +995,13 @@
         "delayMs": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991,
+          "maximum": 5000,
           "description": "Real ms between the last star and the first replayed moment."
         },
         "endHoldMs": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991,
+          "maximum": 5000,
           "description": "Real ms the last frame of a moment stays up, before the next one or the buttons."
         }
       },

@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-11-07
+# last_updated: 2026-11-08
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -43,7 +43,7 @@
 #   se livrent après 3.6, puis un playtest, puis l'epic 9, puis 3.7 à 3.11. Les clés 2-x restent rattachées à epic-2.
 
 generated: 2026-10-26
-last_updated: 2026-11-07
+last_updated: 2026-11-08
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -141,7 +141,7 @@ development_status:
   # Epic 3 [V1] (fin) — après l'epic 9.
   3-7-reactions-de-maman-et-degaine-de-papa: done
   3-8-memoire-de-maman: done
-  3-9-replay-des-meilleurs-moments: review
+  3-9-replay-des-meilleurs-moments: done
   3-10-variante-retour: backlog
   3-11-reussite-deblocage-par-etoiles-et-frigo: backlog
   epic-3-retrospective: optional

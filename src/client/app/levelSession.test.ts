@@ -22,7 +22,8 @@ import {
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
-import type { ReplaySource } from '../endOfLevel/momentSim.ts';
+import type { Highlight } from '../endOfLevel/highlights.ts';
+import { createMomentSim, type ReplaySource } from '../endOfLevel/momentSim.ts';
 import type { LevelCameraSetup } from '../render/followRig.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
 import type { LevelFx, LevelScene } from '../render/levelScene.ts';
@@ -1875,5 +1876,78 @@ describe('createLevelSession › the snapshots of the highlight replay (story 3.
     const ended = events.find((event) => event.type === 'LevelEnded');
     expect(ended).toBeDefined();
     expect(session.replaySource?.endedAt).toBe(ended?.t);
+  });
+
+  it('goes on without snapshots when one cannot be taken, and warns once', async () => {
+    let attempts = 0;
+    const { session } = setup({
+      createSim: async (options) => {
+        const real = await createSim(options);
+        return new Proxy(real, {
+          get(target, key) {
+            if (key === 'snapshot') {
+              return () => {
+                attempts++;
+                // The first (at 0) works; the one at 5000 does not.
+                if (attempts > 1) throw new Error('out of memory');
+                return target.snapshot();
+              };
+            }
+            return Reflect.get(target, key, target);
+          },
+        });
+      },
+    });
+    await session.start();
+    log.setLevel('warn');
+    const before = log.buffer().length;
+    // 1101 steps: the hook has run at 0, 10, … 11 000, so at 5000 and 10 000.
+    expect(() => session.advance(1101)).not.toThrow();
+    log.setLevel('error');
+    const warned = log
+      .buffer()
+      .slice(before)
+      .filter((entry) => entry.level === 'warn' && /cannot snapshot the sim/.test(entry.message));
+    expect(warned).toHaveLength(1);
+    // The game went on to the end of the advance, and tried no more after the first failure.
+    expect(session.active?.sim.world.time.sim).toBe(11_010);
+    expect(attempts).toBe(2);
+    // The replay restores from the last good snapshot.
+    expect(snapshotMsOf(session.replaySource, 99_000)).toBe(0);
+  });
+
+  // The Trap « The replay content is simFeel's bundle »: remembered tweaks are laid over the level's feel
+  // as a `SetFeel` at t = 0, which is not in the snapshot at 0 but in the journal's tail. A moment sim
+  // restored from the session's source must come back with them, from the snapshot at 0 as from a later one.
+  it.each([
+    { label: 'from the snapshot at 0', atMs: 1500 },
+    { label: 'from the snapshot at 5000', atMs: 6500 },
+  ])('restores a moment sim that keeps the remembered tweaks ($label)', async ({ atMs }) => {
+    const content = createTestContent();
+    const { session } = setup({ content });
+    const tuned = structuredClone(content.feel);
+    tuned.timing.windowMs += 40;
+    await session.start({ feel: tuned });
+    session.advance(700);
+    const source = session.replaySource as ReplaySource;
+    const highlight: Highlight = {
+      t: asSimMs(atMs),
+      threatId: 1,
+      points: 3,
+      kinds: ['perfect'],
+      anchorId: null,
+    };
+    const built = await createMomentSim(source, highlight, { preRollMs: 1000, postRollMs: 500 });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    try {
+      expect(built.value.fromMs).toBe(atMs - 1000);
+      expect(built.value.sim.world.time.sim).toBe(atMs - 1000);
+      const liveWindowMs = session.active?.sim.world.feel.timing.windowMs;
+      expect(liveWindowMs).toBe(content.feel.timing.windowMs + 40);
+      expect(built.value.sim.world.feel.timing.windowMs).toBe(liveWindowMs);
+    } finally {
+      built.value.sim.dispose();
+    }
   });
 });

@@ -194,6 +194,7 @@ test.describe('Mama’s reactions', () => {
     expect(shots[0]).toMatchObject({ text: spokenOf(only?.text ?? ''), chip: null });
     expect(shots[0]?.bubbleClass).toContain('pp-mum-bubble--laugh');
     expect(shots[0]?.phase).toBe('mama');
+    // `timer` is opened with `THREATS_OFF`: no moment to replay, so no `replay` phase (story 3.9).
     expect((await mirrorWrites(page)).map(({ value }) => value)).toEqual([
       'photo',
       'mama',

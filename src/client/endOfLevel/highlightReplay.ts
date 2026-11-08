@@ -32,7 +32,7 @@ export interface HighlightReplayDeps {
   readonly renderer: { render(scene: Scene, camera: OrthographicCamera): void };
   /** The replay's own camera (beside the photo's): the game camera is never touched. */
   readonly replayCamera: OrthographicCamera;
-  /** The canvas aspect (width over height), for the frame fit. */
+  /** The canvas aspect (width over height), for the frame fit. Read each frame: a resize refits the frame. */
   getAspect(): number;
   /** The second director (no haptics, no flash, no stamp, no count): the live one is not disturbed. */
   readonly director: FeedbackDirector;
@@ -57,7 +57,8 @@ export interface HighlightReplay {
   readonly isPlaying: boolean;
   /**
    * Plays the moments in order, each in its own sim. `onDone` is called once, when the last moment
-   * ends or after `skipAll`; never after `cancel`. A replay under way is cancelled first.
+   * ends or after `skipAll`, even if putting the scene back failed (that is logged); never after
+   * `cancel`. A replay under way is cancelled first.
    */
   play(
     highlights: readonly Highlight[],
@@ -98,6 +99,10 @@ interface ActiveMoment {
  * game's own `createGameLoop` with a time map and a pause controller of its own (so the perfect's
  * slow-mo and the hitstops play as in the game, and the live loop is never touched), drawn through
  * a tight camera. The caller (`Result` screen) decides when it plays and when it is skipped.
+ *
+ * It is an optional end-of-level feature: nothing it does may leave the Result screen waiting. A
+ * moment that cannot be built, framed, played or drawn is logged and skipped, and `onDone` is called
+ * whatever happens when putting the scene back.
  */
 export function createHighlightReplay(deps: HighlightReplayDeps): HighlightReplay {
   const scheduler = deps.scheduler ?? rafScheduler;
@@ -107,19 +112,32 @@ export function createHighlightReplay(deps: HighlightReplayDeps): HighlightRepla
   /** Bumped by everything that makes a pending build or frame stale: a skip, a cancel, a new play. */
   let token = 0;
 
+  /** Stops what runs the moment and frees its sim. Never throws: each step is tried on its own. */
   const disposeMoment = (): void => {
     if (moment === null) return;
     const finished = moment;
     moment = null;
-    finished.loop?.stop();
-    if (finished.holdHandle !== null) scheduler.cancel(finished.holdHandle);
-    finished.built.sim.dispose();
+    try {
+      finished.loop?.stop();
+      if (finished.holdHandle !== null) scheduler.cancel(finished.holdHandle);
+    } catch (cause) {
+      log.warn('render', 'cannot stop a moment of the replay', cause);
+    }
+    try {
+      finished.built.sim.dispose();
+    } catch (cause) {
+      log.warn('render', 'cannot dispose the sim of a moment of the replay', cause);
+    }
   };
 
-  /** The scene back to the end of the live game: no effect of the replay is left on it. */
+  /** The scene back to the end of the live game: no effect of the replay is left on it. Never throws. */
   const restoreLive = (): void => {
-    deps.getLevel()?.resetFx();
-    deps.drawLive();
+    try {
+      deps.getLevel()?.resetFx();
+      deps.drawLive();
+    } catch (cause) {
+      log.warn('render', 'cannot put the live scene back after the replay', cause);
+    }
   };
 
   const finish = (): void => {
@@ -127,10 +145,14 @@ export function createHighlightReplay(deps: HighlightReplayDeps): HighlightRepla
     if (current === null) return;
     run = null;
     token++;
-    disposeMoment();
-    restoreLive();
-    deps.onMoment?.(null);
-    current.onDone();
+    try {
+      disposeMoment();
+      restoreLive();
+      deps.onMoment?.(null);
+    } finally {
+      // The screen waits for this: it comes whatever the clean-up did.
+      current.onDone();
+    }
   };
 
   const startMoment = (index: number): void => {
@@ -151,57 +173,85 @@ export function createHighlightReplay(deps: HighlightReplayDeps): HighlightRepla
         return;
       }
       // A failed build has logged its warn: the moment is skipped.
-      if (built === null) startMoment(index + 1);
-      else playMoment(current, built, mine);
+      if (built === null) {
+        startMoment(index + 1);
+        return;
+      }
+      try {
+        playMoment(current, built, mine);
+      } catch (cause) {
+        log.warn('render', 'cannot play a moment of the replay: it is skipped', cause);
+        if (moment !== null && moment.built === built) disposeMoment();
+        if (mine === token) startMoment(index + 1);
+      }
     };
-    makeMomentSim(current.source, highlight, current.rules).then(
-      (result) => onBuilt(result.ok ? result.value : null),
-      (cause: unknown) => {
-        log.warn('render', 'cannot build a moment of the replay', cause);
-        onBuilt(null);
-      },
-    );
+    makeMomentSim(current.source, highlight, current.rules)
+      .then(
+        (result) => (result.ok ? result.value : null),
+        (cause: unknown) => {
+          log.warn('render', 'cannot build a moment of the replay', cause);
+          return null;
+        },
+      )
+      .then(onBuilt)
+      .catch((cause: unknown) => {
+        // The last net: `onBuilt` has its own, so this is a failure of the recovery itself.
+        log.warn('render', 'the replay lost track of a moment', cause);
+      });
   };
 
   const playMoment = (current: Run, built: MomentSim, mine: number): void => {
+    // Tracked first: from here on every way out frees the sim through `disposeMoment`.
+    const active: ActiveMoment = { built, loop: null, holdHandle: null };
+    moment = active;
     const level = deps.getLevel();
     if (level === null) {
-      built.sim.dispose();
+      disposeMoment();
       log.warn('render', 'no level scene to replay a moment on');
       finish();
       return;
     }
     const { sim } = built;
     const highlight = current.highlights[current.index] as Highlight;
+    // The focus: the threat's anchor, else Papa (a threat on Papa: the micro-sleep, the duel). The
+    // frame is placed here and again whenever the canvas aspect changed (a resize, a mobile URL bar).
+    let focusXM = 0;
+    let focusZM = 0;
+    let fittedAspect = Number.NaN;
+    const placeFrame = (): void => {
+      const aspect = deps.getAspect();
+      fitFollowCamera(
+        deps.replayCamera,
+        level.room,
+        current.rules.camera,
+        focusXM,
+        focusZM,
+        aspect,
+      );
+      fittedAspect = aspect;
+    };
     try {
       level.resetFx();
-      // The focus: the threat's anchor, else Papa (a threat on Papa: the micro-sleep, the duel).
       const [anchorXM, , anchorZM] =
         (highlight.anchorId === null
           ? undefined
           : current.source.geometry.anchors.find((anchor) => anchor.id === highlight.anchorId)
               ?.positionM) ?? [];
-      fitFollowCamera(
-        deps.replayCamera,
-        level.room,
-        current.rules.camera,
-        anchorXM ?? sim.world.papa.xM,
-        anchorZM ?? sim.world.papa.zM,
-        deps.getAspect(),
-      );
+      focusXM = anchorXM ?? sim.world.papa.xM;
+      focusZM = anchorZM ?? sim.world.papa.zM;
+      placeFrame();
     } catch (cause) {
-      sim.dispose();
+      disposeMoment();
       log.warn('render', 'cannot frame a moment of the replay', cause);
       startMoment(current.index + 1);
       return;
     }
 
-    const active: ActiveMoment = { built, loop: null, holdHandle: null };
-    moment = active;
     let hasReachedEnd = false;
     let holdStartedAtReal: number | null = null;
 
     const draw = (alpha: number, atReal: number): void => {
+      if (deps.getAspect() !== fittedAspect) placeFrame();
       level.update(sim.world, alpha, asRealMs(atReal));
       deps.renderer.render(level.scene, deps.replayCamera);
     };
@@ -212,7 +262,13 @@ export function createHighlightReplay(deps: HighlightReplayDeps): HighlightRepla
     const holdFrame = (atReal: number): void => {
       if (mine !== token) return;
       active.holdHandle = null;
-      draw(1, atReal);
+      try {
+        draw(1, atReal);
+      } catch (cause) {
+        log.warn('render', 'cannot draw the end of a moment of the replay: it is cut', cause);
+        endMoment();
+        return;
+      }
       if (atReal - (holdStartedAtReal ?? atReal) >= current.rules.endHoldMs) endMoment();
       else active.holdHandle = scheduler.request(holdFrame);
     };
@@ -232,11 +288,23 @@ export function createHighlightReplay(deps: HighlightReplayDeps): HighlightRepla
       },
       onSimEvent: (event) => {
         if (UNROUTED_EVENT_TYPES.has(event.type)) return;
-        playSimEventFeedback(event, { sim, level: current.source.level }, deps.director);
-        level.fx.playCharacterEvent(event, sim.world, deps.isMotionReduced());
+        try {
+          playSimEventFeedback(event, { sim, level: current.source.level }, deps.director);
+          level.fx.playCharacterEvent(event, sim.world, deps.isMotionReduced());
+        } catch (cause) {
+          // A sound or a puff that fails does not stop the moment.
+          log.warn('render', 'a feedback of the replay failed', { type: event.type, cause });
+        }
       },
       render: (alpha, atReal) => {
-        draw(alpha, atReal);
+        try {
+          draw(alpha, atReal);
+        } catch (cause) {
+          // The same error would come back every frame: the moment is cut, the next one starts.
+          log.warn('render', 'cannot draw a moment of the replay: it is cut', cause);
+          endMoment();
+          return;
+        }
         if (!hasReachedEnd || holdStartedAtReal !== null) return;
         holdStartedAtReal = atReal;
         if (current.rules.endHoldMs <= 0) endMoment();

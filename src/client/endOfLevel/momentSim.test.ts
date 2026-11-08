@@ -22,7 +22,7 @@ beforeAll(() => {
 });
 
 const highlightAt = (t: number): Highlight => ({
-  t,
+  t: asSimMs(t),
   threatId: 7,
   points: 3,
   kinds: ['perfect'],

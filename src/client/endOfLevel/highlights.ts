@@ -1,4 +1,5 @@
 import type { ReplaySettings } from '@content/schemas/feedback';
+import type { SimMs } from '@shared/time';
 import type { LevelEndReason, SimEvent } from '@sim';
 
 /** The ways a moment of play scores (`feedback.json › replay › points`). */
@@ -10,7 +11,7 @@ export type HighlightKind = 'perfect' | 'messyGag' | 'nearMiss' | 'waveLast';
  * telegraph or hidden event, `null` for a threat the recorder never saw targeted.
  */
 export interface Highlight {
-  readonly t: number;
+  readonly t: SimMs;
   readonly threatId: number;
   readonly points: number;
   readonly kinds: readonly HighlightKind[];
@@ -35,7 +36,7 @@ interface ThreatFacts {
 }
 
 interface Candidate {
-  readonly t: number;
+  readonly t: SimMs;
   readonly threatId: number;
   readonly kinds: Set<HighlightKind>;
 }
@@ -45,11 +46,11 @@ const KIND_ORDER: readonly HighlightKind[] = ['perfect', 'messyGag', 'nearMiss',
 
 export function createHighlightRecorder(): HighlightRecorder {
   let threats = new Map<number, ThreatFacts>();
-  let responses: { t: number; threatId: number; quality: string }[] = [];
-  let gags: { t: number; threatId: number }[] = [];
-  let nearMisses: { t: number; threatId: number }[] = [];
+  let responses: { t: SimMs; threatId: number; quality: string }[] = [];
+  let gags: { t: SimMs; threatId: number }[] = [];
+  let nearMisses: { t: SimMs; threatId: number }[] = [];
   // Every prop hit or broken, with the props it names: `otherPropId` is a second prop of the mess.
-  let propHits: { t: number; propIds: string[] }[] = [];
+  let propHits: { t: SimMs; propIds: string[] }[] = [];
 
   function clear(): void {
     threats = new Map();
@@ -90,7 +91,7 @@ export function createHighlightRecorder(): HighlightRecorder {
   }
 
   /** Distinct props hit or broken within `messWindowMs` after the gag. */
-  function messOf(gagT: number, windowMs: number): number {
+  function messOf(gagT: SimMs, windowMs: number): number {
     const props = new Set<string>();
     for (const hit of propHits) {
       if (hit.t < gagT || hit.t > gagT + windowMs) continue;
@@ -100,8 +101,8 @@ export function createHighlightRecorder(): HighlightRecorder {
   }
 
   /** The `ResponseResolved` with the largest `t` of each wave (a later threat id wins a tie). */
-  function waveLastOf(): readonly { t: number; threatId: number }[] {
-    const lastOfWave = new Map<number, { t: number; threatId: number }>();
+  function waveLastOf(): readonly { t: SimMs; threatId: number }[] {
+    const lastOfWave = new Map<number, { t: SimMs; threatId: number }>();
     for (const response of responses) {
       const wave = threats.get(response.threatId)?.waveIndex ?? -1;
       if (wave < 0) continue;
@@ -119,7 +120,7 @@ export function createHighlightRecorder(): HighlightRecorder {
 
   function candidatesOf(endReason: LevelEndReason, rules: ReplaySettings): Candidate[] {
     const byKey = new Map<string, Candidate>();
-    const candidate = (t: number, threatId: number): Candidate => {
+    const candidate = (t: SimMs, threatId: number): Candidate => {
       const key = `${threatId}@${t}`;
       let found = byKey.get(key);
       if (found === undefined) {
