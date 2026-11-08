@@ -1,7 +1,7 @@
 name: CI
 
 # The quick checks only, on what reached `main`. The browsers, the builds and the perf budget are in
-# `npm run ci`, run locally at the end of an epic and before a playtest link (CLAUDE.md).
+# `npm run ci`, run locally before a playtest link (CLAUDE.md).
 on:
   push:
     branches: [main]
