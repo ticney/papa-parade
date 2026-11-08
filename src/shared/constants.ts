@@ -568,6 +568,12 @@ export const PARTICLE_GRAVITY_MPS2 = 9.8;
 /** UX ceiling of the « PARADE PARFAITE » stamp, in real ms (UX-DR15): never longer, whatever `feel.fx` says. */
 export const EPIC_STAMP_MAX_MS = 900;
 
+/**
+ * Sim ms between two snapshots of the live sim, kept by the client for the highlight replay
+ * (architecture « Snapshots », story 3.9, D2): the sim itself never takes one.
+ */
+export const SNAPSHOT_EVERY_MS = 5000;
+
 /** Reduced motion keeps this share of a burst's particles (EXPERIENCE.md: « −60 % »). */
 export const REDUCED_MOTION_PARTICLE_KEEP_PCT = 40;
 

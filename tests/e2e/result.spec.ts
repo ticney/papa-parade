@@ -12,6 +12,7 @@ import {
   liveFeedback,
   liveFeel,
   mamaHapticsOf,
+  passReplayToActions,
   recordAppStates,
   recordVibrations,
   stubGamepad,
@@ -79,9 +80,7 @@ const waitForInputGrace = (page: Page): Promise<void> =>
 
 /** The buttons are up and their grace is over: « Rejouer » now answers a press. */
 async function waitForActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page, SEQUENCE_TIMEOUT_MS);
   await waitForInputGrace(page);
 }
 

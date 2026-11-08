@@ -11,6 +11,8 @@ import { asRealMs, asSimMs } from '@shared/time';
 import { type CreateSimOptions, createSim, type FeelPatch, type Sim, type SimEvent } from '@sim';
 import type { OrthographicCamera } from 'three';
 import { type LevelAssets, loadLevelAssets } from '../assets/loadLevelAssets.ts';
+import type { ReplaySource } from '../endOfLevel/momentSim.ts';
+import { createSnapshotLog } from '../endOfLevel/snapshotLog.ts';
 import { createGameLoop, type FrameScheduler, type GameLoop, type LoopStats } from '../loop.ts';
 import type { LevelCameraSetup } from '../render/followRig.ts';
 import { createLevelScene, type LevelScene, type SceneBodies } from '../render/levelScene.ts';
@@ -219,6 +221,12 @@ export interface LevelSession {
    * disposes them as usual. A no-op with no active level.
    */
   finish(): void;
+  /**
+   * What the highlight replay needs of the live game (story 3.9, AC 3): the exact content the sim was
+   * created with, its journal, its snapshots and when it ended. `null` with no active sim. Readable
+   * during `result`: `finish()` stops the loop and the sim lives until the next `start()` / `stop()`.
+   */
+  readonly replaySource: ReplaySource | null;
 }
 
 /**
@@ -301,6 +309,13 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   let active: ActiveLevel | null = null;
   /** The sim of the level being played or about to be: its physics world is freed when the level ends (WASM memory is not collected). */
   let liveSim: Sim | null = null;
+  // The live sim's snapshots for the highlight replay (story 3.9, D2), and what a moment sim needs to
+  // be created like it. All of it goes with the sim.
+  const snapshots = createSnapshotLog();
+  let replayBase: Omit<ReplaySource, 'journal' | 'snapshots' | 'endedAt'> | null = null;
+  let endedAt: number | null = null;
+  // Set when a snapshot threw: the game goes on without taking more (the replay is optional).
+  let isSnapshotLogBroken = false;
 
   const stopLoop = (): void => {
     loop?.stop();
@@ -315,6 +330,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
   const releaseSim = (): void => {
     liveSim?.dispose();
     liveSim = null;
+    snapshots.clear();
+    replayBase = null;
+    endedAt = null;
+    isSnapshotLogBroken = false;
   };
 
   return {
@@ -354,6 +373,11 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
     finish() {
       if (active === null) return;
       stopLoop();
+    },
+    get replaySource() {
+      const sim = liveSim;
+      if (active === null || sim === null || replayBase === null) return null;
+      return { ...replayBase, journal: () => sim.journal(), snapshots, endedAt };
     },
     stop() {
       generation++;
@@ -468,6 +492,10 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
         }
         const sim = simResult.value;
         liveSim = sim;
+        snapshots.clear();
+        endedAt = null;
+        isSnapshotLogBroken = false;
+        replayBase = { content, geometry: levelAssets.geometry, level: levelPlan, seed };
         if (tweaks !== null) {
           try {
             // Journaled like any command, at t = 0: it applies at the head of the first step.
@@ -565,9 +593,29 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
           pause,
           scheduler: deps.scheduler,
           render,
-          onSimEvent: deps.onSimEvent,
+          onSimEvent: (event) => {
+            if (event.type === 'LevelEnded') endedAt = event.t;
+            deps.onSimEvent(event);
+          },
           speed: deps.speed,
-          beforeStep: deps.beforeStep,
+          // The snapshot first, then the bot: the state at `T` has no command of the step after `T`.
+          beforeStep: (stepped) => {
+            if (!isSnapshotLogBroken) {
+              try {
+                snapshots.take(stepped);
+              } catch (cause) {
+                // The replay is an extra: a snapshot that cannot be taken must not stop the game. It
+                // goes on without more snapshots, and the replay restores from the last good one.
+                isSnapshotLogBroken = true;
+                log.warn('boot', 'cannot snapshot the sim: the replay will use the earlier ones', {
+                  id: levelId,
+                  atMs: stepped.world.time.sim,
+                  cause,
+                });
+              }
+            }
+            deps.beforeStep?.(stepped);
+          },
         });
         loop.setFrozen(isFrozenWish);
         loop.setMeasure(measureWish);

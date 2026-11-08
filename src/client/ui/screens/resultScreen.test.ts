@@ -184,6 +184,8 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
     photo: null,
     // No reaction by default: the `mama` phase has its own describe below (story 3.7).
     reactions: [],
+    // No replay by default: the `replay` phase has its own describe below (story 3.9).
+    replay: null,
     scheduler: clock.scheduler,
     now: clock.now,
     keyTarget: keys as never,
@@ -945,7 +947,8 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
     expect(polaroid).toBeDefined();
     // The polaroid stands in the left column (story 3.7), which comes first in the screen.
     const left = root.find('pp-result-left')[0];
-    expect(root.children).toEqual([left, panel]);
+    // The banner of the replay (story 3.9) comes last, so that the panel stays where the specs expect it.
+    expect(root.children).toEqual([left, panel, root.find('pp-replay-banner')[0]]);
     expect(left?.children).toEqual([polaroid]);
     expect(polaroid?.children).toEqual([canvas]);
     expect(canvas.attributes.get('role')).toBe('img');
@@ -1007,7 +1010,7 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
 
   it('keeps the panel the first child of a screen with no photo (the specs select it)', () => {
     const { root, panel } = build();
-    expect(root.children).toEqual([panel]);
+    expect(root.children).toEqual([panel, root.find('pp-replay-banner')[0]]);
   });
 
   describe("a woken Mama's header (EXPERIENCE: nothing between the photo and her reaction)", () => {
@@ -1468,7 +1471,11 @@ describe("createResultScreen: Mama's reactions (story 3.7)", () => {
     const aloneLeft = alone.root.find('pp-result-left')[0] as FakeElement;
     expect(aloneLeft.className).toContain('pp-result-left-alone');
     expect(aloneLeft.children).toEqual([mamaOf(alone.root)]);
-    expect(alone.root.children).toEqual([aloneLeft, alone.panel]);
+    expect(alone.root.children).toEqual([
+      aloneLeft,
+      alone.panel,
+      alone.root.find('pp-replay-banner')[0],
+    ]);
   });
 
   it('plays no `mama` phase and builds no left column when it is given no reaction and no photo', () => {
@@ -1734,5 +1741,216 @@ describe('createResultScreen: the copy button (story 3.3)', () => {
     screen.activate?.();
     expect(calls).toEqual(['replay']);
     expect(presses()).toBe(0);
+  });
+});
+
+describe('createResultScreen: the highlight replay (story 3.9)', () => {
+  const REPLAY_DELAY_MS = 400;
+  /** The stars of SCORE (3) have all stamped, and the pause before the replay has not run yet. */
+  const STARS_END_MS =
+    ROWS_END_MS + timings.starsDelayMs + (SCORE.stars - 1) * timings.starIntervalMs;
+
+  /** A player double: it records what the screen asks and finishes when the test says so. */
+  function makePlayer(momentCount = 3) {
+    const playerCalls: string[] = [];
+    let onDone: (() => void) | null = null;
+    return {
+      playerCalls,
+      player: {
+        momentCount,
+        delayMs: REPLAY_DELAY_MS,
+        play: (done: () => void) => {
+          playerCalls.push('play');
+          onDone = done;
+        },
+        skipMoment: (): void => {
+          playerCalls.push('skipMoment');
+        },
+        skipAll: () => {
+          playerCalls.push('skipAll');
+          onDone?.();
+        },
+        cancel: () => playerCalls.push('cancel'),
+      },
+      finish: () => onDone?.(),
+    };
+  }
+  const press = (root: FakeElement, pointerId = 5) => {
+    root.dispatch('pointerdown', { pointerId, isPrimary: true });
+    root.dispatch('pointerup', { pointerId });
+  };
+
+  it('goes from the stars to the replay, then to the actions, in that order', () => {
+    const { playerCalls, player, finish } = makePlayer();
+    const { phases, clock, root, actions } = build({ replay: player });
+    clock.advance(STARS_END_MS);
+    expect(phases).toEqual(['rows', 'stars']);
+    expect(playerCalls).toEqual([]);
+    clock.advance(REPLAY_DELAY_MS);
+    expect(phases).toEqual(['rows', 'stars', 'replay']);
+    expect(playerCalls).toEqual(['play']);
+    expect(root.classList.contains('pp-result-screen--replaying')).toBe(true);
+    expect(actions.hidden).toBe(true);
+    finish();
+    expect(root.classList.contains('pp-result-screen--replaying')).toBe(false);
+    // Still in the replay phase for the pause, then the buttons.
+    expect(phases.at(-1)).toBe('replay');
+    clock.advance(timings.actionsDelayMs);
+    expect(phases).toEqual(['rows', 'stars', 'replay', 'actions']);
+    expect(actions.hidden).toBe(false);
+    expect(playerCalls).toEqual(['play']);
+  });
+
+  it('shows the banner with the REPLAY text, built once', () => {
+    const { player } = makePlayer();
+    const { root } = build({ replay: player });
+    const banners = root.find('pp-replay-banner');
+    expect(banners).toHaveLength(1);
+    expect(banners[0]?.textContent).toBe('stamp.replay');
+    expect(banners[0]?.classList.contains('pp-type-epic')).toBe(true);
+    expect(banners[0]?.classList.contains('pp-stroked')).toBe(true);
+  });
+
+  it('replays after a game with no star too (the delay follows the stars phase)', () => {
+    const { playerCalls, player } = makePlayer();
+    const { phases, clock } = build({
+      replay: player,
+      score: { ...SCORE, stars: 0, scorePoints: 0 },
+    });
+    clock.advance(ROWS_END_MS + REPLAY_DELAY_MS);
+    expect(phases.at(-1)).toBe('replay');
+    expect(playerCalls).toEqual(['play']);
+  });
+
+  it('replays after the lost stars of a woken Mama too', () => {
+    const { playerCalls, player } = makePlayer();
+    const { clock } = build({
+      replay: player,
+      endReason: 'mamaWoke',
+      score: { ...SCORE, stars: 1, lostStars: 1 },
+    });
+    clock.advance(10_000);
+    expect(playerCalls).toEqual(['play']);
+  });
+
+  it.each([
+    ['no replay', null],
+    ['a replay with no moment', makePlayer(0).player],
+  ])('goes straight from the stars to the actions with %s', (_name, replay) => {
+    const { phases, clock, actions } = build({ replay });
+    clock.advance(STARS_END_MS + timings.actionsDelayMs);
+    expect(phases).toEqual(['rows', 'stars', 'actions']);
+    expect(actions.hidden).toBe(false);
+  });
+
+  describe('a press', () => {
+    const reachReplay = (overrides: Partial<ResultScreenOptions> = {}, momentCount = 3) => {
+      const made = makePlayer(momentCount);
+      const screen = build({ replay: made.player, ...overrides });
+      screen.clock.advance(STARS_END_MS + REPLAY_DELAY_MS);
+      made.playerCalls.length = 0;
+      return { ...made, ...screen };
+    };
+
+    it('during the replay skips the moment, a second press skips the rest and goes to the actions', () => {
+      const { playerCalls, root, phases, actions, replay } = reachReplay();
+      press(root, 1);
+      expect(playerCalls).toEqual(['skipMoment']);
+      expect(phases.at(-1)).toBe('replay');
+      expect(actions.hidden).toBe(true);
+      press(root, 2);
+      expect(playerCalls).toEqual(['skipMoment', 'skipAll']);
+      // The press that ended it goes straight to the buttons, with « Rejouer » focused.
+      expect(phases.at(-1)).toBe('actions');
+      expect(actions.hidden).toBe(false);
+      expect(focused).toBe(replay);
+    });
+
+    it('with one moment left, a single press ends the replay', () => {
+      const { playerCalls, player, finish, root, phases, actions } = reachReplay({}, 1);
+      // The player ends itself when the last moment is skipped: `skipMoment` calls `onDone`.
+      player.skipMoment = () => {
+        playerCalls.push('skipMoment');
+        finish();
+      };
+      press(root);
+      expect(playerCalls).toEqual(['skipMoment']);
+      expect(phases.at(-1)).toBe('actions');
+      expect(actions.hidden).toBe(false);
+    });
+
+    it('works with Enter, then the pad’s A', () => {
+      const { playerCalls, keys, screen, phases } = reachReplay();
+      keys.dispatch('keydown', { code: 'Enter', repeat: false, preventDefault: () => undefined });
+      keys.dispatch('keyup', { code: 'Enter' });
+      expect(playerCalls).toEqual(['skipMoment']);
+      screen.activate?.();
+      expect(playerCalls).toEqual(['skipMoment', 'skipAll']);
+      expect(phases.at(-1)).toBe('actions');
+    });
+
+    it('that ends the replay never presses « Rejouer »', () => {
+      const { keys, replay, calls, clock, actions } = reachReplay({
+        timings: { ...timings, inputGraceMs: 300 },
+      });
+      const space = { code: 'Space', repeat: false, preventDefault: () => undefined };
+      keys.dispatch('keydown', space);
+      keys.dispatch('keyup', { code: 'Space' });
+      keys.dispatch('keydown', space);
+      expect(actions.hidden).toBe(false);
+      // The key that ended it is still down, and the buttons just came up: « Rejouer » ignores both.
+      replay.click();
+      keys.dispatch('keyup', { code: 'Space' });
+      replay.click();
+      expect(calls).not.toContain('replay');
+      clock.advance(300);
+      replay.click();
+      expect(calls.filter((call) => call === 'replay')).toEqual(['replay']);
+    });
+
+    it('before the replay skips everything, the replay included', () => {
+      const { playerCalls, player } = makePlayer();
+      const { root, clock, phases, actions } = build({ replay: player });
+      clock.advance(STARS_END_MS - timings.starIntervalMs / 2);
+      press(root);
+      expect(phases.at(-1)).toBe('actions');
+      expect(actions.hidden).toBe(false);
+      clock.advance(10_000);
+      expect(playerCalls).toEqual([]);
+      expect(phases).not.toContain('replay');
+    });
+
+    it('during the pause between the last moment and the buttons goes to the buttons', () => {
+      const { playerCalls, finish, root, phases, actions } = reachReplay();
+      finish();
+      press(root);
+      // The replay is over: this press is the screen's own skip, not a skipMoment.
+      expect(playerCalls).toEqual([]);
+      expect(phases.at(-1)).toBe('actions');
+      expect(actions.hidden).toBe(false);
+    });
+  });
+
+  it('is cancelled by dispose, and a pending delay never starts it', () => {
+    const early = makePlayer();
+    const first = build({ replay: early.player });
+    first.clock.advance(STARS_END_MS);
+    first.screen.dispose?.();
+    first.clock.advance(10_000);
+    expect(early.playerCalls).toEqual(['cancel']);
+    const playing = makePlayer();
+    const second = build({ replay: playing.player });
+    second.clock.advance(STARS_END_MS + REPLAY_DELAY_MS);
+    second.screen.dispose?.();
+    expect(playing.playerCalls).toEqual(['play', 'cancel']);
+  });
+
+  it('a screen rebuilt during the replay (isDone) shows the buttons and never plays it', () => {
+    const { playerCalls, player } = makePlayer();
+    const { phases, actions, clock } = build({ replay: player, isDone: true });
+    clock.advance(10_000);
+    expect(phases).toEqual(['actions']);
+    expect(actions.hidden).toBe(false);
+    expect(playerCalls).toEqual([]);
   });
 });

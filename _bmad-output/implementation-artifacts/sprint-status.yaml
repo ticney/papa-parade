@@ -157,7 +157,7 @@ development_status:
   7-15-reste-du-panel-du-bebe: backlog
 
   # Epic 3 [V1] (fin, suite) — après l'animation v2.4.
-  3-9-replay-des-meilleurs-moments: backlog
+  3-9-replay-des-meilleurs-moments: done
   3-10-variante-retour: backlog
   3-11-reussite-deblocage-par-etoiles-et-frigo: backlog
   epic-3-retrospective: optional

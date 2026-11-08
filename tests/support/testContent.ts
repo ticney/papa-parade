@@ -74,6 +74,18 @@ export function createTestFeedback(): FeedbackTable {
       vignetteOpacityPct: 28,
       vignetteRadiusPct: 70,
     },
+    replay: {
+      preRollMs: 2000,
+      postRollMs: 1500,
+      minSpacingMs: 5000,
+      momentCount: 3,
+      points: { perfect: 3, messyGag: 2, nearMiss: 2, waveLast: 1 },
+      messyGagMinProps: 2,
+      messWindowMs: 1000,
+      camera: { frameWidthM: 5, frameDepthM: 3.4 },
+      delayMs: 400,
+      endHoldMs: 300,
+    },
     render: {
       toonTones: [96, 178, 255],
       lights: {

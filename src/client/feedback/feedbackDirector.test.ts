@@ -58,6 +58,7 @@ const TABLE: FeedbackTable = {
     vignetteOpacityPct: 28,
     vignetteRadiusPct: 70,
   },
+  replay: createTestFeedback().replay,
   resultScreen: {
     rowCountUpMs: 600,
     rowStaggerMs: 200,

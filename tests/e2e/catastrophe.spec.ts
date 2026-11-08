@@ -13,6 +13,7 @@ import {
   liveFeel,
   mamaCueOf,
   mamaHapticsOf,
+  passReplayToActions,
   recordVibrations,
   startLevel,
   THREATS_OFF,
@@ -73,9 +74,7 @@ const waitForInputGrace = (page: Page): Promise<void> =>
   page.waitForTimeout(liveFeedback.resultScreen.inputGraceMs + GRACE_MARGIN_MS);
 
 async function waitForActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page, SEQUENCE_TIMEOUT_MS);
   await waitForInputGrace(page);
 }
 

@@ -15,10 +15,26 @@ import { svgElement } from '../svg.ts';
 
 /**
  * Where the sequence is: the end photo drops in and holds (story 3.6, only with a photo), Mama
- * reacts (story 3.7), the rows count up, then the stars stamp (the lost ones last), then the buttons
- * are up.
+ * reacts (story 3.7), the rows count up, then the stars stamp (the lost ones last), then the best
+ * moments of the game replay (story 3.9, only when the game had some), then the buttons are up.
  */
-export type ResultPhase = 'photo' | 'mama' | 'rows' | 'stars' | 'actions';
+export type ResultPhase = 'photo' | 'mama' | 'rows' | 'stars' | 'replay' | 'actions';
+
+/**
+ * The highlight replay as the screen drives it (story 3.9): boot's player, seen through what the
+ * screen needs. `play` calls `onDone` once, when the last moment ends or after `skipAll`; `cancel`
+ * stops it without `onDone`.
+ */
+export interface ResultReplay {
+  /** How many moments the replay has: 0 plays none (the screen then goes from the stars to the actions). */
+  readonly momentCount: number;
+  /** Real ms between the last star and the first moment (`feedback.json › replay › delayMs`). */
+  readonly delayMs: number;
+  play(onDone: () => void): void;
+  skipMoment(): void;
+  skipAll(): void;
+  cancel(): void;
+}
 
 /**
  * The end photo as the screen gets it (story 3.6): the 2D canvas boot took at `LevelScored`, which
@@ -83,6 +99,11 @@ export interface ResultScreenOptions {
    * is scored; an empty list simply plays no `mama` phase.
    */
   reactions: readonly MamaReactionLine[];
+  /**
+   * The replay of the best moments (story 3.9), or null for a game that had none: the screen then
+   * goes from the stars to the actions, as it did before the replay existed.
+   */
+  replay: ResultReplay | null;
   scheduler: ResultScheduler;
   /** Real ms, for the count-up. */
   now(): number;
@@ -548,6 +569,10 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     element.append(left);
   }
   element.append(panel);
+  // The « REPLAY » banner (story 3.9, UX-DR15): the epic stamp's look, up for the whole replay and
+  // nothing else (CSS shows it under `pp-result-screen--replaying`). Not `epicStamp.show`: that one is
+  // capped at 900 ms and sits below the overlay.
+  element.append(make('div', 'pp-replay-banner pp-type-epic pp-stroked', t('stamp.replay')));
 
   // The sequence. Every timer goes through `scheduler`, so `dispose` and a skip cancel them all.
   const pending = new Set<number>();
@@ -603,8 +628,26 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     stars.append(chip);
     lost++;
   };
+  // The replay (story 3.9): playing from `startReplay` to its end, a skip or a dispose. The first press
+  // during it skips the moment, the second the rest; a press that ends it goes straight to the buttons.
+  let isReplayPlaying = false;
+  let replayPresses = 0;
+  let isEndedByPress = false;
+  const pressDuringReplay = (): void => {
+    const { replay: player } = options;
+    if (player === null) return;
+    isEndedByPress = true;
+    try {
+      if (replayPresses === 0) player.skipMoment();
+      else player.skipAll();
+    } finally {
+      isEndedByPress = false;
+    }
+    replayPresses++;
+  };
   const showActions = (): void => {
     cancelAll();
+    element.classList.remove('pp-result-screen--replaying');
     actions.hidden = false;
     // The finger that skipped, or that was mashing, must not land on « Rejouer » as it appears.
     pressesOpenAtReal = options.now() + timings.inputGraceMs;
@@ -617,6 +660,10 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
    */
   const complete = (): void => {
     if (phase === 'actions') return;
+    if (isReplayPlaying) {
+      pressDuringReplay();
+      return;
+    }
     cancelAll();
     showPanel();
     mountHeader(false);
@@ -644,12 +691,37 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     };
     tick();
   };
+  /** The replay's end: the panel is back, and the buttons follow (at once after a press, after a pause otherwise). */
+  const endReplay = (): void => {
+    isReplayPlaying = false;
+    element.classList.remove('pp-result-screen--replaying');
+    if (isEndedByPress) showActions();
+    else later(showActions, timings.actionsDelayMs);
+  };
+  const startReplay = (): void => {
+    const { replay: player } = options;
+    if (player === null) {
+      showActions();
+      return;
+    }
+    isReplayPlaying = true;
+    replayPresses = 0;
+    enter('replay');
+    element.classList.add('pp-result-screen--replaying');
+    player.play(endReplay);
+  };
+  /** After the last star: the replay when the game had moments, else the buttons, as before the replay. */
+  const afterStars = (): void => {
+    const { replay: player } = options;
+    if (player !== null && player.momentCount > 0) later(startReplay, player.delayMs);
+    else later(showActions, timings.actionsDelayMs);
+  };
   /** The stars a woken Mama took off stamp last, after the earned ones (EXPERIENCE: « stamps last »). */
   const stampLost = (): void => {
     lose(true);
     options.onStarLost();
     if (lost < lostCount) later(stampLost, timings.starIntervalMs);
-    else later(showActions, timings.actionsDelayMs);
+    else afterStars();
   };
   const stamp = (index: number): void => {
     earn(true);
@@ -657,13 +729,13 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     options.onStar(isLast);
     if (!isLast) later(() => stamp(index + 1), timings.starIntervalMs);
     else if (lostCount > 0) later(stampLost, timings.starIntervalMs);
-    else later(showActions, timings.actionsDelayMs);
+    else afterStars();
   };
   const startStars = (): void => {
     // The last row has landed whatever the frames did: its total is on screen.
     showTotals();
     if (score.stars <= 0 && lostCount <= 0) {
-      later(showActions, timings.actionsDelayMs);
+      afterStars();
       return;
     }
     later(() => {
@@ -780,6 +852,7 @@ export function createResultScreen(options: ResultScreenOptions): OverlayScreen 
     dispose: () => {
       isDisposed = true;
       cancelAll();
+      options.replay?.cancel();
       element.removeEventListener('pointerdown', onPointerDown);
       element.removeEventListener('pointerup', onPointerUp);
       options.keyTarget.removeEventListener('keydown', onKeyDown);

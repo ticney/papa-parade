@@ -556,6 +556,47 @@ describe('mamaLines (story 3.8)', () => {
   });
 });
 
+describe('highlights (story 3.9)', () => {
+  const MOMENTS = [
+    {
+      t: asSimMs(12_000),
+      threatId: 4,
+      points: 4,
+      kinds: ['perfect', 'waveLast'],
+      anchorId: 'stairs',
+    },
+    { t: asSimMs(31_500), threatId: 9, points: 2, kinds: ['nearMiss'], anchorId: null },
+  ] as const;
+
+  it('is null before a level is scored, and [] for a game with no moment', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    expect(api.highlights()).toBeNull();
+    host.setHighlights([]);
+    expect(api.highlights()).toEqual([]);
+  });
+
+  it('reads the host at call time and gives the moments with their times, kinds and anchors', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    host.setHighlights(MOMENTS);
+    expect(api.highlights()).toEqual(MOMENTS);
+    host.setHighlights(null);
+    expect(api.highlights()).toBeNull();
+  });
+
+  it('hands out a copy: changing it changes nothing in the app', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    host.setHighlights(MOMENTS);
+    const copy = api.highlights() as unknown as { t: number; kinds: string[] }[];
+    (copy[0] as { t: number }).t = 1;
+    (copy[0] as { kinds: string[] }).kinds.push('messyGag');
+    expect(api.highlights()).toEqual(MOMENTS);
+    expect(api.highlights()).not.toBe(api.highlights());
+  });
+});
+
 describe('installTestApi', () => {
   it('sets __PP__ once, and a second call is a no-op with a warning', async () => {
     const host = createFakeTestHost();
@@ -571,6 +612,7 @@ describe('installTestApi', () => {
         'events',
         'freeze',
         'fx',
+        'highlights',
         'journal',
         'loadLevel',
         'mamaLines',

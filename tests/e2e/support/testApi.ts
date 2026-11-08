@@ -108,6 +108,14 @@ export const ppMamaLines = (page: Page): Promise<ReturnType<PPTestApi['mamaLines
   page.evaluate(() => window.__PP__?.mamaLines() ?? null);
 
 /**
+ * The moments of the current Result's highlight replay (`__PP__.highlights()`, story 3.9), or `null` before
+ * the first level is scored and after the next one starts loading. `[]` is a game with no moment: its Result
+ * has no `replay` phase.
+ */
+export const ppHighlights = (page: Page): Promise<ReturnType<PPTestApi['highlights']>> =>
+  page.evaluate(() => window.__PP__?.highlights() ?? null);
+
+/**
  * Where a world point is on the page now, in px (`__PP__.pagePoint`, story 9.2): the live game camera,
  * so it holds on a camera that follows Papa (`pagePointOf` in `game.ts` is the fixed camera's).
  */

@@ -29,6 +29,7 @@ export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'ut
   events: Record<string, string>;
   resultScreen: { inputGraceMs: number; photoHoldMs: number; reactionHoldMs: number };
   photo: { widthPx: number; heightPx: number; tiltMaxDeg: number };
+  replay: { minSpacingMs: number; momentCount: number; delayMs: number };
   door: { openMs: number; openAngleDeg: number };
   calibration: { beep: { clip: string } };
 };
@@ -519,9 +520,11 @@ export function settleAnimations(page: Page): Promise<unknown> {
  * Every warning of the audio engine (`[audio]`: unlock, resume, a clip, a loop, a one-shot, a
  * preload that gave up...) and of the feedback director (`[feedback]`) is here: the console sink
  * prints the channel in brackets, and a sound that silently fails to play fails every spec.
+ * So is a moment of the highlight replay that could not be built, framed, played or drawn
+ * (`[render] … replay`, story 3.9): the replay skips it and goes on, so only the warning tells.
  */
 export const OWN_WARNINGS =
-  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|\[(?:audio|feedback)\] /;
+  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|\[(?:audio|feedback)\] |\[render\] [^\n]*replay/;
 
 /**
  * Collects what must fail a session: console errors, page errors, and the app's own warnings about
@@ -902,13 +905,29 @@ const RESULT_SEQUENCE_TIMEOUT_MS = 15_000;
 const RESULT_GRACE_MARGIN_MS = 60;
 
 /**
+ * Waits for the Result screen's buttons (`data-pp-result="actions"`), going through the highlight replay
+ * (story 3.9) if the game had moments: a press while `replay` shows skips a moment, the next skips the rest
+ * (EXPERIENCE L344), so the wait keeps its budget whatever the number of moments. A spec that tests the
+ * replay waits for its phases itself and does not use this. The press is Space, only in the `replay` phase:
+ * in `actions` it would land on « Rejouer ».
+ */
+export async function passReplayToActions(
+  page: Page,
+  timeoutMs: number = RESULT_SEQUENCE_TIMEOUT_MS,
+): Promise<void> {
+  await expect(async () => {
+    const phase = await html(page).getAttribute('data-pp-result');
+    if (phase === 'replay') await page.keyboard.press('Space');
+    expect(phase).toBe('actions');
+  }).toPass({ timeout: timeoutMs, intervals: [100, 200, 300] });
+}
+
+/**
  * Waits until the Result screen's buttons are up and their input grace is over, so that the next
  * press counts. The grace is real time: it waits for the page's own clock, never a fixed delay.
  */
 export async function waitForResultActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: RESULT_SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page);
   const untilMs = await page.evaluate(
     (graceMs) => performance.now() + graceMs,
     liveFeedback.resultScreen.inputGraceMs + RESULT_GRACE_MARGIN_MS,

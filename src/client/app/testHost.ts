@@ -3,6 +3,7 @@ import type { LevelCameraMode } from '@content/schemas/level';
 import type { MamaReactionLine, PapaLook, Sim, SimEvent } from '@sim';
 import type { Group } from 'three';
 import type { SoundedNote } from '../audio/beatScheduler.ts';
+import type { Highlight } from '../endOfLevel/highlights.ts';
 import type { InputDevice } from '../input/inputMapper.ts';
 import type { RenderStats } from '../render/renderer.ts';
 import type { PapaGazeKind } from '../render/views/papaGaze.ts';
@@ -139,6 +140,11 @@ export interface TestHost {
    * `null` before the first `LevelScored` and after the next level starts loading. Read-only.
    */
   mamaLines(): readonly MamaReactionLine[] | null;
+  /**
+   * The moments of the current Result's highlight replay, in the order they play (story 3.9): `null`
+   * before the first `LevelScored` and after the next level starts loading. Read-only.
+   */
+  highlights(): readonly Highlight[] | null;
   /**
    * What the debug overlay reads besides `onRenderedFrame` (story 2.1; the loop's timings and the
    * level's geometry come from `levelSession.loopStats` and `levelSession.active.geometry`).
