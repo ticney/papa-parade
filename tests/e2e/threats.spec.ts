@@ -3,8 +3,10 @@ import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
 import { DRAW_CALLS_MAX, STEP_MS, VERB_MIN_FONT_PX } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   GEOMETRY_URL,
+  CHUNK_STEPS as LONG_ADVANCE_STEPS,
   liveThreat,
   liveWaves,
   waitFrames,
@@ -15,6 +17,7 @@ import {
   ppFreeze,
   ppLoadLevel,
   ppSend,
+  ppSilenceCatastrophe,
   ppWorld,
   waitForTestApi,
 } from './support/testApi.ts';
@@ -58,6 +61,20 @@ async function advanceUntil(
     await ppAdvance(page, CHUNK_STEPS);
   }
   throw new Error(`never reached: ${what}`);
+}
+
+/**
+ * Steps the frozen level up to `simMs` in long advances, checking nothing on the way: for a stretch
+ * where the state the test waits for cannot happen yet. Two round trips per 250 ms chunk over a
+ * whole wave took the full 30 s budget (2026-11-08).
+ */
+async function advanceToSimMs(page: Page, simMs: number): Promise<void> {
+  let remaining = Math.floor((simMs - (await ppWorld(page)).time.sim) / STEP_MS);
+  while (remaining > 0) {
+    const steps = Math.min(LONG_ADVANCE_STEPS, remaining);
+    await ppAdvance(page, steps);
+    remaining -= steps;
+  }
 }
 
 /** A marker that is shown: the path of its glyph and where it is on the screen, in px. */
@@ -112,10 +129,12 @@ test.describe('the three threats', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);
+    // Nothing answers here and the gags pile up: the catastrophe must not bring Mama home first.
+    await ppSilenceCatastrophe(page);
 
     // The live level plans all three, and since story 1.21 the suspicious silence in its second wave:
     // the instances are in order of first appearance in the waves. Since story 1.19 the level's
@@ -168,6 +187,8 @@ test.describe('the three threats', () => {
     await expect(page.locator('html')).toHaveAttribute('data-pp-gag', 'stairs_slide');
 
     // The coffee-table object: telegraphed with the mug, then it falls (the mug hits something within a second).
+    // It joins the pool only with the second wave, so the level runs there in long advances first.
+    await advanceToSimMs(page, secondWave.fromMs - CHUNK_MS);
     const mugMarker = await markerWhenTelegraphed(
       page,
       'coffee_table_object',
@@ -265,7 +286,7 @@ const shownVerbs = (page: Page): Promise<ShownVerb[]> =>
 
 /** Opens a frozen level with no start gesture: silent, as an agent's run is. */
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -413,9 +434,10 @@ test.describe('verbs of simultaneous threats (story 2.2)', () => {
     expect(isOverlapping).toBe(false);
     // The less urgent verb was pushed up, never down.
     expect(b.y + b.height).toBeLessThanOrEqual(a.y);
-    // The most urgent marker is in front, and stayed where it was; the other one went up.
+    // The most urgent marker is in front, and was not pushed (at most pulled down under the HUD row, the 9.5
+    // review's clamp: a negative offset); the other one went up.
     expect(urgent.zIndex).toBeGreaterThan(other.zIndex);
-    expect(urgent.offset).toBe('');
+    expect(Number.parseFloat(urgent.offset || '0')).toBeLessThanOrEqual(0);
     expect(Number.parseFloat(other.offset)).toBeGreaterThan(0);
     expect(problems).toEqual([]);
   });
@@ -427,7 +449,9 @@ test.describe('verbs of simultaneous threats (story 2.2)', () => {
     await waitFrames(page, 3);
     const shown = await shownVerbs(page);
     expect(shown).toHaveLength(2);
-    // Nothing overlaps, so the layout never pushed either of them.
-    expect(shown.map((marker) => marker.offset)).toEqual(['', '']);
+    // Nothing overlaps, so the layout never pushed either of them up (a verb that reaches into the HUD's top
+    // row is pulled down under it, the 9.5 review's clamp: an offset of 0 or less).
+    for (const marker of shown)
+      expect(Number.parseFloat(marker.offset || '0')).toBeLessThanOrEqual(0);
   });
 });

@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { PHONE_RINGING_EVERY_MS, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   cueCount,
   hapticPatternOfCue,
@@ -11,6 +12,7 @@ import {
   recordVibrations,
   vibrations,
   WALK_BOUND_MS,
+  waitFrames,
 } from './support/game.ts';
 import {
   ppAdvance,
@@ -38,7 +40,7 @@ const FATIGUE_FEEL = (
 const hasVibrate = (): boolean => test.info().project.name === 'chromium';
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -169,6 +171,10 @@ test.describe('the phone is answered', () => {
       fatigueBefore + livePhone.answerFatiguePoints + growthMax,
     );
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'onPhone');
+    // The activity bubble (story 2.12) shows the handset for the call.
+    await waitFrames(page, 3);
+    await expect(page.locator('.pp-activity-bubble')).toBeVisible();
+    await expect(page.locator('.pp-activity-bubble')).toHaveClass(/pp-activity-bubble--handset/);
     await expect(html(page)).toHaveAttribute('data-pp-phone', 'answered');
     await expect(html(page)).toHaveAttribute(
       'data-pp-fatigue',

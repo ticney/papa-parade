@@ -6,7 +6,8 @@ import { createEmitter } from '@shared/emitter';
 import { hashJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { type AppError, err, ok, type Result } from '@shared/result';
-import { type CreateSimOptions, createSim, replayJournal } from '@sim';
+import { asSimMs } from '@shared/time';
+import { type CreateSimOptions, createSim, replayJournal, type SimEvent } from '@sim';
 import { Group, Scene } from 'three';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createFakeScheduler } from '../../../tests/support/fakeScheduler.ts';
@@ -14,14 +15,18 @@ import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
+  createTestOutlet,
   OUTLET,
   SILENCE,
   STAIRS,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
+import type { Highlight } from '../endOfLevel/highlights.ts';
+import { createMomentSim, type ReplaySource } from '../endOfLevel/momentSim.ts';
+import type { LevelCameraSetup } from '../render/followRig.ts';
 import { createIsoCamera } from '../render/isoCamera.ts';
-import type { LevelFx, LevelScene } from '../render/levelScene.ts';
+import type { LevelFx, LevelScene, SceneBodies } from '../render/levelScene.ts';
 import type { GameRenderer } from '../render/renderer.ts';
 import type { ThreatMarkerEntry } from '../ui/world/threatMarkers.ts';
 import { type AppState, createAppFsm } from './appFsm.ts';
@@ -50,8 +55,22 @@ const NO_REAL_FX = () => ({
   papaClip: null,
   babyClip: null,
   papaMixerMs: 0,
+  papaBodyYawRad: 0,
+  papaSteamSwayDeg: 0,
+  papaBlablaTiltDeg: 0,
   doorOpenDeg: 0,
   dangerTintsShown: 0,
+  lightsFactor: 1,
+  mischiefDecals: 0,
+  choreShards: 0,
+  papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+  papaLeanDeg: 0,
+  papaStoopDeg: 0,
+  papaHeadYawDeg: 0,
+  papaGaze: 'ahead' as const,
+  papaBreathDeg: 0,
+  babyBreathDeg: 0,
+  papaEyelidsPct: 0,
 });
 
 interface Deferred<T> {
@@ -123,8 +142,11 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
   }[] = [];
   const ready: LevelScene[] = [];
   const readyEntries: (readonly ThreatMarkerEntry[])[] = [];
+  const readyCameras: LevelCameraSetup[] = [];
   const deps: LevelSessionDeps = {
     content: createTestContent(),
+    // The fixtures below are the salon's (story 9.8: the default level is the big room, the tests keep the salon).
+    levelId: 'salon_crawler',
     t: (key) => `<${key}>`,
     appFsm,
     pause,
@@ -133,10 +155,11 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     scheduler,
     newSeed: () => seeds.shift() ?? 999,
     onSeed: (seed) => reportedSeeds.push(seed),
-    onLevelReady: (level, threatEntries) => {
+    onLevelReady: (level, threatEntries, camera) => {
       trace.push('ready');
       ready.push(level);
       readyEntries.push(threatEntries);
+      readyCameras.push(camera);
     },
     onLevelFrame: () => {
       drawn.frames++;
@@ -161,6 +184,8 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
+        setPapaGazeSight: () => {},
+        babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {
           record.resets++;
         },
@@ -186,6 +211,7 @@ function setup(overrides: Partial<LevelSessionDeps> = {}) {
     scenes,
     ready,
     readyEntries,
+    readyCameras,
     sims: () => simsCreated,
   };
 }
@@ -269,6 +295,8 @@ describe('createLevelSession', () => {
           resetFx: () => {},
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
+          setPapaGazeSight: () => {},
+          babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},
         };
@@ -282,13 +310,18 @@ describe('createLevelSession', () => {
         microSleepDefId: null,
         layDownDefIds: [],
         anchorThreatDefIds: [],
+        choreStations: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
+        liveCharacters: expect.any(Function),
         door: content.feedback.door,
         render: content.feedback.render,
         isMotionReduced: expect.any(Function),
       },
     ]);
+    // The life layer reads the live world's feel at each call, never a copy (story 7.8, D1).
+    const live = (bodies[0] as SceneBodies).liveCharacters;
+    expect(live()).toBe(session.active?.sim.world.feel.characters);
   });
 
   it('hands the scene the planned threats that aim at an anchor, and no other', async () => {
@@ -307,6 +340,8 @@ describe('createLevelSession', () => {
           resetFx: () => {},
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
+          setPapaGazeSight: () => {},
+          babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},
         };
@@ -344,6 +379,8 @@ describe('createLevelSession', () => {
             resetFx: () => {},
             realFxState: NO_REAL_FX,
             setPapaLook: () => {},
+            setPapaGazeSight: () => {},
+            babyPoint: { xM: 0, zM: 0 },
             update: () => {},
             dispose: () => {},
           };
@@ -458,6 +495,40 @@ describe('createLevelSession', () => {
     expect(ready.map((level) => level.id)).toEqual(['other_room']);
   });
 
+  it("hands onLevelReady the level's camera, its follow tuning and Papa's start (story 9.2)", async () => {
+    const fixed = setup();
+    await fixed.session.start();
+    const { papa, feel } = fixed.session.active?.sim.world ?? { papa: null, feel: null };
+    expect(fixed.readyCameras).toEqual([
+      { mode: 'fixed', follow: feel?.camera, papaStartXM: papa?.xM, papaStartZM: papa?.zM },
+    ]);
+    const follow = setup({
+      loadLevelContent: async (id) => {
+        const content = levelOf(id);
+        return ok({
+          ...content,
+          level: {
+            ...content.level,
+            camera: 'follow' as const,
+            feelOverrides: { ...content.level.feelOverrides, camera: { frameWidthM: 12 } },
+          },
+        });
+      },
+    });
+    await follow.session.start();
+    const world = follow.session.active?.sim.world;
+    // The level's effective feel: its own override of the frame, not the base feel.
+    expect(world?.feel.camera.frameWidthM).toBe(12);
+    expect(follow.readyCameras).toEqual([
+      {
+        mode: 'follow',
+        follow: world?.feel.camera,
+        papaStartXM: world?.papa.xM,
+        papaStartZM: world?.papa.zM,
+      },
+    ]);
+  });
+
   it('hands onLevelReady the icon points of the planned threats, from the anchors of the geometry', async () => {
     const { session, readyEntries } = setup({
       loadLevelContent: async (id) =>
@@ -487,6 +558,11 @@ describe('createLevelSession', () => {
         verbWidthPx: 0,
         verbHeightPx: 0,
         verbOffsetPx: 0,
+        // A parry has a chrono-ring (story 2.11), whose start fallback is the def's delay or the live feel's.
+        hasChronoRing: true,
+        telegraphDelayMs:
+          createTestOutlet().telegraphDelayMs ??
+          createTestContent().feel.timing.telegraphDelayDefaultMs,
       },
     ]);
   });
@@ -527,6 +603,8 @@ describe('createLevelSession', () => {
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
+        setPapaGazeSight: () => {},
+        babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {},
         update: (_world, _alpha, nowReal) => {
           calls.push('update');
@@ -561,6 +639,8 @@ describe('createLevelSession', () => {
         papaPose: { xM: 0, zM: 0, yawRad: 0 },
         realFxState: NO_REAL_FX,
         setPapaLook: () => {},
+        setPapaGazeSight: () => {},
+        babyPoint: { xM: 0, zM: 0 },
         resetFx: () => {},
         // The level ends inside the frame (a step's LevelScored), before the camera is moved.
         update: () => {
@@ -940,6 +1020,8 @@ describe('createLevelSession', () => {
             resetFx: () => {},
             realFxState: NO_REAL_FX,
             setPapaLook: () => {},
+            setPapaGazeSight: () => {},
+            babyPoint: { xM: 0, zM: 0 },
             update: () => {},
             dispose: () => {},
           };
@@ -1178,6 +1260,8 @@ describe('createLevelSession › start options and outcomes', () => {
           resetFx: () => {},
           realFxState: NO_REAL_FX,
           setPapaLook: () => {},
+          setPapaGazeSight: () => {},
+          babyPoint: { xM: 0, zM: 0 },
           update: () => {},
           dispose: () => {},
         };
@@ -1197,8 +1281,10 @@ describe('createLevelSession › start options and outcomes', () => {
         microSleepDefId: null,
         layDownDefIds: [],
         anchorThreatDefIds: [],
+        choreStations: [],
         laidHeightM: content.feedback.bombDrop.laidHeightM,
         characters: content.feedback.characters,
+        liveCharacters: expect.any(Function),
         door: content.feedback.door,
         render: content.feedback.render,
         isMotionReduced: expect.any(Function),
@@ -1678,5 +1764,218 @@ describe('createLevelSession › the remembered feel replays as a SetFeel at t =
     session.rememberFeel(tuned());
     expect(await session.start()).toBe('started');
     expect(session.active?.feel).toBe(content.feel);
+  });
+});
+
+describe('createLevelSession › the snapshots of the highlight replay (story 3.9)', () => {
+  const snapshotMsOf = (source: ReplaySource | null, atMs: number): number | null =>
+    source?.snapshots.latestAtOrBefore(atMs)?.world.time.sim ?? null;
+
+  it('has no replay source before a level starts, nor after stop()', async () => {
+    const { session } = setup();
+    expect(session.replaySource).toBeNull();
+    await session.start();
+    expect(session.replaySource).not.toBeNull();
+    session.stop();
+    expect(session.replaySource).toBeNull();
+  });
+
+  it('hands over what a moment sim needs: the content the live sim was created with', async () => {
+    const seen: CreateSimOptions[] = [];
+    const { session } = setup({
+      createSim: (options) => {
+        seen.push(options);
+        return createSim(options);
+      },
+    });
+    await session.start({ seed: 77 });
+    const source = session.replaySource;
+    expect(source?.seed).toBe(77);
+    expect(source?.content).toBe(seen[0]?.content);
+    expect(source?.geometry).toBe(seen[0]?.geometry);
+    expect(source?.level).toBe(seen[0]?.level);
+    expect(source?.endedAt).toBeNull();
+  });
+
+  it('uses the sim’s bundle, not the remembered tweaks of ActiveLevel.feel', async () => {
+    const content = createTestContent();
+    const { session } = setup({ content });
+    const tuned = structuredClone(content.feel);
+    tuned.timing.windowMs += 40;
+    await session.start({ feel: tuned });
+    expect(session.active?.feel.timing.windowMs).toBe(content.feel.timing.windowMs + 40);
+    expect(session.replaySource?.content.feel.timing.windowMs).toBe(content.feel.timing.windowMs);
+    // The tweaks are in the journal, as the SetFeel at t = 0.
+    expect(session.replaySource?.journal().entries[0]?.command.type).toBe('SetFeel');
+  });
+
+  it('takes a snapshot at 0, then one every 5 s of sim time', async () => {
+    const { session } = setup();
+    await session.start();
+    // 1001 steps: the hook has run at 0, 10, … 10 000 (10 s).
+    session.advance(1001);
+    const source = session.replaySource;
+    expect(snapshotMsOf(source, 0)).toBe(0);
+    expect(snapshotMsOf(source, 4990)).toBe(0);
+    expect(snapshotMsOf(source, 5000)).toBe(5000);
+    expect(snapshotMsOf(source, 9990)).toBe(5000);
+    expect(snapshotMsOf(source, 10_000)).toBe(10_000);
+    expect(snapshotMsOf(source, 99_000)).toBe(10_000);
+  });
+
+  it('takes none until the sim steps, and never two at the same time', async () => {
+    const { session } = setup();
+    await session.start();
+    const source = session.replaySource;
+    expect(source?.snapshots.latestAtOrBefore(0)).toBeNull();
+    session.advance(1);
+    const first = source?.snapshots.latestAtOrBefore(0);
+    expect(first).not.toBeNull();
+    session.advance(0);
+    expect(source?.snapshots.latestAtOrBefore(0)).toBe(first);
+  });
+
+  it('takes the snapshot before the bot: the hook finds it already there', async () => {
+    const seen: (number | null)[] = [];
+    const { session } = setup({
+      beforeStep: (sim) => {
+        if (sim.world.time.sim % 5000 !== 0) return;
+        seen.push(snapshotMsOf(session.replaySource, sim.world.time.sim));
+      },
+    });
+    await session.start();
+    session.advance(501);
+    expect(seen).toEqual([0, 5000]);
+  });
+
+  it('keeps a command the bot enqueues at T in the tail of the snapshot at T', async () => {
+    const { session } = setup({
+      beforeStep: (sim) => {
+        if (sim.world.time.sim === 5000) {
+          sim.enqueue({ type: 'SetInputLag', lagMs: 30, t: asSimMs(5000) });
+        }
+      },
+    });
+    await session.start();
+    session.advance(600);
+    const source = session.replaySource;
+    expect(snapshotMsOf(source, 5000)).toBe(5000);
+    const tail = source?.journal().entries.filter((entry) => entry.applyAt > 5000) ?? [];
+    expect(tail.map((entry) => entry.command.type)).toEqual(['SetInputLag']);
+    // And the snapshot itself does not hold it.
+    expect(source?.snapshots.latestAtOrBefore(5000)?.world.input.lagMs).not.toBe(30);
+  });
+
+  it('is cleared by the next start()', async () => {
+    const { session } = setup();
+    await session.start();
+    session.advance(600);
+    expect(session.replaySource?.snapshots.latestAtOrBefore(5000)).not.toBeNull();
+    await session.start();
+    expect(session.replaySource?.snapshots.latestAtOrBefore(99_000)).toBeNull();
+  });
+
+  it('stays readable during the result: finish() keeps the sim and its log', async () => {
+    const { session } = setup();
+    await session.start();
+    session.advance(600);
+    session.finish();
+    const source = session.replaySource;
+    expect(snapshotMsOf(source, 6000)).toBe(5000);
+    expect(source?.journal().seed).toBe(session.current.seed);
+  });
+
+  it('records when the level ended, from the LevelEnded the session saw', async () => {
+    const events: SimEvent[] = [];
+    const { session, scheduler } = setup({
+      onSimEvent: (event) => events.push(event),
+      loadLevelContent: async (id) => ok(levelOf(id, createTestLevel({ durationMs: 3000 }))),
+    });
+    await session.start();
+    scheduler.tick(0);
+    scheduler.tick(10_000); // the countdown
+    expect(session.replaySource?.endedAt).toBeNull();
+    // Real-time frames: the loop runs at most MAX_STEPS_PER_FRAME steps each.
+    let nowMs = 10_000;
+    while (!events.some((event) => event.type === 'LevelEnded') && nowMs < 10_000 + 20_000) {
+      nowMs += 100;
+      scheduler.tick(nowMs);
+    }
+    const ended = events.find((event) => event.type === 'LevelEnded');
+    expect(ended).toBeDefined();
+    expect(session.replaySource?.endedAt).toBe(ended?.t);
+  });
+
+  it('goes on without snapshots when one cannot be taken, and warns once', async () => {
+    let attempts = 0;
+    const { session } = setup({
+      createSim: async (options) => {
+        const real = await createSim(options);
+        return new Proxy(real, {
+          get(target, key) {
+            if (key === 'snapshot') {
+              return () => {
+                attempts++;
+                // The first (at 0) works; the one at 5000 does not.
+                if (attempts > 1) throw new Error('out of memory');
+                return target.snapshot();
+              };
+            }
+            return Reflect.get(target, key, target);
+          },
+        });
+      },
+    });
+    await session.start();
+    log.setLevel('warn');
+    const before = log.buffer().length;
+    // 1101 steps: the hook has run at 0, 10, … 11 000, so at 5000 and 10 000.
+    expect(() => session.advance(1101)).not.toThrow();
+    log.setLevel('error');
+    const warned = log
+      .buffer()
+      .slice(before)
+      .filter((entry) => entry.level === 'warn' && /cannot snapshot the sim/.test(entry.message));
+    expect(warned).toHaveLength(1);
+    // The game went on to the end of the advance, and tried no more after the first failure.
+    expect(session.active?.sim.world.time.sim).toBe(11_010);
+    expect(attempts).toBe(2);
+    // The replay restores from the last good snapshot.
+    expect(snapshotMsOf(session.replaySource, 99_000)).toBe(0);
+  });
+
+  // The Trap « The replay content is simFeel's bundle »: remembered tweaks are laid over the level's feel
+  // as a `SetFeel` at t = 0, which is not in the snapshot at 0 but in the journal's tail. A moment sim
+  // restored from the session's source must come back with them, from the snapshot at 0 as from a later one.
+  it.each([
+    { label: 'from the snapshot at 0', atMs: 1500 },
+    { label: 'from the snapshot at 5000', atMs: 6500 },
+  ])('restores a moment sim that keeps the remembered tweaks ($label)', async ({ atMs }) => {
+    const content = createTestContent();
+    const { session } = setup({ content });
+    const tuned = structuredClone(content.feel);
+    tuned.timing.windowMs += 40;
+    await session.start({ feel: tuned });
+    session.advance(700);
+    const source = session.replaySource as ReplaySource;
+    const highlight: Highlight = {
+      t: asSimMs(atMs),
+      threatId: 1,
+      points: 3,
+      kinds: ['perfect'],
+      anchorId: null,
+    };
+    const built = await createMomentSim(source, highlight, { preRollMs: 1000, postRollMs: 500 });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    try {
+      expect(built.value.fromMs).toBe(atMs - 1000);
+      expect(built.value.sim.world.time.sim).toBe(atMs - 1000);
+      const liveWindowMs = session.active?.sim.world.feel.timing.windowMs;
+      expect(liveWindowMs).toBe(content.feel.timing.windowMs + 40);
+      expect(built.value.sim.world.feel.timing.windowMs).toBe(liveWindowMs);
+    } finally {
+      built.value.sim.dispose();
+    }
   });
 });

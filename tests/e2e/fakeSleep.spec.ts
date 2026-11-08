@@ -4,6 +4,7 @@ import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   advanceTo,
+  chronoRingsInShownMarkers,
   cueIds,
   openFrozen,
   realTap,
@@ -15,6 +16,7 @@ import {
   winRound,
 } from './support/duel.ts';
 import {
+  appUrl,
   collectProblems,
   hapticPatternOfCue,
   html,
@@ -157,7 +159,7 @@ test.describe('autoplay', () => {
   test('the perfect bot wins the duel, feint included: outcome succeeded', async ({ page }) => {
     test.setTimeout(120_000);
     const problems = collectProblems(page);
-    await page.goto('/?autoplay=perfect&seed=42&speed=4');
+    await page.goto(appUrl('/?autoplay=perfect&seed=42&speed=4'));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level', { timeout: 20_000 });
     await expect.poll(async () => (await ppState(page)) !== null).toBe(true);
@@ -199,6 +201,8 @@ test.describe('the marker (looked at at 667 × 375)', () => {
       .poll(async () => (await shownMarkers(page))[0]?.glyph)
       .toBe(THREAT_ICON_PATHS.peek);
     expect((await shownMarkers(page))[0]?.verb).toBe(STRINGS['verb.wait'] as string);
+    // Neither the wait nor its feint has a chrono-ring (story 2.11).
+    expect(await chronoRingsInShownMarkers(page)).toBe(0);
     await shot(page, testInfo, 'fake-sleep-feint.png');
 
     await advanceTo(page, windowOpenAt + STEP_MS);

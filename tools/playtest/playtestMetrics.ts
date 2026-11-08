@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { formatContentProblem } from '@content/contentError';
 import { PLAYTEST_FILE, THREAT_DEF_PATTERN } from '@content/contentFiles';
 import { parseContentFile } from '@content/parseContentFile';
-import type { PlaytestThresholds } from '@content/schemas/playtest';
+import type { PlaytestFile } from '@content/schemas/playtest';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
 import { outProblem, writeText } from '../outputFile.ts';
@@ -22,7 +22,8 @@ function reasonOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-async function loadThresholds(): Promise<Result<PlaytestThresholds, string[]>> {
+/** `content/playtest.json`, whole: `playtest:metrics` reads its indicators, `npm run sim -- --compare` its human-bot block. */
+export async function loadThresholds(): Promise<Result<PlaytestFile, string[]>> {
   const display = `content/${PLAYTEST_FILE.file}`;
   let text: string;
   try {

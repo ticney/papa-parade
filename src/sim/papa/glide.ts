@@ -14,15 +14,30 @@ import { planWalkTo } from './planWalk.ts';
  * unaffected.
  */
 export function startGlide(world: World, ctx: StepContext, threat: ThreatInstance): void {
+  startGlideTo(world, ctx, threat.xM, threat.zM, threat.id);
+}
+
+/**
+ * The glide itself, to a point: a pressed threat's (`threatId`), or a chore's station (story 9.4,
+ * `threatId` null: the caller sets `papa.objectId` afterwards, which this clears like any glide).
+ * One route planner and one duration rule for both. False when there is no path (no glide started).
+ */
+export function startGlideTo(
+  world: World,
+  ctx: StepContext,
+  xM: number,
+  zM: number,
+  threatId: number | null,
+): boolean {
   const { papa } = world;
   const { glideMaxMs, walkSpeedMps } = ctx.feel.movement;
-  const goal = planWalkTo(papa, ctx, threat.xM, threat.zM);
-  if (goal === null) return;
+  const goal = planWalkTo(papa, ctx, xM, zM);
+  if (goal === null) return false;
   const lengthM = remainingPathLengthM(papa);
   const durationMs = Math.min(glideMaxMs, (lengthM * MS_PER_S) / walkSpeedMps);
   const now = world.time.sim;
   papa.glide = {
-    threatId: threat.id,
+    threatId,
     toXM: goal.goalXM,
     toZM: goal.goalZM,
     startedAt: now,
@@ -38,10 +53,11 @@ export function startGlide(world: World, ctx: StepContext, threat: ThreatInstanc
   ctx.events.push({
     type: 'PapaGlideStarted',
     t: now,
-    threatId: threat.id,
+    threatId,
     toXM: goal.goalXM,
     toZM: goal.goalZM,
     arriveAt: papa.glide.arriveAt,
   });
   enterPapaState(world, ctx, 'glide');
+  return true;
 }

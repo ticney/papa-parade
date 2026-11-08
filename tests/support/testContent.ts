@@ -4,11 +4,13 @@ import type { ContentBundle, LevelContent } from '@content/contentBundle';
 import { formatContentProblem } from '@content/contentError';
 import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
+import { type ChoreDef, ChoreDefSchema } from '@content/schemas/chore';
 import { type DisruptionDef, DisruptionDefSchema } from '@content/schemas/disruption';
 import type { FeedbackTable } from '@content/schemas/feedback';
 import { FeelSchema } from '@content/schemas/feel';
 import type {
   LevelCarry,
+  LevelChore,
   LevelFinalRush,
   LevelGauges,
   LevelObject,
@@ -18,8 +20,10 @@ import type {
   LevelWaveThreat,
 } from '@content/schemas/level';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
+import type { MamaLines } from '@content/schemas/mamaLines';
 import { type SequenceDef, SequenceDefSchema } from '@content/schemas/sequence';
 import { type ThreatDef, ThreatDefSchema } from '@content/schemas/threat';
+import { MAMA_REACTIONS, SILENCE_SIMULTANEOUS_WEIGHT } from '@shared/constants';
 import type { Sim } from '@sim';
 
 const FEEL_FIXTURE = 'tests/support/testFeel.json';
@@ -47,7 +51,20 @@ export function createTestFeedback(): FeedbackTable {
     comboBadge: { cashInHoldMs: 900 },
     papaHint: { holdMs: 1200 },
     bombDrop: { laidHeightM: 0.3 },
-    characters: { crossFadeMs: 100, turnRateDegPerSec: 720, squash: [], clipSpeeds: [] },
+    characters: {
+      squash: [],
+      clipSpeeds: [],
+      papaClipFacing: [],
+      busyProps: {
+        steamSwayDeg: 12,
+        steamStretchPct: 15,
+        steamPeriodMs: 900,
+        blablaTiltDeg: 8,
+        blablaBobAmplitudeM: 0.03,
+        blablaPeriodMs: 700,
+        blablaPlace: { screenOffsetM: 0.35, heightM: 0.8 },
+      },
+    },
     door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
     photo: {
       widthPx: 570,
@@ -56,6 +73,18 @@ export function createTestFeedback(): FeedbackTable {
       vignetteFromPct: 60,
       vignetteOpacityPct: 28,
       vignetteRadiusPct: 70,
+    },
+    replay: {
+      preRollMs: 2000,
+      postRollMs: 1500,
+      minSpacingMs: 5000,
+      momentCount: 3,
+      points: { perfect: 3, messyGag: 2, nearMiss: 2, waveLast: 1 },
+      messyGagMinProps: 2,
+      messWindowMs: 1000,
+      camera: { frameWidthM: 5, frameDepthM: 3.4 },
+      delayMs: 400,
+      endHoldMs: 300,
     },
     render: {
       toonTones: [96, 178, 255],
@@ -71,6 +100,7 @@ export function createTestFeedback(): FeedbackTable {
       sunOffsetM: [5, 9, 7],
       outlines: { widthM: 0.025, skipMaterials: ['art_ink'] },
       dangerTint: { radiusM: 0.5, minOpacityPct: 40, peakOpacityPct: 80, pulseHz: 2 },
+      decalWallHeightM: 2,
       blobSkipColliderIds: [],
     },
     resultScreen: {
@@ -81,6 +111,7 @@ export function createTestFeedback(): FeedbackTable {
       actionsDelayMs: 400,
       inputGraceMs: 0,
       photoHoldMs: 1200,
+      reactionHoldMs: 1200,
     },
     calibration: { beep: { clip: 'ui_calibration_beep', bus: 'ui', gainPct: 100 } },
     loops: {
@@ -131,7 +162,26 @@ export function createTestFeedback(): FeedbackTable {
 export function createTestBots(): BotSettings {
   return {
     tapMs: 80,
-    human: { reactionMs: 250, aimOffsetMs: 0, jitterSdMs: 60 },
+    // Story 9.4: the house chores, at the live starting values. A level with no station never reads
+    // them (no draw, no tap), so they move no existing test; a level with a station gets them.
+    chores: { isEnabled: true, quietMinMs: 1500 },
+    // Story 3.14 AC 6: these values reduce the human model to the one of before the story (no
+    // reaction draw, `withChronoRing` at the old jitter, nobody inattentive), except the 9.4 spread of
+    // the aim of a Papa who works at a station, which only a level with a station reads.
+    human: {
+      reactionMeanMs: 250,
+      reactionSdMs: 0,
+      reactionMinMs: 0,
+      readError: {
+        withChronoRing: { offsetMs: 0, sdMs: 60 },
+        withoutChronoRing: { offsetMs: 0, sdMs: 60 },
+      },
+      aimOffsetMs: 0,
+      jitterSdMs: 60,
+      missWhileBusyPct: 0,
+      backTurnedSdMs: 150,
+      view: { widthPx: 844, heightPx: 390, hudBottomPx: 56, bubbleReadMs: 100 },
+    },
     random: { actionsPerSec: 2, floorReachM: 3, maxHoldMs: 800 },
   };
 }
@@ -154,6 +204,18 @@ export function createTestContent(): ContentBundle {
     feedback: createTestFeedback(),
     bots: createTestBots(),
     strings: {},
+    mamaLines: createTestMamaLines(),
+  };
+}
+
+/** One generic line per reaction (story 3.8): the sim never reads it, a client test may. */
+export function createTestMamaLines(): MamaLines {
+  return {
+    lines: MAMA_REACTIONS.map((reaction) => ({
+      id: `${reaction}_any`,
+      reaction,
+      text: `Ligne de test (${reaction}).`,
+    })),
   };
 }
 
@@ -217,9 +279,39 @@ export function createTestCoffeeTableObject(): ThreatDef {
   return readThreatFixture('testCoffeeTableObject.threat.json');
 }
 
+/** The pot left on the fire, frozen like the outlet (`testPot.threat.json`): the threat on a chore's station (story 9.5). */
+export function createTestPot(): ThreatDef {
+  return readThreatFixture('testPot.threat.json');
+}
+
+/**
+ * The frozen cooking that names its pot (story 9.5): `createTestCooking()` plus the `abandonedThreat`,
+ * after the live 30 s. A test passes it as `choreDefs: { cooking: createTestAbandonableCooking() }`; the
+ * default cooking has none, so that 9.4's chore worlds stay as they were.
+ */
+export function createTestAbandonableCooking(afterMs = 30_000): ChoreDef {
+  return { ...createTestCooking(), abandonedThreat: { def: 'pot_on_stove', afterMs } };
+}
+
+/**
+ * The open dishwasher, frozen like the outlet (`testDishwasherOpen.threat.json`, story 9.6): the threat of
+ * the dishwasher chore's open door, a parry on an anchor that the director may draw only while the chore
+ * is paused with its door open.
+ */
+export function createTestDishwasherOpen(): ThreatDef {
+  return readThreatFixture('testDishwasherOpen.threat.json');
+}
+
 /** The micro-sleep, frozen like the outlet (`testMicroSleep.threat.json`): the threat on Papa. */
 export function createTestMicroSleep(): ThreatDef {
   return readThreatFixture('testMicroSleep.threat.json');
+}
+
+/** How long the frozen micro-sleep keeps Papa asleep, in sim ms (its `afterEffect.busyMs`, story 3.15). */
+export function testMicroSleepBusyMs(): number {
+  const { afterEffect } = createTestMicroSleep();
+  if (afterEffect.kind !== 'asleep') throw new Error('testMicroSleep.threat.json is not asleep');
+  return afterEffect.busyMs;
 }
 
 /** The suspicious silence, frozen like the outlet (`testSilence.threat.json`): the threat in a hidden zone. */
@@ -238,6 +330,41 @@ export function createTestPhone(): DisruptionDef {
     'utf8',
   );
   const parsed = parseContentFile(path, text, DisruptionDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
+/**
+ * The cooking (story 9.4), frozen like the phone (`testCooking.chore.json`, same values as
+ * `content/chores/cooking.json`; only its `$schema` path differs), never from the live file.
+ */
+export function createTestCooking(): ChoreDef {
+  const path = 'tests/support/testCooking.chore.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testCooking.chore.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, ChoreDefSchema);
+  if (!parsed.ok) {
+    throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
+  }
+  return parsed.value;
+}
+
+/**
+ * The dishwasher chore (story 9.6), frozen like the cooking (`testDishwasher.chore.json`, same values as
+ * `content/chores/unload_dishwasher.json`; only its `$schema` path differs): four plates to catch, a
+ * missed one breaks an object and makes noise, and it names the open dishwasher's threat.
+ */
+export function createTestUnloadDishwasher(): ChoreDef {
+  const path = 'tests/support/testDishwasher.chore.json';
+  const text = readFileSync(
+    fileURLToPath(new URL('./testDishwasher.chore.json', import.meta.url)),
+    'utf8',
+  );
+  const parsed = parseContentFile(path, text, ChoreDefSchema);
   if (!parsed.ok) {
     throw new Error(`${path} is invalid:\n${parsed.error.map(formatContentProblem).join('\n')}`);
   }
@@ -428,7 +555,7 @@ export function createTestRealWake(): ThreatDef {
   return readThreatFixture('testRealWake.threat.json');
 }
 
-/** The twelve frozen threats, by id. */
+/** The fourteen frozen threats, by id. */
 export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
   const defs = [
     createTestOutlet(),
@@ -443,6 +570,8 @@ export function createTestThreats(): Readonly<Record<string, ThreatDef>> {
     createTestBombDropLay(),
     createTestFalseAlarm(),
     createTestRealWake(),
+    createTestPot(),
+    createTestDishwasherOpen(),
   ];
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
@@ -476,15 +605,18 @@ export function testPhoneEntry(atMs: number): LevelWaveDisruption {
 /**
  * A wave of `threats`: from 0 ms, one at a time, no gap and no lull, no disruption unless `overrides` says so. A
  * test that used `outletEntry(2000)` uses `testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })`:
- * its first telegraph lands at the first step at or after 2000 ms.
+ * its first telegraph lands at the first step at or after 2000 ms. A wave that plans a silence allows
+ * two at once, not one: a silence counts for two against `maxSimultaneous`, and `createSim` refuses a
+ * wave where it could never be drawn (story 3.13); a test that wants the refusal passes `maxSimultaneous: 1`.
  */
 export function testWave(
   threats: readonly LevelWaveThreat[],
   overrides: Partial<Omit<LevelWave, 'threats'>> = {},
 ): LevelWave {
+  const isSilencePlanned = threats.some((entry) => entry.def === SILENCE.def);
   return {
     fromMs: 0,
-    maxSimultaneous: 1,
+    maxSimultaneous: isSilencePlanned ? SILENCE_SIMULTANEOUS_WEIGHT : 1,
     gapMinMs: 0,
     gapMaxMs: 0,
     lullMs: 0,
@@ -501,6 +633,13 @@ export interface TestLevelOptions {
   gauges?: LevelGauges;
   /** The level lets Papa carry the baby (story 4.1); absent by default, as in most test levels. */
   carry?: LevelCarry;
+  /**
+   * The house chores of the level (story 9.4), each on a station object the test also lists in
+   * `objects` (`TEST_STOVE`); absent by default, so no other test level moves (not even its hash).
+   */
+  chores?: readonly LevelChore[];
+  /** Replaces the frozen def of a chore id (`createTestCooking()` otherwise), for a test that tunes it. */
+  choreDefs?: Readonly<Record<string, ChoreDef>>;
   /** The sequences the level can run (story 4.4), by id; empty by default, so no other test level moves. */
   sequences?: readonly string[];
   /** Replaces the frozen def of a sequence id (`createTestStayAwake()` otherwise), for a test that tunes it. */
@@ -522,6 +661,8 @@ export function createTestLevel({
   objects = [],
   gauges = {},
   carry,
+  chores,
+  choreDefs = {},
   sequences = [],
   sequenceDefs = {},
   finalRush,
@@ -577,6 +718,22 @@ export function createTestLevel({
       disruptions[def.id] = def;
     }
   }
+  const choreContent = chores?.map((entry) => {
+    const def =
+      choreDefs[entry.def] ??
+      (entry.def === 'unload_dishwasher' ? createTestUnloadDishwasher() : createTestCooking());
+    if (def.id !== entry.def) throw new Error(`no frozen chore "${entry.def}" in tests/support`);
+    return structuredClone(def);
+  });
+  // The threat an abandoned chore turns into (story 9.5) is carried by the level, as `loadLevelContent` does.
+  for (const def of choreContent ?? []) {
+    if (def.abandonedThreat === undefined) continue;
+    const pot = all[def.abandonedThreat.def];
+    if (pot === undefined) {
+      throw new Error(`no frozen threat "${def.abandonedThreat.def}" in tests/support`);
+    }
+    threats[pot.id] = pot;
+  }
   const sequenceContent: Record<string, SequenceDef> = {};
   for (const id of sequences) {
     const def = sequenceDefs[id] ?? createTestSequences()[id];
@@ -596,15 +753,18 @@ export function createTestLevel({
         disruptions: wave.disruptions.map((entry) => ({ ...entry })),
       })),
       objects: [...objects],
+      ...(chores === undefined ? {} : { chores: chores.map((entry) => ({ ...entry })) }),
       gauges: structuredClone(gauges),
       ...(carry === undefined ? {} : { carry: structuredClone(carry) }),
       sequences: [...sequences],
       ...(finalRush === undefined ? {} : { finalRush: structuredClone(finalRush) }),
+      camera: 'fixed',
       feelOverrides: { ...feelOverrides },
     },
     threats,
     disruptions,
     sequences: sequenceContent,
+    ...(choreContent === undefined ? {} : { chores: choreContent }),
   };
 }
 
@@ -613,6 +773,34 @@ export const TEST_OBJECTS: readonly LevelObject[] = [
   { id: 'coffee_machine', kind: 'coffee_machine', anchor: 'coffee_machine' },
   { id: 'phone', kind: 'phone', anchor: 'phone' },
 ];
+
+/**
+ * A stove (story 9.4) at the frozen room's `stairs_top` anchor, a floor point Papa reaches: the
+ * station of the frozen cooking (`TestLevelOptions.chores`: `[TEST_COOKING]`, with this in `objects`).
+ */
+export const TEST_STOVE: LevelObject = { id: 'stove', kind: 'stove', anchor: 'stairs_top' };
+
+/** The frozen cooking on `TEST_STOVE`. */
+export const TEST_COOKING: LevelChore = { def: 'cooking', object: 'stove' };
+
+/**
+ * A dishwasher (story 9.6) at the frozen room's `door` anchor, a floor point Papa reaches (not the
+ * stove's): the station of the frozen dishwasher chore, and where its open-door threat stands.
+ */
+export const TEST_DISHWASHER: LevelObject = {
+  id: 'dishwasher',
+  kind: 'dishwasher',
+  anchor: 'door',
+};
+
+/** The frozen dishwasher chore on `TEST_DISHWASHER`. */
+export const TEST_UNLOAD_DISHWASHER: LevelChore = {
+  def: 'unload_dishwasher',
+  object: 'dishwasher',
+};
+
+/** The open dishwasher at the station's anchor, as a wave plans it (`TEST_DISHWASHER`). */
+export const DISHWASHER_OPEN: LevelWaveThreat = { def: 'dishwasher_open', anchor: 'door' };
 
 /** The toilet of the live level (story 4.3), at the frozen room's `toilet` anchor: not in `TEST_OBJECTS`, a test adds it. */
 export const TEST_TOILET: LevelObject = { id: 'toilet', kind: 'toilet', anchor: 'toilet' };

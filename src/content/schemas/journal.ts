@@ -55,7 +55,23 @@ const ReplaySchema = z.strictObject({
   journal: JournalEnvelopeSchema,
 });
 
+/** Mama's note as the game writes it since v2.3 (story 3.12): five rows. */
 const ScoreSchema = z.strictObject({
+  laughPoints: z.number(),
+  calmPoints: z.number(),
+  homePoints: z.number(),
+  sighPoints: z.number(),
+  screamPoints: z.number(),
+  scorePoints: z.number(),
+  stars: counter,
+  lostStars: counter,
+});
+
+/**
+ * The four rows before v2.3 (story 1.22 to 3.6): a journal exported by an older build still has this
+ * `summary.score`, and stays a valid file (it is only read, never replayed with the new note).
+ */
+const LegacyScoreSchema = z.strictObject({
   laughPoints: z.number(),
   babyStatePoints: z.number(),
   sighPoints: z.number(),
@@ -95,7 +111,10 @@ const SummarySchema = z.strictObject({
   gameIndexInSession: z.int().min(1),
   autoplay: z.string().nullable(),
   endReason: z.string(),
-  score: ScoreSchema,
+  score: z.union([ScoreSchema, LegacyScoreSchema], {
+    error:
+      'neither the five-row score (laughPoints, calmPoints, homePoints, sighPoints, screamPoints, scorePoints, stars, lostStars) nor the four-row one before v2.3 (babyStatePoints instead of calmPoints and homePoints)',
+  }),
   responses: z.strictObject({
     byQuality: ResponseCountsSchema,
     byThreat: z.record(z.string(), ResponseCountsSchema),
@@ -138,3 +157,6 @@ export const JournalSchema = z.strictObject({
 });
 
 export type JournalFile = z.infer<typeof JournalSchema>;
+
+/** The five-row score the game writes (story 3.12); the legacy branch of `summary.score` is only read. */
+export type JournalScore = z.infer<typeof ScoreSchema>;

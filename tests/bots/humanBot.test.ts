@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { playBotGame, responses } from '../support/botSupport.ts';
+import { legacyHuman, playBotGame, responses } from '../support/botSupport.ts';
 
 const NO_JITTER = { reactionMs: 0, aimOffsetMs: 0, jitterSdMs: 0 };
 
 async function outletOf(seed: number, human: Partial<typeof NO_JITTER>) {
   const { events } = await playBotGame('human', seed, {
     untilSimMs: 40_000,
-    settings: { human: { ...NO_JITTER, ...human } as typeof NO_JITTER & { aimOffsetMs: number } },
+    settings: { human: legacyHuman({ ...NO_JITTER, ...human }) },
   });
   return responses(events);
 }

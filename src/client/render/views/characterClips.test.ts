@@ -4,14 +4,41 @@ import { describe, expect, it } from 'vitest';
 import { GAG_PRESENTATIONS } from '../gags.ts';
 import {
   BABY_CONTRACT,
+  BABY_TRAVELLING,
   babyClipOf,
   babyLidsAfter,
   babyOneShotOf,
+  isBabyTravelling,
   PAPA_CONTRACT,
+  PAPA_TRAVELLING,
   papaClipOf,
   papaOneShotOf,
   responseClipOf,
 } from './characterClips.ts';
+
+describe('the travelling states (story 7.8, D4)', () => {
+  it('names Papa’s walks and glide, the glide included though it has no speed row', () => {
+    const travelling = Object.entries(PAPA_TRAVELLING)
+      .filter(([, isTravelling]) => isTravelling)
+      .map(([state]) => state);
+    expect(travelling.sort()).toEqual(['glide', 'walkDir', 'walkPath']);
+  });
+
+  it('names the baby’s crawls, the silent one included', () => {
+    const travelling = Object.entries(BABY_TRAVELLING)
+      .filter(([, isTravelling]) => isTravelling)
+      .map(([state]) => state);
+    expect(travelling.sort()).toEqual(['approach', 'mischiefSilent', 'wander']);
+  });
+
+  it('counts a crying baby as still, whatever his state (the cry is a still clip)', () => {
+    expect(isBabyTravelling({ state: 'wander', cryEndsAt: null } as BabySlice)).toBe(true);
+    expect(isBabyTravelling({ state: 'wander', cryEndsAt: asSimMs(9000) } as BabySlice)).toBe(
+      false,
+    );
+    expect(isBabyTravelling({ state: 'babble', cryEndsAt: null } as BabySlice)).toBe(false);
+  });
+});
 
 const papa = (state: PapaSlice['state']) => ({ state }) as PapaSlice;
 const baby = (state: BabySlice['state'], cryEndsAt: number | null = null) =>
@@ -87,6 +114,16 @@ describe('one-shots', () => {
   it('reads the other events of D5', () => {
     expect(papaOneShotOf({ type: 'PapaBlocked', t, xM: 0, zM: 0 })).toBe('stumble');
     expect(papaOneShotOf({ type: 'PapaSnored', t })).toBe('snore');
+    // The kick is for the coffee drunk (the fatigue drops), not for the sip that starts it (story 2.13).
+    expect(papaOneShotOf({ type: 'CoffeeDrunk', t, fatigue: 5 })).toBe('coffee_kick');
+    expect(
+      papaOneShotOf({
+        type: 'CoffeeStarted',
+        t,
+        objectId: 'coffee_machine',
+        untilAt: asSimMs(2000),
+      }),
+    ).toBeNull();
     expect(babyOneShotOf({ type: 'BabyPickedUp', t })).toBe('laugh');
     expect(babyOneShotOf({ type: 'BabyPutDown', t, safe: true })).toBe('stir');
     expect(babyOneShotOf({ type: 'WaitFeintGiven', t, threatId: 1 })).toBe('eyes_peek');

@@ -1,5 +1,6 @@
 import type { Bot, BotSetup } from '@bots/bot';
 import { botResponsesOf, releaseDefIdsOf, safeSpotOf } from '@bots/botResponses';
+import { botViewOf } from '@bots/botView';
 import { createBot } from '@bots/createBot';
 import type { TestHost } from '@client/app/testHost';
 import { log } from '@shared/log';
@@ -22,7 +23,7 @@ export function installAutoplay(host: TestHost, botId: string): Result<void, App
   // Asked once with a throwaway setup, so that a bad id is refused before the level starts.
   const probe = createBot(
     botId,
-    setupFor(host, 0, host.content.feel.input.holdMinMs, {}, [], null),
+    setupFor(host, 0, host.content.feel.input.holdMinMs, {}, [], [], null, null),
   );
   if (!probe.ok) return probe;
 
@@ -37,7 +38,16 @@ export function installAutoplay(host: TestHost, botId: string): Result<void, App
         feel.input.holdMinMs,
         botResponsesOf(level.threats),
         releaseDefIdsOf(level.threats),
+        (level.level.chores ?? []).map((chore) => chore.object),
         safeSpotOf(geometry),
+        // The screen is data (`bots.json`), never the live canvas: a browser game is the CLI's game (story 9.8).
+        botViewOf({
+          camera: level.level.camera,
+          geometry,
+          threats: level.threats,
+          babyBodyRadiusM: feel.baby.bodyRadiusM,
+          screen: host.content.bots.human.view,
+        }),
       ),
     );
     if (!made.ok) {
@@ -60,9 +70,22 @@ function setupFor(
   holdMinMs: number,
   responses: BotSetup['responses'],
   releaseDefIds: readonly string[],
+  choreObjectIds: readonly string[],
   safeSpot: BotSetup['safeSpot'],
+  view: BotSetup['view'],
 ): BotSetup {
-  return { seed, holdMinMs, responses, releaseDefIds, safeSpot, settings: host.content.bots };
+  return {
+    seed,
+    holdMinMs,
+    responses,
+    releaseDefIds,
+    choreObjectIds,
+    safeSpot,
+    // The game always draws the chrono-ring since story 2.11.
+    isChronoRingShown: true,
+    view,
+    settings: host.content.bots,
+  };
 }
 
 /** Before a step: asks the bot, enqueues what it says. One reused array, no allocation per step. */

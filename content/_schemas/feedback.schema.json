@@ -188,7 +188,7 @@
           "properties": {
             "clip": {
               "type": "string",
-              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
               "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
             },
             "bus": {
@@ -230,12 +230,12 @@
               "properties": {
                 "calm": {
                   "type": "string",
-                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                   "description": "The calm stem: the music at rest."
                 },
                 "tense": {
                   "type": "string",
-                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                   "description": "The tense stem: it comes up while a threat is on (story 2.6)."
                 }
               },
@@ -288,7 +288,7 @@
             "properties": {
               "clip": {
                 "type": "string",
-                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                 "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
               },
               "bus": {
@@ -347,19 +347,19 @@
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
               "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
             },
             "description": "The notes, one per judged beat: the note of judged beat `n` is `notes[n % notes.length]`."
           },
           "countIn": {
             "type": "string",
-            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
             "description": "The tick of the count-in beats."
           },
           "decoy": {
             "type": "string",
-            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+            "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
             "description": "The sound of a decoy, between two beats."
           },
           "bus": {
@@ -474,6 +474,12 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "description": "How long the end photo stays alone on screen, after it drops in and before the rows start, in real ms (story 3.6); 0 goes straight to the rows. A level that took no photo skips it. A press skips it."
+        },
+        "reactionHoldMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How long each of Mama's reactions (her laugh, sigh or scream, with her line) stays on screen after the photo and before the rows start, in real ms (story 3.7); 0 goes straight on. A press skips them all."
         }
       },
       "required": [
@@ -483,10 +489,11 @@
         "starIntervalMs",
         "actionsDelayMs",
         "inputGraceMs",
-        "photoHoldMs"
+        "photoHoldMs",
+        "reactionHoldMs"
       ],
       "additionalProperties": false,
-      "description": "The sequence of the Result screen (story 1.22): the photo (story 3.6), then rows, then stars, then buttons. Real time: the sim never reads it."
+      "description": "The sequence of the Result screen (story 1.22): the photo (story 3.6), the reactions of Mama (story 3.7), then rows, then stars, then buttons. Real time: the sim never reads it."
     },
     "calibration": {
       "type": "object",
@@ -496,7 +503,7 @@
           "properties": {
             "clip": {
               "type": "string",
-              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+              "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
               "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
             },
             "bus": {
@@ -597,17 +604,6 @@
     "characters": {
       "type": "object",
       "properties": {
-        "crossFadeMs": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991,
-          "description": "How long a clip takes to replace another, in sim ms."
-        },
-        "turnRateDegPerSec": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "How fast a character's body turns to face its way, in degrees per sim second. The sim's heading and the baby's eyes do not wait for it."
-        },
         "squash": {
           "type": "array",
           "items": {
@@ -622,7 +618,8 @@
                   "BabyPutDown",
                   "GagTriggered",
                   "BabyWoke",
-                  "BabyStirred"
+                  "BabyStirred",
+                  "CoffeeDrunk"
                 ],
                 "description": "The sim event that starts it."
               },
@@ -682,16 +679,117 @@
             "description": "The natural speed of one travelling clip."
           },
           "description": "The natural speed of the travelling clips."
+        },
+        "papaClipFacing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clip": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+                "description": "A clip of Papa's, as named in the `.glb`."
+              },
+              "facing": {
+                "type": "string",
+                "enum": [
+                  "camera",
+                  "awayFromBaby"
+                ],
+                "description": "Where his body turns while the player sees this clip: `camera` faces the screen, `awayFromBaby` turns his back to the baby. The sim's heading is untouched."
+              }
+            },
+            "required": [
+              "clip",
+              "facing"
+            ],
+            "additionalProperties": false,
+            "description": "Where Papa faces while one clip plays."
+          },
+          "description": "Which clips turn Papa toward the camera or away from the baby (story 2.13)."
+        },
+        "busyProps": {
+          "type": "object",
+          "properties": {
+            "steamSwayDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 45,
+              "description": "How far the coffee steam leans to each side, in degrees."
+            },
+            "steamStretchPct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 50,
+              "description": "How much the steam grows and shrinks in height, in percent."
+            },
+            "steamPeriodMs": {
+              "type": "number",
+              "minimum": 334,
+              "description": "How long a full sway of the steam lasts, in sim ms. Never under the 3 Hz flash cap."
+            },
+            "blablaTiltDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 45,
+              "description": "How far the bla-bla bubble tilts to each side, in degrees."
+            },
+            "blablaBobAmplitudeM": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.2,
+              "description": "How far the bla-bla bubble bobs up and down, in metres."
+            },
+            "blablaPeriodMs": {
+              "type": "number",
+              "minimum": 334,
+              "description": "How long a full wobble of the bla-bla bubble lasts, in sim ms. Never under the 3 Hz flash cap."
+            },
+            "blablaPlace": {
+              "type": "object",
+              "properties": {
+                "screenOffsetM": {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 1,
+                  "description": "How far from Papa the bla-bla bubble stands across the screen, in metres: above 0 toward the right of the screen, below 0 toward the left."
+                },
+                "heightM": {
+                  "type": "number",
+                  "minimum": 0.3,
+                  "maximum": 1.2,
+                  "description": "How high above the floor the foot of the bla-bla bubble stands, in metres."
+                }
+              },
+              "required": [
+                "screenOffsetM",
+                "heightM"
+              ],
+              "additionalProperties": false,
+              "description": "Where the bla-bla bubble stands at Papa's side, clear of the activity bubble."
+            }
+          },
+          "required": [
+            "steamSwayDeg",
+            "steamStretchPct",
+            "steamPeriodMs",
+            "blablaTiltDeg",
+            "blablaBobAmplitudeM",
+            "blablaPeriodMs",
+            "blablaPlace"
+          ],
+          "additionalProperties": false,
+          "description": "The side effects of Papa's busy props (story 2.13): the steam of his mug and the bla-bla of his phone. Sim clock; held still under reduced motion."
         }
       },
       "required": [
-        "crossFadeMs",
-        "turnRateDegPerSec",
         "squash",
-        "clipSpeeds"
+        "clipSpeeds",
+        "papaClipFacing",
+        "busyProps"
       ],
       "additionalProperties": false,
-      "description": "The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it."
+      "description": "The animated characters (story 7.2): squash, clip speeds, facings, busy props. Read by the views on the sim clock; the sim never reads it. Their fades and turn are `feel.json › characters` (story 7.8)."
     },
     "door": {
       "type": "object",
@@ -783,6 +881,131 @@
       ],
       "additionalProperties": false,
       "description": "The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it."
+    },
+    "replay": {
+      "type": "object",
+      "properties": {
+        "preRollMs": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 10000,
+          "description": "Sim ms played before the moment itself, so the build-up is seen (story 3.9). At least one step: the moment’s event is emitted by the step that ends at its `t`, so with less the replay would start after it."
+        },
+        "postRollMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Sim ms played after the moment, so its consequence is seen."
+        },
+        "minSpacingMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Sim ms between two retained moments: a closer one is dropped."
+        },
+        "momentCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Most moments one replay shows."
+        },
+        "points": {
+          "type": "object",
+          "properties": {
+            "perfect": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Points of a perfect response (`ResponseResolved`)."
+            },
+            "messyGag": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Points of a gag that made a mess (`messyGagMinProps` props hit or broken)."
+            },
+            "nearMiss": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Points of a near miss (`NearMiss`)."
+            },
+            "waveLast": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Points of the last response of a wave, whatever its quality."
+            }
+          },
+          "required": [
+            "perfect",
+            "messyGag",
+            "nearMiss",
+            "waveLast"
+          ],
+          "additionalProperties": false,
+          "description": "What each kind of moment is worth (story 3.9, P7)."
+        },
+        "messyGagMinProps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Distinct props a gag must hit or break to count as a mess (P7: « bazar »)."
+        },
+        "messWindowMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Sim ms after a gag in which a prop hit or broken counts for its mess."
+        },
+        "camera": {
+          "type": "object",
+          "properties": {
+            "frameWidthM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Width of the replay camera frame, in metres on the floor."
+            },
+            "frameDepthM": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Depth of the replay camera frame, in metres on the floor."
+            }
+          },
+          "required": [
+            "frameWidthM",
+            "frameDepthM"
+          ],
+          "additionalProperties": false,
+          "description": "The replay camera: the game camera’s angle, a tighter frame centred on the moment (story 3.9)."
+        },
+        "delayMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Real ms between the last star and the first replayed moment."
+        },
+        "endHoldMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Real ms the last frame of a moment stays up, before the next one or the buttons."
+        }
+      },
+      "required": [
+        "preRollMs",
+        "postRollMs",
+        "minSpacingMs",
+        "momentCount",
+        "points",
+        "messyGagMinProps",
+        "messWindowMs",
+        "camera",
+        "delayMs",
+        "endHoldMs"
+      ],
+      "additionalProperties": false,
+      "description": "The highlight replay (story 3.9): which moments of the game are replayed, how, and with what pauses. Client only: the sim never reads it and `feel.json` is not touched, so no golden moves."
     },
     "render": {
       "type": "object",
@@ -968,6 +1191,11 @@
           "additionalProperties": false,
           "description": "The reserved alert glow on the anchor of a telegraphed or open threat (story 7.3, D5)."
         },
+        "decalWallHeightM": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The colliders taller than this are the room's walls, no cover for the mess of a silence on the floor: its decal is moved off the furniture that hides it, never off the wall (story 3.15)."
+        },
         "blobSkipColliderIds": {
           "type": "array",
           "items": {
@@ -983,6 +1211,7 @@
         "sunOffsetM",
         "outlines",
         "dangerTint",
+        "decalWallHeightM",
         "blobSkipColliderIds"
       ],
       "additionalProperties": false,
@@ -1002,7 +1231,7 @@
             "properties": {
               "clip": {
                 "type": "string",
-                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                 "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
               },
               "bus": {
@@ -1040,7 +1269,7 @@
               "properties": {
                 "clip": {
                   "type": "string",
-                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$",
+                  "pattern": "^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$",
                   "description": "File name without extension: `public/assets/audio/<clip>.m4a`."
                 },
                 "bus": {
@@ -1089,7 +1318,7 @@
                       "object",
                       "door"
                     ],
-                    "description": "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event."
+                    "description": "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption or a house chore def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event."
                   },
                   "maxRadiusM": {
                     "type": "number",
@@ -1217,6 +1446,7 @@
     "characters",
     "door",
     "photo",
+    "replay",
     "render",
     "cues",
     "events"

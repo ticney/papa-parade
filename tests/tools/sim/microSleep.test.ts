@@ -5,6 +5,7 @@ import { createSim, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
 import { loadSimLevel } from '../../../tools/sim/loadSimLevel.ts';
 import { botSetup, makeBot, responses } from '../../support/botSupport.ts';
+import { silenceCatastrophe } from '../../support/noCatastrophe.ts';
 import {
   createTestContent,
   createTestGeometry,
@@ -24,6 +25,8 @@ describe('the micro-sleeps of the live salon_crawler, with the idle bot', () => 
     const loaded = await loadSimLevel(CONTENT_DIR, 'salon_crawler');
     if (!loaded.ok) throw new Error(loaded.error);
     const { content, geometry, level, levelId } = loaded.value;
+    // This is about the fatigue, not the catastrophe (story 3.16 D14): an idle player's gags would bring Mama home first.
+    silenceCatastrophe(content.feel);
     // This is about the fatigue: the table's four props make noise enough to wake Mama before the
     // threshold with nobody parrying (story 3.5), and the micro-sleep is the thing under test.
     content.feel.noise.sources.propImpact.minPct = 0;
@@ -34,6 +37,9 @@ describe('the micro-sleeps of the live salon_crawler, with the idle bot', () => 
       holdMinMs: content.feel.input.holdMinMs,
       responses: {},
       releaseDefIds: [],
+      choreObjectIds: [],
+      isChronoRingShown: true,
+      view: null,
       safeSpot: null,
       settings: content.bots,
     });

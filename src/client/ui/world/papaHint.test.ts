@@ -129,6 +129,7 @@ describe('createPapaHint', () => {
       basePx: () => 40,
       lineHeight: () => 1,
       scale: () => state.scale,
+      threatSizePx: () => 64,
       widthPx: (text, fontPx) => text.length * fontPx * 0.5,
     };
     const camera = (): OrthographicCamera => {

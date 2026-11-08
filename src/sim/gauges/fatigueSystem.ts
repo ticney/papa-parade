@@ -2,6 +2,7 @@ import { MS_PER_S, STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { isBabyCarried } from '../baby/babyFsm.ts';
 import type { StepContext } from '../context.ts';
+import { heldFirmnessClearAt } from '../director/fairness.ts';
 import { isPapaBusy } from '../papa/papaFsm.ts';
 import { isJudgeableBeforeEnd } from '../threats/judgeable.ts';
 import { telegraphThreat } from '../threats/threatFsm.ts';
@@ -37,8 +38,12 @@ export function runFatigue(world: World, ctx: StepContext): void {
   const now = world.time.sim;
   if (gauges.microSleepAt === null || now < gauges.microSleepAt) return;
   if (threat.state !== 'idle' || isPapaBusy(papa) || world.flow.state !== 'playing') return;
+  // Its window keeps clear of a Firmness Papa holds (story 9.7): his finger cannot be on both. Nothing
+  // else moves it, and with no such Firmness in the level the postponement is always 0.
+  const naturalAt = now + (planned.def.telegraphDelayMs ?? ctx.feel.timing.telegraphDelayDefaultMs);
+  const postponeMs = heldFirmnessClearAt(world, ctx, naturalAt) - naturalAt;
   // One that could not be judged before the end would show a telegraph that never resolves.
-  if (!isJudgeableBeforeEnd(world, ctx, planned.def, now)) return;
-  telegraphThreat(world, ctx, threat, planned.def, -1);
+  if (!isJudgeableBeforeEnd(world, ctx, planned.def, now + postponeMs)) return;
+  telegraphThreat(world, ctx, threat, planned.def, -1, postponeMs);
   gauges.microSleepAt = asSimMs(now + drawMicroSleepMs(world, ctx));
 }

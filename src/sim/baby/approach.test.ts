@@ -27,6 +27,7 @@ function babyAt(xM: number, zM: number): BabySlice {
     approachSpeedMps: 0,
     cryStartedAt: null,
     cryEndsAt: null,
+    downstairsUntil: null,
   };
 }
 

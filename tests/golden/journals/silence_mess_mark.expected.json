@@ -1,0 +1,17 @@
+{
+  "untilSimMs": 14000,
+  "worldHash": "0936b42f17720c",
+  "eventTypes": [
+    "ThreatHidden",
+    "BabyStateChanged",
+    "SilenceStarted",
+    "SilenceEnded",
+    "ResponseResolved",
+    "GagTriggered",
+    "AfterEffectStarted",
+    "BabyStateChanged",
+    "CatastropheChanged",
+    "BabyStateChanged"
+  ],
+  "eventsHash": "0bffeec1c5b7c5"
+}

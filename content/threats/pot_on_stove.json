@@ -1,0 +1,23 @@
+{
+  "$schema": "../_schemas/threat.schema.json",
+  "id": "pot_on_stove",
+  "target": "station",
+  "response": "parry",
+  "telegraphDelayMs": 2000,
+  "windowMs": null,
+  "gag": "pot_boiled_over",
+  "verbKey": "verb.lower_heat",
+  "icon": "pot",
+  "iconShape": "circle",
+  "color": "parry",
+  "feedback": {
+    "telegraph": "tel_pot_on_stove",
+    "success": "resp_parry",
+    "perfect": "resp_parry_perfect",
+    "gag": "gag_pot_boiled_over"
+  },
+  "catastrophe": "mess",
+  "afterEffect": { "kind": "mess" },
+  "cooldownMs": 1000,
+  "gagNoisePct": 10
+}

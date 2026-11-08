@@ -230,3 +230,41 @@ describe('createGlyphChip beside the verb (story 2.2)', () => {
     expect(scene.children[0]?.position.toArray()).toEqual([0, 0.3, 0]);
   });
 });
+
+describe('the chip beside an off-screen bubble (story 9.3, D7)', () => {
+  it('hangs from the bubble’s radius on the side asked, with no verb rise nor shift, still one chip', () => {
+    const { chip, created, scene } = build();
+    const anchor = created[0] as FakeElement;
+    chip.showAt(
+      { ...entry(1, 0, 0.3, 0), verbWidthPx: 80, verbHeightPx: 30, verbShiftXPx: 6 },
+      'A',
+    );
+    chip.showAtPoint(2, 1, -1, 'A', 'left', 47);
+    expect(chip.isVisible).toBe(true);
+    expect(anchor.classes.has('pp-glyph-chip-anchor--bubble-left')).toBe(true);
+    expect(anchor.classes.has('pp-glyph-chip-anchor--beside-verb')).toBe(false);
+    expect(anchor.vars.get('--pp-chip-half')).toBe('47px');
+    expect(anchor.vars.has('--pp-chip-rise')).toBe(false);
+    expect(anchor.vars.has('--pp-chip-shift')).toBe(false);
+    expect(scene.children).toHaveLength(1);
+    expect(scene.children[0]?.position.toArray()).toEqual([2, 1, -1]);
+    chip.showAtPoint(2, 1, -1, 'A', 'below', 47);
+    expect(anchor.classes.has('pp-glyph-chip-anchor--bubble-left')).toBe(false);
+    expect(anchor.classes.has('pp-glyph-chip-anchor--bubble-below')).toBe(true);
+    chip.showAtPoint(2, 1, -1, 'A', 'right', 47);
+    expect(anchor.classes.has('pp-glyph-chip-anchor--bubble-below')).toBe(false);
+  });
+
+  it('goes back beside a threat’s verb with its class and variables, and refresh leaves a bubble’s chip alone', () => {
+    const { chip, created, scene } = build();
+    const anchor = created[0] as FakeElement;
+    chip.showAtPoint(2, 1, -1, 'A', 'left', 47);
+    chip.refresh();
+    expect(scene.children[0]?.position.toArray()).toEqual([2, 1, -1]);
+    chip.showAt({ ...entry(1, 0, 0.3, 0), verbWidthPx: 80, verbHeightPx: 30 }, 'A');
+    expect(anchor.classes.has('pp-glyph-chip-anchor--bubble-left')).toBe(false);
+    expect(anchor.classes.has('pp-glyph-chip-anchor--beside-verb')).toBe(true);
+    expect(anchor.vars.get('--pp-chip-half')).toBe('40px');
+    expect(anchor.vars.get('--pp-chip-rise')).toBe('15px');
+  });
+});

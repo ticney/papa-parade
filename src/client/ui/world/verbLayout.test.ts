@@ -1,6 +1,7 @@
 import { VERB_MIN_FONT_PX } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import {
+  clampVerbDropPx,
   clampVerbShiftPx,
   createVerbStack,
   fitVerbFontPx,
@@ -39,6 +40,38 @@ describe('clampVerbShiftPx (story 2.10 review)', () => {
   it('does nothing for a box with no text or a layer with no size', () => {
     expect(clampVerbShiftPx(0, 0, LAYER)).toBe(0);
     expect(clampVerbShiftPx(0, 200, 0)).toBe(0);
+  });
+});
+
+describe('clampVerbDropPx (story 9.5 review)', () => {
+  // A verb 50 px high whose bottom edge is 40 px above its icon's centre; the band under it is 10 px.
+  const RISE_PX = 40;
+  const SLACK_PX = 10;
+  const drop = (topPx: number, heightPx = 50, minTopPx = 60) =>
+    clampVerbDropPx(topPx, heightPx, minTopPx, RISE_PX, SLACK_PX);
+
+  it('leaves a box that starts at the limit or lower', () => {
+    expect(drop(60)).toBe(0);
+    expect(drop(200)).toBe(0);
+  });
+
+  it('brings a box that only reaches into the row by the band down by just that much, rounded up', () => {
+    expect(drop(55)).toBe(5);
+    expect(drop(50.4)).toBe(10);
+    expect(drop(50)).toBe(10);
+  });
+
+  it('flips a box that reaches further under its icon, clear of the icon and its ring', () => {
+    expect(drop(49.9)).toBe(2 * RISE_PX + 50);
+    expect(drop(20)).toBe(2 * RISE_PX + 50);
+    // An icon itself far above the row: the flip is not enough, the box comes down to the row.
+    expect(drop(-300)).toBe(360);
+  });
+
+  it('never moves a box with no text, nor against no limit', () => {
+    expect(drop(0, 0)).toBe(0);
+    expect(drop(-500, 50, Number.NEGATIVE_INFINITY)).toBe(0);
+    expect(drop(-500, 50, Number.NaN)).toBe(0);
   });
 });
 

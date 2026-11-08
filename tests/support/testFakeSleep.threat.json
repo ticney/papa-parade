@@ -24,5 +24,7 @@
     "perfect": "resp_wait_perfect",
     "gag": "gag_baby_sat_up"
   },
+  "catastrophe": "none",
+  "afterEffect": { "kind": "none" },
   "cooldownMs": 600
 }

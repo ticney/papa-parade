@@ -1,12 +1,14 @@
 import type { z } from 'zod';
 import { SNAKE_ID_PATTERN } from './levelNodeNames.ts';
 import { type BotSettings, BotsSchema } from './schemas/bots.ts';
+import { type ChoreDef, ChoreDefSchema } from './schemas/chore.ts';
 import { type DisruptionDef, DisruptionDefSchema } from './schemas/disruption.ts';
 import { type FeedbackTable, FeedbackTableSchema } from './schemas/feedback.ts';
 import { type Feel, FeelSchema } from './schemas/feel.ts';
 import { type Level, LevelSchema } from './schemas/level.ts';
 import { type LevelGeometry, LevelGeometrySchema } from './schemas/levelGeometry.ts';
-import { PlaytestSchema, type PlaytestThresholds } from './schemas/playtest.ts';
+import { type MamaLines, MamaLinesSchema } from './schemas/mamaLines.ts';
+import { type PlaytestFile, PlaytestSchema } from './schemas/playtest.ts';
 import { type SequenceDef, SequenceDefSchema } from './schemas/sequence.ts';
 import { type Strings, StringsSchema } from './schemas/strings.ts';
 import { type ThreatDef, ThreatDefSchema } from './schemas/threat.ts';
@@ -43,12 +45,19 @@ export const STRINGS_FILE: ContentFile<Strings> = {
   schema: StringsSchema,
 };
 
+/** What Mama says on the Result screen and when (story 3.8, FR36). Client-only, outside every hash. */
+export const MAMA_LINES_FILE: ContentFile<MamaLines> = {
+  file: 'mama-lines.json',
+  schemaName: 'mamaLines',
+  schema: MamaLinesSchema,
+};
+
 /**
  * The thresholds of `npm run playtest:metrics`. A tool-only file: registered below so that
  * `content:check` validates it and `content:schemas` emits its JSON Schema, but `loadContent` does
  * not load it and the browser bundle does not ship it.
  */
-export const PLAYTEST_FILE: ContentFile<PlaytestThresholds> = {
+export const PLAYTEST_FILE: ContentFile<PlaytestFile> = {
   file: 'playtest.json',
   schemaName: 'playtest',
   schema: PlaytestSchema,
@@ -56,7 +65,7 @@ export const PLAYTEST_FILE: ContentFile<PlaytestThresholds> = {
 
 /**
  * Registry of the files `content:check` and `content:schemas` know. `loadContent` loads the first
- * four by name (a story that adds a game content file adds its entry here and a field to
+ * five by name (a story that adds a game content file adds its entry here and a field to
  * `ContentBundle`); a tool-only file such as `PLAYTEST_FILE` is registered but not loaded.
  */
 export const CONTENT_FILES: readonly ContentFile<unknown>[] = [
@@ -64,6 +73,7 @@ export const CONTENT_FILES: readonly ContentFile<unknown>[] = [
   FEEDBACK_FILE,
   BOTS_FILE,
   STRINGS_FILE,
+  MAMA_LINES_FILE,
   PLAYTEST_FILE,
 ];
 
@@ -102,6 +112,13 @@ export const DISRUPTION_DEF_PATTERN: ContentPattern<DisruptionDef> = {
   schema: DisruptionDefSchema,
 };
 
+export const CHORE_DEF_PATTERN: ContentPattern<ChoreDef> = {
+  dir: 'chores',
+  suffix: '.json',
+  schemaName: 'chore',
+  schema: ChoreDefSchema,
+};
+
 export const SEQUENCE_DEF_PATTERN: ContentPattern<SequenceDef> = {
   dir: 'sequences',
   suffix: '.json',
@@ -121,6 +138,7 @@ export const CONTENT_PATTERNS: readonly ContentPattern<unknown>[] = [
   LEVEL_GEOMETRY_PATTERN,
   THREAT_DEF_PATTERN,
   DISRUPTION_DEF_PATTERN,
+  CHORE_DEF_PATTERN,
   SEQUENCE_DEF_PATTERN,
   LEVEL_PATTERN,
 ];

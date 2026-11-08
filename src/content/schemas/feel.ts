@@ -9,6 +9,7 @@ import {
   MAX_WALK_SPEED_MPS,
   MIN_TIME_SCALE,
   PARTICLE_MAX_PER_BURST,
+  SCREEN_FLASH_MIN_INTERVAL_MS,
   STAR_COUNT_MAX,
 } from '@shared/constants';
 import { z } from 'zod';
@@ -24,7 +25,7 @@ const pct = (description: string) => z.number().min(0).max(100).describe(descrip
 const points = (description: string) => z.number().min(0).describe(description);
 const multiplier = (description: string) => z.number().min(0).describe(description);
 
-/** Points of Mama's note that are shown and summed as they are: whole, so the four rows add up to the score. */
+/** Points of Mama's note that are shown and summed as they are: whole, so the five rows add up to the score. */
 const wholePoints = (description: string) => z.int().min(0).describe(description);
 const timeScale = (description: string) =>
   z.number().min(MIN_TIME_SCALE).max(1).describe(description);
@@ -47,6 +48,9 @@ const difficultyTier = (description: string) =>
     .strictObject({
       windowMultiplier: multiplier('Multiplier applied to every response window of the tier.'),
       hasInstinct: z.boolean().describe('Whether Fatherly Instinct (GDD §9) is available.'),
+      catastropheMultiplier: multiplier(
+        'Multiplier applied to every rise of the catastrophe gauge (story 3.16; GDD: ×0.5 / ×1 / ×1.25). Not applied to the perfect drop or the decay.',
+      ),
     })
     .describe(description);
 
@@ -141,6 +145,14 @@ const MovementSchema = z
   })
   .describe('Papa movement (GDD §3).');
 
+const DirectorSchema = z
+  .strictObject({
+    fairnessMarginMs: delayMs(
+      'Margin added to `movement.glideMaxMs`: two windows of the director never open closer than their sum (FR75, ADR-011), in ms. 0 keeps the glide alone.',
+    ),
+  })
+  .describe('Wave director (GDD mechanic 17, ADR-011).');
+
 const BabySchema = z
   .strictObject({
     crawlSpeedMps: z
@@ -228,7 +240,6 @@ const FatigueSchema = z
     microSleepMaxMs: delayMs('Longest delay between two micro-sleeps above the threshold, in ms.'),
     coffeeReductionPoints: points('Fatigue removed by a coffee, in points.'),
     coffeeDurationMs: durationMs('Time Papa spends drinking a coffee, in ms.'),
-    asleepMs: durationMs('How long Papa sleeps after a missed micro-sleep, in ms.'),
   })
   .refine((fatigue) => fatigue.microSleepMinMs <= fatigue.microSleepMaxMs, {
     path: ['microSleepMinMs'],
@@ -339,6 +350,9 @@ const NoiseSourcesSchema = z
     floorCreak: noisePctSource('A creaking floorboard (story 4.9): GDD +3 %.'),
     breathReleased: noisePctSource('Breath released too early (story 4.9): GDD +5 %.'),
     sniff: noisePctSource('Sniffing (story 5.3): GDD +3 %.'),
+    debrisStep: noisePctSource(
+      'Papa walking onto a debris on the floor (story 3.15, `DebrisSteppedOn`): GDD +3 %.',
+    ),
     snore: noisePctSource(
       'Papa snoring after a missed micro-sleep in a sequence (story 4.4): GDD +15 %.',
     ),
@@ -353,6 +367,7 @@ export const NOISE_SOURCE_IDS = [
   'floorCreak',
   'breathReleased',
   'sniff',
+  'debrisStep',
   'snore',
 ] as const;
 
@@ -365,6 +380,48 @@ const NoiseSchema = z
     sources: NoiseSourcesSchema,
   })
   .describe('The noise gauge of the Sieste levels (FR18, GDD rule 7).');
+
+const CatastropheSchema = z
+  .strictObject({
+    risePct: z
+      .strictObject({
+        nearMiss: pct('Catastrophe added by a near-miss gag (outlet, stairs), in % of the gauge.'),
+        mess: pct(
+          'Catastrophe added by a mess gag (table object, silence mischief), in % of the gauge.',
+        ),
+        microSleep: pct('Catastrophe added by a micro-sleep gag, in % of the gauge.'),
+        choreBeat: pct(
+          'Catastrophe added by a missed chore beat (stories 9.4 / 9.5), in % of the gauge.',
+        ),
+      })
+      .describe(
+        'The rise of one gag by its category, before the tier multiplier (GDD mechanic 14).',
+      ),
+    decayPerSec: points(
+      'Catastrophe lost per second, in % of the gauge per second (GDD: 0.5 %/s; tuned to 0.4 by Geo, story 3.16 option D).',
+    ),
+    perfectDropPct: pct(
+      'Catastrophe lost by a perfect response, in % of the gauge (GDD: 5 %; tuned to 2 by Geo, story 3.16 option D).',
+    ),
+    alertPct: pct(
+      'Above this catastrophe Mama is alarmed: the client plays the alert, tightens the music, in % of the gauge.',
+    ),
+    faceStepsPct: z
+      .array(pct('A threshold of the face, in % of the gauge.'))
+      .length(2)
+      .describe(
+        "The two thresholds between Mama's faces, in % of the gauge: she frowns from the first and is worried from the second (strictly ascending, below `alertPct`).",
+      ),
+  })
+  .refine((catastrophe) => catastrophe.faceStepsPct[0] < catastrophe.faceStepsPct[1], {
+    path: ['faceStepsPct'],
+    error: 'faceStepsPct must be strictly ascending',
+  })
+  .refine((catastrophe) => catastrophe.faceStepsPct[1] < catastrophe.alertPct, {
+    path: ['faceStepsPct'],
+    error: 'faceStepsPct must stay below alertPct',
+  })
+  .describe('The catastrophe gauge (FR73, GDD mechanic 14): at 100 % Mama comes home early.');
 
 const BladderSchema = z
   .strictObject({
@@ -469,10 +526,8 @@ const DifficultySchema = z
 const MamaSchema = z
   .strictObject({
     laughMaxPoints: wholePoints('Most points the baby laughs can give, in points.'),
-    babyStateMaxPoints: wholePoints('Most points the baby state can give, in points.'),
-    babyStateFixedPoints: wholePoints(
-      'Baby-state points used by the prototype instead of the real computation, in points.',
-    ),
+    calmMaxPoints: wholePoints('Most points the baby staying calm can give, in points.'),
+    homeMaxPoints: wholePoints('Most points the house chores can give, in points.'),
     baseScorePoints: wholePoints('Base points added to every score, in points.'),
     sighMaxPoints: wholePoints('Most points a sigh can take off, in points.'),
     screamMaxPoints: wholePoints('Most points a scream can take off, in points.'),
@@ -499,6 +554,15 @@ const MamaSchema = z
     laughPerPerfectPoints: points(
       'Laugh points each perfect response gives (held to `laughMaxPoints`), in points per perfect.',
     ),
+    laughPerSuccessPoints: points(
+      'Laugh points each success (not perfect) gives (held to `laughMaxPoints`), in points per success.',
+    ),
+    laughPerLookPartPoints: points(
+      "Laugh points each part of Papa's look shown at the end gives (held to `laughMaxPoints`), in points per part (story 3.7).",
+    ),
+    calmNoiseThresholdPct: pct(
+      'The baby counts as calm while the noise gauge is strictly below this level, in % of the gauge.',
+    ),
     sighPerPropOnFloorPoints: points(
       'Sigh points each unbroken prop lying on the floor at the end takes off, in points per prop.',
     ),
@@ -510,24 +574,24 @@ const MamaSchema = z
       'Scream points each near miss takes off (held to `screamMaxPoints`), in points per near miss.',
     ),
   })
-  .refine((mama) => mama.babyStateFixedPoints <= mama.babyStateMaxPoints, {
-    path: ['babyStateFixedPoints'],
-    error: 'babyStateFixedPoints must not exceed babyStateMaxPoints',
-  })
   .refine(
     (mama) =>
-      mama.laughMaxPoints + mama.babyStateMaxPoints + mama.sighMaxPoints + mama.screamMaxPoints ===
+      mama.laughMaxPoints +
+        mama.calmMaxPoints +
+        mama.homeMaxPoints +
+        mama.sighMaxPoints +
+        mama.screamMaxPoints ===
       MAMA_SCORE_MAX_POINTS,
     {
       path: ['laughMaxPoints'],
       error:
-        'laughMaxPoints + babyStateMaxPoints + sighMaxPoints + screamMaxPoints must be 100: the note is out of 100',
+        'laughMaxPoints + calmMaxPoints + homeMaxPoints + sighMaxPoints + screamMaxPoints must be 100: the note is out of 100',
     },
   )
   .refine((mama) => mama.baseScorePoints === mama.sighMaxPoints + mama.screamMaxPoints, {
     path: ['baseScorePoints'],
     error:
-      'baseScorePoints must equal sighMaxPoints + screamMaxPoints, so that the four rows add up to the score',
+      'baseScorePoints must equal sighMaxPoints + screamMaxPoints, so that the five rows add up to the score',
   })
   .describe("Mama's note (GDD, economy › Mama's note).");
 
@@ -598,6 +662,9 @@ const GagsSchema = z
         ),
       })
       .describe('The gag of the object on the coffee table (story 1.16).'),
+    debrisStepRadiusM: positive(
+      'Papa steps on a debris (`DebrisSteppedOn`, +`noise.sources.debrisStep`) when he comes within this distance of it, in metres (story 3.15).',
+    ),
   })
   .describe(
     'Tunables of the gags whose consequence the sim applies (`sim/threats/gags.ts`); a gag with nothing to tune has no key.',
@@ -667,6 +734,22 @@ const FxSchema = z
       })
       .describe('Juice of a perfect response: shake, sparks and the stamp.'),
     gag: fxPreset('Juice of a gag: the « pouf ».'),
+    dim: z
+      .strictObject({
+        lightsPct: z
+          .number()
+          .min(0)
+          .max(100)
+          .describe('Level the 3D lights fade to while the room is dim, in % (100 = no dimming).'),
+        fadeMs: z
+          .int()
+          .min(0)
+          .max(2000)
+          .describe('Time to fade the lights to that level, and back, in **sim** ms.'),
+      })
+      .describe(
+        'The pénombre of the outlet gag (story 3.15): only the 3D lights fade, the world UI never does.',
+      ),
     photoCamera: z
       .strictObject({
         yawDeg: z
@@ -720,6 +803,221 @@ const FxSchema = z
   })
   .describe(
     'On-screen juice (story 2.5): shake, particles, stamp and the perfect camera. Client only.',
+  );
+
+const CameraSchema = z
+  .strictObject({
+    frameWidthM: z
+      .number()
+      .min(3)
+      .max(30)
+      .describe(
+        "Width of the floor box the follow camera fits, in metres (story 9.2): the same fit as the fixed camera on a room this size, so it sets the characters' scale on screen.",
+      ),
+    frameDepthM: z
+      .number()
+      .min(3)
+      .max(30)
+      .describe('Depth of the floor box the follow camera fits, in metres.'),
+    deadZoneWidthPct: z
+      .number()
+      .min(0)
+      .max(80)
+      .describe(
+        "Width of the centred dead zone, in % of the frame's width: Papa moves inside it without moving the camera.",
+      ),
+    deadZoneHeightPct: z
+      .number()
+      .min(0)
+      .max(80)
+      .describe("Height of the centred dead zone, in % of the frame's height."),
+    edgeMarginPct: z
+      .number()
+      .min(0)
+      .max(40)
+      .describe(
+        "Papa's drawn point never comes nearer an edge of the frame than this, in % of the frame's size on that axis (a hard limit, even during a glide), except where the view would leave the room: the walls win, near a wall or across a room narrower than the frame.",
+      ),
+    catchUpMs: z
+      .number()
+      .min(50)
+      .max(3000)
+      .describe(
+        'Time the camera takes to cover 95 % of a sudden jump of its goal, in **sim** ms (a pause holds it, a slow-mo slows it).',
+      ),
+    dampingRatio: z
+      .number()
+      .min(0.5)
+      .max(1)
+      .describe(
+        'Damping of the catch-up spring: 1 = no overshoot; below, a slight bounce (0.8 = about 1.5 %).',
+      ),
+    reducedCatchUpMs: z
+      .number()
+      .min(50)
+      .max(5000)
+      .describe(
+        'The catch-up time under « Réduire les animations », in **sim** ms, with no overshoot at all (a damping of 1). Not below `catchUpMs`.',
+      ),
+  })
+  .refine((camera) => camera.deadZoneWidthPct / 2 + camera.edgeMarginPct < 50, {
+    path: ['deadZoneWidthPct'],
+    error:
+      'deadZoneWidthPct / 2 + edgeMarginPct must stay below 50: the dead zone sits inside the edge margin',
+  })
+  .refine((camera) => camera.deadZoneHeightPct / 2 + camera.edgeMarginPct < 50, {
+    path: ['deadZoneHeightPct'],
+    error:
+      'deadZoneHeightPct / 2 + edgeMarginPct must stay below 50: the dead zone sits inside the edge margin',
+  })
+  .refine((camera) => camera.reducedCatchUpMs >= camera.catchUpMs, {
+    path: ['reducedCatchUpMs'],
+    error: 'reducedCatchUpMs must not be below catchUpMs: the reduced catch-up is the slower one',
+  })
+  .describe(
+    'The follow camera of a level with `camera: "follow"` (story 9.2): its frame, dead zone, edge margin and catch-up. Client only.',
+  );
+
+/** A fade of the characters' clips, in sim ms: 0 is a cut. */
+const fadeMs = (maxMs: number, description: string) =>
+  z.number().min(0).max(maxMs).describe(description);
+/** A time to reach a target, in sim ms. */
+const reachMs = (description: string) => z.number().min(50).max(1000).describe(description);
+/** An angle of the life layer, in degrees. */
+const lifeDeg = (maxDeg: number, description: string) =>
+  z.number().min(0).max(maxDeg).describe(description);
+/** A breathing cycle, in sim ms: never under the 3 Hz flash cap. */
+const breathPeriodMs = (description: string) =>
+  z.number().min(SCREEN_FLASH_MIN_INTERVAL_MS).max(20000).describe(description);
+
+const CharactersSchema = z
+  .strictObject({
+    fades: z
+      .strictObject({
+        startMs: fadeMs(
+          400,
+          'From a still loop to a travelling one (he starts off), in sim ms. Eased in and out.',
+        ),
+        stopMs: fadeMs(400, 'From a travelling loop to a still one (he stops), in sim ms.'),
+        returnMs: fadeMs(
+          200,
+          'From a one-shot back to the loop, in sim ms. A one-shot hands back this long before its end.',
+        ),
+        otherMs: fadeMs(
+          400,
+          'Every other passage (into a one-shot, still to still, travelling to travelling), in sim ms.',
+        ),
+      })
+      .describe(
+        'How long each passage between two clips fades, on an ease-in-out curve (story 7.8). The weights always add up to 1.',
+      ),
+    turn: z
+      .strictObject({
+        reachMs: reachMs(
+          'Time the drawn body takes to cover 95 % of a new facing, in sim ms (as the camera: it first reaches it a little later when it swings past). The sim heading and the markers never wait for it.',
+        ),
+        dampingRatio: z
+          .number()
+          .min(0.3)
+          .max(1)
+          .describe(
+            'Damping of the turn spring: 1 = no overshoot; below, he swings past and comes back (0.6 = about 8° on a 90° turn).',
+          ),
+        overshootMaxDeg: lifeDeg(45, 'The most the body swings past its facing, in degrees.'),
+      })
+      .describe("Papa's and the baby's body turn, a spring on the drawn yaw (story 7.8)."),
+    lean: z
+      .strictObject({
+        maxAccelDeg: lifeDeg(
+          45,
+          "How far Papa's torso pitches into a start or back from a stop, in degrees.",
+        ),
+        maxTurnDeg: lifeDeg(45, 'How far his torso leans into a turn, in degrees.'),
+        fullAccelMps2: z
+          .number()
+          .positive()
+          .max(100)
+          .describe(
+            'The drawn acceleration that gives the full pitch, in m/s². The drawn speed is a spring of `reachMs`, whose peak acceleration for a speed step is about 1.74 × step / (reachMs in s): at 120 ms, 14.5 × the step in m/s². 45 is therefore full at the walking speed (3 m/s) and a crawl (0.6 m/s) pitches him a fifth as far.',
+          ),
+        fullTurnDegPerSec: z
+          .number()
+          .positive()
+          .max(3600)
+          .describe("The body's turn rate that gives the full lean, in degrees per sim second."),
+        reachMs: reachMs('Time the lean takes to reach its target, in sim ms (no overshoot).'),
+      })
+      .describe("Papa's lean, from what is drawn (story 7.8). 0 under « Réduire les animations »."),
+    breath: z
+      .strictObject({
+        periodMs: breathPeriodMs('One calm breath, in sim ms.'),
+        alertPeriodMs: breathPeriodMs(
+          'One breath while the catastrophe gauge is above `catastrophe.alertPct`, in sim ms. Not above `periodMs`.',
+        ),
+        papaAmplitudeDeg: lifeDeg(10, "How far Papa's torso rises and falls, in degrees."),
+        babyAmplitudeDeg: lifeDeg(10, "How far the baby's torso rises and falls, in degrees."),
+      })
+      .refine((breath) => breath.alertPeriodMs <= breath.periodMs, {
+        path: ['alertPeriodMs'],
+        error: 'alertPeriodMs must not be above periodMs: alarmed, he breathes faster',
+      })
+      .describe(
+        'The breathing over the clips (story 7.8). Papa holds it during the stealth exit; 0 under « Réduire les animations ».',
+      ),
+    gaze: z
+      .strictObject({
+        maxYawDeg: lifeDeg(90, "How far Papa's head turns from his body, in degrees."),
+        behindDeg: lifeDeg(
+          180,
+          'Past this angle from his front, what he would look at is behind him and he looks ahead instead of whipping his head from one side to the other. Not under `maxYawDeg`.',
+        ),
+        reachMs: reachMs('Time his head takes to reach what it looks at, in sim ms.'),
+      })
+      .refine((gaze) => gaze.behindDeg >= gaze.maxYawDeg, {
+        path: ['behindDeg'],
+        error:
+          'behindDeg must not be under maxYawDeg: it starts where the head has stopped turning',
+      })
+      .describe(
+        "Papa's gaze (story 7.8): the baby on screen, else the visible threat whose ring is the most advanced, else ahead.",
+      ),
+    stoop: z
+      .strictObject({
+        maxDeg: lifeDeg(45, "How far Papa's torso pitches forward at fatigue 100, in degrees."),
+      })
+      .describe(
+        'The fatigue stoop (story 7.8): in proportion to the fatigue gauge. His eyelids never follow it.',
+      ),
+    look: z
+      .strictObject({
+        outlineWidthPct: z
+          .number()
+          .min(50)
+          .max(300)
+          .describe(
+            "The characters' ink hull, in % of the furniture's and props' (`feedback.json › render.outlines.widthM`).",
+          ),
+        rimStrengthPct: pct('How bright the light rim on their silhouette is, in %.'),
+        rimWidthPct: z
+          .number()
+          .min(1)
+          .max(100)
+          .describe(
+            'How far the rim reaches in from the silhouette, in %. Not 0: the shader would get a `smoothstep` with equal edges, which is undefined.',
+          ),
+        isFourthToneOn: z
+          .boolean()
+          .describe(
+            "Whether the characters' shading has a 4th, darkest tone (a test, off at first).",
+          ),
+        fourthTonePct: pct(
+          'The 4th tone, in % of white: below the darkest of `render.toonTones` (`content:check`).',
+        ),
+      })
+      .describe("The characters' own look, to stand out from the room (story 7.8)."),
+  })
+  .describe(
+    "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, rim and outline. Client only.",
   );
 
 const MusicSchema = z
@@ -855,11 +1153,13 @@ export const FeelSchema = z
     timing: TimingSchema,
     input: InputSchema,
     movement: MovementSchema,
+    director: DirectorSchema,
     baby: BabySchema,
     fatigue: FatigueSchema,
     carry: CarrySchema,
     combo: ComboSchema,
     noise: NoiseSchema,
+    catastrophe: CatastropheSchema,
     bladder: BladderSchema,
     sequences: SequencesSchema,
     endOfLevel: EndOfLevelSchema,
@@ -870,6 +1170,8 @@ export const FeelSchema = z
     physics: PhysicsSchema,
     gags: GagsSchema,
     fx: FxSchema,
+    camera: CameraSchema,
+    characters: CharactersSchema,
     music: MusicSchema,
     calibration: CalibrationSchema,
   })

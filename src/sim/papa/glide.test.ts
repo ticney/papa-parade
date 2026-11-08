@@ -21,6 +21,8 @@ const content = createTestContent();
 const geometry = createTestGeometry();
 const { glideMaxMs, walkSpeedMps } = content.feel.movement;
 const OUTLET_ID = 1;
+/** A press the outlet's window buffers (it opens at 1210, the buffer is 100 ms): judged a success, so no gag electrifies Papa and cuts the glide (story 3.15). */
+const PRESS_MS = 1130;
 
 type Of<T extends SimEvent['type']> = Extract<SimEvent, { type: T }>;
 const only = <T extends SimEvent['type']>(events: readonly SimEvent[], type: T): Of<T>[] =>
@@ -75,29 +77,31 @@ async function pressedAt(t: number, options: { geometry?: LevelGeometry } = {}) 
   const sim = await newSim(options);
   run(sim, t / STEP_MS - 1);
   sim.enqueue(press(t));
+  // Released right away: a Parry, not a Firmness held into a wrong response (which would gag and electrify Papa, story 3.15).
+  sim.enqueue({ type: 'Release', t: asSimMs(t + 20) });
   return sim;
 }
 
 describe('the glide to a pressed threat', () => {
   it('starts at the press step: PapaGlideStarted, state glide, a glide in the world', async () => {
-    const sim = await pressedAt(500);
+    const sim = await pressedAt(PRESS_MS);
     const events = run(sim, 1);
     const started = only(events, 'PapaGlideStarted');
     expect(started).toEqual([
-      expect.objectContaining({ t: 500, threatId: OUTLET_ID, arriveAt: expect.any(Number) }),
+      expect.objectContaining({ t: PRESS_MS, threatId: OUTLET_ID, arriveAt: expect.any(Number) }),
     ]);
     const glide = papaOf(sim).glide;
-    expect(glide).toMatchObject({ threatId: OUTLET_ID, startedAt: 500 });
+    expect(glide).toMatchObject({ threatId: OUTLET_ID, startedAt: PRESS_MS });
     expect(glide?.arriveAt).toBe(started[0]?.arriveAt);
     expect([glide?.toXM, glide?.toZM]).toEqual([started[0]?.toXM, started[0]?.toZM]);
     expect(papaOf(sim).state).toBe('glide');
     expect(events.filter((event) => event.type === 'PapaStateChanged')).toEqual([
-      { type: 'PapaStateChanged', t: 500, from: 'idle', to: 'glide' },
+      { type: 'PapaStateChanged', t: PRESS_MS, from: 'idle', to: 'glide' },
     ]);
   });
 
   it('lasts at most glideMaxMs, faster than walking when Papa is far (the spawn, 6.5 m away)', async () => {
-    const sim = await pressedAt(500);
+    const sim = await pressedAt(PRESS_MS);
     run(sim, 1);
     const glide = papaOf(sim).glide;
     if (glide === null) throw new Error('no glide');
@@ -106,7 +110,7 @@ describe('the glide to a pressed threat', () => {
   });
 
   it('arrives at the first step at or after arriveAt, exactly at the threat’s cell, and goes idle', async () => {
-    const sim = await pressedAt(500);
+    const sim = await pressedAt(PRESS_MS);
     const events = run(sim, 1);
     const arriveAt = (only(events, 'PapaGlideStarted')[0] as { arriveAt: number }).arriveAt;
     const goal = [papaOf(sim).glide?.toXM, papaOf(sim).glide?.toZM];
@@ -125,7 +129,7 @@ describe('the glide to a pressed threat', () => {
   });
 
   it('glides at walking speed when Papa is next to the outlet', async () => {
-    const sim = await pressedAt(500, { geometry: papaNearOutlet() });
+    const sim = await pressedAt(PRESS_MS, { geometry: papaNearOutlet() });
     run(sim, 1);
     const glide = papaOf(sim).glide;
     if (glide === null) throw new Error('no glide');
@@ -134,24 +138,27 @@ describe('the glide to a pressed threat', () => {
   });
 
   it('is an instant arrival when Papa already stands at the target', async () => {
-    const sim = await pressedAt(500, { geometry: papaNearOutlet() });
+    const sim = await pressedAt(PRESS_MS, { geometry: papaNearOutlet() });
     run(sim, 120); // glides to the outlet, then idle
     expect(papaOf(sim).state).toBe('idle');
-    sim.enqueue(press(1800));
+    const pressAt = sim.world.time.sim + STEP_MS;
+    sim.enqueue(press(pressAt));
     const events = run(sim, 60);
     const [started] = only(events, 'PapaGlideStarted');
-    expect(started?.arriveAt).toBe(1800);
+    expect(started?.arriveAt).toBe(pressAt);
     expect(only(events, 'PapaArrived')).toHaveLength(1);
     expect(papaOf(sim).state).toBe('idle');
   });
 
-  it('glides on a press whatever the judgement says: an early press that gags too', async () => {
+  it('glides on a press whatever the judgement says, unless the gag it makes electrifies Papa on the spot (story 3.15)', async () => {
     const sim = await newSim();
     run(sim, 10);
     sim.enqueue(press(300)); // far before the window opens at 1210
     const events = run(sim, 40);
-    expect(only(events, 'PapaGlideStarted')).toHaveLength(1);
     expect(only(events, 'GagTriggered')).toHaveLength(1);
+    // The outlet's séquelle is judged before Papa's commands: busy, he glides nowhere.
+    expect(only(events, 'PapaGlideStarted')).toHaveLength(0);
+    expect(papaOf(sim).state).toBe('electrified');
   });
 
   it('glides on a press on a gagged threat too (a new press replans), but not on an idle one', async () => {
@@ -172,14 +179,14 @@ describe('the glide to a pressed threat', () => {
   });
 
   it('is replanned by a new press, from where Papa stands', async () => {
-    const sim = await pressedAt(500);
-    run(sim, 11); // 610: Papa has moved
+    const sim = await pressedAt(PRESS_MS);
+    run(sim, 6); // 1180: Papa has moved
     const before = { x: papaOf(sim).xM, z: papaOf(sim).zM };
-    sim.enqueue(press(650));
-    const events = run(sim, 5);
+    sim.enqueue(press(1200));
+    const events = run(sim, 3);
     const second = only(events, 'PapaGlideStarted');
     expect(second).toHaveLength(1);
-    expect(papaOf(sim).glide?.startedAt).toBe(650);
+    expect(papaOf(sim).glide?.startedAt).toBe(1200);
     expect(Math.hypot(papaOf(sim).xM - before.x, papaOf(sim).zM - before.z)).toBeGreaterThan(0);
     expect(papaOf(sim).state).toBe('glide');
   });
@@ -202,7 +209,7 @@ describe('the glide to a pressed threat', () => {
 
 describe('what cancels a glide', () => {
   it('a TapFloor walks Papa where it says', async () => {
-    const sim = await pressedAt(500);
+    const sim = await pressedAt(PRESS_MS);
     run(sim, 3);
     expect(papaOf(sim).state).toBe('glide');
     sim.enqueue({ type: 'TapFloor', t: asSimMs(540), xM: 2, zM: 1 });
@@ -219,7 +226,7 @@ describe('what cancels a glide', () => {
   });
 
   it('a Move walks Papa in its direction and drops the glide and its path', async () => {
-    const sim = await pressedAt(500);
+    const sim = await pressedAt(PRESS_MS);
     run(sim, 3);
     sim.enqueue({ type: 'Move', t: asSimMs(540), dirX: 0, dirZ: 1 });
     run(sim, 2);
@@ -227,7 +234,7 @@ describe('what cancels a glide', () => {
   });
 
   it('a MoveStop does not cancel it', async () => {
-    const sim = await pressedAt(500);
+    const sim = await pressedAt(PRESS_MS);
     run(sim, 3);
     sim.enqueue({ type: 'MoveStop', t: asSimMs(540) });
     run(sim, 2);
@@ -235,13 +242,21 @@ describe('what cancels a glide', () => {
     expect(papaOf(sim).glide).not.toBeNull();
   });
 
-  it('a gag on the threat does not stop him either: the glide plays in parallel', async () => {
+  it('a gag electrifies a walking Papa on the spot: his path is dropped, as a nap drops it (story 3.15)', async () => {
     const sim = await newSim();
-    run(sim, 10);
-    sim.enqueue(press(300));
-    const events = run(sim, 22);
+    run(sim, 110);
+    sim.enqueue({ type: 'TapFloor', t: asSimMs(1110), xM: 2, zM: 1 });
+    run(sim, 20);
+    expect(papaOf(sim).state).toBe('walkPath');
+    // Nobody presses: the window and its tolerance run out (1210 + 300 + 60) and the outlet gags.
+    const events = run(sim, 40);
     expect(only(events, 'GagTriggered')).toHaveLength(1);
-    expect(papaOf(sim).state).toBe('glide');
+    expect(papaOf(sim)).toMatchObject({
+      state: 'electrified',
+      glide: null,
+      path: [],
+      pathIndex: 0,
+    });
   });
 });
 
@@ -267,6 +282,7 @@ describe('planWalkTo', () => {
       prevZM: 0,
       headingX: 0,
       headingZ: 1,
+      look: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
       path: [],
       pathIndex: 0,
       dirX: 0,

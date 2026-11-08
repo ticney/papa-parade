@@ -6,6 +6,7 @@ import { JournalSchema } from '../../src/content/schemas/journal.ts';
 import { STEP_MS } from '../../src/shared/constants.ts';
 import { advanceTo, cueIds, shot, typesOf } from './support/duel.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   OWN_WARNINGS,
@@ -22,6 +23,7 @@ import {
   ppEvents,
   ppFreeze,
   ppLoadLevel,
+  ppSetFeel,
   ppWorld,
   waitForTestApi,
 } from './support/testApi.ts';
@@ -36,6 +38,10 @@ const REPO = fileURLToPath(new URL('../../', import.meta.url));
 const SEQUENCES = ['stay_awake', 'lullaby_walk', 'bedtime_duel', 'bomb_drop', 'stealth_exit'];
 const PANEL = '.pp-result-panel';
 const AUTOPLAY_TIMEOUT_MS = 180_000;
+// The header comes with the rows, after the photo's hold and Mama's reactions (up to ~5 s; story 3.7).
+const SEQUENCE_TIMEOUT_MS = 15_000;
+/** A response window long enough to outlast any wait of the toilet test: no threat of it gags before the entry starts (story 3.15). */
+const WIDE_WINDOW_MS = 60_000;
 /** Above the baby's floor point, where a finger aims at him. */
 const BABY_TAP_HEIGHT_M = 0.2;
 /** Five steps of a walk are 15 cm at 3 m/s; a jump across the room is metres. */
@@ -52,7 +58,7 @@ const geometry = JSON.parse(readFileSync(`content/levels/${LEVEL}.geometry.json`
 const CRIB = geometry.zones.find((zone) => zone.kind === 'safe')?.centerM ?? [0, 0, 0];
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto(`/${QUERY}`);
+  await page.goto(appUrl(`/${QUERY}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -73,7 +79,7 @@ async function stepUntil(
 }
 
 test.describe('Chambre de nuit', () => {
-  test('?level= shows the room; a mistyped id plays the salon and says so', async ({
+  test('?level= shows the room; a mistyped id plays the first level and says so', async ({
     page,
   }, testInfo) => {
     const problems = collectProblems(page, { allowedErrors: OWN_WARNINGS });
@@ -96,14 +102,16 @@ test.describe('Chambre de nuit', () => {
     });
     await startLevel(page, '?level=chambre_nuit');
     await expect.poll(() => warnings.join()).toContain('ignoring ?level=chambre_nuit');
-    await expect(html(page)).toHaveAttribute('data-pp-level', 'salon_crawler');
+    // The game's first level (story 9.8: the big room), not the old salon: a mistyped link plays it. The id is
+    // typed here on purpose: the constant would pass whatever it holds.
+    await expect(html(page)).toHaveAttribute('data-pp-level', 'salon_kitchen');
     await expect(html(page)).not.toHaveAttribute('data-pp-app', 'error');
   });
 
   test('the perfect bot chains the five sequences and the Result says so', async ({ page }) => {
     test.setTimeout(AUTOPLAY_TIMEOUT_MS + 30_000);
     const problems = collectProblems(page, { allowedErrors: OWN_WARNINGS });
-    await page.goto(`/${QUERY}&autoplay=perfect&seed=${SEED}&speed=4&debug=1`);
+    await page.goto(appUrl(`/${QUERY}&autoplay=perfect&seed=${SEED}&speed=4&debug=1`));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-end-reason', 'cycleDone', {
       timeout: AUTOPLAY_TIMEOUT_MS,
@@ -113,6 +121,7 @@ test.describe('Chambre de nuit', () => {
     await expect(html(page)).toHaveAttribute('data-pp-cycle-index', String(SEQUENCES.length));
     await expect(page.locator(`${PANEL} .pp-result-reason`)).toHaveText(
       STRINGS['result.cycle_done'] as string,
+      { timeout: SEQUENCE_TIMEOUT_MS },
     );
     await expect(page.locator(PANEL)).not.toHaveClass(/pp-result-panel-woken/);
     // The end photo is taken whatever the end and the level (story 3.6, D1): the bedroom is the one
@@ -137,7 +146,7 @@ test.describe('Chambre de nuit', () => {
 
   test('the idle bot never gets there, and the Result shows no such line', async ({ page }) => {
     test.setTimeout(AUTOPLAY_TIMEOUT_MS + 30_000);
-    await page.goto(`/${QUERY}&autoplay=idle&seed=${SEED}&speed=4&debug=1`);
+    await page.goto(appUrl(`/${QUERY}&autoplay=idle&seed=${SEED}&speed=4&debug=1`));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
       timeout: AUTOPLAY_TIMEOUT_MS,
@@ -172,6 +181,10 @@ test.describe('Chambre de nuit', () => {
     test.setTimeout(120_000);
     const problems = collectProblems(page, { allowedErrors: OWN_WARNINGS });
     await openFrozen(page);
+    // The outlet is drawn the moment the baby is put down, and a gag while Papa is in the toilet would shock
+    // him out of it (story 3.15). Its window is made wide, so that the entry's start (which cancels every
+    // threat up) comes before any gag: the test is about the entry waiting for a busy Papa.
+    await ppSetFeel(page, { timing: { windowMs: WIDE_WINDOW_MS } });
     await waitFrames(page, 3);
     // Taken early, so that the carry's tick climbs the combo before the first entry is due.
     const baby = (await ppWorld(page)).baby;
@@ -332,7 +345,7 @@ test.describe('Chambre de nuit', () => {
         });
       });
     }
-    await page.goto(`/${QUERY}&autoplay=idle&seed=${SEED}&speed=4&debug=1`);
+    await page.goto(appUrl(`/${QUERY}&autoplay=idle&seed=${SEED}&speed=4&debug=1`));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
       timeout: AUTOPLAY_TIMEOUT_MS,

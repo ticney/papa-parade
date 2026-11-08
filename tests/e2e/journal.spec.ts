@@ -5,6 +5,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { type JournalFile, JournalSchema } from '../../src/content/schemas/journal.ts';
 import {
   advanceToEnd,
+  appUrl,
   collectProblems,
   html,
   shiftedFeelValue,
@@ -57,7 +58,7 @@ const stubbedTexts = (page: Page): Promise<string[]> =>
 
 /** Opens the game on a frozen level, steps it to its end, and waits for the Result screen. */
 async function openResult(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -176,7 +177,7 @@ test.describe('the exportable game journal', () => {
     }) => {
       await stubClipboard(page, 'reject');
       await page.setViewportSize(viewport);
-      await page.goto('/');
+      await page.goto(appUrl('/'));
       await waitForTestApi(page);
       await ppFreeze(page, true);
       await ppLoadLevel(page, LEVEL, SEED);

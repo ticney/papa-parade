@@ -33,6 +33,9 @@ function idleBot() {
     holdMinMs: content.feel.input.holdMinMs,
     responses: {},
     releaseDefIds: [],
+    choreObjectIds: [],
+    isChronoRingShown: true,
+    view: null,
     safeSpot: null,
     settings: content.bots,
   });

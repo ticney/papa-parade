@@ -10,6 +10,7 @@ import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { beatTimelineOf, createSim, type Journal, type SimCommand, type SimEvent } from '@sim';
 import { createTestCycleGeometry, createTestCycleLevel } from '../support/cycleSupport.ts';
+import { NO_CATASTROPHE_PATCH } from '../support/noCatastrophe.ts';
 import {
   CARRY,
   COFFEE_TABLE,
@@ -23,7 +24,9 @@ import {
   NEED_GAUGES,
   NOISE_GAUGES,
   OUTLET,
+  SILENCE,
   STAIRS,
+  TEST_OBJECTS,
   TEST_TOILET,
   testWave,
 } from '../support/testContent.ts';
@@ -278,6 +281,20 @@ const INSTINCT_THREATS: readonly LevelWaveThreat[] = [
   { def: 'outlet', anchor: 'toilet' },
 ];
 
+/** The outlet of the frozen room, with its gag showing Papa's hair on end (story 3.7): this scenario's own copy. */
+const papaLookLevel = () => {
+  const level = createTestLevel({
+    durationMs: 20_000,
+    waves: [testWave([OUTLET], { fromMs: 500_000 })],
+  });
+  const outlet = level.threats.outlet;
+  if (outlet === undefined) throw new Error('no outlet in the frozen level');
+  return {
+    ...level,
+    threats: { ...level.threats, outlet: { ...outlet, lookChange: 'hairOnEnd' as const } },
+  };
+};
+
 export const SCENARIOS: readonly Scenario[] = [
   {
     // Time and commands only (no gameplay system exists yet). It still covers a late command
@@ -337,7 +354,8 @@ export const SCENARIOS: readonly Scenario[] = [
     // its centre 150 ms after that) and written down as literals:
     //  1. a perfect Parry (press at the centre of the window, released 50 ms later);
     //  2. a press far too early: gag `early`, Papa already at the wall (a zero-length glide);
-    //  3. nothing pressed: gag `late`; Papa is sent away with a tap (he is far for the next cycle);
+    //  3. nothing pressed: gag `late`, Papa is electrified for 1.5 s (story 3.15); once he is free he is
+    //     sent away with a tap (he is far for the next cycle);
     //  4. a perfect Parry whose press reaches the sim 150 ms after its own `t` (late enqueue: judged
     //     on `t`), then a TapFloor in the middle of the glide, which cancels it.
     name: 'outlet_parry',
@@ -348,7 +366,8 @@ export const SCENARIOS: readonly Scenario[] = [
       { atStep: 200, command: pressOutlet(3350) },
       { atStep: 200, command: release(3400) },
       { atStep: 1030, command: pressOutlet(10300) },
-      { atStep: 1800, command: tapFloor(18000, 2.5, 1.5) },
+      // After the shock of the missed cycle 3 (1.5 s, story 3.15): a tap during it would be ignored.
+      { atStep: 1950, command: tapFloor(19500, 2.5, 1.5) },
       { atStep: 2540, command: pressOutlet(25250) },
       { atStep: 2540, command: release(25300) },
       { atStep: 2548, command: tapFloor(25500, 0.5, -2.6) },
@@ -425,7 +444,9 @@ export const SCENARIOS: readonly Scenario[] = [
     level: createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] }),
     seed: 42,
     untilSimMs: 40000,
-    actions: [],
+    // Not about the catastrophe (story 3.16 D14): the gauge cannot rise, or the three gags and the ones after
+    // them would bring Mama home before the 40 s are up. The one command is the golden's only.
+    actions: [{ atStep: 0, command: setFeel(0, NO_CATASTROPHE_PATCH) }],
   },
   {
     // Carrying the baby (story 4.1), on the frozen living room with a cry in the arms. The outlet,
@@ -474,14 +495,14 @@ export const SCENARIOS: readonly Scenario[] = [
   },
   {
     // The pressing need (story 4.3), on the frozen living room with the toilet and one outlet planned
-    // from 2 s that nobody answers. A debug `SetFeel` shortens the visit to 1.5 s and a `SetBladder`
+    // from 5 s that nobody answers. A debug `SetFeel` shortens the visit to 1.5 s and a `SetBladder`
     // fills the need at once (`BladderFilled`): the walk to the door is slowed by 30 %. Papa goes in
-    // (`ToiletStarted`), the outlet ends in its `late` gag meanwhile with nobody to answer it, and the
-    // visit ends exactly `toiletDurationMs` later (`ToiletFinished`, the need back to 0, `BladderFilled`
+    // (`ToiletStarted`) and the visit ends exactly `toiletDurationMs` later (`ToiletFinished`, the need back to 0, `BladderFilled`
     // can fire again). The times are read from a first recording. `toiletVisit.test.ts` pins what it covers.
     name: 'toilet_visit',
     level: createTestLevel({
-      waves: [testWave([OUTLET], { gapMinMs: 2000, gapMaxMs: 2000 })],
+      // From 5 s: the outlet's gag would otherwise land on the visit and cancel it (story 3.15).
+      waves: [testWave([OUTLET], { fromMs: 5000, gapMinMs: 2000, gapMaxMs: 2000 })],
       objects: [TEST_TOILET],
       gauges: NEED_GAUGES,
     }),
@@ -516,6 +537,8 @@ export const SCENARIOS: readonly Scenario[] = [
     seed: 42,
     untilSimMs: 12000,
     actions: [
+      // Not about the catastrophe (story 3.16 D14): the three misses that start the instinct would otherwise bring Mama home.
+      { atStep: 0, command: setFeel(0, NO_CATASTROPHE_PATCH) },
       { atStep: 9, command: forceThreat(100, 1) },
       { atStep: 19, command: forceThreat(200, 2) },
       { atStep: 89, command: forceThreat(900, 3) },
@@ -690,6 +713,9 @@ export const SCENARIOS: readonly Scenario[] = [
         holdMinMs: createTestContent().feel.input.holdMinMs,
         responses: botResponsesOf(createTestCycleLevel().threats),
         releaseDefIds: releaseDefIdsOf(createTestCycleLevel().threats),
+        choreObjectIds: [],
+        isChronoRingShown: true,
+        view: null,
         safeSpot: safeSpotOf(createTestCycleGeometry()),
         settings: createTestBots(),
       }),
@@ -759,6 +785,137 @@ export const SCENARIOS: readonly Scenario[] = [
           threatId: STEALTH_FALSE_ALARM_ID,
         },
       },
+    ],
+  },
+  {
+    // The outlet's séquelle (story 3.15), on the frozen living room: nobody answers the outlet forced at 100.
+    // It gags `late`, Papa is electrified for 1.5 s (a tap on the floor at 2000 is ignored) and the room is dim
+    // for 6 s (`AfterEffectStarted` for each, then `AfterEffectEnded` at their own end); a tap once he is free
+    // (3500) walks him. The times are read from a first recording. `afterEffects.test.ts` (golden) pins it.
+    name: 'outlet_electrified_dim',
+    level: createTestLevel({ waves: [testWave([OUTLET], { fromMs: 500_000 })] }),
+    seed: 51,
+    untilSimMs: 10000,
+    actions: [
+      { atStep: 9, command: forceThreat(100, 1) },
+      { atStep: 199, command: tapFloor(2000, -1, 1) },
+      { atStep: 349, command: tapFloor(3500, 1, 1) },
+    ],
+  },
+  {
+    // The stairs' séquelle, fetched (story 3.15): the stairs forced at 100 gag unanswered; the baby is left
+    // downstairs; a tap on him (3000) has Papa walk to him and carry him up for 2 s, behind the stars; he is
+    // back babbling at the stairs. Nothing that needs the baby is drawn meanwhile (no wave is up).
+    name: 'stairs_fetch_carry_up',
+    level: createTestLevel({ waves: [testWave([STAIRS], { fromMs: 500_000 })] }),
+    seed: 52,
+    untilSimMs: 14000,
+    actions: [
+      { atStep: 9, command: forceThreat(100, 1) },
+      { atStep: 299, command: tapBaby(3000) },
+    ],
+  },
+  {
+    // The stairs' séquelle, left alone (story 3.15): nobody comes, and the baby climbs back by himself 6 s after
+    // the gag (`AfterEffectEnded{babyDownstairs}`, `BabyStateChanged` to babble at that very step).
+    name: 'stairs_self_return',
+    level: createTestLevel({ waves: [testWave([STAIRS], { fromMs: 500_000 })] }),
+    seed: 53,
+    untilSimMs: 12000,
+    actions: [{ atStep: 9, command: forceThreat(100, 1) }],
+  },
+  {
+    // The coffee table's séquelle (story 3.15), in a level with the noise gauge: the object forced at 100 falls
+    // at its gag and stays on the floor (`AfterEffectStarted{debris}`). Papa walks over it (4500: a step on it, `DebrisSteppedOn`,
+    // +3 % noise), then a tap on it (6500) walks him to it, picks it up for a second and tidies it
+    // (`PropTidied`, `AfterEffectEnded{debris}`), with no step noise for the debris he came for.
+    name: 'debris_pick_up_and_step',
+    level: createTestLevel({
+      waves: [testWave([COFFEE_TABLE], { fromMs: 500_000 })],
+      objects: TEST_OBJECTS,
+      gauges: NOISE_GAUGES,
+    }),
+    seed: 54,
+    untilSimMs: 12000,
+    actions: [
+      { atStep: 9, command: forceThreat(100, 1) },
+      { atStep: 449, command: tapFloor(4500, 1.64, -0.96) },
+      { atStep: 649, command: tapObject(6500, 'mug_01') },
+    ],
+  },
+  {
+    // The silence's séquelle (story 3.15): the suspicious silence forced at 100 is never found; its time runs
+    // out and the mischief stays (`AfterEffectStarted{mess}`, a mark in `world.afterEffects.mischiefMarks`), for
+    // the rest of the level.
+    name: 'silence_mess_mark',
+    level: createTestLevel({ waves: [testWave([SILENCE], { fromMs: 500_000 })] }),
+    seed: 55,
+    untilSimMs: 14000,
+    actions: [{ atStep: 9, command: forceThreat(100, 1) }],
+  },
+  {
+    // A séquelle replaced by another, without being extended (story 3.15): the fatigue is set to 100, the
+    // micro-sleep is telegraphed 8 to 12 s later and missed (10670): Papa falls asleep until 13670. The outlet
+    // forced at 10500 gags `late` in the middle of the nap (12070): the shock replaces it and ends where the
+    // nap would have (`AfterEffectEnded{asleep}`, then `AfterEffectStarted{electrified}` with the same `until`,
+    // 13670), and does not give Papa 1.5 s more. The times are read from a first recording.
+    name: 'after_effect_replaced',
+    level: createTestLevel({
+      waves: [testWave([OUTLET], { fromMs: 500_000 })],
+      gauges: FATIGUE_GAUGES,
+    }),
+    seed: 56,
+    untilSimMs: 16000,
+    actions: [
+      { atStep: 9, command: { type: 'SetFatigue', t: asSimMs(100), points: 100 } },
+      { atStep: 1049, command: forceThreat(10_500, 1) },
+    ],
+  },
+  {
+    // Papa's look (story 3.7): the outlet forced at 100 is never answered and its gag shows his hair on end
+    // (`PapaLookChanged{hairOnEnd}`, `world.papa.look`). Forced a second time at 12 s it gags again and
+    // shows nothing more (one part, once). The level then runs out at 20 s and Mama's Laugh counts the part
+    // (`LevelEnded{timer}`, `LevelScored`). The def with `lookChange` is this scenario's own copy: the shared
+    // fixture has none, so that no other scenario moves. `papaLook.test.ts` pins what it covers.
+    name: 'papa_look',
+    level: papaLookLevel(),
+    seed: 57,
+    untilSimMs: 21000,
+    actions: [
+      { atStep: 9, command: forceThreat(100, 1) },
+      { atStep: 1199, command: forceThreat(12_000, 1) },
+    ],
+  },
+  {
+    // Mama comes home early (story 3.16, FR73): the outlet and the stairs are drawn by the director and
+    // nobody answers, so each ends in its gag, a near miss worth 35 % of the catastrophe gauge. The third
+    // fills it: `CatastropheChanged` up to 100, then `LevelEnded{mamaHome}` and `LevelScored` (0 stars) in the
+    // same step, well before the end of the level, and a frozen world after it. No command at all.
+    // `catastrophe.test.ts` (golden) pins what it covers.
+    name: 'catastrophe_mama_home',
+    level: createTestLevel({ waves: [testWave([OUTLET, STAIRS])] }),
+    seed: 43,
+    untilSimMs: 40000,
+    actions: [],
+  },
+  {
+    // The gauge in the final rush (story 3.16): frozen. The room is the final rush's, the door opens at 20 s.
+    // A debug `SetCatastrophe` takes the gauge to 60 % at 19.5 s; a wave planned from 19 s then fails its
+    // gags (the outlet and the stairs) inside the rush, which moves nothing: no `CatastropheChanged` after
+    // the rush starts. A second `SetCatastrophe`, to 100 % at 26 s, is ignored too: the level ends on the
+    // photo at 30 s with `LevelEnded{timer}`. `catastrophe.test.ts` (golden) pins what it covers.
+    name: 'catastrophe_rush_frozen',
+    level: createTestLevel({
+      durationMs: 30_000,
+      finalRush: { spillAnchor: 'coffee_table' },
+      waves: [testWave([OUTLET, STAIRS], { fromMs: 19_000 })],
+    }),
+    geometry: finalRushGeometry(),
+    seed: 42,
+    untilSimMs: 30_000,
+    actions: [
+      { atStep: 1950, command: { type: 'SetCatastrophe', t: asSimMs(19_500), pct: 60 } },
+      { atStep: 2600, command: { type: 'SetCatastrophe', t: asSimMs(26_000), pct: 100 } },
     ],
   },
 ];

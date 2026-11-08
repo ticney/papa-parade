@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { RESUME_COUNTDOWN_MS } from '../../src/shared/constants.ts';
 import {
   anchorMirror,
+  appUrl,
   collectProblems,
   DUALSENSE_PAD_ID,
   html,
@@ -44,7 +45,7 @@ const RESUMED_MS = RESUME_COUNTDOWN_MS + OVERRUN_MARGIN_MS;
 type World = Awaited<ReturnType<typeof ppWorld>>;
 
 async function openFrozen(page: Page, query = ''): Promise<void> {
-  await page.goto(`/${query}`);
+  await page.goto(appUrl(`/${query}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);

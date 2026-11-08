@@ -8,6 +8,7 @@ import {
   THREAT_ICON_PATHS,
   threatMarkerEntries,
 } from './threatMarkers.ts';
+import type { VerbMetrics } from './verbMetrics.ts';
 
 // The marker of a Firmness judged on its release (story 4.8): « TIENS… » and the sweat during the
 // descent, « LÂCHE ! » and the open hand at the final pose, and never « POSE-LE D'ABORD ! » (this is the
@@ -57,7 +58,16 @@ function build() {
     Document,
     'createElement' | 'createElementNS'
   >;
-  const markers = createThreatMarkers(new Scene(), doc);
+  // The release Firmness has a chrono-ring (story 2.11), whose size is read from the metrics.
+  const metrics: VerbMetrics = {
+    surfaceKey: () => 'regular',
+    basePx: () => 40,
+    lineHeight: () => 1,
+    scale: () => 1,
+    threatSizePx: () => 64,
+    widthPx: (text, fontPx) => text.length * fontPx * 0.5,
+  };
+  const markers = createThreatMarkers(new Scene(), doc, metrics);
   const byClass = (name: string): FakeElement[] =>
     created.filter((element) => element.className === name);
   return { markers, created, byClass };
@@ -100,7 +110,7 @@ const plainFirmDef = {
 } as const;
 
 const entries = () =>
-  threatMarkerEntries([threat(4, 'idle')], [], { bomb_drop_lay: releaseDef }, 0.2, t);
+  threatMarkerEntries([threat(4, 'idle')], [], { bomb_drop_lay: releaseDef }, 0.2, t, 0);
 
 describe('the entry of a Firmness judged on its release (story 4.8)', () => {
   it('has no carried verb: « POSE-LE D’ABORD ! » must not replace « TIENS… »', () => {
@@ -121,6 +131,7 @@ describe('the entry of a Firmness judged on its release (story 4.8)', () => {
       { bomb_drop_lay: plainFirmDef },
       0.2,
       t,
+      0,
     );
     expect(entry?.carriedVerb).toBe('<verb.put_down_first>');
     expect(entry?.signalVerb).toBeUndefined();

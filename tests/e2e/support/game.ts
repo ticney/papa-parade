@@ -2,11 +2,12 @@ import { readFileSync } from 'node:fs';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { Vector3 } from 'three';
 import { createIsoCamera, fitIsoCamera } from '../../../src/client/render/isoCamera.ts';
-import { roomOf } from '../../../src/client/render/levelScene.ts';
 import { feedbackClips } from '../../../src/content/feedbackClips.ts';
 import type { FeedbackTable } from '../../../src/content/schemas/feedback.ts';
 import type { LevelGeometry } from '../../../src/content/schemas/levelGeometry.ts';
 import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../../src/shared/constants.ts';
+import { roomOf } from '../../../src/shared/followCamera.ts';
+import type { MamaReaction } from '../../../src/sim/index.ts';
 import { ppAdvance, ppEvents, ppWorld } from './testApi.ts';
 
 // The live room and feel, read here and never copied: Geo re-exports the room and retunes the feel freely.
@@ -26,8 +27,10 @@ export const liveFeedback = JSON.parse(readFileSync('content/feedback.json', 'ut
     { audio?: { clip: string }; haptic?: 'light' | 'medium' | 'heavy' | 'heartbeat' }
   >;
   events: Record<string, string>;
-  resultScreen: { inputGraceMs: number; photoHoldMs: number };
+  resultScreen: { inputGraceMs: number; photoHoldMs: number; reactionHoldMs: number };
   photo: { widthPx: number; heightPx: number; tiltMaxDeg: number };
+  replay: { minSpacingMs: number; momentCount: number; delayMs: number };
+  door: { openMs: number; openAngleDeg: number };
   calibration: { beep: { clip: string } };
 };
 
@@ -44,7 +47,24 @@ export function hapticPatternOf(event: string): number[] | null {
   return kind === undefined ? null : liveFeedback.haptics[kind].patternMs;
 }
 
+/** The client event, and so the cue and the vibration, of each of Mama's reactions on the Result screen (story 3.7). */
+export const MAMA_REACTION_EVENTS = {
+  laugh: 'ResultMamaLaughed',
+  sigh: 'ResultMamaSighed',
+  scream: 'ResultMamaScreamed',
+} as const;
+
+/** The cue ids Mama's reactions play, in the live table (`events` -> cue), by reaction. */
+export const mamaCueOf = (reaction: MamaReaction['reaction']): string =>
+  liveFeedback.events[MAMA_REACTION_EVENTS[reaction]] as string;
+
+/** The vibration of each reaction, in the order they play: what the Result screen buzzes between the photo and the rows. */
+export const mamaHapticsOf = (reactions: readonly MamaReaction[]): (number[] | null)[] =>
+  reactions.map(({ reaction }) => hapticPatternOf(MAMA_REACTION_EVENTS[reaction]));
+
 export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as {
+  /** The catastrophe gauge (story 3.16): where Mama's face changes and where she is alarmed. */
+  catastrophe: { alertPct: number; faceStepsPct: number[] };
   timing: {
     telegraphDelayDefaultMs: number;
     windowMs: number;
@@ -76,7 +96,8 @@ export const liveFeel = JSON.parse(readFileSync('content/feel.json', 'utf8')) as
   };
   mama: {
     laughMaxPoints: number;
-    babyStateMaxPoints: number;
+    calmMaxPoints: number;
+    homeMaxPoints: number;
     sighMaxPoints: number;
     screamMaxPoints: number;
     earlyWakePenaltyStars: number;
@@ -307,11 +328,28 @@ export async function emulateReducedMotion(page: Page): Promise<void> {
 }
 
 /**
+ * The room the e2e suite plays in (story 9.8). The first level of the game is the big room, but about fifty
+ * specs were written against the salon (its geometry, its waves, its fixed camera): they keep it, explicitly.
+ * The big room has its own specs, which name it.
+ */
+export const TEST_ROOM_ID = 'salon_crawler';
+
+/**
+ * `url` ("/", "/?autoplay=perfect&seed=1"…) with `level=salon_crawler` added when it names no level. Every
+ * `page.goto` of a spec goes through it, so that no spec moves to the game's first level by accident; a URL
+ * that names its level is left as it is, and the specs of the first level itself use `page.goto` bare.
+ */
+export function appUrl(url: string): string {
+  if (/[?&]level=/.test(url)) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}level=${TEST_ROOM_ID}`;
+}
+
+/**
  * Opens the app and waits until it shows the start screen. `data-pp-app` and `data-pp-state` are
  * written by the composition root in dev and playtest builds only, once everything is up.
  */
 export async function openGame(page: Page, query = ''): Promise<void> {
-  await page.goto(`/${query}`);
+  await page.goto(appUrl(`/${query}`));
   await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
 }
 
@@ -364,7 +402,8 @@ export async function objectIconPoint(
 
 /**
  * Where a point of the live room (metres) is on the page, in px: the game's own iso camera, fitted
- * to the live room and to the canvas box. For checking where something is drawn.
+ * to the live room and to the canvas box. For checking where something is drawn. This is the
+ * **fixed** camera's: a level whose camera follows Papa (story 9.2) uses `ppPagePoint` instead.
  */
 export async function pagePointOf(
   page: Page,
@@ -481,9 +520,11 @@ export function settleAnimations(page: Page): Promise<unknown> {
  * Every warning of the audio engine (`[audio]`: unlock, resume, a clip, a loop, a one-shot, a
  * preload that gave up...) and of the feedback director (`[feedback]`) is here: the console sink
  * prints the channel in brackets, and a sound that silently fails to play fails every spec.
+ * So is a moment of the highlight replay that could not be built, framed, played or drawn
+ * (`[render] … replay`, story 3.9): the replay skips it and goes on, so only the warning tells.
  */
 export const OWN_WARNINGS =
-  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|\[(?:audio|feedback)\] /;
+  /missing string key|no "[a-z]+" screen to show|cannot load \d+ font|setPointerCapture failed|\[(?:audio|feedback)\] |\[render\] [^\n]*replay/;
 
 /**
  * Collects what must fail a session: console errors, page errors, and the app's own warnings about
@@ -864,13 +905,29 @@ const RESULT_SEQUENCE_TIMEOUT_MS = 15_000;
 const RESULT_GRACE_MARGIN_MS = 60;
 
 /**
+ * Waits for the Result screen's buttons (`data-pp-result="actions"`), going through the highlight replay
+ * (story 3.9) if the game had moments: a press while `replay` shows skips a moment, the next skips the rest
+ * (EXPERIENCE L344), so the wait keeps its budget whatever the number of moments. A spec that tests the
+ * replay waits for its phases itself and does not use this. The press is Space, only in the `replay` phase:
+ * in `actions` it would land on « Rejouer ».
+ */
+export async function passReplayToActions(
+  page: Page,
+  timeoutMs: number = RESULT_SEQUENCE_TIMEOUT_MS,
+): Promise<void> {
+  await expect(async () => {
+    const phase = await html(page).getAttribute('data-pp-result');
+    if (phase === 'replay') await page.keyboard.press('Space');
+    expect(phase).toBe('actions');
+  }).toPass({ timeout: timeoutMs, intervals: [100, 200, 300] });
+}
+
+/**
  * Waits until the Result screen's buttons are up and their input grace is over, so that the next
  * press counts. The grace is real time: it waits for the page's own clock, never a fixed delay.
  */
 export async function waitForResultActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: RESULT_SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page);
   const untilMs = await page.evaluate(
     (graceMs) => performance.now() + graceMs,
     liveFeedback.resultScreen.inputGraceMs + RESULT_GRACE_MARGIN_MS,

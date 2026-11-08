@@ -4,6 +4,7 @@ import { FEEDBACK_CLIENT_EVENTS } from '@client/feedback/feedbackEvents';
 import type { ContentProblem } from '@content/contentError';
 import {
   BOTS_FILE,
+  CHORE_DEF_PATTERN,
   CONTENT_FILES,
   CONTENT_SCHEMAS,
   DISRUPTION_DEF_PATTERN,
@@ -11,6 +12,7 @@ import {
   FEEL_FILE,
   LEVEL_GEOMETRY_PATTERN,
   LEVEL_PATTERN,
+  MAMA_LINES_FILE,
   matchContentPattern,
   SEQUENCE_DEF_PATTERN,
   STRINGS_FILE,
@@ -21,11 +23,13 @@ import { formatJsonPath } from '@content/jsonPath';
 import { renderContentJsonSchema } from '@content/jsonSchema';
 import { parseContentFile } from '@content/parseContentFile';
 import type { BotSettings } from '@content/schemas/bots';
+import type { ChoreDef } from '@content/schemas/chore';
 import type { DisruptionDef } from '@content/schemas/disruption';
 import type { FeedbackCue, FeedbackTable } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
 import type { Level } from '@content/schemas/level';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
+import type { MamaLines } from '@content/schemas/mamaLines';
 import type { SequenceDef } from '@content/schemas/sequence';
 import { type ThreatDef, ThreatGagIds } from '@content/schemas/threat';
 import { checkStringReferences } from '@content/stringRefs';
@@ -36,14 +40,21 @@ import {
   STEP_MS,
 } from '@shared/constants';
 import {
+  afterEffectProblem,
   beatWindowLimitsOf,
+  catastropheProblem,
   cycleProblems,
   cycleRoomForGeometry,
   duelLimitsOf,
   finalRushProblems,
   GAG_IDS,
+  LEVEL_END_REASONS,
   OBJECT_ACTION_KINDS,
   openSafeCentreCountOf,
+  openThreatAnchorProblem,
+  openThreatOrphanProblem,
+  openThreatPlanProblem,
+  openThreatResponseProblem,
   PAPA_ASLEEP_GAG_ID,
   playableMsOf,
   SIM_EVENT_TYPES,
@@ -51,6 +62,7 @@ import {
   sequenceDuelProblems,
   sequenceLayProblems,
   sequenceStealthProblems,
+  silenceLimitProblem,
   stealthRoomForGeometry,
 } from '@sim';
 
@@ -345,6 +357,7 @@ function checkBotReferences(bots: BotSettings, feel: Feel): ContentProblem[] {
 interface ParsedFamilies {
   threats: Map<string, ThreatDef>;
   disruptions: Map<string, DisruptionDef>;
+  chores: Map<string, ChoreDef>;
   sequences: Map<string, SequenceDef>;
   levels: Map<string, Level>;
   geometries: Map<string, LevelGeometry>;
@@ -387,13 +400,28 @@ function checkThreatReferences(
           jsonPath,
           message: `"${gag}" is not a gag of the sim (${GAG_IDS.join(', ')}; a new gag is added to GAG_IDS in src/sim/threats/gags.ts)`,
         });
-      } else if (threat.target === 'hiddenZone' && gag === PAPA_ASLEEP_GAG_ID) {
+      } else if (
+        (threat.target === 'hiddenZone' || threat.target === 'station') &&
+        gag === PAPA_ASLEEP_GAG_ID
+      ) {
         problems.push({
           file,
           jsonPath,
           message: `"${PAPA_ASLEEP_GAG_ID}" is the micro-sleep's gag: only a threat with target "papa" may end in it`,
         });
       }
+    }
+    const afterEffectMismatch = afterEffectProblem(
+      id,
+      ThreatGagIds(threat),
+      threat.afterEffect.kind,
+    );
+    if (afterEffectMismatch !== null) {
+      problems.push({ file, jsonPath: 'afterEffect.kind', message: afterEffectMismatch });
+    }
+    const catastropheMismatch = catastropheProblem(id, ThreatGagIds(threat), threat.catastrophe);
+    if (catastropheMismatch !== null) {
+      problems.push({ file, jsonPath: 'catastrophe', message: catastropheMismatch });
     }
     if (feedback === undefined) continue;
     for (const [role, cueId] of Object.entries(threat.feedback)) {
@@ -1043,6 +1071,316 @@ function checkDisruptionRing(
 }
 
 /**
+ * The references a chore file makes that its schema cannot see (story 9.4): each of its feedback
+ * cues is a cue of `feedback.json` (and none is a `uiElement`: a chore's cues are played for sim
+ * events), each beat is announced longer before its window than the window lasts (`windowMs`, or the
+ * `feel.json` window when it is `null`), and its station is a kind the sim has an action for.
+ */
+function checkChoreReferences(
+  chores: ReadonlyMap<string, ChoreDef>,
+  threats: ReadonlyMap<string, ThreatDef>,
+  present: ReadonlySet<string>,
+  feedback: FeedbackTable | undefined,
+  feel: Feel | undefined,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (const [id, chore] of chores) {
+    const file = `content/${CHORE_DEF_PATTERN.dir}/${id}${CHORE_DEF_PATTERN.suffix}`;
+    // The threat an abandoned chore turns into (story 9.5): a threat file that stands on a station.
+    if (chore.abandonedThreat !== undefined) {
+      const { def } = chore.abandonedThreat;
+      const defFile = `${THREAT_DEF_PATTERN.dir}/${def}${THREAT_DEF_PATTERN.suffix}`;
+      const threat = threats.get(def);
+      if (threat === undefined) {
+        if (!present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['abandonedThreat', 'def']),
+            message: `no threat "${def}" (content/${defFile} does not exist)`,
+          });
+        }
+      } else if (threat.target !== 'station') {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['abandonedThreat', 'def']),
+          message: `the threat "${def}" has target "${threat.target}", but the threat of an abandoned chore must have target "station"`,
+        });
+      }
+    }
+    // The threat of the open station (story 9.6): a threat file that stands on an anchor.
+    if (chore.openThreat !== undefined) {
+      const def = chore.openThreat;
+      const defFile = `${THREAT_DEF_PATTERN.dir}/${def}${THREAT_DEF_PATTERN.suffix}`;
+      const threat = threats.get(def);
+      if (threat === undefined) {
+        if (!present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['openThreat']),
+            message: `no threat "${def}" (content/${defFile} does not exist)`,
+          });
+        }
+      } else if (threat.target !== 'anchor') {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['openThreat']),
+          message: `the threat "${def}" has target "${threat.target}", but the open threat of a chore must have target "anchor"`,
+        });
+      } else {
+        const responseProblem = openThreatResponseProblem(def, threat.response);
+        if (responseProblem !== null) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['openThreat']),
+            message: responseProblem,
+          });
+        }
+      }
+    }
+    if (feedback !== undefined) {
+      for (const [role, cueId] of Object.entries(chore.feedback)) {
+        if (!Object.hasOwn(feedback.cues, cueId)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['feedback', role]),
+            message: `"${cueId}" is not a cue of content/${FEEDBACK_FILE.file} › cues`,
+          });
+        } else if (visualAnchorOf(feedback.cues[cueId]) === 'threat') {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['feedback', role]),
+            message: `the cue "${cueId}" is anchored on a threat, but a chore event names no threat`,
+          });
+        } else if (feedback.cues[cueId]?.visual?.kind === 'uiElement') {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['feedback', role]),
+            message: `the cue "${cueId}" has a \`uiElement\` visual, but a chore's cues are played for sim events`,
+          });
+        }
+      }
+    }
+    const windowMs = chore.windowMs ?? feel?.timing.windowMs;
+    if (windowMs !== undefined) {
+      chore.beats.forEach((beat, i) => {
+        if (beat.telegraphDelayMs <= windowMs) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['beats', i, 'telegraphDelayMs']),
+            message: `beats[${i}].telegraphDelayMs (${beat.telegraphDelayMs}) must be above the window (${windowMs} ms), or the ring would have no time to be read`,
+          });
+        }
+      });
+    }
+    // A station kind with no sim action cannot reach this point: the schema's enum is
+    // `CHORE_STATION_KINDS` (an unknown kind is refused at `station`), each of them is an `ObjectKind`
+    // (proved at compile time in `schemas/level.ts`), and a level's object of a kind the sim has no
+    // action for is refused by `checkLevelReferences`.
+  }
+  return problems;
+}
+
+/**
+ * A threat on a chore station is spawned by the chore system only (story 9.5): a `station` threat
+ * file that no chore names as its `abandonedThreat` could never start.
+ */
+function checkStationThreats(families: ParsedFamilies): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const named = new Set<string>();
+  for (const chore of families.chores.values()) {
+    if (chore.abandonedThreat !== undefined) named.add(chore.abandonedThreat.def);
+  }
+  for (const [id, threat] of families.threats) {
+    if (threat.target !== 'station' || named.has(id)) continue;
+    problems.push({
+      file: `content/${THREAT_DEF_PATTERN.dir}/${id}${THREAT_DEF_PATTERN.suffix}`,
+      jsonPath: 'target',
+      message: `the threat "${id}" has target "station", but no chore names it as its abandonedThreat: nothing would spawn it`,
+    });
+  }
+  return problems;
+}
+
+/**
+ * The open door of the chores a level declares (story 9.6): the level plans each chore's `openThreat` in
+ * one of its waves exactly once, at the anchor of the chore's station; and it plans no such threat for a
+ * chore it does not declare (the door would be a target that nothing ever opens or shuts). The words are
+ * `simLevelOf`'s, which has the first two (it sees the chores of its own level only).
+ */
+function checkOpenThreatPlans(
+  families: ParsedFamilies,
+  level: Level,
+  file: string,
+  problems: ContentProblem[],
+): void {
+  const declared = new Set<string>();
+  // The chore that named each door first: `createSim` refuses a door shared by two declared chores.
+  const doorOwners = new Map<string, string>();
+  level.chores?.forEach((entry, i) => {
+    const chore = families.chores.get(entry.def);
+    declared.add(entry.def);
+    if (chore?.openThreat === undefined) return;
+    const owner = doorOwners.get(chore.openThreat);
+    if (owner === undefined) {
+      doorOwners.set(chore.openThreat, entry.def);
+    } else {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['chores', i, 'def']),
+        message: `the threat "${chore.openThreat}" is already the open threat of another chore ("${owner}"): a door belongs to one chore`,
+      });
+    }
+    const planned: { wave: number; index: number; anchor: string }[] = [];
+    level.waves.forEach((wave, w) => {
+      wave.threats.forEach((threat, t) => {
+        if (threat.def === chore.openThreat)
+          planned.push({ wave: w, index: t, anchor: threat.anchor });
+      });
+    });
+    const planProblem = openThreatPlanProblem(entry.def, chore.openThreat, planned.length);
+    if (planProblem !== null) {
+      problems.push({ file, jsonPath: formatJsonPath(['chores', i, 'def']), message: planProblem });
+    }
+    const station = level.objects.find((candidate) => candidate.id === entry.object);
+    for (const plan of planned) {
+      if (station === undefined) continue;
+      const anchorProblem = openThreatAnchorProblem(
+        entry.def,
+        chore.openThreat,
+        plan.anchor,
+        station.anchor,
+      );
+      if (anchorProblem !== null) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['waves', plan.wave, 'threats', plan.index, 'anchor']),
+          message: anchorProblem,
+        });
+      }
+    }
+  });
+  level.waves.forEach((wave, w) => {
+    wave.threats.forEach((threat, t) => {
+      for (const [choreId, chore] of families.chores) {
+        if (chore.openThreat !== threat.def || declared.has(choreId)) continue;
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['waves', w, 'threats', t, 'def']),
+          message: openThreatOrphanProblem(threat.def, choreId),
+        });
+      }
+    });
+  });
+}
+
+/**
+ * The chores a level declares (story 9.4): each def is a file, each object is of the def's station
+ * kind, and the points they pay add up to at most the Maison row (`homeMaxPoints`, the level's
+ * `feelOverrides` applied). The rules that need no def (an object named twice, a station nobody
+ * names) are the level schema's.
+ */
+function checkLevelChores(
+  families: ParsedFamilies,
+  present: ReadonlySet<string>,
+  feel: Feel | undefined,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (const [id, level] of families.levels) {
+    const file = `content/${LEVEL_PATTERN.dir}/${id}${LEVEL_PATTERN.suffix}`;
+    // Also for a level with no chores: it must not plan the door of one (story 9.6).
+    checkOpenThreatPlans(families, level, file, problems);
+    if (level.chores === undefined) continue;
+    let totalPoints = 0;
+    level.chores.forEach((entry, i) => {
+      const defFile = `${CHORE_DEF_PATTERN.dir}/${entry.def}${CHORE_DEF_PATTERN.suffix}`;
+      const chore = families.chores.get(entry.def);
+      if (chore === undefined) {
+        if (!present.has(defFile)) {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['chores', i, 'def']),
+            message: `no chore "${entry.def}" (content/${defFile} does not exist)`,
+          });
+        }
+        return;
+      }
+      totalPoints += chore.homePoints;
+      const object = level.objects.find((candidate) => candidate.id === entry.object);
+      if (object !== undefined && object.kind !== chore.station) {
+        problems.push({
+          file,
+          jsonPath: formatJsonPath(['chores', i, 'object']),
+          message: `the chore "${entry.def}" is played at a "${chore.station}", but the object "${entry.object}" has the kind "${object.kind}"`,
+        });
+      }
+    });
+    if (feel === undefined) continue;
+    const merged = mergeFeel(feel, level.feelOverrides, file);
+    // A chore that takes the base window (`windowMs: null`) takes the level's: `checkChoreReferences` read
+    // the base feel only, so the delays are read again against the window the sim will use here.
+    if (merged.ok && merged.value.timing.windowMs !== feel.timing.windowMs) {
+      level.chores.forEach((entry, i) => {
+        const chore = families.chores.get(entry.def);
+        if (chore === undefined || chore.windowMs !== null) return;
+        chore.beats.forEach((beat, b) => {
+          if (beat.telegraphDelayMs > merged.value.timing.windowMs) return;
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['chores', i, 'def']),
+            message: `the chore "${entry.def}" has beats[${b}].telegraphDelayMs (${beat.telegraphDelayMs}) which is not above the window of level ${id} (${merged.value.timing.windowMs} ms, its feelOverrides applied): the ring would have no time to be read`,
+          });
+        });
+      });
+    }
+    if (merged.ok && totalPoints > merged.value.mama.homeMaxPoints) {
+      problems.push({
+        file,
+        jsonPath: 'chores',
+        message: `the chores of level ${id} pay ${totalPoints} points, above the Maison row's ${merged.value.mama.homeMaxPoints} (feel.mama.homeMaxPoints)`,
+      });
+    }
+  }
+  return problems;
+}
+
+/**
+ * The references Mama's lines make (story 3.8, FR36): a `when.tag` is a gag of the sim, a `when.endReason` a
+ * level end reason and ids are unique. The schema checks the text rules and that each of her reactions has a
+ * generic line (no `when`), so `chooseMamaLines` always finds one.
+ */
+function checkMamaLineReferences(mamaLines: MamaLines): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  const file = `content/${MAMA_LINES_FILE.file}`;
+  const seen = new Set<string>();
+  mamaLines.lines.forEach((line, i) => {
+    if (seen.has(line.id)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['lines', i, 'id']),
+        message: `two lines share the id "${line.id}"`,
+      });
+    }
+    seen.add(line.id);
+    const { tag, endReason } = line.when ?? {};
+    if (tag !== undefined && !(GAG_IDS as readonly string[]).includes(tag)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['lines', i, 'when', 'tag']),
+        message: `line "${line.id}": "${tag}" is not a gag of the sim (${GAG_IDS.join(', ')}; a tag is a gag id)`,
+      });
+    }
+    if (endReason !== undefined && !(LEVEL_END_REASONS as readonly string[]).includes(endReason)) {
+      problems.push({
+        file,
+        jsonPath: formatJsonPath(['lines', i, 'when', 'endReason']),
+        message: `line "${line.id}": "${endReason}" is not a way a level ends (${LEVEL_END_REASONS.join(', ')})`,
+      });
+    }
+  });
+  return problems;
+}
+
+/**
  * The references a level file makes: it has its geometry beside it, each threat of each wave is a
  * threat file whose gag the sim knows, each anchor (of a threat or an object) is an anchor of that
  * geometry, object ids are unique, and its `feelOverrides` merge into a valid feel. A file that
@@ -1095,6 +1433,17 @@ function checkLevelReferences(
             });
           }
         }
+        if (threatDef?.target === 'hiddenZone') {
+          // The silence counts for two against `maxSimultaneous` (story 3.13): the words are `simLevelOf`'s.
+          const limitProblem = silenceLimitProblem(w, entry.def, wave.maxSimultaneous);
+          if (limitProblem !== null) {
+            problems.push({
+              file,
+              jsonPath: formatJsonPath(['waves', w, 'maxSimultaneous']),
+              message: limitProblem,
+            });
+          }
+        }
         if (threatDef?.target === 'papa') {
           problems.push({
             file,
@@ -1107,6 +1456,13 @@ function checkLevelReferences(
             file,
             jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
             message: `the threat "${entry.def}" has target "baby": only a stealth step spawns it, a wave cannot plan it`,
+          });
+        }
+        if (threatDef?.target === 'station') {
+          problems.push({
+            file,
+            jsonPath: formatJsonPath(['waves', w, 'threats', i, 'def']),
+            message: `the threat "${entry.def}" has target "station": only a chore's abandonedThreat spawns it, a wave cannot plan it`,
           });
         }
         for (const gag of threatDef === undefined ? [] : ThreatGagIds(threatDef)) {
@@ -1329,6 +1685,30 @@ function checkPropReferences(
   return problems;
 }
 
+/** 0-255 per percent of white: the scale of `render.toonTones`. */
+const TONE_PER_PCT = 255 / 100;
+
+/**
+ * The characters' 4th tone (story 7.8, D10) is a darker band under the ramp: `feel.json ›
+ * characters.look.fourthTonePct` (in % of white) must stay below the darkest of `feedback.json ›
+ * render.toonTones`, whether or not it is on, so that switching it on in the panel never draws a band
+ * lighter than the shadow above it.
+ */
+function checkCharacterLook(feel: Feel, feedback: FeedbackTable): ContentProblem[] {
+  const { fourthTonePct } = feel.characters.look;
+  const darkest = feedback.render.toonTones[0];
+  // Rounded like the runtime's `fourthToneOf`: 37.6 % draws 96, which is not under a darkest tone of 96.
+  const fourthTone = Math.round(fourthTonePct * TONE_PER_PCT);
+  if (darkest === undefined || fourthTone < darkest) return [];
+  return [
+    {
+      file: `content/${FEEL_FILE.file}`,
+      jsonPath: formatJsonPath(['characters', 'look', 'fourthTonePct']),
+      message: `feel.json › characters.look.fourthTonePct (${fourthTonePct} %, ${(fourthTonePct * TONE_PER_PCT).toFixed(1)} of 255) must be darker than the darkest of feedback.json › render.toonTones (${darkest}): the 4th tone is the darkest band`,
+    },
+  ];
+}
+
 /**
  * The tuning rules of `feel.json › physics` that no single field can state. For each kind:
  * (1) a breakable kind breaks at `breakImpulseNs`, but the sim reads no impact under
@@ -1395,9 +1775,11 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   let feedback: FeedbackTable | undefined;
   let feel: Feel | undefined;
   let bots: BotSettings | undefined;
+  let mamaLines: MamaLines | undefined;
   const families: ParsedFamilies = {
     threats: new Map(),
     disruptions: new Map(),
+    chores: new Map(),
     sequences: new Map(),
     levels: new Map(),
     geometries: new Map(),
@@ -1430,6 +1812,8 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
         families.threats.set(matched.id, result.value as ThreatDef);
       } else if (matched.pattern === DISRUPTION_DEF_PATTERN) {
         families.disruptions.set(matched.id, result.value as DisruptionDef);
+      } else if (matched.pattern === CHORE_DEF_PATTERN) {
+        families.chores.set(matched.id, result.value as ChoreDef);
       } else if (matched.pattern === SEQUENCE_DEF_PATTERN) {
         families.sequences.set(matched.id, result.value as SequenceDef);
       } else if (matched.pattern === LEVEL_PATTERN) {
@@ -1462,6 +1846,7 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
     if (entry === FEEDBACK_FILE) feedback = result.value as FeedbackTable;
     if (entry === FEEL_FILE) feel = result.value as Feel;
     if (entry === BOTS_FILE) bots = result.value as BotSettings;
+    if (entry === MAMA_LINES_FILE) mamaLines = result.value as MamaLines;
   }
 
   const present = new Set(await listContentFiles(rootDir));
@@ -1498,13 +1883,22 @@ export async function checkContent(rootDir: string): Promise<ContentProblem[]> {
   problems.push(...checkThreatReferences(families.threats, feedback, feel));
   problems.push(...checkDisruptionReferences(families.disruptions, feedback));
   problems.push(...checkTelegraphClips(families.threats, families.disruptions, feedback));
+  problems.push(
+    ...checkChoreReferences(families.chores, families.threats, present, feedback, feel),
+  );
+  problems.push(...checkStationThreats(families));
   problems.push(...checkLevelReferences(families, present, feel));
+  problems.push(...checkLevelChores(families, present, feel));
   problems.push(...checkSequenceReferences(families, present, feedback, feel));
 
+  if (mamaLines !== undefined) problems.push(...checkMamaLineReferences(mamaLines));
   if (bots !== undefined && feel !== undefined) problems.push(...checkBotReferences(bots, feel));
   if (feel !== undefined) {
     problems.push(...checkPropReferences(families.geometries, feel));
     problems.push(...checkPhysicsTuning(feel));
+  }
+  if (feel !== undefined && feedback !== undefined) {
+    problems.push(...checkCharacterLook(feel, feedback));
   }
 
   if (feedback !== undefined)

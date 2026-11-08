@@ -23,7 +23,7 @@ const CHARACTERS = [
 ] as const;
 
 const feedback = JSON.parse(readFileSync(join(root, 'content', 'feedback.json'), 'utf8')) as {
-  characters: { clipSpeeds: { clip: string }[] };
+  characters: { clipSpeeds: { clip: string }[]; papaClipFacing: { clip: string }[] };
 };
 const gags = readFileSync(join(root, 'src', 'client', 'render', 'gags.ts'), 'utf8');
 const clips = readFileSync(
@@ -88,6 +88,13 @@ describe('the clips the code names exist in the files', () => {
   it('every clip of `feedback.json › characters.clipSpeeds`', () => {
     const all = new Set([...namesIn('papa'), ...namesIn('baby')]);
     for (const { clip } of feedback.characters.clipSpeeds) expect(all, clip).toContain(clip);
+  });
+
+  it("every clip of `feedback.json › characters.papaClipFacing`, among Papa's", () => {
+    expect(feedback.characters.papaClipFacing.length).toBeGreaterThan(0);
+    for (const { clip } of feedback.characters.papaClipFacing) {
+      expect(namesIn('papa'), clip).toContain(clip);
+    }
   });
 
   it('every clip of GAG_PRESENTATIONS, on the right character', () => {
@@ -215,7 +222,8 @@ describe("Papa's look and accessories sit where the view shows them (story 7.2, 
     const part = (name: string): Box3 => {
       const node = asset.scene.getObjectByName(name);
       if (node === undefined) throw new Error(`papa.glb has no node "${name}"`);
-      return drawnBox(node, []);
+      // The steam is the mug's child: the mug's own box leaves it out (story 2.13).
+      return drawnBox(node, name === 'papa_mug_steam' ? [] : ['papa_mug_steam']);
     };
     return { asset, part, body: drawnBox(asset.scene, PAPA_CONTRACT.hiddenNodes) };
   };
@@ -265,18 +273,170 @@ describe("Papa's look and accessories sit where the view shows them (story 7.2, 
   });
 });
 
-describe('nothing in a game sets the look until story 3.7 (story 7.2, D2)', () => {
-  it('the scene never calls it by itself, and boot only hands it to the debug host', () => {
+/** Story 7.2's props, longest side of the box at rest, in metres: story 2.13 makes each at least twice as big (AC 1, 6). */
+const MUG_LONGEST_SIDE_7_2_M = 0.218;
+const HANDSET_LONGEST_SIDE_7_2_M = 0.32;
+const PROP_SIZE_FACTOR_MIN = 2;
+/** The eyes widen to at least this scale at the kick's peak (AC 5). */
+const EYES_WIDEST_SCALE_MIN = 1.4;
+
+describe("Papa's exaggerated props and poses (story 2.13)", () => {
+  const posed = async (clip: string | null) => {
+    const asset = await load('papa');
+    if (clip !== null) {
+      const found = asset.animations.find((candidate) => candidate.name === clip);
+      if (found === undefined) throw new Error(`papa.glb has no clip "${clip}"`);
+      const mixer = new AnimationMixer(asset.scene);
+      mixer.clipAction(found).play();
+      mixer.setTime(found.duration / 2);
+    }
+    asset.scene.updateMatrixWorld(true);
+    const part = (name: string): Box3 => {
+      const node = asset.scene.getObjectByName(name);
+      if (node === undefined) throw new Error(`papa.glb has no node "${name}"`);
+      return drawnBox(node, name === 'papa_mug_steam' ? [] : ['papa_mug_steam']);
+    };
+    return { asset, part };
+  };
+  const longestSideOf = (box: Box3): number => {
+    const size = box.getSize(new Vector3());
+    return Math.max(size.x, size.y, size.z);
+  };
+
+  it('has a mug at least twice as big as in story 7.2', async () => {
+    const { part } = await posed(null);
+    expect(longestSideOf(part('papa_mug'))).toBeGreaterThanOrEqual(
+      PROP_SIZE_FACTOR_MIN * MUG_LONGEST_SIDE_7_2_M,
+    );
+  });
+
+  it('has a handset at least twice as big as in story 7.2', async () => {
+    const { part } = await posed(null);
+    expect(longestSideOf(part('papa_handset'))).toBeGreaterThanOrEqual(
+      PROP_SIZE_FACTOR_MIN * HANDSET_LONGEST_SIDE_7_2_M,
+    );
+  });
+
+  it("stands the steam above the mug's rim while he drinks", async () => {
+    const { part } = await posed('drink');
+    const mug = part('papa_mug');
+    const steam = part('papa_mug_steam');
+    expect(steam.isEmpty()).toBe(false);
+    expect((steam.min.y + steam.max.y) / 2).toBeGreaterThan(mug.max.y - 0.02);
+  });
+
+  it('hangs the steam under the mug, so that it shows and hides with the mug', async () => {
+    const { asset } = await posed(null);
+    const steam = asset.scene.getObjectByName('papa_mug_steam');
+    expect(steam?.parent?.name).toBe('papa_mug');
+  });
+
+  it('widens his eyes to at least 1.4 in coffee_kick, and in no other clip', async () => {
+    const asset = await load('papa');
+    const eyesTracks = (clip: string) =>
+      (asset.animations.find((candidate) => candidate.name === clip)?.tracks ?? []).filter(
+        (track) => track.name.startsWith('eyes.'),
+      );
+    const kick = eyesTracks('coffee_kick').find((track) => track.name === 'eyes.scale');
+    expect(kick, 'coffee_kick keys the scale of `eyes`').toBeDefined();
+    expect(Math.max(...(kick?.values ?? [0]))).toBeGreaterThanOrEqual(EYES_WIDEST_SCALE_MIN);
+    // Up, then back: each axis starts and ends at rest and peaks in the middle of the clip.
+    const values = kick?.values ?? [];
+    const keyCount = values.length / 3;
+    expect(keyCount).toBeGreaterThanOrEqual(3);
+    for (let axis = 0; axis < 3; axis++) {
+      const keys = Array.from({ length: keyCount }, (_, key) => values[key * 3 + axis] as number);
+      expect(keys[0], `axis ${axis} starts at rest`).toBeCloseTo(1, 3);
+      expect(keys[keyCount - 1], `axis ${axis} returns to rest`).toBeCloseTo(1, 3);
+      expect(Math.max(...keys), `axis ${axis} widens`).toBeGreaterThanOrEqual(
+        EYES_WIDEST_SCALE_MIN,
+      );
+      const peakKey = keys.indexOf(Math.max(...keys));
+      expect(peakKey, `axis ${axis} peaks mid-clip`).toBeGreaterThan(0);
+      expect(peakKey, `axis ${axis} peaks mid-clip`).toBeLessThan(keyCount - 1);
+    }
+    const others = asset.animations.filter((clip) => clip.name !== 'coffee_kick');
+    expect(others.length).toBeGreaterThan(10);
+    for (const clip of others) expect(eyesTracks(clip.name), clip.name).toEqual([]);
+  });
+
+  it('keys nothing the code moves: not the steam, not the bubble, not the lids', async () => {
+    const asset = await load('papa');
+    expect(asset.animations.length).toBeGreaterThan(10);
+    for (const clip of asset.animations) {
+      for (const track of clip.tracks) {
+        expect(track.name, clip.name).not.toMatch(/^(papa_mug_steam|papa_blabla|eyelids)\./);
+      }
+    }
+  });
+});
+
+// Story 3.7 wired the look: the world's `papa.look` feeds it every frame, and the debug `setPapaLook`
+// (story 7.2, D2) is now an overlay ORed with it. Still one call to the view, still one door for boot.
+describe("Papa's look is fed by the world or the debug overlay, through one call (story 3.7)", () => {
+  it('the scene calls the view once, from the merge of both; boot only hands the overlay to the debug host', () => {
     const scene = readFileSync(join(root, 'src', 'client', 'render', 'levelScene.ts'), 'utf8');
     expect(scene.match(/papa\.setLook\(/g)).toHaveLength(1);
-    expect(scene).toMatch(/setPapaLook\(look\) \{\s+papa\.setLook\(look\);/);
+    expect(scene).toMatch(/const applyLook = \(\): void => \{[\s\S]*?papa\.setLook\(drawnLook\);/);
+    // The merge reads the world's look in `update` and the overlay in `setPapaLook`, and both apply it.
+    expect(scene).toMatch(/worldLook\.hasMashOnCheek = world\.papa\.look\.hasMashOnCheek;/);
+    expect(scene).toMatch(
+      /setPapaLook\(look\) \{\s+overlayLook\.hasMashOnCheek = look\.hasMashOnCheek;/,
+    );
     const boot = readFileSync(join(root, 'src', 'client', 'boot.ts'), 'utf8');
     expect(boot.match(/setPapaLook/g)).toHaveLength(2);
     expect(boot).toMatch(/setPapaLook: \(look\) => currentLevel\?\.setPapaLook\(look\)/);
   });
 });
 
+describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred item)', () => {
+  const feel = JSON.parse(readFileSync(join(root, 'content', 'feel.json'), 'utf8')) as {
+    characters: { fades: { returnMs: number } };
+  };
+  /** The one-shots the code plays: the events', the responses' and the gags'. */
+  const section = (from: string, to: string): string =>
+    clips.slice(clips.indexOf(from), clips.indexOf(to));
+  const papaOneShots = [
+    ...clipNamesIn(
+      section('export function papaOneShotOf', 'export function babyOneShotOf'),
+      /return '([a-z_]+)'/g,
+    ),
+    ...clipNamesIn(
+      section('export function responseClipOf', '/** How shut'),
+      /'(respond_[a-z_]+)'/g,
+    ),
+    ...clipNamesIn(gags, /papaClip: '([a-z_]+)'/g),
+  ];
+  const babyOneShots = [
+    ...clipNamesIn(
+      section('export function babyOneShotOf', "/** Papa's pose for a response"),
+      /return '([a-z_]+)'/g,
+    ),
+    ...clipNamesIn(gags, /babyClip: '([a-z_]+)'/g),
+  ];
+
+  it.each([
+    ['papa', papaOneShots],
+    ['baby', babyOneShots],
+  ] as const)(
+    'every one-shot of %s lasts at least twice the return fade of the committed feel',
+    async (id, names) => {
+      expect(names.length).toBeGreaterThan(3);
+      const asset = await load(id);
+      const minMs = 2 * feel.characters.fades.returnMs;
+      for (const name of new Set(names)) {
+        const clip = asset.animations.find((candidate) => candidate.name === name);
+        expect(clip, name).toBeDefined();
+        // A one-shot no longer than its return would hand back at its first update, never seen.
+        expect((clip?.duration ?? 0) * 1000, name).toBeGreaterThanOrEqual(minMs);
+      }
+    },
+  );
+});
+
 describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
+  /** The life layer's modules (story 7.8): the springs, the fades, the lean and breath, the gaze. */
+  const LIFE_VIEWS = ['characterSpring', 'characterFades', 'lifeLayer', 'papaGaze'];
   const VIEWS = [
     'characterClips',
     'characterRig',
@@ -284,20 +444,36 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     'squash',
     'papaView',
     'babyView',
+    ...LIFE_VIEWS,
   ];
+  const viewSource = (name: string): string =>
+    readFileSync(join(root, 'src', 'client', 'render', 'views', `${name}.ts`), 'utf8');
 
-  it.each(VIEWS)('%s.ts reads no `windowOpenAt` or `feintAt` of a threat', (name) => {
-    const source = readFileSync(
-      join(root, 'src', 'client', 'render', 'views', `${name}.ts`),
-      'utf8',
-    );
-    // `layDownProgressPct` (babyView) is the one allowed reader: a release def's pose is not hidden.
-    const allowed = source.replace(
-      /export interface LayDownThreat[\s\S]*?^}\n[\s\S]*?export function layDownProgressPct[\s\S]*?^}\n/m,
-      '',
-    );
-    expect(allowed).not.toMatch(/windowOpenAt|feintAt|realWakePct/);
-  });
+  it.each(VIEWS)(
+    '%s.ts reads no `windowOpenAt`, `feintAt`, `realWakePct` or `toleranceMs` of a threat',
+    (name) => {
+      const source = viewSource(name);
+      // `layDownProgressPct` (babyView) is the one allowed reader: a release def's pose is not hidden.
+      const allowed = source.replace(
+        /export interface LayDownThreat[\s\S]*?^}\n[\s\S]*?export function layDownProgressPct[\s\S]*?^}\n/m,
+        '',
+      );
+      expect(allowed).not.toMatch(/windowOpenAt|feintAt|realWakePct|toleranceMs/);
+    },
+  );
+
+  // Story 7.8, D12: the life layer advances on the sim clock alone and chooses nothing at random.
+  it.each([...LIFE_VIEWS, 'papaView', 'babyView', 'characterRig'])(
+    '%s.ts reads no real time, no clock and no randomness',
+    (name) => {
+      const code = viewSource(name)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '');
+      expect(code).not.toMatch(
+        /Math\.random|\bperformance\b|\bDate\b|\.rng\b|nowReal|\bClock\b|requestAnimationFrame/,
+      );
+    },
+  );
 
   it('dangerTint.ts reads no `windowOpenAt` or `feintAt` of a threat: a wake and a false alarm draw the same', () => {
     const source = readFileSync(

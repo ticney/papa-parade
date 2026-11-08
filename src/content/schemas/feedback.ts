@@ -2,6 +2,7 @@ import {
   PHOTO_ASPECT_MAX,
   PHOTO_ASPECT_MIN,
   SCREEN_FLASH_MIN_INTERVAL_MS,
+  STEP_MS,
 } from '@shared/constants';
 import { z } from 'zod';
 import { FX_PRESET_IDS } from './feel.ts';
@@ -16,7 +17,7 @@ export const AUDIO_BUSES = ['music', 'sfx', 'voice', 'ui'] as const;
 export const HAPTIC_KINDS = ['light', 'medium', 'heavy', 'heartbeat'] as const;
 
 /** `<category>_<name>`, the categories of the architecture (Conventions › Audio). */
-const CLIP_PATTERN = /^(tel|resp|gag|baby|papa|env|ui|music)_[a-z0-9]+(_[a-z0-9]+)*$/;
+const CLIP_PATTERN = /^(tel|resp|gag|baby|papa|env|ui|music|mama)_[a-z0-9]+(_[a-z0-9]+)*$/;
 /** `lower_snake_case`, like every content id. */
 export const CUE_ID_PATTERN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
@@ -26,7 +27,7 @@ const clip = z
   .string()
   .regex(
     CLIP_PATTERN,
-    'a clip is <category>_<name> in lower_snake_case, the category one of tel, resp, gag, baby, papa, env, ui, music',
+    'a clip is <category>_<name> in lower_snake_case, the category one of tel, resp, gag, baby, papa, env, ui, music, mama',
   )
   .describe('File name without extension: `public/assets/audio/<clip>.m4a`.');
 
@@ -124,7 +125,7 @@ const SoundWaveSchema = z
     anchor: z
       .enum(['papa', 'baby', 'threat', 'object', 'door'])
       .describe(
-        "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event.",
+        "Whose position the ring starts from. `threat` is the threat the event names; only for cues a threat def points at. `object` is the object the event names (`objectId`); only for cues a disruption or a house chore def points at. `door` is the level's `ANCHOR_door` (story 3.5), for a generic event.",
       ),
     maxRadiusM: z.number().gt(0).max(3).describe('Radius of the ring when it is gone, in metres.'),
     durationMs: z
@@ -254,9 +255,15 @@ const ResultScreenSchema = z
       .describe(
         'How long the end photo stays alone on screen, after it drops in and before the rows start, in real ms (story 3.6); 0 goes straight to the rows. A level that took no photo skips it. A press skips it.',
       ),
+    reactionHoldMs: z
+      .int()
+      .min(0)
+      .describe(
+        "How long each of Mama's reactions (her laugh, sigh or scream, with her line) stays on screen after the photo and before the rows start, in real ms (story 3.7); 0 goes straight on. A press skips them all.",
+      ),
   })
   .describe(
-    'The sequence of the Result screen (story 1.22): the photo (story 3.6), then rows, then stars, then buttons. Real time: the sim never reads it.',
+    'The sequence of the Result screen (story 1.22): the photo (story 3.6), the reactions of Mama (story 3.7), then rows, then stars, then buttons. Real time: the sim never reads it.',
   );
 
 const PhotoSchema = z
@@ -317,6 +324,91 @@ const PhotoSchema = z
   )
   .describe(
     'The end photo (story 3.6): its canvas, its tilt and its filter. Real time and client only: the sim never reads it.',
+  );
+
+const ReplayPointsSchema = z
+  .strictObject({
+    perfect: z.int().min(0).describe('Points of a perfect response (`ResponseResolved`).'),
+    messyGag: z
+      .int()
+      .min(0)
+      .describe('Points of a gag that made a mess (`messyGagMinProps` props hit or broken).'),
+    nearMiss: z.int().min(0).describe('Points of a near miss (`NearMiss`).'),
+    waveLast: z
+      .int()
+      .min(0)
+      .describe('Points of the last response of a wave, whatever its quality.'),
+  })
+  .describe('What each kind of moment is worth (story 3.9, P7).');
+
+/** The most a moment's pre-roll or post-roll may be, in sim ms: a typo (an extra zero) must not make a 20 s moment. */
+const REPLAY_PAD_MAX_MS = 10_000;
+/** The most a pause of the replay may be, in real ms: the player waits through it. */
+const REPLAY_PAUSE_MAX_MS = 5000;
+
+const ReplaySchema = z
+  .strictObject({
+    preRollMs: z
+      .int()
+      .min(STEP_MS)
+      .max(REPLAY_PAD_MAX_MS)
+      .describe(
+        'Sim ms played before the moment itself, so the build-up is seen (story 3.9). At least one step: the moment’s event is emitted by the step that ends at its `t`, so with less the replay would start after it.',
+      ),
+    postRollMs: z
+      .int()
+      .min(0)
+      .max(REPLAY_PAD_MAX_MS)
+      .describe('Sim ms played after the moment, so its consequence is seen.'),
+    minSpacingMs: z
+      .int()
+      .min(0)
+      .describe('Sim ms between two retained moments: a closer one is dropped.'),
+    momentCount: z.int().min(1).max(5).describe('Most moments one replay shows.'),
+    points: ReplayPointsSchema,
+    messyGagMinProps: z
+      .int()
+      .min(1)
+      .describe('Distinct props a gag must hit or break to count as a mess (P7: « bazar »).'),
+    messWindowMs: z
+      .int()
+      .positive()
+      .describe('Sim ms after a gag in which a prop hit or broken counts for its mess.'),
+    camera: z
+      .strictObject({
+        frameWidthM: z
+          .number()
+          .positive()
+          .finite()
+          .describe('Width of the replay camera frame, in metres on the floor.'),
+        frameDepthM: z
+          .number()
+          .positive()
+          .finite()
+          .describe('Depth of the replay camera frame, in metres on the floor.'),
+      })
+      .describe(
+        'The replay camera: the game camera’s angle, a tighter frame centred on the moment (story 3.9).',
+      ),
+    delayMs: z
+      .int()
+      .min(0)
+      .max(REPLAY_PAUSE_MAX_MS)
+      .describe('Real ms between the last star and the first replayed moment.'),
+    endHoldMs: z
+      .int()
+      .min(0)
+      .max(REPLAY_PAUSE_MAX_MS)
+      .describe('Real ms the last frame of a moment stays up, before the next one or the buttons.'),
+  })
+  .refine((replay) => Object.values(replay.points).some((points) => points > 0), {
+    error:
+      'at least one kind of moment must be worth points, or a game that is not lost never has a moment to replay',
+    // Checked once each key is valid on its own, so a bad key reports itself alone.
+    when: (payload) => payload.issues.length === 0,
+  })
+  .describe(
+    'The highlight replay (story 3.9): which moments of the game are replayed, how, and with what pauses. Client only: the sim never reads it and `feel.json` is not touched, so no golden moves.',
   );
 
 const CalibrationFeedbackSchema = z
@@ -431,6 +523,7 @@ export const SQUASH_EVENTS = [
   'GagTriggered',
   'BabyWoke',
   'BabyStirred',
+  'CoffeeDrunk',
 ] as const;
 export const SQUASH_CHARACTERS = ['papa', 'baby'] as const;
 
@@ -465,20 +558,88 @@ const ClipSpeedSchema = z
   })
   .describe('The natural speed of one travelling clip.');
 
+/** Where a clip turns Papa's body (story 2.13, D5). */
+export const PAPA_FACINGS = ['camera', 'awayFromBaby'] as const;
+
+const ClipFacingSchema = z
+  .strictObject({
+    clip: z
+      .string()
+      .regex(CUE_ID_PATTERN, 'a clip name is lower_snake_case')
+      .describe("A clip of Papa's, as named in the `.glb`."),
+    facing: z
+      .enum(PAPA_FACINGS)
+      .describe(
+        "Where his body turns while the player sees this clip: `camera` faces the screen, `awayFromBaby` turns his back to the baby. The sim's heading is untouched.",
+      ),
+  })
+  .describe('Where Papa faces while one clip plays.');
+
+const BlablaPlaceSchema = z
+  .strictObject({
+    screenOffsetM: z
+      .number()
+      .min(-1)
+      .max(1)
+      .describe(
+        'How far from Papa the bla-bla bubble stands across the screen, in metres: above 0 toward the right of the screen, below 0 toward the left.',
+      ),
+    heightM: z
+      .number()
+      .min(0.3)
+      .max(1.2)
+      .describe('How high above the floor the foot of the bla-bla bubble stands, in metres.'),
+  })
+  .describe("Where the bla-bla bubble stands at Papa's side, clear of the activity bubble.");
+
+const BusyPropsSchema = z
+  .strictObject({
+    steamSwayDeg: z
+      .number()
+      .min(0)
+      .max(45)
+      .describe('How far the coffee steam leans to each side, in degrees.'),
+    steamStretchPct: z
+      .number()
+      .min(0)
+      .max(50)
+      .describe('How much the steam grows and shrinks in height, in percent.'),
+    steamPeriodMs: z
+      .number()
+      .min(SCREEN_FLASH_MIN_INTERVAL_MS)
+      .describe(
+        'How long a full sway of the steam lasts, in sim ms. Never under the 3 Hz flash cap.',
+      ),
+    blablaTiltDeg: z
+      .number()
+      .min(0)
+      .max(45)
+      .describe('How far the bla-bla bubble tilts to each side, in degrees.'),
+    blablaBobAmplitudeM: z
+      .number()
+      .min(0)
+      .max(0.2)
+      .describe('How far the bla-bla bubble bobs up and down, in metres.'),
+    blablaPeriodMs: z
+      .number()
+      .min(SCREEN_FLASH_MIN_INTERVAL_MS)
+      .describe(
+        'How long a full wobble of the bla-bla bubble lasts, in sim ms. Never under the 3 Hz flash cap.',
+      ),
+    blablaPlace: BlablaPlaceSchema,
+  })
+  .describe(
+    "The side effects of Papa's busy props (story 2.13): the steam of his mug and the bla-bla of his phone. Sim clock; held still under reduced motion.",
+  );
+
 const CharactersSchema = z
   .strictObject({
-    crossFadeMs: z
-      .int()
-      .positive()
-      .describe('How long a clip takes to replace another, in sim ms.'),
-    turnRateDegPerSec: z
-      .number()
-      .positive()
-      .describe(
-        "How fast a character's body turns to face its way, in degrees per sim second. The sim's heading and the baby's eyes do not wait for it.",
-      ),
     squash: z.array(SquashRowSchema).describe('Which events squash and stretch whom.'),
     clipSpeeds: z.array(ClipSpeedSchema).describe('The natural speed of the travelling clips.'),
+    papaClipFacing: z
+      .array(ClipFacingSchema)
+      .describe('Which clips turn Papa toward the camera or away from the baby (story 2.13).'),
+    busyProps: BusyPropsSchema,
   })
   .superRefine((characters, ctx) => {
     // One row each: a second row for the same thing would silently win or lose, and an edit of Geo's
@@ -506,9 +667,20 @@ const CharactersSchema = z
       }
       travelling.add(row.clip);
     }
+    const facing = new Set<string>();
+    for (const [index, row] of characters.papaClipFacing.entries()) {
+      if (facing.has(row.clip)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['papaClipFacing', index],
+          message: `a second facing for the clip "${row.clip}": one row each`,
+        });
+      }
+      facing.add(row.clip);
+    }
   })
   .describe(
-    'The animated characters (story 7.2). Read by the views on the sim clock; the sim never reads it.',
+    'The animated characters (story 7.2): squash, clip speeds, facings, busy props. Read by the views on the sim clock; the sim never reads it. Their fades and turn are `feel.json › characters` (story 7.8).',
   );
 
 /** `#RRGGBB`, the form of the colours of DESIGN.md. */
@@ -606,6 +778,12 @@ const RenderSchema = z
       .describe(
         'The reserved alert glow on the anchor of a telegraphed or open threat (story 7.3, D5).',
       ),
+    decalWallHeightM: z
+      .number()
+      .positive()
+      .describe(
+        "The colliders taller than this are the room's walls, no cover for the mess of a silence on the floor: its decal is moved off the furniture that hides it, never off the wall (story 3.15).",
+      ),
     blobSkipColliderIds: z
       .array(z.string().min(1))
       .describe(
@@ -637,6 +815,7 @@ export const FeedbackTableSchema = z
     characters: CharactersSchema,
     door: DoorSchema,
     photo: PhotoSchema,
+    replay: ReplaySchema,
     render: RenderSchema,
     cues: z
       .record(z.string().regex(CUE_ID_PATTERN, 'a cue id is lower_snake_case'), CueSchema)
@@ -668,6 +847,7 @@ export type FeedbackCue = z.infer<typeof CueSchema>;
 export type FeedbackFlash = z.infer<typeof FlashSchema>;
 export type ResultScreenTimings = z.infer<typeof ResultScreenSchema>;
 export type PhotoSettings = z.infer<typeof PhotoSchema>;
+export type ReplaySettings = z.infer<typeof ReplaySchema>;
 export type ComboBadgeTimings = z.infer<typeof ComboBadgeSchema>;
 export type BeatTrack = z.infer<typeof BeatTrackSchema>;
 export type AudioBus = (typeof AUDIO_BUSES)[number];

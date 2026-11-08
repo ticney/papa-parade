@@ -573,6 +573,39 @@ describe('checkContent on level geometry files', () => {
     });
   });
 
+  describe("the characters' 4th tone (story 7.8, D10)", () => {
+    const setFourthTonePct = (pct: number) =>
+      mutateJson('content/feel.json', (feel) => {
+        const characters = feel.characters as { look: Record<string, unknown> };
+        characters.look.fourthTonePct = pct;
+      });
+
+    it('accepts a 4th tone darker than the darkest of the ramp, on or off', async () => {
+      // The shipped ramp's darkest is 96: 37 % of white is 94.35.
+      await setFourthTonePct(37);
+      expect(await checkContent(root)).toEqual([]);
+    });
+
+    it.each([
+      // 37.6 % of white is 95.88: the runtime draws 96, which is the darkest tone, not under it.
+      ['37.6', 37.6],
+      // 38 % of white is 96.9, above 96.
+      ['38', 38],
+    ])(
+      'refuses a 4th tone as light as the darkest of the ramp (%s %%), even switched off',
+      async (_name, pct) => {
+        await setFourthTonePct(pct);
+        expect(await checkContent(root)).toEqual([
+          expect.objectContaining({
+            file: 'content/feel.json',
+            jsonPath: 'characters.look.fourthTonePct',
+            message: expect.stringContaining('the 4th tone is the darkest band'),
+          }),
+        ]);
+      },
+    );
+  });
+
   it('reports a stale generated geometry schema', async () => {
     await writeFile(join(root, 'content/_schemas/levelGeometry.schema.json'), '{}\n');
     expect(await checkContent(root)).toEqual([
@@ -809,6 +842,62 @@ describe('checkContent on threat files', () => {
         expect.objectContaining({ file: FIRM_FILE, jsonPath: 'holdUntilMs' }),
       ]);
     });
+  });
+
+  it('reports an afterEffect whose kind does not fit the gag, naming the def, the gag and the expected kind (story 3.15)', async () => {
+    await mutateJson(FILE, (threat) => {
+      threat.afterEffect = { kind: 'asleep', busyMs: 1000 };
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'afterEffect.kind',
+        message: expect.stringMatching(/"outlet".*"outlet_hair".*"electrified".*"asleep"/),
+      }),
+    );
+  });
+
+  it('reports a silence whose afterEffect is not a mess, whichever surprise gag it draws (story 3.15)', async () => {
+    await mutateJson('content/threats/silence_mischief.json', (threat) => {
+      threat.afterEffect = { kind: 'none' };
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: 'content/threats/silence_mischief.json',
+        jsonPath: 'afterEffect.kind',
+        message: expect.stringMatching(/"silence_mischief".*"mess".*"none"/),
+      }),
+    );
+  });
+
+  it('reports a catastrophe that does not fit the gag, naming the def, the gag and the expected category (story 3.16)', async () => {
+    await mutateJson(FILE, (threat) => {
+      threat.catastrophe = 'mess';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: FILE,
+        jsonPath: 'catastrophe',
+        message: expect.stringMatching(/"outlet".*"outlet_hair".*"nearMiss".*"mess"/),
+      }),
+    );
+  });
+
+  it('reports a silence whose catastrophe is not a mess, whichever surprise gag it draws (story 3.16)', async () => {
+    await mutateJson('content/threats/silence_mischief.json', (threat) => {
+      threat.catastrophe = 'none';
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: 'content/threats/silence_mischief.json',
+        jsonPath: 'catastrophe',
+        message: expect.stringMatching(/"silence_mischief".*"mess".*"none"/),
+      }),
+    );
   });
 
   it('reports a gag the sim does not know', async () => {
@@ -1107,7 +1196,8 @@ describe('checkContent on level files', () => {
   const entry = { def: 'outlet', anchor: 'outlet_01' };
   const wave = (threats: Record<string, unknown>[], fromMs = 0) => ({
     fromMs,
-    maxSimultaneous: 1,
+    // Two when the wave plans a silence: it counts for two against the limit (story 3.13).
+    maxSimultaneous: threats.some((threat) => threat.def === 'silence_mischief') ? 2 : 1,
     gapMinMs: 1000,
     gapMaxMs: 2000,
     lullMs: 500,
@@ -1396,6 +1486,20 @@ describe('checkContent on level files', () => {
     it('accepts it planned in a hidden zone of the geometry', async () => {
       await plan([silence]);
       expect(await checkContent(root)).toEqual([]);
+    });
+
+    it('refuses a silence in a wave that allows one at a time, with the words of the sim (story 3.13)', async () => {
+      await mutateJson(FILE, (level) => {
+        level.waves = [{ ...wave([silence]), maxSimultaneous: 1 }];
+      });
+      expect(await checkContent(root)).toEqual([
+        expect.objectContaining({
+          file: FILE,
+          jsonPath: 'waves[0].maxSimultaneous',
+          message:
+            'wave 0 plans the silence "silence_mischief" (target "hiddenZone"), which counts for 2 against maxSimultaneous, but allows 1: it could never be drawn there',
+        }),
+      ]);
     });
 
     it('names the wave threat planned at an anchor instead of a hidden zone', async () => {
@@ -1892,5 +1996,535 @@ describe('the stealth exit (story 4.9)', () => {
       delete level.carry;
     });
     expect((await messages()).join('\n')).toMatch(/stealth step, but the level has no carry/);
+  });
+});
+
+describe('checkContent on the house chores (story 9.4)', () => {
+  const KITCHEN = 'content/levels/salon_kitchen.json';
+  const COOKING = 'content/chores/cooking.json';
+  const FEEDBACK = 'content/feedback.json';
+
+  const messages = async (): Promise<string[]> =>
+    (await checkContent(root)).map(
+      (problem) => `${problem.file} ${problem.jsonPath}: ${problem.message}`,
+    );
+
+  it('accepts the live cooking on the stove of the kitchen', async () => {
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('refuses a cue that feedback.json does not have', async () => {
+    await mutateJson(COOKING, (chore) => {
+      (chore.feedback as Record<string, string>).miss = 'no_such_cue';
+    });
+    expect(await checkContent(root)).toEqual([
+      expect.objectContaining({
+        file: COOKING,
+        jsonPath: 'feedback.miss',
+        message: expect.stringContaining('no_such_cue'),
+      }),
+    ]);
+  });
+
+  it('refuses a cue anchored on a threat: a chore event names no threat', async () => {
+    await mutateJson(COOKING, (chore) => {
+      (chore.feedback as Record<string, string>).success = 'resp_parry';
+    });
+    expect((await messages()).join('\n')).toMatch(/feedback\.success.*anchored on a threat/);
+  });
+
+  it("refuses a beat whose verb has no string (the threats' wording)", async () => {
+    await mutateJson(COOKING, (chore) => {
+      (chore.beats as { verbKey: string }[])[1] = {
+        ...(chore.beats as { verbKey: string }[])[1],
+        verbKey: 'verb.no_such_verb',
+      } as { verbKey: string };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /beats\[1\]\.verbKey.*verb\.no_such_verb.*strings\.fr\.json/,
+    );
+  });
+
+  it('refuses an abandoned threat whose file does not exist', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.abandonedThreat = { def: 'no_such_pot', afterMs: 30000 };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /cooking\.json abandonedThreat\.def: no threat "no_such_pot"/,
+    );
+  });
+
+  it('refuses an abandoned threat that is not on a station', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.abandonedThreat = { def: 'outlet', afterMs: 30000 };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /abandonedThreat\.def: the threat "outlet" has target "anchor", but the threat of an abandoned chore must have target "station"/,
+    );
+  });
+
+  it('refuses a station threat that no chore names', async () => {
+    await mutateJson(COOKING, (chore) => {
+      delete chore.abandonedThreat;
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /pot_on_stove\.json target: the threat "pot_on_stove" has target "station", but no chore names it/,
+    );
+  });
+
+  it('refuses a wave that plans the pot: only a chore spawns it', async () => {
+    await mutateJson('content/levels/salon_crawler.json', (level) => {
+      (level.waves as { threats: { def: string; anchor: string }[] }[])[0]?.threats.push({
+        def: 'pot_on_stove',
+        anchor: 'door',
+      });
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the threat "pot_on_stove" has target "station": only a chore's abandonedThreat spawns it, a wave cannot plan it/,
+    );
+  });
+
+  it('refuses a pot whose def is not a parry', async () => {
+    await mutateJson('content/threats/pot_on_stove.json', (threat) => {
+      threat.response = 'nothing';
+      threat.nothingMs = 1000;
+    });
+    expect((await messages()).join('\n')).toMatch(/target "station".*response must be "parry"/);
+  });
+
+  it('refuses a pot whose gag has the wrong séquelle', async () => {
+    await mutateJson('content/threats/pot_on_stove.json', (threat) => {
+      threat.afterEffect = { kind: 'none' };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /"pot_boiled_over", whose afterEffect\.kind must be "mess"/,
+    );
+  });
+
+  describe('the open door of the dishwasher (story 9.6)', () => {
+    const DISHWASHER = 'content/chores/unload_dishwasher.json';
+    type WaveThreat = { def: string; anchor: string };
+    const wavesOf = (level: Record<string, unknown>) => level.waves as { threats: WaveThreat[] }[];
+
+    it('accepts the live kitchen: the dishwasher chore, its door planned once at the station', async () => {
+      expect(await messages()).toEqual([]);
+    });
+
+    it('refuses an open threat whose file does not exist', async () => {
+      await mutateJson(DISHWASHER, (chore) => {
+        chore.openThreat = 'no_such_door';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /unload_dishwasher\.json openThreat: no threat "no_such_door" \(content\/threats\/no_such_door\.json does not exist\)/,
+      );
+    });
+
+    it('refuses an open threat that is not on an anchor', async () => {
+      await mutateJson(DISHWASHER, (chore) => {
+        chore.openThreat = 'pot_on_stove';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /unload_dishwasher\.json openThreat: the threat "pot_on_stove" has target "station", but the open threat of a chore must have target "anchor"/,
+      );
+    });
+
+    it('refuses an open threat that is not parried', async () => {
+      await mutateJson('content/threats/dishwasher_open.json', (threat) => {
+        threat.response = 'nothing';
+        threat.nothingMs = 1500;
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /unload_dishwasher\.json openThreat: the threat "dishwasher_open" has response "nothing", but the open threat of a chore must have response "parry"/,
+      );
+    });
+
+    it('refuses a door named by two chores the level declares', async () => {
+      await mutateJson('content/chores/cooking.json', (chore) => {
+        chore.openThreat = 'dishwasher_open';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        new RegExp(
+          `${KITCHEN.replace(/[.*+?^${'$'}{}()|[\\]\\\\]/g, '\\\\$&')} chores\\[1\\]\\.def: the threat "dishwasher_open" is already the open threat of another chore \\("cooking"\\)`,
+        ),
+      );
+    });
+
+    it('refuses a level that declares the chore and plans its door in no wave', async () => {
+      await mutateJson(KITCHEN, (level) => {
+        const [first] = wavesOf(level);
+        if (first === undefined) throw new Error('no wave');
+        first.threats = first.threats.filter((threat) => threat.def !== 'dishwasher_open');
+      });
+      expect(await messages()).toEqual([
+        `${KITCHEN} chores[1].def: the chore "unload_dishwasher" names the open threat "dishwasher_open", which the level must plan in one of its waves exactly once, but plans it 0 times`,
+      ]);
+    });
+
+    it('refuses a level that plans the door twice: the count, then the second entry away from its station', async () => {
+      // The entry lands after the wave's own threats, whatever their number (story 9.7 added two).
+      let pushedAt = -1;
+      await mutateJson(KITCHEN, (level) => {
+        const second = wavesOf(level)[1];
+        if (second === undefined) throw new Error('no second wave');
+        pushedAt = second.threats.length;
+        second.threats.push({ def: 'dishwasher_open', anchor: 'coffee_machine' });
+      });
+      expect(await messages()).toEqual([
+        `${KITCHEN} chores[1].def: the chore "unload_dishwasher" names the open threat "dishwasher_open", which the level must plan in one of its waves exactly once, but plans it 2 times`,
+        `${KITCHEN} waves[1].threats[${pushedAt}].anchor: the threat "dishwasher_open" is the open threat of the chore "unload_dishwasher": it must be planned at the anchor of the chore's station ("dishwasher"), not at "coffee_machine"`,
+      ]);
+    });
+
+    it('refuses a door planned at another anchor than its station, and says which entry', async () => {
+      await mutateJson(KITCHEN, (level) => {
+        const [first] = wavesOf(level);
+        const door = first?.threats.find((threat) => threat.def === 'dishwasher_open');
+        if (door === undefined) throw new Error('no door');
+        door.anchor = 'stove';
+      });
+      expect(await messages()).toEqual([
+        `${KITCHEN} waves[0].threats[2].anchor: the threat "dishwasher_open" is the open threat of the chore "unload_dishwasher": it must be planned at the anchor of the chore's station ("dishwasher"), not at "stove"`,
+      ]);
+    });
+
+    it('refuses a level that plans the door of a chore it does not declare', async () => {
+      await mutateJson('content/levels/salon_crawler.json', (level) => {
+        const [first] = wavesOf(level);
+        first?.threats.push({ def: 'dishwasher_open', anchor: 'door' });
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /salon_crawler\.json waves\[0\]\.threats\[\d+\]\.def: the threat "dishwasher_open" is the open threat of the chore "unload_dishwasher", which the level does not declare/,
+      );
+    });
+
+    it('refuses a door whose gag has the wrong séquelle (the pairing is the existing rule)', async () => {
+      await mutateJson('content/threats/dishwasher_open.json', (threat) => {
+        threat.afterEffect = { kind: 'none' };
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /"baby_in_dishwasher", whose afterEffect\.kind must be "mess"/,
+      );
+    });
+
+    it('refuses a door whose catastrophe does not fit its gag', async () => {
+      await mutateJson('content/threats/dishwasher_open.json', (threat) => {
+        threat.catastrophe = 'nearMiss';
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /"baby_in_dishwasher", whose catastrophe must be "mess"/,
+      );
+    });
+
+    it('keeps the points of the two chores within the Maison row', async () => {
+      await mutateJson(DISHWASHER, (chore) => {
+        chore.homePoints = 8;
+      });
+      expect((await messages()).join('\n')).toMatch(
+        /the chores of level salon_kitchen pay 15\.5 points, above the Maison row's 15/,
+      );
+    });
+  });
+
+  it('refuses a uiElement cue: a chore cue is played for sim events', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const cues = feedback.cues as Record<string, Record<string, unknown>>;
+      cues.chore_puree_stuck = { visual: { kind: 'uiElement' }, haptic: 'light' };
+    });
+    expect((await messages()).join('\n')).toMatch(/feedback\.miss.*uiElement/);
+  });
+
+  /** The live numbers the chore rules are read against, so that retuning the feel breaks no test here. */
+  const liveFeel = async () =>
+    JSON.parse(await readFile(join(root, 'content/feel.json'), 'utf8')) as {
+      timing: { windowMs: number };
+      mama: { homeMaxPoints: number; sighMaxPoints: number; baseScorePoints: number };
+    };
+  const liveCooking = async () =>
+    JSON.parse(await readFile(join(root, COOKING), 'utf8')) as {
+      homePoints: number;
+      beats: { telegraphDelayMs: number }[];
+    };
+  /** The kitchen's second chore (story 9.6): the two pay the Maison row together. */
+  const liveDishwasherPoints = async () =>
+    (
+      JSON.parse(await readFile(join(root, 'content/chores/unload_dishwasher.json'), 'utf8')) as {
+        homePoints: number;
+      }
+    ).homePoints;
+
+  it('refuses a beat whose delay is not above the window (the feel window when windowMs is null)', async () => {
+    const { windowMs } = (await liveFeel()).timing;
+    await mutateJson(COOKING, (chore) => {
+      ((chore.beats as Record<string, unknown>[])[1] as Record<string, unknown>).telegraphDelayMs =
+        windowMs;
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: COOKING,
+        jsonPath: 'beats[1].telegraphDelayMs',
+        message: expect.stringContaining(`(${windowMs}) must be above the window (${windowMs} ms)`),
+      }),
+    );
+  });
+
+  it('refuses a beat delay not above the window of the level, its feelOverrides applied', async () => {
+    const { beats } = await liveCooking();
+    const shortest = Math.min(...beats.map((beat) => beat.telegraphDelayMs));
+    await mutateJson(KITCHEN, (level) => {
+      const overrides = level.feelOverrides as Record<string, unknown>;
+      overrides.timing = { windowMs: shortest };
+    });
+    const found = (await messages()).join('\n');
+    expect(found).toContain(`content/levels/salon_kitchen.json chores[0].def`);
+    expect(found).toMatch(
+      new RegExp(
+        `beats\\[\\d\\]\\.telegraphDelayMs \\(${shortest}\\) which is not above the window of level salon_kitchen \\(${shortest} ms, its feelOverrides applied\\)`,
+      ),
+    );
+  });
+
+  it('does not read a chore with a window of its own against the level’s window', async () => {
+    const { beats } = await liveCooking();
+    const shortest = Math.min(...beats.map((beat) => beat.telegraphDelayMs));
+    await mutateJson(COOKING, (chore) => {
+      chore.windowMs = shortest - 100;
+    });
+    await mutateJson(KITCHEN, (level) => {
+      (level.feelOverrides as Record<string, unknown>).timing = { windowMs: shortest };
+    });
+    expect((await messages()).join('\n')).not.toMatch(/feelOverrides applied/);
+  });
+
+  it('refuses a beat delay not above the chore’s own window', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.windowMs = 2200;
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /beats\[0\]\.telegraphDelayMs.*\(2000\) must be above the window \(2200 ms\)/,
+    );
+  });
+
+  it('refuses a station kind the chore schema does not know', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.station = 'sink';
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: COOKING, jsonPath: 'station' }),
+    );
+  });
+
+  it('refuses a file whose id is not its name', async () => {
+    await mutateJson(COOKING, (chore) => {
+      chore.id = 'frying';
+    });
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: COOKING, jsonPath: 'id' }),
+    );
+  });
+
+  it('refuses a level that names a chore with no file', async () => {
+    await rm(join(root, COOKING));
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({
+        file: KITCHEN,
+        jsonPath: 'chores[0].def',
+        message: expect.stringMatching(/no chore "cooking".*chores\/cooking\.json/),
+      }),
+    );
+  });
+
+  it('refuses a chore on an object that is not of its station kind', async () => {
+    await mutateJson(KITCHEN, (level) => {
+      (level.chores as Record<string, unknown>[])[0] = { def: 'cooking', object: 'toilet' };
+      level.objects = (level.objects as { id: string; kind: string; anchor: string }[]).map(
+        (object) => (object.id === 'stove' ? { ...object, id: 'second_stove' } : object),
+      );
+      (level.chores as Record<string, unknown>[]).push({ def: 'cooking', object: 'second_stove' });
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the chore "cooking" is played at a "stove", but the object "toilet" has the kind "toilet"/,
+    );
+  });
+
+  it('refuses a chore on an object the level does not have', async () => {
+    await mutateJson(KITCHEN, (level) => {
+      (level.chores as Record<string, unknown>[])[0] = { def: 'cooking', object: 'no_such_object' };
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the object "no_such_object" is not in the level objects/,
+    );
+  });
+
+  it('refuses an object named by two chores', async () => {
+    await mutateJson(KITCHEN, (level) => {
+      (level.chores as Record<string, unknown>[]).push({ def: 'cooking', object: 'stove' });
+    });
+    expect((await messages()).join('\n')).toMatch(/already the station of another chore/);
+  });
+
+  it('refuses a station that no chore names', async () => {
+    await mutateJson(KITCHEN, (level) => {
+      delete level.chores;
+    });
+    expect((await messages()).join('\n')).toMatch(
+      /the stove "stove" is a station and no chore names it/,
+    );
+  });
+
+  it('refuses chores that pay more than the Maison row', async () => {
+    const { homeMaxPoints } = (await liveFeel()).mama;
+    const points = homeMaxPoints + 5;
+    await mutateJson(COOKING, (chore) => {
+      chore.homePoints = points;
+    });
+    const total = points + (await liveDishwasherPoints());
+    expect((await messages()).join('\n')).toMatch(
+      new RegExp(`pay ${total} points, above the Maison row's ${homeMaxPoints}`),
+    );
+  });
+
+  /** The kitchen's overrides move `delta` points from the Soupir row to the Maison row (the rows still add up to 100, the base score follows). */
+  const moveToHome = (delta: number) => async () => {
+    const { mama } = await liveFeel();
+    await mutateJson(KITCHEN, (level) => {
+      (level.feelOverrides as Record<string, unknown>).mama = {
+        homeMaxPoints: mama.homeMaxPoints + delta,
+        sighMaxPoints: mama.sighMaxPoints - delta,
+        baseScorePoints: mama.baseScorePoints - delta,
+      };
+    });
+    return mama.homeMaxPoints + delta;
+  };
+
+  it('holds the points to the Maison row of the level’s overrides: raised, it accepts what the base refuses', async () => {
+    const dishwasherPoints = await liveDishwasherPoints();
+    const { mama } = await liveFeel();
+    const max = await moveToHome(5)();
+    // The two chores together pay 2.5 more than the base row holds, which the raised row accepts.
+    await mutateJson(COOKING, (chore) => {
+      chore.homePoints = mama.homeMaxPoints + 2.5 - dishwasherPoints;
+    });
+    expect(max).toBe(mama.homeMaxPoints + 5);
+    expect(await checkContent(root)).toEqual([]);
+  });
+
+  it('holds the points to the Maison row of the level’s overrides: lowered, it refuses what the base accepts', async () => {
+    const total = (await liveCooking()).homePoints + (await liveDishwasherPoints());
+    // The rows are whole numbers: lowered by 5, the row no longer holds what the two chores pay.
+    const max = await moveToHome(-((await liveFeel()).mama.homeMaxPoints - (total - 5)))();
+    expect(max).toBe(total - 5);
+    expect((await messages()).join('\n')).toMatch(
+      new RegExp(`pay ${total} points, above the Maison row's ${max}`),
+    );
+  });
+
+  it('reports a stale chore schema', async () => {
+    await writeFile(join(root, 'content/_schemas/chore.schema.json'), '{}\n');
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: 'content/_schemas/chore.schema.json' }),
+    );
+  });
+});
+
+describe("checkContent on Mama's lines (story 3.8, FR36)", () => {
+  type LineJson = { id: string; reaction: string; text: string; when?: Record<string, unknown> };
+  const editLines = (change: (lines: LineJson[]) => void) =>
+    mutateJson('content/mama-lines.json', (json) => change(json.lines as LineJson[]));
+  const reportedOn = async () =>
+    (await checkContent(root)).filter((problem) => problem.file === 'content/mama-lines.json');
+
+  it('accepts the live lines', async () => {
+    expect(await reportedOn()).toEqual([]);
+  });
+
+  it('reports a tag that is not a gag of the sim, with the id and the path of the line', async () => {
+    await editLines((lines) => {
+      lines.push({
+        id: 'ghost_again',
+        reaction: 'sigh',
+        text: '*Encore* le fantôme ?!',
+        when: { tag: 'ghost_appears', minPrevious: 1 },
+      });
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: expect.stringMatching(/^lines\[\d+\]\.when\.tag$/),
+        message: expect.stringContaining('line "ghost_again": "ghost_appears" is not a gag'),
+      }),
+    ]);
+  });
+
+  it('reports an end reason the sim does not know', async () => {
+    await editLines((lines) => {
+      lines.push({
+        id: 'scream_late',
+        reaction: 'scream',
+        text: 'Il est tard !',
+        when: { endReason: 'bedtime' },
+      });
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: expect.stringMatching(/^lines\[\d+\]\.when\.endReason$/),
+        message: expect.stringContaining('line "scream_late": "bedtime" is not a way a level ends'),
+      }),
+    ]);
+  });
+
+  it('reports two lines that share an id', async () => {
+    await editLines((lines) => {
+      lines.push({ id: 'sigh_any', reaction: 'sigh', text: 'Encore un soupir.' });
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: expect.stringMatching(/^lines\[\d+\]\.id$/),
+        message: 'two lines share the id "sigh_any"',
+      }),
+    ]);
+  });
+
+  it('reports a reaction with no generic line', async () => {
+    await editLines((lines) => {
+      lines.splice(
+        lines.findIndex((line) => line.id === 'scream_any'),
+        1,
+      );
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: 'lines',
+        message: expect.stringContaining('no generic line (without `when`) for her scream'),
+      }),
+    ]);
+  });
+
+  it('does not take a conditional line for the generic one', async () => {
+    await editLines((lines) => {
+      for (const line of lines) {
+        if (line.id === 'laugh_any') line.when = { endReason: 'timer' };
+      }
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({ message: expect.stringContaining('for her laugh') }),
+    ]);
+  });
+
+  it('reports the failures of the text rules at the line, from the schema', async () => {
+    await editLines((lines) => {
+      lines.push({ id: 'odd_star', reaction: 'sigh', text: '*Encore ma plante ?!' });
+    });
+    expect(await reportedOn()).toEqual([
+      expect.objectContaining({
+        jsonPath: expect.stringMatching(/^lines\[\d+\]\.text$/),
+        message: expect.stringContaining('pairs'),
+      }),
+    ]);
+  });
+
+  it('reports a stale schema', async () => {
+    await writeFile(join(root, 'content/_schemas/mamaLines.schema.json'), '{}\n');
+    expect(await checkContent(root)).toContainEqual(
+      expect.objectContaining({ file: 'content/_schemas/mamaLines.schema.json' }),
+    );
   });
 });

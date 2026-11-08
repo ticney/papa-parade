@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Bot, BotSetup } from '@bots/bot';
 import { botResponsesOf, releaseDefIdsOf, safeSpotOf } from '@bots/botResponses';
+import { botViewOf, createVisibilityCounters } from '@bots/botView';
 import { createBot } from '@bots/createBot';
 import { playGame } from '@bots/playGame';
 import { UINT32_RANGE } from '@shared/constants';
@@ -12,11 +13,14 @@ import { err, ok, type Result } from '@shared/result';
 import { asSimMs } from '@shared/time';
 import { createSim, type Sim } from '@sim';
 import { outProblem, writeText } from '../outputFile.ts';
+import { loadThresholds } from '../playtest/playtestMetrics.ts';
+import { loadHumanComparison } from './humanComparison.ts';
 import { loadSimLevel, type SimLevel } from './loadSimLevel.ts';
 import { type RunFile, runFileName, toRunFile } from './runFile.ts';
 import { parseSimArgs, SIM_HELP, type SimArgs } from './simArgs.ts';
 import {
   createRunRecorder,
+  type FairnessSetup,
   type RunSummary,
   renderReport,
   type SimReport,
@@ -42,6 +46,43 @@ export function sequenceDefIdsOf(level: SimLevel['level']): ReadonlySet<string> 
     }
   }
   return ids;
+}
+
+/**
+ * The threats the level's chores turn into when abandoned (story 9.5, `abandonedThreat`). No wave
+ * plans them, and none is a micro-sleep: the report counts them in `chores.abandoned`.
+ */
+export function abandonedDefIdsOf(level: SimLevel['level']): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const entry of level.chores ?? []) {
+    if (entry.abandonedThreat !== undefined) ids.add(entry.abandonedThreat.def);
+  }
+  return ids;
+}
+
+/**
+ * What the fairness check needs of a loaded level (story 3.13): the spacing `S` of its effective
+ * feel (the level's `feelOverrides` are already merged in `content.feel`) and the telegraph delay of
+ * each def. A `wait` def is left out: its signal adds a random delay no one can read from the def.
+ */
+export function fairnessSetupOf(
+  content: SimLevel['content'],
+  level: SimLevel['level'],
+): FairnessSetup {
+  const telegraphDelayMsOf: Record<string, number> = {};
+  const holdUntilMsOf: Record<string, number> = {};
+  for (const [id, def] of Object.entries(level.threats)) {
+    if (def.response === 'firm' && def.holdUntilMs !== undefined)
+      holdUntilMsOf[id] = def.holdUntilMs;
+    if (def.response === 'wait') continue;
+    telegraphDelayMsOf[id] = def.telegraphDelayMs ?? content.feel.timing.telegraphDelayDefaultMs;
+  }
+  return {
+    spacingMs: content.feel.movement.glideMaxMs + content.feel.director.fairnessMarginMs,
+    telegraphDelayMsOf,
+    holdUntilMsOf,
+    holdMinMs: content.feel.input.holdMinMs,
+  };
 }
 
 /**
@@ -91,6 +132,15 @@ export async function runSim(
   const responses = botResponsesOf(level.threats);
   const releaseDefIds = releaseDefIdsOf(level.threats);
   const safeSpot = safeSpotOf(geometry);
+  // What the human bot sees of a follow-camera level (story 9.8): its screen is data (`bots.json`), the same
+  // for every run and for the browser's autoplay; null in a fixed-camera level.
+  const view = botViewOf({
+    camera: level.level.camera,
+    geometry,
+    threats: level.threats,
+    babyBodyRadiusM: content.feel.baby.bodyRadiusM,
+    screen: content.bots.human.view,
+  });
   // A game lasts the level's duration unless a cap says less (or more: the flow ends it anyway).
   const untilSimMs = args.untilSimMs ?? level.level.durationMs;
   const summaries: RunSummary[] = [];
@@ -101,7 +151,12 @@ export async function runSim(
       holdMinMs: content.feel.input.holdMinMs,
       responses,
       releaseDefIds,
+      // The stations of the level (story 9.4), index-aligned with `world.chores`.
+      choreObjectIds: (level.level.chores ?? []).map((chore) => chore.object),
       safeSpot,
+      isChronoRingShown: args.chronoRing === 'on',
+      view,
+      visibilityCounters: createVisibilityCounters(),
       settings: content.bots,
     };
     const bot = createBot(args.botId, setup);
@@ -120,6 +175,8 @@ export async function runSim(
         level.level.waves,
         level.level.carry?.armsCryDef ?? null,
         sequenceDefIdsOf(level),
+        fairnessSetupOf(content, level),
+        abandonedDefIdsOf(level),
       );
       const player =
         args.sequenceId === null
@@ -127,6 +184,9 @@ export async function runSim(
           : withSequenceStart(bot.value, args.sequenceId, args.sequenceAtMs);
       playGame(sim, player, untilSimMs, recorder.onEvent);
       const summary = recorder.finish();
+      // Only the human bot has a sight to count (story 9.8); a fixed-camera level has no view to see through.
+      if (args.botId === 'human' && view !== null)
+        summary.visibility = setup.visibilityCounters ?? null;
       summaries.push(summary);
       // The sim drops a refused start with no event (Papa busy, a silence, a phone ringing) and the
       // wrapper sends it once: say so, or a run that validated nothing looks like one that did.
@@ -166,6 +226,7 @@ export async function runSim(
         level: loaded.levelId,
         bot: args.botId,
         tier: args.tier,
+        chronoRing: args.chronoRing,
         seed: args.seed,
         untilSimMs,
         waves: level.level.waves,
@@ -227,7 +288,30 @@ async function main(): Promise<void> {
         },
   });
   if (!result.ok) return fail(result.error);
-  const report = result.value;
+  let report = result.value;
+  if (args.compareDir !== null) {
+    if (args.botId !== 'human') {
+      log.warn(
+        'sim',
+        `--compare: the ${args.botId} bot does not play like a tester (--chrono-ring changes nothing for it); the verdict is about the human bot`,
+      );
+    }
+    // The panel is read here, not in `runSim`: the games stay a pure function of their arguments.
+    const thresholds = await loadThresholds();
+    if (!thresholds.ok) return fail(thresholds.error.join('; '));
+    const compared = await loadHumanComparison(args.compareDir, report, thresholds.value.humanBot);
+    if (!compared.ok) return fail(compared.error);
+    for (const { file, reason } of compared.value.skipped) {
+      log.warn('sim', `--compare: ${file} is left out: ${reason}`);
+    }
+    if (compared.value.games === 0) {
+      log.warn(
+        'sim',
+        `--compare: no game of ${args.compareDir} fits (level ${args.levelId}, tier ${args.tier}): both statuses are n/a`,
+      );
+    }
+    report = { ...report, comparison: compared.value };
+  }
 
   if (args.journalsDir !== null) {
     const made = await makeDir(args.journalsDir);

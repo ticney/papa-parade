@@ -1,5 +1,10 @@
-import { COUNT_UP_FRAME_MS, JOURNAL_COPY_TIMEOUT_MS, STAR_COUNT_MAX } from '@shared/constants';
-import type { MamaScore } from '@sim';
+import {
+  COUNT_UP_FRAME_MS,
+  JOURNAL_COPY_TIMEOUT_MS,
+  type MamaReactionId,
+  STAR_COUNT_MAX,
+} from '@shared/constants';
+import type { MamaReactionLine, MamaScore } from '@sim';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestFeedback } from '../../../../tests/support/testContent.ts';
 import {
@@ -15,10 +20,20 @@ type Listener = (event: unknown) => void;
 class FakeElement {
   className = '';
   hidden = false;
-  textContent = '';
   type = '';
   tabIndex = 0;
   children: FakeElement[] = [];
+  private ownText = '';
+  // As in the DOM: the text of an element is its own, or its children's put together, and setting it drops the children.
+  get textContent(): string {
+    return this.children.length > 0
+      ? this.children.map((child) => child.textContent).join('')
+      : this.ownText;
+  }
+  set textContent(value: string) {
+    this.children = [];
+    this.ownText = value;
+  }
   readonly style = { setProperty: (name: string, value: string) => this.styles.set(name, value) };
   styles = new Map<string, string>();
   attributes = new Map<string, string>();
@@ -83,6 +98,11 @@ let focused: FakeElement | null = null;
 const doc = {
   createElement: (tag: string) => new FakeElement(tag),
   createElementNS: (_ns: string, tag: string) => new FakeElement(tag),
+  createTextNode: (text: string) => {
+    const node = new FakeElement('#text');
+    node.textContent = text;
+    return node;
+  },
 };
 
 /** A fake real-time scheduler: the test moves the clock and the due timers run in order. */
@@ -127,24 +147,26 @@ function createClock() {
 
 const timings = createTestFeedback().resultScreen;
 const maxima = {
-  laughMaxPoints: 40,
-  babyStateMaxPoints: 30,
+  laughMaxPoints: 35,
+  calmMaxPoints: 20,
+  homeMaxPoints: 15,
   sighMaxPoints: 15,
   screamMaxPoints: 15,
 };
-/** 32 + 20 + 9 + 12 = 73: the mockup's game. */
+/** 28 + 14 + 5 + 9 + 12 = 68: a game with a chore done (E9 fills the Maison row; it is 0 before). */
 const SCORE: MamaScore = {
-  laughPoints: 32,
-  babyStatePoints: 20,
+  laughPoints: 28,
+  calmPoints: 14,
+  homePoints: 5,
   sighPoints: 6,
   screamPoints: 3,
-  scorePoints: 73,
+  scorePoints: 68,
   stars: 3,
   lostStars: 0,
 };
-const ROW_TOTALS = [32, 20, 9, 12];
+const ROW_TOTALS = [28, 14, 5, 9, 12];
 /** When the last row lands, from the build. */
-const ROWS_END_MS = 3 * timings.rowStaggerMs + timings.rowCountUpMs;
+const ROWS_END_MS = 4 * timings.rowStaggerMs + timings.rowCountUpMs;
 
 function build(overrides: Partial<ResultScreenOptions> = {}) {
   const clock = createClock();
@@ -160,12 +182,18 @@ function build(overrides: Partial<ResultScreenOptions> = {}) {
     isDone: false,
     // No photo by default: the sequence starts at `rows`, as it did before story 3.6.
     photo: null,
+    // No reaction by default: the `mama` phase has its own describe below (story 3.7).
+    reactions: [],
+    // No replay by default: the `replay` phase has its own describe below (story 3.9).
+    replay: null,
     scheduler: clock.scheduler,
     now: clock.now,
     keyTarget: keys as never,
     onPhoto: () => calls.push('photo'),
+    onMamaReaction: (reaction) => calls.push(`mama ${reaction}`),
     onStar: (isLast) => calls.push(isLast ? 'last star' : 'star'),
     onMamaWoke: () => calls.push('mama woke'),
+    onMamaHome: () => calls.push('mama home'),
     onStarLost: () => calls.push('star lost'),
     onPhase: (phase) => phases.push(phase),
     onReplay: () => calls.push('replay'),
@@ -208,7 +236,7 @@ describe('createResultScreen', () => {
     vi.unstubAllGlobals();
   });
 
-  it('builds the dialog, the four rows with their labels and maxima, the total out of the summed maxima, and five star slots', () => {
+  it('builds the dialog, the five rows with their labels and maxima, the total out of the summed maxima, and five star slots', () => {
     const { root, panel } = build();
     expect(root.className).toBe('pp-overlay pp-result-screen');
     expect(panel.tag).toBe('section');
@@ -221,22 +249,26 @@ describe('createResultScreen', () => {
     expect(card.attributes.get('role')).toBe('table');
     expect(card.attributes.get('aria-label')).toBe('result.score_label');
     const rows = root.find('pp-score-row');
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(5);
     expect(root.find('pp-score-label').map((node) => node.textContent)).toEqual([
       'result.score_laughs',
-      'result.score_baby_state',
+      'result.score_calm',
+      'result.score_home',
       'result.score_no_sigh',
       'result.score_no_scream',
     ]);
     expect(root.find('pp-score-max').map((node) => node.textContent)).toEqual([
-      '/40',
-      '/30',
+      '/35',
+      '/20',
+      '/15',
       '/15',
       '/15',
     ]);
     expect(
-      ['laugh', 'baby', 'sigh', 'scream'].map((kind) => root.find(`pp-score-chip-${kind}`).length),
-    ).toEqual([1, 1, 1, 1]);
+      ['laugh', 'calm', 'home', 'sigh', 'scream'].map(
+        (kind) => root.find(`pp-score-chip-${kind}`).length,
+      ),
+    ).toEqual([1, 1, 1, 1, 1]);
     expect(root.find('pp-score-total-max')[0]?.textContent).toBe('/100');
     const stars = root.find('pp-stars')[0] as FakeElement;
     expect(stars.attributes.get('role')).toBe('img');
@@ -249,14 +281,16 @@ describe('createResultScreen', () => {
     const { root } = build({
       maxima: {
         laughMaxPoints: 50,
-        babyStateMaxPoints: 20,
+        calmMaxPoints: 10,
+        homeMaxPoints: 10,
         sighMaxPoints: 20,
         screamMaxPoints: 10,
       },
     });
     expect(root.find('pp-score-max').map((node) => node.textContent)).toEqual([
       '/50',
-      '/20',
+      '/10',
+      '/10',
       '/20',
       '/10',
     ]);
@@ -273,7 +307,7 @@ describe('createResultScreen', () => {
   it('counts each row up to its total in rowCountUpMs, each starting rowStaggerMs after the last, the total following', () => {
     const { clock, values, total, phases } = build();
     expect(phases).toEqual(['rows']);
-    expect(values()).toEqual([0, 0, 0, 0]);
+    expect(values()).toEqual([0, 0, 0, 0, 0]);
     clock.advance(timings.rowCountUpMs / 2);
     const half = values();
     expect(half[0]).toBeGreaterThan(0);
@@ -290,11 +324,12 @@ describe('createResultScreen', () => {
   });
 
   it('shows 0 at once for a row whose total is 0, and schedules no count-up frame for it', () => {
-    // Four rows at 0: laugh 0, baby 0, and the sigh and scream rows have lost their whole maximum.
+    // Five rows at 0: laugh 0, calm 0, home 0, and the sigh and scream rows have lost their whole maximum.
     const { clock, values } = build({
       score: {
         laughPoints: 0,
-        babyStatePoints: 0,
+        calmPoints: 0,
+        homePoints: 0,
         sighPoints: maxima.sighMaxPoints,
         screamPoints: maxima.screamMaxPoints,
         scorePoints: 30,
@@ -302,12 +337,69 @@ describe('createResultScreen', () => {
         lostStars: 0,
       },
     });
-    expect(values()).toEqual([0, 0, 0, 0]);
-    // Left: the three rows still to start and the stars. A count-up frame would make it five.
+    expect(values()).toEqual([0, 0, 0, 0, 0]);
+    // Left: the four rows still to start and the stars. A count-up frame would make it six.
     clock.advance(1);
-    expect(clock.pending).toBe(4);
+    expect(clock.pending).toBe(5);
     clock.advance(COUNT_UP_FRAME_MS);
-    expect(values()).toEqual([0, 0, 0, 0]);
+    expect(values()).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it('always shows the five rows, in order, and their values add up to the total (AC 10)', () => {
+    const { clock, root, values, total } = build();
+    clock.advance(ROWS_END_MS);
+    expect(root.find('pp-score-row').map((row) => row.className)).toEqual([
+      'pp-score-row pp-score-row-laugh',
+      'pp-score-row pp-score-row-calm',
+      'pp-score-row pp-score-row-home',
+      'pp-score-row pp-score-row-sigh',
+      'pp-score-row pp-score-row-scream',
+    ]);
+    expect(values().reduce((sum, value) => sum + value, 0)).toBe(total());
+    expect(total()).toBe(SCORE.scorePoints);
+  });
+
+  it('shows the Maison row as 0 over 15 in a level without a chore: the row is never hidden (AC 9)', () => {
+    const { clock, root, values, total } = build({
+      score: { ...SCORE, homePoints: 0, scorePoints: SCORE.scorePoints - SCORE.homePoints },
+    });
+    clock.advance(ROWS_END_MS);
+    expect(root.find('pp-score-row')).toHaveLength(5);
+    expect(values()).toEqual([28, 14, 0, 9, 12]);
+    expect(root.find('pp-score-max')[2]?.textContent).toBe(`/${maxima.homeMaxPoints}`);
+    expect(values().reduce((sum, value) => sum + value, 0)).toBe(total());
+  });
+
+  it('writes a half point of the Maison row with a decimal comma: 7,5 over 15 with the cooking done (story 9.4)', () => {
+    const { clock, root } = build({
+      score: { ...SCORE, homePoints: 7.5, scorePoints: SCORE.scorePoints - SCORE.homePoints + 7.5 },
+    });
+    clock.advance(ROWS_END_MS);
+    const texts = root.find('pp-score-value').map((node) => node.textContent);
+    expect(texts).toEqual(['28', '14', '7,5', '9', '12']);
+    expect(root.find('pp-score-max')[2]?.textContent).toBe(`/${maxima.homeMaxPoints}`);
+    // The total adds the rows, a half included.
+    expect(root.find('pp-score-total-value')[0]?.textContent).toBe('70,5');
+  });
+
+  it('counts the Maison row up in halves and the other rows in whole points', () => {
+    const { clock, root } = build({
+      score: { ...SCORE, homePoints: 7.5, scorePoints: SCORE.scorePoints - SCORE.homePoints + 7.5 },
+    });
+    const maison = new Set<string>();
+    const others = new Set<string>();
+    for (let step = 0; step <= ROWS_END_MS; step += 16) {
+      clock.advance(16);
+      root.find('pp-score-value').forEach((node, row) => {
+        (row === 2 ? maison : others).add(node.textContent ?? '');
+      });
+    }
+    // The other rows were whole points before the story and stay so.
+    for (const text of others) expect(text, text).toMatch(/^\d+$/);
+    // The Maison row passes through halves (a decimal comma) on its way to 7,5, and ends on it.
+    expect([...maison].some((text) => text.includes(','))).toBe(true);
+    for (const text of maison) expect(text, text).toMatch(/^\d+(,5)?$/);
+    expect(root.find('pp-score-value')[2]?.textContent).toBe('7,5');
   });
 
   it('stamps the earned stars starsDelayMs after the rows, starIntervalMs apart, the last one marked', () => {
@@ -588,6 +680,77 @@ describe('createResultScreen: a woken Mama (story 3.2)', () => {
     expect(timer.root.all().some((node) => node.tag === 'h2')).toBe(false);
   });
 
+  describe('Mama come home early (story 3.16)', () => {
+    /** The note of the room as it is, and 0 stars whatever the score: no star lost, none to take off. */
+    const HOME: MamaScore = { ...SCORE, scorePoints: 80, stars: 0, lostStars: 0 };
+    const home = (overrides: Partial<ResultScreenOptions> = {}) =>
+      build({ endReason: 'mamaHome', score: HOME, ...overrides });
+
+    it('puts the header « result.mama_home » over the card, with the slam, in the place of the woken one', () => {
+      const { root, panel } = home();
+      const header = root.find('pp-result-reason')[0] as FakeElement;
+      expect(header.tag).toBe('h2');
+      expect(header.textContent).toBe('result.mama_home');
+      expect(header.classList.contains('pp-type-heading')).toBe(true);
+      expect(header.classList.contains('pp-result-reason-slam')).toBe(true);
+      expect(panel.children[0]).toBe(header);
+      expect(panel.children[1]?.classList.contains('pp-score-card')).toBe(true);
+      expect(panel.classList.contains('pp-result-panel-home')).toBe(true);
+      expect(panel.classList.contains('pp-result-panel-woken')).toBe(false);
+      expect(build().panel.classList.contains('pp-result-panel-home')).toBe(false);
+    });
+
+    it('calls onMamaHome once, when the sequence starts, never onMamaWoke, and never for another end', () => {
+      const { clock, calls } = home();
+      expect(calls).toEqual(['mama home']);
+      clock.advance(20_000);
+      expect(calls.filter((call) => call === 'mama home')).toHaveLength(1);
+      expect(calls).not.toContain('mama woke');
+      expect(build().calls).toEqual([]);
+      expect(woken().calls).toEqual(['mama woke']);
+    });
+
+    it('counts the rows up to the room’s note, but earns no star and loses none: five empty slots, no chip', () => {
+      const { root, clock, values, earned, lost, phases } = home();
+      clock.advance(ROWS_END_MS);
+      expect(values()).toEqual(ROW_TOTALS);
+      clock.advance(20_000);
+      expect(earned()).toBe(0);
+      expect(lost()).toBe(0);
+      expect(root.find('pp-star-lost-chip')).toHaveLength(0);
+      const slots = root.find('pp-stars')[0]?.children.filter((node) => node.tag === 'svg') ?? [];
+      expect(slots).toHaveLength(STAR_COUNT_MAX);
+      expect(slots.every((slot) => slot.classList.contains('pp-star-empty'))).toBe(true);
+      expect(phases.at(-1)).toBe('actions');
+    });
+
+    it('puts « Rejouer » up, primary, after the rows', () => {
+      const { clock, replay, actions } = home();
+      expect(actions.hidden).toBe(true);
+      clock.advance(20_000);
+      expect(actions.hidden).toBe(false);
+      expect(replay.classList.contains('pp-button-primary')).toBe(true);
+    });
+
+    it('shows the header at rest on a done build: no slam class, no onMamaHome', () => {
+      const { root, calls } = home({ isDone: true });
+      const header = root.find('pp-result-reason')[0] as FakeElement;
+      expect(header.textContent).toBe('result.mama_home');
+      expect(header.classList.contains('pp-result-reason-slam')).toBe(false);
+      expect(calls).toEqual([]);
+    });
+
+    it('names no failure in the screen the player reads', () => {
+      const { root } = home();
+      const text = root
+        .all()
+        .map((node) => node.textContent)
+        .join(' ')
+        .toLowerCase();
+      for (const word of ['perdu', 'échec', 'game over', 'mort']) expect(text).not.toContain(word);
+    });
+  });
+
   it('calls onMamaWoke once, when the sequence starts, and never for a timer end', () => {
     const { clock, calls } = woken();
     expect(calls).toEqual(['mama woke']);
@@ -782,7 +945,11 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
   it('puts the canvas in a polaroid left of the panel, labelled and tilted', () => {
     const { root, panel, canvas, polaroid } = withPhoto();
     expect(polaroid).toBeDefined();
-    expect(root.children).toEqual([polaroid, panel]);
+    // The polaroid stands in the left column (story 3.7), which comes first in the screen.
+    const left = root.find('pp-result-left')[0];
+    // The banner of the replay (story 3.9) comes last, so that the panel stays where the specs expect it.
+    expect(root.children).toEqual([left, panel, root.find('pp-replay-banner')[0]]);
+    expect(left?.children).toEqual([polaroid]);
     expect(polaroid?.children).toEqual([canvas]);
     expect(canvas.attributes.get('role')).toBe('img');
     expect(canvas.attributes.get('aria-label')).toBe('result.photo_label');
@@ -800,7 +967,7 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
     const { clock, phases, values, panel } = withPhoto();
     clock.advance(HOLD_MS - 1);
     expect(phases).toEqual(['photo']);
-    expect(values()).toEqual([0, 0, 0, 0]);
+    expect(values()).toEqual([0, 0, 0, 0, 0]);
     expect(panel.classList.contains('pp-result-panel-waiting')).toBe(true);
     clock.advance(1);
     expect(phases).toEqual(['photo', 'rows']);
@@ -843,7 +1010,7 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
 
   it('keeps the panel the first child of a screen with no photo (the specs select it)', () => {
     const { root, panel } = build();
-    expect(root.children).toEqual([panel]);
+    expect(root.children).toEqual([panel, root.find('pp-replay-banner')[0]]);
   });
 
   describe("a woken Mama's header (EXPERIENCE: nothing between the photo and her reaction)", () => {
@@ -894,7 +1061,7 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
       expect(values()).toEqual(ROW_TOTALS);
       expect(actions.hidden).toBe(false);
       expect(focused).toBe(replay);
-      expect(root.children[0]).toBe(polaroid);
+      expect(root.find('pp-result-left')[0]?.children[0]).toBe(polaroid);
       expect(polaroid?.children).toEqual([canvas]);
     });
 
@@ -952,7 +1119,7 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
       expect(calls).toEqual([]);
       expect(values()).toEqual(ROW_TOTALS);
       expect(actions.hidden).toBe(false);
-      expect(root.children[0]).toBe(polaroid);
+      expect(root.find('pp-result-left')[0]?.children[0]).toBe(polaroid);
     });
 
     it('shows a woken header at rest, with no slam and no cue', () => {
@@ -983,6 +1150,343 @@ describe('createResultScreen: the end photo (story 3.6)', () => {
   it('takes the panel as its initial focus, transparent or not', () => {
     const { screen, panel } = withPhoto();
     expect(screen.initialFocus).toBe(panel as never);
+  });
+});
+
+describe("createResultScreen: Mama's reactions (story 3.7)", () => {
+  beforeEach(() => {
+    focused = null;
+  });
+
+  const HOLD_MS = timings.reactionHoldMs;
+  const PHOTO_HOLD_MS = timings.photoHoldMs;
+  // The lines `chooseMamaLines` picked (story 3.8): the screen shows what it is given; the Scream's is emphasized.
+  const LAUGH_LINE = 'Ha ha ! Tous les deux, alors…';
+  const SIGH_LINE = 'Bon… qui range ?';
+  const SCREAM_LINE = "*Encore* l'escalier ?!";
+  const SCREAM_TEXT = "Encore l'escalier ?!";
+  const ALL: readonly MamaReactionLine[] = [
+    { reaction: 'laugh', points: 7, lineId: 'laugh_any', text: LAUGH_LINE },
+    { reaction: 'sigh', points: 3, lineId: 'sigh_any', text: SIGH_LINE },
+    { reaction: 'scream', points: 2.5, lineId: 'stairs_again', text: SCREAM_LINE },
+  ];
+  const lineWith = (reaction: MamaReactionId, points: number, text = 'Une ligne.') => ({
+    reaction,
+    points,
+    lineId: `${reaction}_test`,
+    text,
+  });
+  // The strings the chip needs; every other key stays its own name.
+  const t = (key: string): string =>
+    key === 'result.mama_value_gain'
+      ? '+{points}'
+      : key === 'result.mama_value_loss'
+        ? '−{points}'
+        : key;
+  const make = (overrides: Partial<ResultScreenOptions> = {}) =>
+    build({ t, reactions: ALL, ...overrides });
+  const withPhoto = (overrides: Partial<ResultScreenOptions> = {}) =>
+    make({ photo: { canvas: new FakeElement('canvas') as never, tiltDeg: 1 }, ...overrides });
+  const press = (root: FakeElement) => {
+    root.dispatch('pointerdown', { pointerId: 3, isPrimary: true });
+    root.dispatch('pointerup', { pointerId: 3 });
+  };
+  const bubbleOf = (root: FakeElement) => root.find('pp-mum-bubble')[0] as FakeElement;
+  const lineOf = (root: FakeElement) =>
+    (root.find('pp-mum-bubble-text')[0] as FakeElement).textContent;
+  const chipOf = (root: FakeElement) => root.find('pp-mum-chip')[0] as FakeElement;
+  const spokenValueOf = (root: FakeElement) => root.find('pp-mum-bubble-value')[0] as FakeElement;
+  const shownOf = (root: FakeElement) => root.find('pp-mama--shown');
+  const mamaOf = (root: FakeElement) => root.find('pp-result-mama')[0] as FakeElement;
+
+  it('plays them in order, each held for reactionHoldMs, and only then starts the rows (no photo)', () => {
+    const { clock, phases, calls } = make();
+    expect(phases).toEqual(['mama']);
+    expect(calls).toEqual(['mama laugh']);
+    clock.advance(HOLD_MS - 1);
+    expect(calls).toEqual(['mama laugh']);
+    clock.advance(1);
+    expect(calls).toEqual(['mama laugh', 'mama sigh']);
+    clock.advance(HOLD_MS);
+    expect(calls).toEqual(['mama laugh', 'mama sigh', 'mama scream']);
+    // The last one is held too, so that it is read before the rows.
+    expect(phases).toEqual(['mama']);
+    clock.advance(HOLD_MS);
+    expect(phases).toEqual(['mama', 'rows']);
+    clock.advance(20_000);
+    expect(phases).toEqual(['mama', 'rows', 'stars', 'actions']);
+    expect(calls.filter((call) => call.startsWith('mama '))).toEqual([
+      'mama laugh',
+      'mama sigh',
+      'mama scream',
+    ]);
+  });
+
+  it('puts the photo first when there is one: photo, then the reactions after its hold', () => {
+    const { clock, phases, calls, root } = withPhoto();
+    expect(phases).toEqual(['photo']);
+    expect(calls).toEqual(['photo']);
+    // Hers is invisible while the photo stands alone, but in the page (her live region is heard from the start).
+    expect(mamaOf(root).className).toContain('pp-result-mama-waiting');
+    expect(mamaOf(root).hidden).toBe(false);
+    clock.advance(PHOTO_HOLD_MS);
+    expect(phases).toEqual(['photo', 'mama']);
+    expect(calls).toEqual(['photo', 'mama laugh']);
+    expect(mamaOf(root).className).not.toContain('pp-result-mama-waiting');
+    clock.advance(HOLD_MS * ALL.length);
+    expect(phases).toEqual(['photo', 'mama', 'rows']);
+  });
+
+  it('shows the line of the reaction in the bubble, with its accent class, and the next one after the hold', () => {
+    const { clock, root } = make();
+    expect(lineOf(root)).toBe(LAUGH_LINE);
+    expect(bubbleOf(root).className).toContain('pp-mum-bubble--laugh');
+    clock.advance(HOLD_MS);
+    expect(lineOf(root)).toBe(SIGH_LINE);
+    expect(bubbleOf(root).className).toContain('pp-mum-bubble--sigh');
+    expect(bubbleOf(root).className).not.toContain('pp-mum-bubble--laugh');
+    clock.advance(HOLD_MS);
+    expect(lineOf(root)).toBe(SCREAM_TEXT);
+    expect(bubbleOf(root).className).toContain('pp-mum-bubble--scream');
+  });
+
+  describe('the emphasis of a line (story 3.8, AC 9)', () => {
+    const textOf = (root: FakeElement) => root.find('pp-mum-bubble-text')[0] as FakeElement;
+    const emsOf = (root: FakeElement) => textOf(root).children.filter((node) => node.tag === 'em');
+
+    it('puts the *word* in an em and shows no asterisk, so a reader hears the words alone', () => {
+      const { clock, root } = make();
+      clock.advance(HOLD_MS * 2);
+      expect(emsOf(root).map((node) => node.textContent)).toEqual(['Encore']);
+      expect(textOf(root).textContent).toBe(SCREAM_TEXT);
+      expect(textOf(root).textContent).not.toContain('*');
+    });
+
+    it('makes no em for a line without emphasis, and drops the previous one', () => {
+      const { clock, root } = make({
+        reactions: [lineWith('scream', 1, SCREAM_LINE), lineWith('laugh', 0, 'Joli brushing !')],
+      });
+      expect(emsOf(root)).toHaveLength(1);
+      clock.advance(HOLD_MS);
+      expect(emsOf(root)).toHaveLength(0);
+      expect(lineOf(root)).toBe('Joli brushing !');
+    });
+
+    it('keeps the live region: the same bubble and the same text node, filled again', () => {
+      const { clock, root } = make();
+      const bubble = bubbleOf(root);
+      const text = textOf(root);
+      clock.advance(HOLD_MS * 2);
+      expect(bubbleOf(root)).toBe(bubble);
+      expect(textOf(root)).toBe(text);
+      expect(bubble.attributes.get('aria-live')).toBe('polite');
+    });
+
+    it('keeps markup inside a line as text: no element comes of it', () => {
+      const { root } = make({ reactions: [lineWith('laugh', 1, '<b>gras</b> *fort*')] });
+      expect(textOf(root).children.map((node) => node.tag)).toEqual(['#text', 'em']);
+      expect(lineOf(root)).toBe('<b>gras</b> fort');
+    });
+  });
+
+  it('is the caption of her voice: a polite status that always shows, with her figures hidden from readers', () => {
+    const { root } = make();
+    const bubble = bubbleOf(root);
+    expect(bubble.attributes.get('role')).toBe('status');
+    expect(bubble.attributes.get('aria-live')).toBe('polite');
+    expect(bubble.className).toContain('pp-type-body');
+    expect(root.find('pp-mama').length).toBeGreaterThan(0);
+    for (const figure of root.find('pp-mama')) {
+      expect(figure.attributes.get('aria-hidden')).toBe('true');
+    }
+  });
+
+  it('shows one figure at a time, the one of the reaction, each with an animation class of its own', () => {
+    const { clock, root } = make();
+    const classOfShown = () => (shownOf(root)[0] as FakeElement).attributes.get('class') ?? '';
+    expect(shownOf(root)).toHaveLength(1);
+    expect(classOfShown()).toContain('pp-mama--laugh');
+    expect(classOfShown()).not.toContain('pp-mama--rest');
+    clock.advance(HOLD_MS);
+    expect(shownOf(root)).toHaveLength(1);
+    expect(classOfShown()).toContain('pp-mama--sigh');
+    clock.advance(HOLD_MS);
+    expect(classOfShown()).toContain('pp-mama--scream');
+  });
+
+  it('writes the value with its sign: + for the Laugh, − for the Sigh and the Scream, a decimal comma', () => {
+    const { clock, root } = make();
+    expect(chipOf(root).hidden).toBe(false);
+    expect(chipOf(root).textContent).toBe('+7');
+    // The same value in the live region, for a reader (the chip is a picture of it).
+    expect(spokenValueOf(root).textContent).toBe('+7');
+    expect(chipOf(root).attributes.get('aria-hidden')).toBe('true');
+    expect(chipOf(root).className).toContain('pp-mum-chip--laugh');
+    clock.advance(HOLD_MS);
+    expect(chipOf(root).textContent).toBe('−3');
+    expect(spokenValueOf(root).textContent).toBe('−3');
+    expect(chipOf(root).className).toContain('pp-mum-chip--sigh');
+    clock.advance(HOLD_MS);
+    expect(chipOf(root).textContent).toBe('−2,5');
+    expect(chipOf(root).className).toContain('pp-mum-chip--scream');
+  });
+
+  it('shows no chip for a reaction worth 0, and brings it back for the next one', () => {
+    const { clock, root } = make({ reactions: [lineWith('laugh', 0), lineWith('scream', 4)] });
+    expect(chipOf(root).hidden).toBe(true);
+    expect(chipOf(root).textContent).toBe('');
+    clock.advance(HOLD_MS);
+    expect(chipOf(root).hidden).toBe(false);
+    expect(chipOf(root).textContent).toBe('−4');
+  });
+
+  it('shows the line it is given whatever the end: choosing it is not the screen’s business any more', () => {
+    for (const endReason of ['mamaWoke', 'mamaHome', 'timer', 'cycleDone'] as const) {
+      const scream = [lineWith('scream', 0, `Ligne pour ${endReason}`)];
+      expect(lineOf(make({ reactions: scream, endReason }).root), endReason).toBe(
+        `Ligne pour ${endReason}`,
+      );
+    }
+  });
+
+  it('keeps the woken and home-early headers and their cues for the rows, after the reactions', () => {
+    const woken = make({ endReason: 'mamaWoke', score: { ...SCORE, stars: 1, lostStars: 1 } });
+    expect(woken.root.find('pp-result-reason')).toHaveLength(0);
+    expect(woken.calls).not.toContain('mama woke');
+    woken.clock.advance(HOLD_MS * ALL.length);
+    expect(woken.phases).toEqual(['mama', 'rows']);
+    expect(woken.calls).toEqual(['mama laugh', 'mama sigh', 'mama scream', 'mama woke']);
+    expect(woken.root.find('pp-result-reason')).toHaveLength(1);
+    const home = make({ endReason: 'mamaHome' });
+    home.clock.advance(HOLD_MS * ALL.length);
+    expect(home.calls).toEqual(['mama laugh', 'mama sigh', 'mama scream', 'mama home']);
+  });
+
+  it('keeps the panel transparent while she reacts and lets it show with the rows', () => {
+    const { clock, panel } = make();
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(true);
+    clock.advance(HOLD_MS * ALL.length);
+    expect(panel.classList.contains('pp-result-panel-waiting')).toBe(false);
+  });
+
+  it('goes straight on with reactionHoldMs 0: every reaction fires in the same call, then the rows', () => {
+    const { phases, calls, root } = make({ timings: { ...timings, reactionHoldMs: 0 } });
+    expect(phases).toEqual(['mama', 'rows']);
+    expect(calls).toEqual(['mama laugh', 'mama sigh', 'mama scream']);
+    // She stays on the last one.
+    expect(lineOf(root)).toBe(SCREAM_TEXT);
+  });
+
+  it('goes straight from the photo to the reactions with photoHoldMs 0 as well', () => {
+    const { phases, calls } = withPhoto({
+      timings: { ...timings, photoHoldMs: 0, reactionHoldMs: 0 },
+    });
+    expect(phases).toEqual(['photo', 'mama', 'rows']);
+    expect(calls).toEqual(['photo', 'mama laugh', 'mama sigh', 'mama scream']);
+  });
+
+  it('stays, at rest, on the last reaction once the sequence is over', () => {
+    const { clock, root } = make();
+    clock.advance(20_000);
+    const [figure] = shownOf(root);
+    expect(figure?.attributes.get('class')).toContain('pp-mama--scream');
+    expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
+    expect(lineOf(root)).toBe(SCREAM_TEXT);
+    expect(mamaOf(root).className).not.toContain('pp-result-mama-waiting');
+  });
+
+  it('is not at rest while her last reaction is held, and is as soon as the rows start', () => {
+    const { clock, root } = make();
+    clock.advance(HOLD_MS * (ALL.length - 1));
+    const [during] = shownOf(root);
+    expect(during?.attributes.get('class')).toContain('pp-mama--scream');
+    expect(during?.attributes.get('class')).not.toContain('pp-mama--rest');
+    clock.advance(HOLD_MS);
+    const [after] = shownOf(root);
+    expect(after?.attributes.get('class')).toContain('pp-mama--rest');
+  });
+
+  describe('a press', () => {
+    it('during the photo skips the reactions: none plays, Mama stands at rest on the last one', () => {
+      const { root, phases, calls, values, actions } = withPhoto();
+      press(root);
+      expect(phases).toEqual(['photo', 'actions']);
+      expect(calls).toEqual(['photo']);
+      expect(values()).toEqual(ROW_TOTALS);
+      expect(actions.hidden).toBe(false);
+      expect(mamaOf(root).className).not.toContain('pp-result-mama-waiting');
+      expect(lineOf(root)).toBe(SCREAM_TEXT);
+      const [figure] = shownOf(root);
+      expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
+    });
+
+    it('during the reactions skips the rest, with no cue, no header slam and Mama at rest on the last', () => {
+      const { clock, root, phases, calls, actions } = make({
+        endReason: 'mamaWoke',
+        score: { ...SCORE, stars: 1, lostStars: 1 },
+      });
+      clock.advance(HOLD_MS);
+      press(root);
+      expect(phases).toEqual(['mama', 'actions']);
+      expect(calls).toEqual(['mama laugh', 'mama sigh']);
+      expect(actions.hidden).toBe(false);
+      expect(lineOf(root)).toBe(SCREAM_TEXT);
+      expect(chipOf(root).textContent).toBe('−2,5');
+      const [figure] = shownOf(root);
+      expect(figure?.attributes.get('class')).toContain('pp-mama--scream');
+      expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
+      // The header is there at rest: no slam class, no cue.
+      expect(root.find('pp-result-reason-slam')).toHaveLength(0);
+      expect(calls).not.toContain('mama woke');
+      // And nothing is left to run.
+      clock.advance(20_000);
+      expect(calls).toEqual(['mama laugh', 'mama sigh']);
+    });
+
+    it('is ignored within inputGraceMs: the reactions go on', () => {
+      const { root, phases, calls } = make({ timings: { ...timings, inputGraceMs: 350 } });
+      press(root);
+      expect(phases).toEqual(['mama']);
+      expect(calls).toEqual(['mama laugh']);
+    });
+  });
+
+  it('shows a rebuilt, finished screen the same Mama at rest, silently', () => {
+    const { phases, calls, root } = make({ isDone: true });
+    expect(phases).toEqual(['actions']);
+    expect(calls).toEqual([]);
+    expect(lineOf(root)).toBe(SCREAM_TEXT);
+    expect(chipOf(root).textContent).toBe('−2,5');
+    const [figure] = shownOf(root);
+    expect(figure?.attributes.get('class')).toContain('pp-mama--rest');
+  });
+
+  it('lays out the left column: the polaroid and Mama together, or Mama alone', () => {
+    const photo = withPhoto();
+    const left = photo.root.find('pp-result-left')[0] as FakeElement;
+    expect(left.className).not.toContain('pp-result-left-alone');
+    expect(left.children).toHaveLength(2);
+    expect(left.children[1]).toBe(mamaOf(photo.root));
+    const alone = make();
+    const aloneLeft = alone.root.find('pp-result-left')[0] as FakeElement;
+    expect(aloneLeft.className).toContain('pp-result-left-alone');
+    expect(aloneLeft.children).toEqual([mamaOf(alone.root)]);
+    expect(alone.root.children).toEqual([
+      aloneLeft,
+      alone.panel,
+      alone.root.find('pp-replay-banner')[0],
+    ]);
+  });
+
+  it('plays no `mama` phase and builds no left column when it is given no reaction and no photo', () => {
+    const { phases, root } = build({ reactions: [] });
+    expect(phases).toEqual(['rows']);
+    expect(root.find('pp-result-left')).toHaveLength(0);
+  });
+
+  it('builds one figure per kind of reaction, whatever the list', () => {
+    const { root } = make({ reactions: [lineWith('laugh', 1), lineWith('laugh', 2)] });
+    expect(root.find('pp-mama')).toHaveLength(1);
   });
 });
 
@@ -1237,5 +1741,216 @@ describe('createResultScreen: the copy button (story 3.3)', () => {
     screen.activate?.();
     expect(calls).toEqual(['replay']);
     expect(presses()).toBe(0);
+  });
+});
+
+describe('createResultScreen: the highlight replay (story 3.9)', () => {
+  const REPLAY_DELAY_MS = 400;
+  /** The stars of SCORE (3) have all stamped, and the pause before the replay has not run yet. */
+  const STARS_END_MS =
+    ROWS_END_MS + timings.starsDelayMs + (SCORE.stars - 1) * timings.starIntervalMs;
+
+  /** A player double: it records what the screen asks and finishes when the test says so. */
+  function makePlayer(momentCount = 3) {
+    const playerCalls: string[] = [];
+    let onDone: (() => void) | null = null;
+    return {
+      playerCalls,
+      player: {
+        momentCount,
+        delayMs: REPLAY_DELAY_MS,
+        play: (done: () => void) => {
+          playerCalls.push('play');
+          onDone = done;
+        },
+        skipMoment: (): void => {
+          playerCalls.push('skipMoment');
+        },
+        skipAll: () => {
+          playerCalls.push('skipAll');
+          onDone?.();
+        },
+        cancel: () => playerCalls.push('cancel'),
+      },
+      finish: () => onDone?.(),
+    };
+  }
+  const press = (root: FakeElement, pointerId = 5) => {
+    root.dispatch('pointerdown', { pointerId, isPrimary: true });
+    root.dispatch('pointerup', { pointerId });
+  };
+
+  it('goes from the stars to the replay, then to the actions, in that order', () => {
+    const { playerCalls, player, finish } = makePlayer();
+    const { phases, clock, root, actions } = build({ replay: player });
+    clock.advance(STARS_END_MS);
+    expect(phases).toEqual(['rows', 'stars']);
+    expect(playerCalls).toEqual([]);
+    clock.advance(REPLAY_DELAY_MS);
+    expect(phases).toEqual(['rows', 'stars', 'replay']);
+    expect(playerCalls).toEqual(['play']);
+    expect(root.classList.contains('pp-result-screen--replaying')).toBe(true);
+    expect(actions.hidden).toBe(true);
+    finish();
+    expect(root.classList.contains('pp-result-screen--replaying')).toBe(false);
+    // Still in the replay phase for the pause, then the buttons.
+    expect(phases.at(-1)).toBe('replay');
+    clock.advance(timings.actionsDelayMs);
+    expect(phases).toEqual(['rows', 'stars', 'replay', 'actions']);
+    expect(actions.hidden).toBe(false);
+    expect(playerCalls).toEqual(['play']);
+  });
+
+  it('shows the banner with the REPLAY text, built once', () => {
+    const { player } = makePlayer();
+    const { root } = build({ replay: player });
+    const banners = root.find('pp-replay-banner');
+    expect(banners).toHaveLength(1);
+    expect(banners[0]?.textContent).toBe('stamp.replay');
+    expect(banners[0]?.classList.contains('pp-type-epic')).toBe(true);
+    expect(banners[0]?.classList.contains('pp-stroked')).toBe(true);
+  });
+
+  it('replays after a game with no star too (the delay follows the stars phase)', () => {
+    const { playerCalls, player } = makePlayer();
+    const { phases, clock } = build({
+      replay: player,
+      score: { ...SCORE, stars: 0, scorePoints: 0 },
+    });
+    clock.advance(ROWS_END_MS + REPLAY_DELAY_MS);
+    expect(phases.at(-1)).toBe('replay');
+    expect(playerCalls).toEqual(['play']);
+  });
+
+  it('replays after the lost stars of a woken Mama too', () => {
+    const { playerCalls, player } = makePlayer();
+    const { clock } = build({
+      replay: player,
+      endReason: 'mamaWoke',
+      score: { ...SCORE, stars: 1, lostStars: 1 },
+    });
+    clock.advance(10_000);
+    expect(playerCalls).toEqual(['play']);
+  });
+
+  it.each([
+    ['no replay', null],
+    ['a replay with no moment', makePlayer(0).player],
+  ])('goes straight from the stars to the actions with %s', (_name, replay) => {
+    const { phases, clock, actions } = build({ replay });
+    clock.advance(STARS_END_MS + timings.actionsDelayMs);
+    expect(phases).toEqual(['rows', 'stars', 'actions']);
+    expect(actions.hidden).toBe(false);
+  });
+
+  describe('a press', () => {
+    const reachReplay = (overrides: Partial<ResultScreenOptions> = {}, momentCount = 3) => {
+      const made = makePlayer(momentCount);
+      const screen = build({ replay: made.player, ...overrides });
+      screen.clock.advance(STARS_END_MS + REPLAY_DELAY_MS);
+      made.playerCalls.length = 0;
+      return { ...made, ...screen };
+    };
+
+    it('during the replay skips the moment, a second press skips the rest and goes to the actions', () => {
+      const { playerCalls, root, phases, actions, replay } = reachReplay();
+      press(root, 1);
+      expect(playerCalls).toEqual(['skipMoment']);
+      expect(phases.at(-1)).toBe('replay');
+      expect(actions.hidden).toBe(true);
+      press(root, 2);
+      expect(playerCalls).toEqual(['skipMoment', 'skipAll']);
+      // The press that ended it goes straight to the buttons, with « Rejouer » focused.
+      expect(phases.at(-1)).toBe('actions');
+      expect(actions.hidden).toBe(false);
+      expect(focused).toBe(replay);
+    });
+
+    it('with one moment left, a single press ends the replay', () => {
+      const { playerCalls, player, finish, root, phases, actions } = reachReplay({}, 1);
+      // The player ends itself when the last moment is skipped: `skipMoment` calls `onDone`.
+      player.skipMoment = () => {
+        playerCalls.push('skipMoment');
+        finish();
+      };
+      press(root);
+      expect(playerCalls).toEqual(['skipMoment']);
+      expect(phases.at(-1)).toBe('actions');
+      expect(actions.hidden).toBe(false);
+    });
+
+    it('works with Enter, then the pad’s A', () => {
+      const { playerCalls, keys, screen, phases } = reachReplay();
+      keys.dispatch('keydown', { code: 'Enter', repeat: false, preventDefault: () => undefined });
+      keys.dispatch('keyup', { code: 'Enter' });
+      expect(playerCalls).toEqual(['skipMoment']);
+      screen.activate?.();
+      expect(playerCalls).toEqual(['skipMoment', 'skipAll']);
+      expect(phases.at(-1)).toBe('actions');
+    });
+
+    it('that ends the replay never presses « Rejouer »', () => {
+      const { keys, replay, calls, clock, actions } = reachReplay({
+        timings: { ...timings, inputGraceMs: 300 },
+      });
+      const space = { code: 'Space', repeat: false, preventDefault: () => undefined };
+      keys.dispatch('keydown', space);
+      keys.dispatch('keyup', { code: 'Space' });
+      keys.dispatch('keydown', space);
+      expect(actions.hidden).toBe(false);
+      // The key that ended it is still down, and the buttons just came up: « Rejouer » ignores both.
+      replay.click();
+      keys.dispatch('keyup', { code: 'Space' });
+      replay.click();
+      expect(calls).not.toContain('replay');
+      clock.advance(300);
+      replay.click();
+      expect(calls.filter((call) => call === 'replay')).toEqual(['replay']);
+    });
+
+    it('before the replay skips everything, the replay included', () => {
+      const { playerCalls, player } = makePlayer();
+      const { root, clock, phases, actions } = build({ replay: player });
+      clock.advance(STARS_END_MS - timings.starIntervalMs / 2);
+      press(root);
+      expect(phases.at(-1)).toBe('actions');
+      expect(actions.hidden).toBe(false);
+      clock.advance(10_000);
+      expect(playerCalls).toEqual([]);
+      expect(phases).not.toContain('replay');
+    });
+
+    it('during the pause between the last moment and the buttons goes to the buttons', () => {
+      const { playerCalls, finish, root, phases, actions } = reachReplay();
+      finish();
+      press(root);
+      // The replay is over: this press is the screen's own skip, not a skipMoment.
+      expect(playerCalls).toEqual([]);
+      expect(phases.at(-1)).toBe('actions');
+      expect(actions.hidden).toBe(false);
+    });
+  });
+
+  it('is cancelled by dispose, and a pending delay never starts it', () => {
+    const early = makePlayer();
+    const first = build({ replay: early.player });
+    first.clock.advance(STARS_END_MS);
+    first.screen.dispose?.();
+    first.clock.advance(10_000);
+    expect(early.playerCalls).toEqual(['cancel']);
+    const playing = makePlayer();
+    const second = build({ replay: playing.player });
+    second.clock.advance(STARS_END_MS + REPLAY_DELAY_MS);
+    second.screen.dispose?.();
+    expect(playing.playerCalls).toEqual(['play', 'cancel']);
+  });
+
+  it('a screen rebuilt during the replay (isDone) shows the buttons and never plays it', () => {
+    const { playerCalls, player } = makePlayer();
+    const { phases, actions, clock } = build({ replay: player, isDone: true });
+    clock.advance(10_000);
+    expect(phases).toEqual(['actions']);
+    expect(actions.hidden).toBe(false);
+    expect(playerCalls).toEqual([]);
   });
 });

@@ -3,6 +3,7 @@ import type { StepContext } from '../context.ts';
 import type { ComboChangeReason } from '../events.ts';
 import { startSlowMo } from '../time/slowMo.ts';
 import type { World } from '../world.ts';
+import { tickCalm } from './calmTracker.ts';
 
 // The combo (FR23, story 4.2). `world.combo` is written only here. Like `world.score.perfects`, it is
 // written at the source: `resolveThreat` and `gagThreat` call the helpers below, `takeBaby` and
@@ -90,12 +91,13 @@ export function stopCarryTick(world: World): void {
 }
 
 /**
- * The scoring system (slot between `runGauges` and `runFlow`): the carry tick, the one part of the
- * combo that fires on a clock. At `carryTickAt` the combo climbs one step and the next tick is due
+ * The scoring system (slot between `runGauges` and `runFlow`): the calm tracker (story 3.12), then
+ * the carry tick, the one part of the combo that fires on a clock. At `carryTickAt` the combo climbs one step and the next tick is due
  * `carryTickMs` after the one that fired (no drift). It runs on while Papa is busy. Allocation-free
  * outside the event, no draw.
  */
 export function runScoring(world: World, ctx: StepContext): void {
+  tickCalm(world, ctx);
   const { combo } = world;
   const { carryTickAt } = combo;
   if (carryTickAt === null || world.time.sim < carryTickAt) return;

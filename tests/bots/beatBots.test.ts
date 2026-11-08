@@ -4,7 +4,7 @@ import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import type { SimCommand, World } from '@sim';
 import { describe, expect, it } from 'vitest';
-import { botSetup, makeBot } from '../support/botSupport.ts';
+import { botSetup, legacyHuman, makeBot } from '../support/botSupport.ts';
 
 // The bots in a lullaby walk (story 4.5, AC 19): they read `world.sequence.beat` through `@sim`,
 // never the content. A fake world is enough: the bots only read the slice and the clock.
@@ -20,6 +20,7 @@ function worldAt(
     flow: { state: 'playing', enteredAt: 0, finalRushAt: null },
     props: [],
     papa: { xM: 0, zM: 0 },
+    baby: { state: 'babble', downstairsUntil: null },
     sequence: {
       beat: { isRunning: beat.isRunning ?? true, nextBeatAt: beat.nextBeatAt ?? null },
       stealth: { isRunning: false },
@@ -28,7 +29,7 @@ function worldAt(
 }
 
 const SETTINGS = {
-  human: { reactionMs: 250, aimOffsetMs: 0, jitterSdMs: 60 },
+  human: legacyHuman({ reactionMs: 250, aimOffsetMs: 0, jitterSdMs: 60 }),
   random: { actionsPerSec: 2, floorReachM: 3, maxHoldMs: 800 },
 };
 

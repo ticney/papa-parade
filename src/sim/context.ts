@@ -1,3 +1,4 @@
+import type { ChoreDef } from '@content/schemas/chore';
 import type { DisruptionDef } from '@content/schemas/disruption';
 import type { Feel } from '@content/schemas/feel';
 import type { ObjectKind } from '@content/schemas/level';
@@ -32,6 +33,11 @@ export interface SimLevel {
    * `world.disruptions`. Empty: the level plans none.
    */
   readonly disruptions: readonly SimPlannedDisruption[];
+  /**
+   * The house chores (story 9.4), index-aligned with `world.chores`: each def and the station it is
+   * played at. Empty: the level has no station.
+   */
+  readonly chores: readonly SimPlannedChore[];
   /**
    * The special sequences the level can run (story 4.4), in the level's order. Empty: it has none.
    * `StartSequence` starts any of them, and the level's `cycle` chains them (story 4.10).
@@ -96,6 +102,12 @@ export interface SimPlannedThreat {
   readonly firstWaveIndex: number;
   /** The box of the hidden zone; non-null exactly for a `hiddenZone` def (story 1.21). */
   readonly zone: SimHiddenZone | null;
+  /**
+   * The index, in `SimLevel.chores` and `world.chores`, of the chore whose open door this threat is
+   * (story 9.6: the chore names it with `openThreat`), or -1 for every other threat. The director draws
+   * such a threat only while its chore is paused with its door open.
+   */
+  readonly openChoreIndex: number;
 }
 
 /** A zone of the room as a floor rectangle (a box of the geometry seen from above). */
@@ -125,6 +137,29 @@ export interface SimPlannedDisruption {
   /** It starts at the first step at or after this sim time, in sim ms. */
   readonly atMs: number;
   readonly waveIndex: number;
+}
+
+/** One planned house chore (story 9.4): its def, its station object, and where that stands. */
+export interface SimPlannedChore {
+  readonly def: ChoreDef;
+  /** The `id` of the level object that is its station (an entry of `SimLevel.objects`). */
+  readonly objectId: string;
+  /** The station's floor point, the anchor of its object. */
+  readonly xM: number;
+  readonly zM: number;
+  /**
+   * The pot of an abandoned chore (story 9.5), or null for a chore with no `abandonedThreat`:
+   * `threatIndex` is its instance in `SimLevel.threats` and `world.threats` (planned after every
+   * other threat, with `firstWaveIndex` -1), `afterMs` how long the chore must stay `paused` before
+   * the sim telegraphs it.
+   */
+  readonly abandoned: { readonly threatIndex: number; readonly afterMs: number } | null;
+  /**
+   * The open-door threat of a chore with an `openThreat` (story 9.6): its instance in `SimLevel.threats`
+   * and `world.threats` (planned by a wave at the station's anchor, so it keeps its place in the pool),
+   * or null for a chore without one.
+   */
+  readonly openThreatIndex: number | null;
 }
 
 /** One special sequence a level can run (story 4.4): its id and its def. */

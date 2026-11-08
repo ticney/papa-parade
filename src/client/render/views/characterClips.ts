@@ -14,6 +14,12 @@ const PAPA_LOOPS: Readonly<Record<PapaState, string>> = {
   asleep: 'asleep',
   onPhone: 'on_phone',
   onToilet: 'idle',
+  // The shock of the outlet (the hair stays on end, `gags.ts`), the baby carried up the stairs, a debris picked up.
+  electrified: 'gag_shock',
+  carryingUp: 'carry_idle',
+  pickingUp: 'idle',
+  // A house chore (story 9.4): idle at the station until story 9.5 gives the cooking its own gestures.
+  chore: 'idle',
 };
 
 /** `wander` and `approach` crawl; a laid baby has no loop of his own: `carried`, lowered by `layDownPct`. */
@@ -25,7 +31,50 @@ const BABY_LOOPS: Readonly<Record<BabyState, string>> = {
   act: 'act',
   mischiefSilent: 'sneak',
   carried: 'carried',
+  // Left at the bottom of the stairs, and carried back up (story 3.15): he babbles, delighted, then is carried.
+  downstairs: 'babble',
+  carriedUp: 'carried',
 };
+
+/**
+ * Papa's states that travel (story 7.8, D4): a passage into one is a start, out of one a stop. By state,
+ * not by `clipSpeeds`, so that `glide` (which has no speed row on purpose) is one. A new state is a type error.
+ */
+export const PAPA_TRAVELLING: Readonly<Record<PapaState, boolean>> = {
+  idle: false,
+  walkPath: true,
+  walkDir: true,
+  glide: true,
+  drink: false,
+  asleep: false,
+  onPhone: false,
+  onToilet: false,
+  electrified: false,
+  carryingUp: false,
+  pickingUp: false,
+  chore: false,
+};
+
+/** The baby's states that travel (story 7.8, D4): he crawls in each. */
+export const BABY_TRAVELLING: Readonly<Record<BabyState, boolean>> = {
+  wander: true,
+  babble: false,
+  targetLocked: false,
+  approach: true,
+  act: false,
+  mischiefSilent: true,
+  carried: false,
+  downstairs: false,
+  carriedUp: false,
+};
+
+/**
+ * Whether the baby's clip travels now (D4). His cry is a timer apart from his state and overlays any of
+ * them with a still clip: a crawler who starts to cry is stopping, not crawling.
+ */
+export function isBabyTravelling(baby: Readonly<BabySlice>): boolean {
+  return baby.cryEndsAt === null && BABY_TRAVELLING[baby.state];
+}
 
 /** The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`). */
 export function papaClipOf(papa: Readonly<PapaSlice>, baby: Readonly<BabySlice>): string {
@@ -50,6 +99,8 @@ export function papaOneShotOf(event: Readonly<SimEvent>): string | null {
       return 'stumble';
     case 'PapaSnored':
       return 'snore';
+    case 'CoffeeDrunk':
+      return 'coffee_kick';
     default:
       return null;
   }
@@ -114,6 +165,7 @@ export const PAPA_CONTRACT = {
     'root',
     'spine',
     'head',
+    'eyes',
     'eyelids',
     'arm_l',
     'hand_l',
@@ -123,7 +175,15 @@ export const PAPA_CONTRACT = {
     'leg_r',
   ],
   visibleNodes: ['papa_body', 'papa_shirt'],
-  hiddenNodes: ['papa_mug', 'papa_handset', 'papa_hair', 'papa_look_mash', 'papa_look_shirt'],
+  hiddenNodes: [
+    'papa_mug',
+    'papa_mug_steam',
+    'papa_handset',
+    'papa_blabla',
+    'papa_hair',
+    'papa_look_mash',
+    'papa_look_shirt',
+  ],
   clips: [
     'idle',
     'walk',
@@ -140,8 +200,11 @@ export const PAPA_CONTRACT = {
     'gag_shock',
     'stumble',
     'snore',
+    'coffee_kick',
   ],
   codeDrivenBones: ['eyelids'],
+  /** The steam sways and the bla-bla bubble wobbles by code on the sim clock, so reduced motion can hold them (D3). */
+  codeDrivenNodes: ['papa_mug_steam', 'papa_blabla'],
 } as const;
 
 /** The baby's contract with his `.glb`: `head` turns to the gaze and `eyelids` follow the duel, both by code. */
@@ -166,4 +229,5 @@ export const BABY_CONTRACT = {
     'laugh',
   ],
   codeDrivenBones: ['head', 'eyelids'],
+  codeDrivenNodes: [],
 } as const;

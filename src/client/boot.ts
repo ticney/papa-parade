@@ -1,28 +1,42 @@
 import { feedbackClips } from '@content/feedbackClips';
 import { loadContent } from '@content/loadContent';
 import { loadLevelContent } from '@content/loadLevelContent';
+import type { ChoreStationKind } from '@content/schemas/chore';
 import type { Feel } from '@content/schemas/feel';
 import { GAUGE_IDS, type GaugeId } from '@content/schemas/level';
-import type { Settings } from '@content/schemas/save';
+import type { MamaMemory, Settings } from '@content/schemas/save';
 import type { SequenceDef } from '@content/schemas/sequence';
 import { createPlatform } from '@platform/createPlatform';
-import { DEFAULT_DIFFICULTY_TIER, MAX_TIMER_DELAY_MS, MS_PER_S, STEP_MS } from '@shared/constants';
+import {
+  DEFAULT_DIFFICULTY_TIER,
+  MAX_TIMER_DELAY_MS,
+  type MamaReactionId,
+  MS_PER_S,
+  STEP_MS,
+} from '@shared/constants';
 import { createEmitter, type Emitter } from '@shared/emitter';
 import { log } from '@shared/log';
 import { ok } from '@shared/result';
 import { asRealMs } from '@shared/time';
 import {
+  addRunToMamaMemory,
   type BeatEntry,
   beatTimelineOf,
+  chooseMamaLines,
   isDuelStepRunning,
   isFlowLive,
   isPapaBusy,
   isStealthStepRunning,
   type LevelEndReason,
+  type MamaReactionLine,
   type MamaScore,
+  mamaReactionsOf,
+  mamaTagOf,
   type Sim,
   type SimEvent,
   type SimObjectSpec,
+  type ThreatInstance,
+  type World,
 } from '@sim';
 import { Color, Group, Scene, Vector3 } from 'three';
 import { createAccessibilitySettings } from './app/accessibilitySettings.ts';
@@ -49,8 +63,12 @@ import {
   createBeatScheduler,
   type SoundedNote,
 } from './audio/beatScheduler.ts';
+import { createHighlightReplay } from './endOfLevel/highlightReplay.ts';
+import { createHighlightRecorder, type Highlight } from './endOfLevel/highlights.ts';
 import { takeEndPhoto } from './endOfLevel/photo.ts';
+import { isCatastropheAlertCrossing } from './feedback/catastropheAlert.ts';
 import { createFeedbackDirector } from './feedback/feedbackDirector.ts';
+import type { FeedbackEventName } from './feedback/feedbackEvents.ts';
 import { createGatedHaptics } from './feedback/gatedHaptics.ts';
 import { isNoiseAlertCrossing } from './feedback/noiseAlert.ts';
 import { createResponseChoreography } from './feedback/responseChoreography.ts';
@@ -69,19 +87,27 @@ import {
   type SequenceFraming,
   sequenceFramingBlendAt,
 } from './render/cameraFx.ts';
+import { createFollowRig } from './render/followRig.ts';
 import { slideDirection } from './render/gags.ts';
-import { createIsoCamera, fitIsoCamera, type RoomSize } from './render/isoCamera.ts';
+import { createIsoCamera, type RoomSize } from './render/isoCamera.ts';
 import type { LevelFx, LevelScene } from './render/levelScene.ts';
 import { PALETTE } from './render/materials/palette.ts';
 import { createRenderer, type RenderStats } from './render/renderer.ts';
 import { BABY_CARRIED_FORWARD_M, BABY_CARRIED_HEIGHT_M } from './render/views/babyView.ts';
+import {
+  createPapaGazeSight,
+  isBabyShownForGaze,
+  pickGazeThreat,
+} from './render/views/papaGaze.ts';
 import { createSaveStore } from './save/saveStore.ts';
 import { loadFonts } from './ui/fonts.ts';
+import { createCatastropheFace } from './ui/hud/catastropheFace.ts';
 import { createEpicStamp } from './ui/hud/epicStamp.ts';
 import { createGaugesHud } from './ui/hud/gaugesHud.ts';
 import { createHudBatch } from './ui/hud/hudBatch.ts';
 import { createHudLayer } from './ui/hud/hudLayer.ts';
 import { createInstinctVignette } from './ui/hud/instinctVignette.ts';
+import { createOffscreenHud, type OffscreenChip } from './ui/hud/offscreenHud.ts';
 import { createScreenFlash, SCREEN_FLASH_CLASSES } from './ui/hud/screenFlash.ts';
 import { createSequenceBar } from './ui/hud/sequenceBar.ts';
 import { createSilenceBubble } from './ui/hud/silenceBubble.ts';
@@ -96,11 +122,17 @@ import {
   type CopyLogOutcome,
   createResultScreen,
   type ResultPhoto,
+  type ResultReplay,
 } from './ui/screens/resultScreen.ts';
 import { createSettingsScreen } from './ui/screens/settingsScreen.ts';
 import { createStartScreen } from './ui/screens/startScreen.ts';
 import { createTranslator } from './ui/strings.ts';
 import { createUiShell } from './ui/uiShell.ts';
+import { applyActivityBubbleMetrics } from './ui/world/activityBubble.ts';
+import { createChoreMirror } from './ui/world/choreMirror.ts';
+import { applyChronoRingMetrics, chronoJudgedMirror } from './ui/world/chronoRing.ts';
+import { applyOffscreenBubbleMetrics, createOffscreenBubbles } from './ui/world/offscreenBubble.ts';
+import type { ThreatMarkerEntry } from './ui/world/threatMarkers.ts';
 import { createWorldUi } from './ui/world/worldUi.ts';
 
 /** The timer's slot in the HUD batch. */
@@ -109,10 +141,45 @@ const TIMER_SLOT = 0;
 const gaugeSlotOf = (id: GaugeId): number => GAUGE_IDS.indexOf(id) + 1;
 /** The sequence bar's slot, after the gauges' (story 4.4): its whole percent. */
 const SEQUENCE_SLOT = GAUGE_IDS.length + 1;
+/** Mama's face (story 3.16), after the sequence bar's: the exact catastrophe (a state boundary is a strict comparison, so a rounded value would not do). */
+const CATASTROPHE_SLOT = GAUGE_IDS.length + 2;
 /** The most the scheduler takes off the audio clock to pair it with the loop's, in real ms (story 4.5): a frame older than this is a clock to distrust, not a skew to correct. */
 const BEAT_CLOCK_AGE_MAX_MS = 100;
 const NO_OBJECTS: readonly ObjectTarget[] = [];
+/** No threats outside a level: the off-screen bubbles then hide (story 9.3). */
+const NO_THREATS: readonly ThreatInstance[] = [];
+const NO_BABY_SLIDE: Readonly<{ xM: number; zM: number }> = { xM: 0, zM: 0 };
 const NO_SIM_OBJECTS: readonly SimObjectSpec[] = [];
+
+/**
+ * The activity bubble's ring in a chore (story 9.4): the beats done over the beats, in percent, of the chore
+ * Papa works at; -1 outside one (the ring then drains to `busyUntil`, as for any occupation).
+ */
+function choreProgressPctOf(world: Readonly<World>, chores: Sim['chores'] | undefined): number {
+  if (world.papa.state !== 'chore' || chores === undefined) return -1;
+  for (let i = 0; i < world.chores.length; i++) {
+    const chore = world.chores[i];
+    if (chore?.state !== 'working') continue;
+    const beatCount = chores[i]?.def.beats.length ?? 0;
+    return beatCount > 0 ? (chore.beatsDone / beatCount) * 100 : 0;
+  }
+  return -1;
+}
+
+/**
+ * The kind of station Papa works at (story 9.6): the activity bubble's pictogram follows it (a saucepan at the
+ * stove, a plate at the dishwasher). Null outside a chore. Allocates nothing.
+ */
+function workingStationOf(
+  world: Readonly<World>,
+  chores: Sim['chores'] | undefined,
+): ChoreStationKind | null {
+  if (world.papa.state !== 'chore' || chores === undefined) return null;
+  for (let i = 0; i < world.chores.length; i++) {
+    if (world.chores[i]?.state === 'working') return chores[i]?.def.station ?? null;
+  }
+  return null;
+}
 
 /** The floor point of the level's `ANCHOR_door`, or null when the geometry has none (story 3.5). */
 function doorPointOf(
@@ -124,16 +191,26 @@ function doorPointOf(
   const [xM, , zM] = door?.positionM ?? [];
   return door === undefined || xM === undefined || zM === undefined ? null : { xM, zM };
 }
+/** The client event of each of Mama's reactions on the Result screen (story 3.7): its cue is in `feedback.json`. */
+const MAMA_REACTION_EVENTS = {
+  laugh: 'ResultMamaLaughed',
+  sigh: 'ResultMamaSighed',
+  scream: 'ResultMamaScreamed',
+} as const satisfies Record<MamaReactionId, FeedbackEventName>;
 /** What the Result screen shows if it ever has no note (a bug, warned about): all zero. */
 const NO_SCORE: MamaScore = {
   laughPoints: 0,
-  babyStatePoints: 0,
+  calmPoints: 0,
+  homePoints: 0,
   sighPoints: 0,
   screamPoints: 0,
   scorePoints: 0,
   stars: 0,
   lostStars: 0,
 };
+
+/** What `?autoplay` picks Mama's lines from (story 3.8): it ignores the player's save, so Mama remembers nothing. */
+const EMPTY_MAMA_MEMORY: MamaMemory = { counts: {} };
 
 function logSimEvent(event: SimEvent): void {
   if (event.type === 'InvariantViolated') {
@@ -231,8 +308,12 @@ export async function boot(): Promise<void> {
   const camera = createIsoCamera();
   // The end photo's own camera (story 3.6): the game camera, `cameraFx` and the world UI are not touched.
   const photoCamera = createIsoCamera();
+  // The highlight replay's own camera (story 3.9): the game camera's angle on a tight frame, placed once per moment.
+  const replayCamera = createIsoCamera();
   // The perfect's zoom, pan and turn, around the framing `fitIsoCamera` computes (story 2.5).
   const cameraFx = createCameraFx(camera);
+  // The framing under those effects: the whole room, or a frame that follows Papa (story 9.2).
+  const followRig = createFollowRig(camera, cameraFx);
   // The special sequence's framing, one object written each frame (story 4.4), and the defs of the
   // level being played, set at its start.
   const sequenceFraming: SequenceFraming = { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 };
@@ -242,6 +323,15 @@ export async function boot(): Promise<void> {
   const backdrop = new Scene();
   backdrop.background = new Color(PALETTE.ink);
   let currentLevel: LevelScene | null = null;
+  // Papa's gaze (story 7.8, D8): what the screen shows him, once per frame after the markers and the
+  // bubbles. The two readers are made once: nothing is allocated per frame.
+  let gazeEntries: readonly ThreatMarkerEntry[] = [];
+  const gazeSight = createPapaGazeSight();
+  const gazePermilleOf = (threatId: number): number | null =>
+    worldUi.chronoDrawOf(threatId)?.permille ?? null;
+  const gazeIsOnScreen = (threatId: number): boolean => !offscreenHud.isOffscreen(threatId);
+  /** A highlight replay is playing a moment (story 3.9): the replay draws the canvas, not `drawStatic`. */
+  let isReplaying = false;
   /** The debug views' group in the level scene, made on demand (a debug build only asks); null per new scene. */
   let debugGroup: Group | null = null;
   let room: RoomSize | null = null;
@@ -250,9 +340,12 @@ export async function boot(): Promise<void> {
   const pause = createPauseController({ events });
 
   // Outside a level (start, loading) nothing steps and nothing draws on its own: draw the scene
-  // once, and again whenever a resize has cleared the canvas.
+  // once, and again whenever a resize has cleared the canvas. Not under a replay: it draws every frame
+  // through its own camera, and the game camera would show the moment's world for one frame.
   const drawStatic = (): void => {
-    if (appFsm.state !== 'level') renderer.render(currentLevel?.scene ?? backdrop, camera);
+    if (appFsm.state !== 'level' && !isReplaying) {
+      renderer.render(currentLevel?.scene ?? backdrop, camera);
+    }
   };
   // The layer of world-anchored UI (the tap marker): sized like the canvas, or the marker would
   // drift from the tapped point after a resize.
@@ -260,11 +353,14 @@ export async function boot(): Promise<void> {
     translate: t,
     isMotionReduced: () => prefersReducedMotion(),
   });
+  // The mirror `data-pp-chore` (story 9.4): written on change, in mirrored builds only.
+  const choreMirror = createChoreMirror();
+  // The beats of each chore of the level in play, fixed at its start: the mirror reads them each frame.
+  let choreBeatCounts: readonly number[] = [];
   const fitViewToCanvas = (): void => {
     const aspect = renderer.resize();
     if (aspect !== null && room !== null) {
-      fitIsoCamera(camera, room, aspect);
-      cameraFx.captureBase();
+      followRig.fit(aspect, levelSession.active?.sim.world.feel.camera);
     }
     worldUi.setSize(canvas.clientWidth, canvas.clientHeight);
     drawStatic();
@@ -276,6 +372,12 @@ export async function boot(): Promise<void> {
   new ResizeObserver(fitViewToCanvas).observe(canvas);
   window.addEventListener('resize', fitViewToCanvas);
   bindSurface(window, document.documentElement);
+  // The chrono-ring's reach and the highlight's size (story 2.11) come from the constants, not from CSS literals.
+  applyChronoRingMetrics(document.documentElement);
+  // The activity bubble's sizes and the combo badge's offsets beside it (story 2.12), from the constants.
+  applyActivityBubbleMetrics(document.documentElement);
+  // The off-screen bubbles' sizes, for both surfaces (story 9.3), from the constants.
+  applyOffscreenBubbleMetrics(document.documentElement);
 
   // Debug mirrors of the flow for Playwright, stripped from store builds by the flag. They go
   // before the bindings below, which can emit as soon as they are bound. The existing specs read
@@ -331,12 +433,18 @@ export async function boot(): Promise<void> {
       | 'ppStampCount'
       | 'ppThreat'
       | 'ppThreatPx'
+      | 'ppOffscreen'
+      | 'ppChore'
       | 'ppResponse'
+      | 'ppChronoJudged'
       | 'ppGag'
       | 'ppPress'
       | 'ppFatigue'
       | 'ppNoise'
+      | 'ppCatastrophe'
+      | 'ppCatastropheFace'
       | 'ppBladder'
+      | 'ppDim'
       | 'ppPhone'
       | 'ppSilence'
       | 'ppInstinct'
@@ -352,6 +460,7 @@ export async function boot(): Promise<void> {
       | 'ppEndReason'
       | 'ppResult'
       | 'ppPhoto'
+      | 'ppReplayMoment'
       | 'ppCalibration'
       | 'ppCalibrationBeats',
     value: string,
@@ -592,6 +701,16 @@ export async function boot(): Promise<void> {
   let keyboardLayoutMap: ReadonlyMap<string, string> | null = null;
   // The chip's text, recomputed only when what it depends on changes (no string built per frame).
   let chipText = '';
+  // The chip beside an off-screen bubble (story 9.3, D7): where it goes, and the world point under it.
+  const offscreenChip: OffscreenChip = {
+    side: null,
+    xPx: 0,
+    yPx: 0,
+    ndcX: 0,
+    ndcY: 0,
+    radiusPx: 0,
+  };
+  const offscreenChipPoint = new Vector3();
   let chipDevice: 'keyboard' | 'gamepad' | null = null;
   let chipFamily: 'xbox' | 'playstation' | null = null;
   let chipMap: ReadonlyMap<string, string> | null = null;
@@ -639,6 +758,11 @@ export async function boot(): Promise<void> {
     mirror('ppBabyState', event.to);
     mirrorBabyAt();
   };
+  // The pénombre of the outlet gag (story 3.15): `on` from `AfterEffectStarted{dim}` to `AfterEffectEnded{dim}`.
+  const mirrorDimEvent = (event: SimEvent): void => {
+    if (event.type === 'AfterEffectStarted' && event.kind === 'dim') mirror('ppDim', 'on');
+    else if (event.type === 'AfterEffectEnded' && event.kind === 'dim') mirror('ppDim', 'off');
+  };
   // The combo (story 4.2), on its events: the multiplier on `ComboChanged`, the points on `ComboCashedIn`.
   const mirrorComboEvent = (event: SimEvent): void => {
     if (event.type === 'ComboChanged') mirror('ppCombo', String(event.multiplier));
@@ -662,6 +786,19 @@ export async function boot(): Promise<void> {
       return;
     }
     mirror('ppNoise', String(Math.round(active.sim.world.gauges.noisePct)));
+  };
+  // The catastrophe, rounded, like the noise (story 3.16): at the level start and on each `CatastropheChanged`,
+  // never per frame (the decay is silent: a test reads `__PP__` for exact values). The face's state
+  // is the face's own (`data-pp-catastrophe-face`), written when it changes.
+  const mirrorCatastrophe = (): void => {
+    const active = levelSession.active;
+    if (active === null) {
+      delete document.documentElement.dataset.ppCatastrophe;
+      delete document.documentElement.dataset.ppCatastropheFace;
+      return;
+    }
+    mirror('ppCatastrophe', String(Math.round(active.sim.world.gauges.catastrophePct)));
+    mirror('ppCatastropheFace', catastropheFace.state);
   };
   // The need, rounded, like the noise (story 4.3): at the level start and on `BladderFilled`,
   // `ToiletStarted` and `ToiletFinished`, never per frame. Removed in a level with no need gauge.
@@ -698,8 +835,10 @@ export async function boot(): Promise<void> {
     mirrorPapaAt();
     mirror('ppBabyState', levelSession.active?.sim.world.baby.state ?? 'babble');
     mirrorBabyAt();
+    mirror('ppDim', (levelSession.active?.sim.world.afterEffects.dimUntil ?? 0) > 0 ? 'on' : 'off');
     mirrorFatigue();
     mirrorNoise();
+    mirrorCatastrophe();
     mirrorBladder();
     mirrorObjectPoints();
     mirror('ppCombo', String(levelSession.active?.sim.world.combo.multiplier ?? 1));
@@ -710,6 +849,7 @@ export async function boot(): Promise<void> {
       'ppThreat',
       'ppThreatPx',
       'ppResponse',
+      'ppChronoJudged',
       'ppGag',
       'ppPress',
       'ppTarget',
@@ -737,6 +877,10 @@ export async function boot(): Promise<void> {
     ] as const) {
       delete document.documentElement.dataset[name];
     }
+    hasThreatPxPoint = false;
+    hasBabyPxPoint = false;
+    // The object points were just written at the level's first framing: written again once it moves.
+    storeView(mirroredView);
     // The entry of the bedtime cycle: a restart never shows the last game's (story 4.10).
     mirror('ppCycleIndex', String(levelSession.active?.sim.world.cycle.index ?? 0));
     beatHitCount = 0;
@@ -809,11 +953,9 @@ export async function boot(): Promise<void> {
     const active = levelSession.active;
     if (active === null) return;
     const { baby } = active.sim.world;
-    const rect = canvas.getBoundingClientRect();
-    iconPoint.set(baby.xM, startFeel().baby.bodyRadiusM, baby.zM).project(camera);
-    const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
-    const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
-    mirror('ppBabyPx', `${x.toFixed(1)},${y.toFixed(1)}`);
+    babyPxPoint.set(baby.xM, startFeel().baby.bodyRadiusM, baby.zM);
+    hasBabyPxPoint = true;
+    mirrorPagePoint('ppBabyPx', babyPxPoint, canvas.getBoundingClientRect());
   };
   // The phone, on its events only: ringing, then answered or timedOut (never per frame).
   const mirrorPhoneEvent = (event: SimEvent): void => {
@@ -823,6 +965,61 @@ export async function boot(): Promise<void> {
   // The threats, on their events only: the state of the threat, where its icon is on the page
   // (CSS px, for a test to tap), the last response and the last gag.
   const iconPoint = new Vector3();
+  /** Writes where the world point `point` is on the page now, in CSS px, to the mirror `name`. */
+  const mirrorPagePoint = (
+    name: 'ppThreatPx' | 'ppBabyPx',
+    point: Readonly<Vector3>,
+    rect: DOMRect,
+  ): void => {
+    iconPoint.copy(point).project(camera);
+    const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
+    const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
+    mirror(name, `${x.toFixed(1)},${y.toFixed(1)}`);
+  };
+  // The world points behind `data-pp-threat-px` and `data-pp-baby-px`, kept to write them again when
+  // the camera follows Papa (story 9.2).
+  const threatPxPoint = new Vector3();
+  let hasThreatPxPoint = false;
+  const babyPxPoint = new Vector3();
+  let hasBabyPxPoint = false;
+  // The camera's view (its world matrix, then its projection), as last seen and as when the tap
+  // points were last written: preallocated, compared and copied without allocating.
+  const VIEW_LENGTH = 32;
+  const seenView = new Float64Array(VIEW_LENGTH).fill(Number.NaN);
+  const mirroredView = new Float64Array(VIEW_LENGTH).fill(Number.NaN);
+  const isViewStored = (store: Float64Array): boolean => {
+    const world = camera.matrixWorld.elements;
+    const projection = camera.projectionMatrix.elements;
+    for (let i = 0; i < 16; i++) {
+      if (store[i] !== world[i] || store[16 + i] !== projection[i]) return false;
+    }
+    return true;
+  };
+  const storeView = (store: Float64Array): void => {
+    store.set(camera.matrixWorld.elements, 0);
+    store.set(camera.projectionMatrix.elements, 16);
+  };
+  /**
+   * In a level whose camera follows Papa (story 9.2), the tap points written at a telegraph, at a
+   * silence and at the level start go stale as the camera moves (the follow, the perfect's zoom and
+   * turn, a refit). They are written again once the camera has come to rest on a new view: never
+   * while it moves, so a playtest build does not measure the page each frame of a catch-up.
+   */
+  const mirrorFollowedPoints = (): void => {
+    if (followRig.mode !== 'follow') return;
+    const isAtRest = isViewStored(seenView);
+    if (!isAtRest) {
+      storeView(seenView);
+      return;
+    }
+    if (isViewStored(mirroredView)) return;
+    storeView(mirroredView);
+    mirrorObjectPoints();
+    if (!hasThreatPxPoint && !hasBabyPxPoint) return;
+    const rect = canvas.getBoundingClientRect();
+    if (hasThreatPxPoint) mirrorPagePoint('ppThreatPx', threatPxPoint, rect);
+    if (hasBabyPxPoint) mirrorPagePoint('ppBabyPx', babyPxPoint, rect);
+  };
   const mirrorThreatEvent = (event: SimEvent): void => {
     switch (event.type) {
       case 'ThreatTelegraphed': {
@@ -840,14 +1037,12 @@ export async function boot(): Promise<void> {
                   (candidate) => candidate.id === event.threatId,
                 )
               : undefined;
-          iconPoint
-            .set(instance?.xM ?? entry.xM, entry.yM, instance?.zM ?? entry.zM)
-            .project(camera);
-          const x = rect.left + ((iconPoint.x + 1) / 2) * rect.width;
-          const y = rect.top + ((1 - iconPoint.y) / 2) * rect.height;
-          mirror('ppThreatPx', `${x.toFixed(1)},${y.toFixed(1)}`);
+          threatPxPoint.set(instance?.xM ?? entry.xM, entry.yM, instance?.zM ?? entry.zM);
+          hasThreatPxPoint = true;
+          mirrorPagePoint('ppThreatPx', threatPxPoint, rect);
         } else {
           // No icon for this threat: a point left by a previous one must not be tapped.
+          hasThreatPxPoint = false;
           document.documentElement.removeAttribute('data-pp-threat-px');
         }
         return;
@@ -858,6 +1053,25 @@ export async function boot(): Promise<void> {
       case 'ResponseResolved':
         mirror('ppThreat', `${event.threatId}:${event.quality === 'fail' ? 'gag' : 'resolved'}`);
         mirror('ppResponse', event.quality);
+        // A judged press of a threat with a ring (story 2.11 AC 15): where the ring would have been at the
+        // press instant, by the function that draws it, on the geometry its marker holds.
+        // Only where the mirrors exist: production builds neither scan the markers nor build the string.
+        if (isMirrored && event.offsetMs !== null) {
+          const ring = worldUi.chronoRingOf(event.threatId);
+          // A ring whose window is not the one judged belongs to another telegraph (no frame drew this one yet).
+          if (ring !== null && ring.closeAt - ring.windowOpenAt === event.responseWindow.windowMs) {
+            mirror(
+              'ppChronoJudged',
+              chronoJudgedMirror(
+                event.t,
+                event.threatId,
+                ring,
+                event.responseWindow.windowMs,
+                event.offsetMs,
+              ),
+            );
+          }
+        }
         return;
       case 'GagTriggered':
         mirror('ppGag', event.gag);
@@ -896,6 +1110,22 @@ export async function boot(): Promise<void> {
           ? keyGlyph('Space', keyboardLayoutMap, t)
           : padConfirmGlyph(family, t);
     }
+    // Off screen, the chip sits beside the target's bubble (story 9.3, D7): at the world point under the
+    // bubble's centre for the camera as it is (any depth projects there), on the side the layout chose.
+    if (offscreenHud.chipOf(targetedId, offscreenChip) && offscreenChip.side !== null) {
+      // The rig and the camera fx moved the camera this frame; the renderer has not refreshed its matrices yet.
+      camera.updateMatrixWorld();
+      offscreenChipPoint.set(offscreenChip.ndcX, offscreenChip.ndcY, 0).unproject(camera);
+      worldUi.glyphChip.showAtPoint(
+        offscreenChipPoint.x,
+        offscreenChipPoint.y,
+        offscreenChipPoint.z,
+        chipText,
+        offscreenChip.side,
+        offscreenChip.radiusPx,
+      );
+      return;
+    }
     const entries = worldUi.threatEntries;
     for (let i = 0; i < world.threats.length; i++) {
       if ((world.threats[i] as { id: number }).id !== targetedId) continue;
@@ -933,11 +1163,25 @@ export async function boot(): Promise<void> {
   let resultScore: MamaScore | null = null;
   // Why it ended (story 3.2): a woken Mama puts a header on the Result screen. Cleared with the note.
   let resultEndReason: LevelEndReason = 'timer';
+  // What Mama says for each of her reactions (story 3.8): chosen once, at `LevelScored`, with the memory of
+  // the games *before* this one, then recorded. A screen rebuilt after the portrait overlay reuses the same
+  // lines and never counts the game twice. Cleared with the note.
+  let resultMamaLines: readonly MamaReactionLine[] | null = null;
+  // The tags (gag ids) of the level being played: the distinct `gag` of every gag, near miss and frozen
+  // near miss. Cleared when a level starts and when one loads; fed by `onSimEvent`.
+  const runMamaTags = new Set<string>();
+  // The seed of the level being played: it breaks a tie between two lines (`chooseMamaLines`, off `world.rng`).
+  let levelSeed = 0;
   let hasResultStarted = false;
   // The end photo (story 3.6): taken once, at `LevelScored`, null when the capture failed. It lives
   // here and not in the screen because the screen is rebuilt after the portrait overlay: each build
   // re-parents the same canvas, so the picture and its tilt survive. Cleared when a level loads.
   let resultPhoto: ResultPhoto | null = null;
+  // The best moments of the game (story 3.9, FR38): scored from the live sim events, picked once at
+  // `LevelScored` and kept for a rebuilt screen. Null before the first `LevelScored` and after loading. The
+  // replay's own events never reach the recorder: they go to the replay director only.
+  const highlightRecorder = createHighlightRecorder();
+  let resultHighlights: readonly Highlight[] | null = null;
   /**
    * The end photo (story 3.6, FR35): one `sim.snapshot()` of the frozen world, drawn through the
    * photo camera (`level.update(snapshot.world, 1, now)`: no step runs) and copied to a 2D canvas.
@@ -1000,6 +1244,26 @@ export async function boot(): Promise<void> {
     sim.enqueue({ type: 'SetDifficultyTier', t: sim.world.time.sim, tier });
   };
 
+  // At `LevelScored` (story 3.8, FR36), in this order: choose Mama's lines with the memory of the games
+  // *before* this one (the other way round, every first time would read « Encore »), then add this game to
+  // the memory (fire-and-forget, like `setSettings`: a failure only warns), then the Result screen reads
+  // `resultMamaLines`. `?autoplay` ignores the player's save, as for the lag and the tier: it picks from an
+  // empty memory and records nothing, so a bot never pollutes the player's Mama.
+  const chooseAndRecordMamaLines = (score: MamaScore): void => {
+    const memory = isAutoplaying ? EMPTY_MAMA_MEMORY : saveStore.current().mamaMemory;
+    resultMamaLines = chooseMamaLines({
+      reactions: mamaReactionsOf(score, resultEndReason),
+      endReason: resultEndReason,
+      runTags: runMamaTags,
+      memory,
+      lines: content.value.mamaLines.lines,
+      seed: levelSeed,
+    });
+    if (!isAutoplaying) {
+      void saveStore.recordMamaMemory(addRunToMamaMemory(memory, runMamaTags));
+    }
+  };
+
   // Fills `beatFrame` from the world and the loop: the running `beats` step's timeline and track, or
   // none. The notes lead by `audioOffsetMs − visualOffsetMs` (D1): the inputs keep `visualOffsetMs`
   // alone, in the mapper, so the latency is corrected once.
@@ -1046,6 +1310,9 @@ export async function boot(): Promise<void> {
     onLevelStarted: (started) => {
       sendInputLag(started.sim, false);
       sendDifficultyTier(started.sim);
+      runMamaTags.clear();
+      highlightRecorder.clear();
+      levelSeed = started.seed;
       currentSequences = started.level.sequences;
       currentBeatTimelines = Object.fromEntries(
         Object.entries(started.level.sequences).map(([id, def]) => [
@@ -1058,6 +1325,9 @@ export async function boot(): Promise<void> {
       timerHud.setCompact(false);
       timerHud.setRush(false);
       timerHud.setVariant(started.level.level.variant);
+      // Mama's face at the start value (a restart never shows the last level's worry).
+      catastropheFace.setCompact(false);
+      catastropheFace.reset(started.sim.world.gauges.catastrophePct);
       // The gauges this level has, each at its start value (a restart never shows the last level's).
       const { gauges } = started.level.level;
       gaugesHud.setGauges(GAUGE_IDS.filter((id) => id in gauges));
@@ -1070,7 +1340,16 @@ export async function boot(): Promise<void> {
       if (gauges.need !== undefined) {
         gaugesHud.setValue('need', Math.round(started.sim.world.gauges.bladderPct));
       }
-      worldUi.mountObjects(started.sim.objects);
+      worldUi.mountObjects(
+        started.sim.objects,
+        started.sim.chores.map((chore) => chore.objectId),
+        // The verb of each beat is shown at the station while that beat is announced (story 9.5).
+        started.sim.chores.map((chore) => chore.def.beats.map((beat) => t(beat.verbKey))),
+      );
+      choreMirror.reset();
+      choreBeatCounts = started.sim.chores.map((chore) => chore.def.beats.length);
+      // A level with no chore says so (empty), as `ppOffscreen` does: absent would mean « not mirrored ».
+      if (isMirrored && choreBeatCounts.length === 0) mirror('ppChore', '');
       worldUi.mountTidy(started.sim.world.props.length);
       // The full duration at once, so a restart never shows the last level's `0:00`.
       hudBatch.set(TIMER_SLOT, Math.ceil(started.level.level.durationMs / MS_PER_S));
@@ -1080,14 +1359,18 @@ export async function boot(): Promise<void> {
     onSeed: (seed) => {
       if (isMirrored) document.documentElement.dataset.ppSeed = String(seed);
     },
-    onLevelReady: (level, threatEntries) => {
+    onLevelReady: (level, threatEntries, levelCamera) => {
       // The room is only known now: fit the camera and show it behind the loading screen.
       currentLevel = level;
       debugGroup = null; // the previous scene (and so its group) is gone
       worldUi.mountThreats(threatEntries);
+      offscreenHud.setLevel(threatEntries);
+      gazeEntries = threatEntries;
+      if (isMirrored) mirror('ppOffscreen', '');
       highlightedThreatId = null;
       choreography.reset();
       room = level.room;
+      followRig.setLevel(level.room, levelCamera);
       isStatsMirrored = false;
       fitViewToCanvas();
       if (isMirrored) mirror('ppLevel', level.id);
@@ -1121,6 +1404,19 @@ export async function boot(): Promise<void> {
         framingChain.apply(sequenceFraming, sequence.startedAt, framingCamera.outMs, clockMs);
         sequenceFraming.xM = world.papa.xM;
         sequenceFraming.zM = world.papa.zM;
+      }
+      // The follow camera moves the framing under the effects, on the same clock (story 9.2):
+      // Papa as drawn this frame (`level.update` ran just before), or the threat just judged.
+      if (currentLevel !== null) {
+        const { papaPose } = currentLevel;
+        followRig.update(
+          world,
+          clockMs,
+          papaPose.xM,
+          papaPose.zM,
+          sequenceFraming,
+          prefersReducedMotion(),
+        );
       }
       cameraFx.update(
         world,
@@ -1182,11 +1478,20 @@ export async function boot(): Promise<void> {
       // The music follows the world's state too (story 2.6): tense while a threat is on, slowed
       // while the time scale is down. Allocation-free: a loop over a handful of threats.
       const isPlaying = babbleWorld !== undefined && isFlowLive(babbleWorld);
+      // Tense while a threat is up, or while Mama is alarmed (story 3.16 AC 15): from the world's state,
+      // so a pause, a restart or the end never leaves it tense.
       audio.setMusicMood(
-        isPlaying && isTensionActive(babbleWorld.threats),
+        isPlaying &&
+          (isTensionActive(babbleWorld.threats) ||
+            babbleWorld.gauges.catastrophePct > levelFeel().catastrophe.alertPct),
         isPlaying && isSlowMoActive(babbleWorld, levelFeel().music.slowMo.belowScale),
       );
-      silenceBubble.update(isSilent && pause.state === 'running', babbleWorld);
+      // The ring beside the bubble fills over the drawn sim time, like the threat rings (story 2.11, AC 12).
+      silenceBubble.update(
+        isSilent && pause.state === 'running',
+        babbleWorld,
+        babbleWorld === undefined ? null : babbleWorld.time.sim - STEP_MS * (1 - alpha),
+      );
       // Fatherly Instinct's vignette follows the state too (story 2.9), never the events: a pause, a
       // restart or the end of the level can never leave it on.
       instinctVignette.update(
@@ -1211,6 +1516,9 @@ export async function boot(): Promise<void> {
         if (running.level.level.gauges.need !== undefined) {
           hudBatch.set(gaugeSlotOf('need'), Math.round(running.sim.world.gauges.bladderPct));
         }
+        // Mama's face, in every level: from the gauge, every frame (story 3.16). The exact value: the
+        // alert and the music read it too, and a state boundary is a strict comparison.
+        hudBatch.set(CATASTROPHE_SLOT, running.sim.world.gauges.catastrophePct);
       }
       // The sequence bar and the compact timer follow the world's state each frame (story 4.4).
       if (running !== null) {
@@ -1221,11 +1529,13 @@ export async function boot(): Promise<void> {
         hudBatch.set(SEQUENCE_SLOT, sequenceBar.update(running.sim.world, barDef));
         sequenceBar.frame(performance.now());
         timerHud.setCompact(sequenceBar.isMounted);
+        catastropheFace.setCompact(sequenceBar.isMounted);
         // The last ten seconds of a level with a door (story 3.5): from the world's state, every frame.
         timerHud.setRush(running.sim.world.flow.state === 'finalRush');
       }
       shell.frame();
       gaugesHud.frame(performance.now());
+      catastropheFace.frame(performance.now());
       inputMapper.pollGamepad();
       const world = levelSession.active?.sim.world;
       // The auto-target shows for the keyboard and the gamepad only, never after a touch or a click
@@ -1252,10 +1562,36 @@ export async function boot(): Promise<void> {
         world !== undefined && world.gauges.bladderPct >= world.feel.bladder.urgentFromPct,
         world?.papa.state === 'onToilet',
       );
+      // The station's beat ring and done look (story 9.4), from the world and the sim time as drawn; the arc
+      // that lights vibrates once, as a threat's does at `WindowOpened`. Nothing in a level with no chore.
+      if (world !== undefined && world.chores.length > 0) {
+        if (worldUi.updateChores(world.chores, world.time.sim - STEP_MS * (1 - alpha))) {
+          director.handle('ChronoArcLit', null);
+        }
+        if (isMirrored) {
+          const choreText = choreMirror.update(world.chores, choreBeatCounts);
+          if (choreText !== null) mirror('ppChore', choreText);
+        }
+      }
       if (world !== undefined) {
         // Papa has no pose while he is out of the room: the badge and the hint hide with him.
         const papaPose = world.papa.state === 'onToilet' ? null : (currentLevel?.papaPose ?? null);
         const nowAtReal = performance.now();
+        // The bubble above a busy Papa, from the world's Papa (he has no pose on the toilet), its ring in the
+        // sim time as drawn. Before the badge, which sits to its right while it shows. A frozen level (the
+        // end, the photo) has none: it goes with no pop.
+        if (isFlowLive(world)) {
+          worldUi.updateActivity(
+            world.papa,
+            world.time.sim - STEP_MS * (1 - alpha),
+            world.threats,
+            nowAtReal,
+            choreProgressPctOf(world, levelSession.active?.sim.chores),
+            workingStationOf(world, levelSession.active?.sim.chores),
+          );
+        } else {
+          worldUi.activityBubble.hide();
+        }
         worldUi.updateCombo(
           world.combo,
           world.feel.combo.minMultiplier,
@@ -1284,8 +1620,36 @@ export async function boot(): Promise<void> {
           mirror('ppBreathHeld', String(world.sequence.stealth.breathHeldAt !== null));
         }
       }
+      // The off-screen bubbles of a follow level (story 9.3): after the markers' update, whose rings they
+      // copy, and before the chip, which may sit beside one. A level that is not live has none.
+      offscreenHud.update(
+        world !== undefined && isFlowLive(world),
+        world?.threats ?? NO_THREATS,
+        targetedId,
+        highlightedThreatId,
+        !silenceBubble.element.hidden,
+      );
+      if (isMirrored && offscreenHud.hasChanged) mirror('ppOffscreen', offscreenHud.mirrorText());
+      // Papa's gaze (story 7.8, D8), after the markers and the bubbles: the rings as drawn, the frame as
+      // seen. The scene applies it at its next update, one frame late (a cosmetic head turn).
+      if (world !== undefined && currentLevel !== null) {
+        pickGazeThreat(gazeEntries, gazePermilleOf, gazeIsOnScreen, gazeSight);
+        const babyPoint = currentLevel.babyPoint;
+        currentLevel.setPapaGazeSight(
+          isBabyShownForGaze(
+            world.baby.state,
+            offscreenHud.isPointOnScreen(babyPoint.xM, 0, babyPoint.zM),
+          ),
+          gazeSight.hasThreat,
+          gazeSight.threatXM,
+          gazeSight.threatZM,
+        );
+      }
       showGlyphChip(world, targetedId, device);
-      if (isMirrored) mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
+      if (isMirrored) {
+        mirror('ppTarget', targetedId === null ? 'none' : String(targetedId));
+        mirrorFollowedPoints();
+      }
       worldUi.render(camera);
       if (isHighlightShown && isMirrored) {
         performance.clearMarks('highlightRendered');
@@ -1379,6 +1743,8 @@ export async function boot(): Promise<void> {
           const resolved = active.sim.world.threats.find((one) => one.id === event.threatId);
           if (resolved !== undefined) cameraFx.focusOn(resolved.xM, resolved.zM);
         }
+        // The follow frames a judged threat while its slow-mo or framing lasts (story 9.2, D5).
+        followRig.onSimEvent(event, active.sim.world);
         if (currentLevel !== null) {
           // Reduced motion: no hop of the baby, no snap of Papa's hair (the lights carry the gag).
           const isMotionReduced = prefersReducedMotion();
@@ -1415,11 +1781,17 @@ export async function boot(): Promise<void> {
         director.handle('NoiseAlertReached', null);
         gaugesHud.alert('noise');
       }
+      // The catastrophe crossed 70 % upwards (story 3.16 AC 14): a sound, a visual and a vibration. The
+      // face's alarmed ring (drawn from the state) is the visual twin of the sound, as the gauge's shake is the noise's.
+      if (isCatastropheAlertCrossing(event, levelFeel().catastrophe.alertPct)) {
+        director.handle('CatastropheAlertReached', null);
+      }
       // Fatherly Instinct started (story 2.9 D4): the heartbeat and its vibration. The vignette is a UI
       // element drawn from the state, so the cue goes through a client event like the noise alert.
       if (event.type === 'InstinctTriggered') director.handle('InstinctVignetteShown', null);
       if (isMirrored) {
         if (event.type === 'NoiseChanged') mirrorNoise();
+        if (event.type === 'CatastropheChanged') mirrorCatastrophe();
         if (
           event.type === 'BladderFilled' ||
           event.type === 'ToiletStarted' ||
@@ -1437,6 +1809,7 @@ export async function boot(): Promise<void> {
         }
         mirrorPapaEvent(event);
         mirrorBabyEvent(event);
+        mirrorDimEvent(event);
         mirrorComboEvent(event);
         mirrorThreatEvent(event);
         mirrorPhoneEvent(event);
@@ -1446,8 +1819,11 @@ export async function boot(): Promise<void> {
         mirrorBeatEvent(event);
         mirrorDuelEvent(event);
       }
-      // A refused toilet says why above Papa, for `holdMs` of real time (story 4.3).
-      if (event.type === 'ToiletRefused') {
+      // A tap on a threat that a busy Papa refused: the bubble shakes (story 2.12). The cue plays in
+      // `playSimEventFeedback`.
+      if (event.type === 'TapRefused') worldUi.shakeActivity(performance.now());
+      // A refused toilet or station says why above Papa, for `holdMs` of real time (stories 4.3, 9.4).
+      if (event.type === 'ToiletRefused' || event.type === 'ChoreRefused') {
         worldUi.papaHint.show(feedbackTable.papaHint.holdMs, performance.now());
       }
       // It has said its piece once the baby is down or Papa is in.
@@ -1497,12 +1873,17 @@ export async function boot(): Promise<void> {
       // The debug modules last: they see the event after the app has handled it.
       for (let i = 0; i < simEventListeners.length; i++) simEventListeners[i]?.(event);
       if (event.type === 'LevelEnded') resultEndReason = event.reason;
+      const mamaTag = mamaTagOf(event);
+      if (mamaTag !== null) runMamaTags.add(mamaTag);
+      highlightRecorder.onSimEvent(event);
       // Mama's note ends the level (story 1.22): the loop stops on the frozen room, which stays
       // drawn behind the Result screen; the world stays readable until the next start.
       if (event.type === 'LevelScored') {
         const { type: _type, t: _t, ...score } = event;
         resultScore = score;
         hasResultStarted = false;
+        chooseAndRecordMamaLines(score);
+        resultHighlights = highlightRecorder.pick(resultEndReason, feedbackTable.replay);
         if (isMirrored) {
           mirror('ppScore', String(score.scorePoints));
           mirror('ppStars', String(score.stars));
@@ -1521,6 +1902,65 @@ export async function boot(): Promise<void> {
     canResumeNow: () => !shell.isPortrait && document.visibilityState !== 'hidden',
     waitForForeground: () => waitForForeground(document),
   });
+
+  // The highlight replay (story 3.9). Its director is a second one with the same table and audio: no
+  // vibration, no flash, no stamp (the banner is the replay's), and nothing it plays is counted, so the
+  // live director's counters and its scene gate are as the live game left them (D7).
+  const replayDirector = createFeedbackDirector({
+    table: feedbackTable,
+    audio,
+    haptics: { pulse: () => {} },
+    getScene: () => (isReplaying ? (currentLevel?.fx ?? null) : null),
+    getObjects: () => levelSession.active?.sim.objects ?? NO_SIM_OBJECTS,
+    getDoorPoint: () => doorPointOf(levelSession.active?.geometry),
+    prefersReducedMotion,
+    getFx: () => levelFeel().fx,
+    nowReal: () => performance.now(),
+    stamp: () => false,
+  });
+  const highlightReplay = createHighlightReplay({
+    getLevel: () => currentLevel,
+    renderer,
+    replayCamera,
+    getAspect: () => canvas.clientWidth / Math.max(1, canvas.clientHeight),
+    director: replayDirector,
+    isMotionReduced: prefersReducedMotion,
+    // The end of the game, drawn as `drawStatic` and the photo see it: the frozen live world, the game camera.
+    drawLive: () => {
+      const active = levelSession.active;
+      if (active === null || currentLevel === null) return;
+      currentLevel.update(active.sim.world, 1, asRealMs(performance.now()));
+      renderer.render(currentLevel.scene, camera);
+    },
+    speed: params.speed ?? undefined,
+    onMoment: (index) => {
+      isReplaying = index !== null;
+      if (!isMirrored) return;
+      if (index === null) delete document.documentElement.dataset.ppReplayMoment;
+      else mirror('ppReplayMoment', String(index));
+    },
+  });
+  /** What the Result screen drives (story 3.9): the player over the live session's sim, or none for a game with no moment. */
+  const replayOfResult = (): ResultReplay | null => {
+    const moments = resultHighlights;
+    if (moments === null || moments.length === 0) return null;
+    return {
+      momentCount: moments.length,
+      delayMs: feedbackTable.replay.delayMs,
+      play: (onDone) => {
+        const source = levelSession.replaySource;
+        if (source === null) {
+          log.warn('render', 'no live sim to replay the best moments from');
+          onDone();
+          return;
+        }
+        highlightReplay.play(moments, source, feedbackTable.replay, onDone);
+      },
+      skipMoment: () => highlightReplay.skipMoment(),
+      skipAll: () => highlightReplay.skipAll(),
+      cancel: () => highlightReplay.cancel(),
+    };
+  };
   // An error nobody caught, while a level is loading or running: stop it and offer to start again.
   // From any other state (boot, start, result, oops) it is only logged.
   recoverFromUncaught = () => {
@@ -1537,6 +1977,13 @@ export async function boot(): Promise<void> {
   };
 
   const timerHud = createTimerHud(document, { t });
+  // Mama's worry (story 3.16, UX `catastrophe-face`): seated in the timer, beside the variant's icon.
+  const catastropheFace = createCatastropheFace(document, {
+    t,
+    thresholds: () => levelFeel().catastrophe,
+    nowAtReal: () => performance.now(),
+  });
+  timerHud.mountFace(catastropheFace.element);
   const sequenceBar = createSequenceBar(document, {
     t,
     slideMs: feedbackTable.sequenceBar.slideMs,
@@ -1547,6 +1994,11 @@ export async function boot(): Promise<void> {
     (seconds) => timerHud.setRemainingS(seconds),
     ...GAUGE_IDS.map((id) => (percent: number) => gaugesHud.setValue(id, percent)),
     (percent) => sequenceBar.setPercent(percent),
+    (percent) => {
+      catastropheFace.setPercent(percent);
+      // The face's state, mirrored when it changes (the setter writes only on a change).
+      if (isMirrored) mirror('ppCatastropheFace', catastropheFace.state);
+    },
   ]);
   // The silence bubble is screen-anchored, in the HUD root beside the row (UX `silence-bubble`).
   const bubblePoint = new Vector3();
@@ -1564,8 +2016,70 @@ export async function boot(): Promise<void> {
     viewport: () => ({ width: hudRoot.clientWidth, height: hudRoot.clientHeight }),
     targetHeightM: () => startFeel().baby.bodyRadiusM,
     hudBottomPx: () => hudRoot.querySelector('.pp-hud-row')?.getBoundingClientRect().bottom ?? 0,
+    // The silence def's `findMaxMs`, by the def of its threat (the same one `runSilence` times out on).
+    findMaxMs: (defId) => {
+      const def = levelSession.active?.level.threats[defId];
+      return def?.target === 'hiddenZone' ? def.findMaxMs : null;
+    },
+    // In the big room the « … » says no direction (story 9.3, D8; FR19 v2.3).
+    isDirectional: () => followRig.mode !== 'follow',
   });
   window.addEventListener('resize', () => silenceBubble.relayout());
+  // The off-screen bubbles of a follow level (story 9.3): HUD elements, mounted in `#pp-hud` while shown.
+  const offscreenBubbles = createOffscreenBubbles(document, {
+    t,
+    host: hudRoot,
+    chronoRingOf: (threatId) => worldUi.chronoRingOf(threatId),
+    chronoDrawOf: (threatId) => worldUi.chronoDrawOf(threatId),
+  });
+  const offscreenHud = createOffscreenHud({
+    bubbles: offscreenBubbles,
+    follow: followRig,
+    // Once per resize or level, never per frame.
+    measure: (out) => {
+      const hudRect = hudRoot.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      const row = hudRoot.querySelector('.pp-hud-row')?.getBoundingClientRect();
+      if (
+        row === undefined ||
+        !(hudRect.width > 0 && canvasRect.width > 0 && canvasRect.height > 0)
+      ) {
+        return false;
+      }
+      out.hudLeftPx = hudRect.left;
+      out.hudTopPx = hudRect.top;
+      out.widthPx = hudRect.width;
+      out.heightPx = hudRect.height;
+      out.insetLeftPx = row.left - hudRect.left;
+      out.insetRightPx = hudRect.right - row.right;
+      out.hudBottomPx = row.bottom - hudRect.top;
+      out.canvasLeftPx = canvasRect.left - hudRect.left;
+      out.canvasTopPx = canvasRect.top - hudRect.top;
+      out.canvasWidthPx = canvasRect.width;
+      out.canvasHeightPx = canvasRect.height;
+      out.isCompact = document.documentElement.dataset.ppSurface === 'compact';
+      return true;
+    },
+    // The silence bubble and its ring, when it shows (D8): measured once then.
+    silenceBox: (out) => {
+      const hudRect = hudRoot.getBoundingClientRect();
+      const box = silenceBubble.element.getBoundingClientRect();
+      let { left, top, right, bottom } = box;
+      if (silenceBubble.ring.parentNode !== null && !silenceBubble.ring.hidden) {
+        const ring = silenceBubble.ring.getBoundingClientRect();
+        left = Math.min(left, ring.left);
+        top = Math.min(top, ring.top);
+        right = Math.max(right, ring.right);
+        bottom = Math.max(bottom, ring.bottom);
+      }
+      out.isSet = right > left;
+      out.leftPx = left - hudRect.left;
+      out.topPx = top - hudRect.top;
+      out.rightPx = right - hudRect.left;
+      out.bottomPx = bottom - hudRect.top;
+    },
+  });
+  window.addEventListener('resize', () => offscreenHud.invalidate());
   const hud = createHudLayer(hudRoot, {
     t,
     onPausePress: () => pause.requestPause('user'),
@@ -1573,6 +2087,7 @@ export async function boot(): Promise<void> {
     timer: timerHud.element,
     sequenceBar,
   });
+  // The ring beside the bubble is mounted by the bubble itself, while it shows (the HUD's node budget).
   hudRoot.append(silenceBubble.element);
   // Right before `#pp-world` (z-index 4 against its 5): it darkens the room, not the verbs and the icons.
   const instinctVignette = createInstinctVignette(document);
@@ -1677,6 +2192,10 @@ export async function boot(): Promise<void> {
         // `LevelScored` stores it before the app enters `result`: this is a bug, not a game.
         log.warn('boot', 'the Result screen has no note to show: showing an empty one');
       }
+      if (resultMamaLines === null) {
+        // Chosen in the same `LevelScored` branch as the note: none means Mama has nothing to say. A bug too.
+        log.warn('boot', 'the Result screen has no line of Mama to show: showing no reaction');
+      }
       const { mama } = levelFeel();
       return createResultScreen({
         t,
@@ -1687,6 +2206,11 @@ export async function boot(): Promise<void> {
         // Rebuilt after the portrait overlay: the stars do not stamp (nor sound) twice.
         isDone: hasResultStarted,
         photo: resultPhoto,
+        // Mama's reactions to the note she gave, each with the line she says, between the photo and the
+        // rows (stories 3.7, 3.8). Chosen once at `LevelScored`; none is a bug, shown as no reaction.
+        reactions: resultMamaLines ?? [],
+        // The best moments, between the stars and the buttons (story 3.9). A rebuilt screen reuses the pick.
+        replay: replayOfResult(),
         // The shutter and the flash, once, when the photo drops in (never on a rebuild, nor with no photo).
         onPhoto: () => director.handle('PhotoTaken', null),
         scheduler: {
@@ -1699,6 +2223,10 @@ export async function boot(): Promise<void> {
           director.handle(isLast ? 'ResultLastStarStamped' : 'ResultStarStamped', null),
         // The header of a woken Mama and the star she took off have their own cues (story 3.2 D4, D5).
         onMamaWoke: () => director.handle('ResultMamaWokeShown', null),
+        // Mama's voice for each reaction, once each, before the rows (story 3.7).
+        onMamaReaction: (reaction) => director.handle(MAMA_REACTION_EVENTS[reaction], null),
+        // The header of a Mama come home early has its own door-slam cue (story 3.16 D9).
+        onMamaHome: () => director.handle('ResultMamaHomeShown', null),
         onStarLost: () => director.handle('ResultStarLost', null),
         onPhase: (phase) => {
           hasResultStarted = true;
@@ -1766,6 +2294,8 @@ export async function boot(): Promise<void> {
         if (!isGameInputBlocked) levelSession.active?.sim.enqueue(command);
       },
     }),
+    // A press on an off-screen bubble is a press on its threat (story 9.3, D4): asked first.
+    pickOffscreenBubble: (clientX, clientY) => offscreenHud.pick(clientX, clientY),
     getThreatTargets: () => {
       const active = levelSession.active;
       if (active === null) return null;
@@ -1786,6 +2316,7 @@ export async function boot(): Promise<void> {
     },
     babyCarriedHeightM: BABY_CARRIED_HEIGHT_M,
     babyCarriedForwardM: BABY_CARRIED_FORWARD_M,
+    getBabySlideM: () => currentLevel?.babySlideM ?? NO_BABY_SLIDE,
     get input() {
       return levelFeel().input;
     },
@@ -1905,9 +2436,13 @@ export async function boot(): Promise<void> {
     if (!isLevelGone) return;
     worldUi.unmountThreats();
     worldUi.unmountObjects();
+    if (isMirrored) delete document.documentElement.dataset.ppChore;
     worldUi.unmountTidy();
     worldUi.glyphChip.hide();
     worldUi.comboBadge.hide();
+    worldUi.activityBubble.hide();
+    offscreenHud.hide();
+    if (isMirrored && offscreenHud.hasChanged) mirror('ppOffscreen', '');
     worldUi.papaHint.hide();
     highlightedThreatId = null;
     // A pad lost in that level does not follow the player into the next one (the line is for the pause).
@@ -1915,8 +2450,17 @@ export async function boot(): Promise<void> {
   });
   events.on('AppStateChanged', ({ to }) => {
     if (to !== 'loading') return;
+    // `levelSession.start()` releases the old sim before it enters `loading`, so this runs after that.
+    // The player survives it: a build in flight is stale and frees its own sim, and `drawLive` has no
+    // live world to draw. It covers a `loading` entered while a replay plays; the Result screen's
+    // `dispose()` cancels too.
+    highlightReplay.cancel();
     resultScore = null;
     resultEndReason = 'timer';
+    resultMamaLines = null;
+    runMamaTags.clear();
+    highlightRecorder.clear();
+    resultHighlights = null;
     hasResultStarted = false;
     resultPhoto = null;
     // The previous game's note must not be read as the next one's while it loads (`mirrorNewLevel`
@@ -1929,6 +2473,7 @@ export async function boot(): Promise<void> {
         'ppEndReason',
         'ppResult',
         'ppPhoto',
+        'ppReplayMoment',
         'ppPropsTidied',
       ] as const) {
         delete document.documentElement.dataset[name];
@@ -1981,6 +2526,8 @@ export async function boot(): Promise<void> {
         isGameInputBlocked = isBlocked;
       },
       lastInputDevice: () => inputMapper.lastDevice,
+      mamaLines: () => resultMamaLines,
+      highlights: () => resultHighlights,
       debugGroup: () => {
         if (currentLevel === null) return null;
         if (debugGroup === null) {
@@ -2013,6 +2560,9 @@ export async function boot(): Promise<void> {
         return {
           cameraZoom: camera.zoom,
           cameraYawDeg: cameraFx.yawDeg,
+          cameraMode: followRig.mode,
+          cameraCentreXM: cameraFx.baseCentreXM,
+          cameraCentreZM: cameraFx.baseCentreZM,
           shakeOffsetM: Math.hypot(real?.shakeOffsetXM ?? 0, real?.shakeOffsetZM ?? 0),
           particlesAlive: real?.particlesAlive ?? 0,
           stampCount: stampsShownCount,
@@ -2020,11 +2570,37 @@ export async function boot(): Promise<void> {
           papaClip: real?.papaClip ?? null,
           babyClip: real?.babyClip ?? null,
           papaMixerMs: real?.papaMixerMs ?? 0,
+          papaBodyYawRad: real?.papaBodyYawRad ?? 0,
+          papaSteamSwayDeg: real?.papaSteamSwayDeg ?? 0,
+          papaBlablaTiltDeg: real?.papaBlablaTiltDeg ?? 0,
           doorOpenDeg: real?.doorOpenDeg ?? 0,
           dangerTintsShown: real?.dangerTintsShown ?? 0,
+          lightsFactor: real?.lightsFactor ?? 1,
+          mischiefDecals: real?.mischiefDecals ?? 0,
+          choreShards: real?.choreShards ?? 0,
+          papaLook: {
+            hasMashOnCheek: real?.papaLook.hasMashOnCheek ?? false,
+            hasHairOnEnd: real?.papaLook.hasHairOnEnd ?? false,
+            isShirtInsideOut: real?.papaLook.isShirtInsideOut ?? false,
+          },
+          papaLeanDeg: real?.papaLeanDeg ?? 0,
+          papaStoopDeg: real?.papaStoopDeg ?? 0,
+          papaHeadYawDeg: real?.papaHeadYawDeg ?? 0,
+          papaGaze: real?.papaGaze ?? 'ahead',
+          papaBreathDeg: real?.papaBreathDeg ?? 0,
+          babyBreathDeg: real?.babyBreathDeg ?? 0,
+          papaEyelidsPct: real?.papaEyelidsPct ?? 0,
         };
       },
       setPapaLook: (look) => currentLevel?.setPapaLook(look),
+      pagePoint: (xM, yM, zM) => {
+        const rect = canvas.getBoundingClientRect();
+        const projected = new Vector3(xM, yM, zM).project(camera);
+        return {
+          xPx: rect.left + ((projected.x + 1) / 2) * rect.width,
+          yPx: rect.top + ((1 - projected.y) / 2) * rect.height,
+        };
+      },
       threatScreenPoints: () => {
         const rect = canvas.getBoundingClientRect();
         return worldUi.threatEntries.map((entry) => {

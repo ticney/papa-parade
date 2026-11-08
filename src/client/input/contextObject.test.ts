@@ -53,6 +53,13 @@ describe('pickContextObject', () => {
     expect(pickContextObject([toilet, COFFEE], -3, -2, REACH_M, 'toilet')).toBe('coffee_machine');
     expect(pickContextObject([toilet], -3, -2, REACH_M, 'toilet')).toBeNull();
     expect(pickContextObject([toilet, COFFEE], -3, -2, REACH_M, null)).toBe('toilet');
+    // A list skips several kinds at once (a toilet and a chore's station, story 9.4).
+    const stove: ContextObject = { id: 'stove', kind: 'stove', xM: -3, zM: -2 };
+    expect(pickContextObject([stove, toilet, COFFEE], -3, -2, REACH_M, ['toilet', 'stove'])).toBe(
+      'coffee_machine',
+    );
+    expect(pickContextObject([stove, toilet], -3, -2, REACH_M, ['toilet', 'stove'])).toBeNull();
+    expect(pickContextObject([stove, toilet], -3, -2, REACH_M, ['toilet'])).toBe('stove');
   });
 });
 
@@ -93,5 +100,16 @@ describe('pickMessProp (story 3.5)', () => {
     expect(pickMessProp([prop('out', 1.51, 0)], 0, 0, 1.5)).toBeNull();
     expect(pickMessProp([prop('tidy', 0.5, 0, false)], 0, 0, 1.5)).toBeNull();
     expect(pickMessProp([], 0, 0, 1.5)).toBeNull();
+  });
+
+  it('with isDebrisOnly (story 3.15) skips a mess that is no debris, even the nearest', () => {
+    const props = [
+      { ...prop('cushion', 0.2, 0), debrisPickUpMs: 0 },
+      prop('book', 0.5, 0),
+      { ...prop('mug', 1, 0), debrisPickUpMs: 1500 },
+    ];
+    expect(pickMessProp(props, 0, 0, 1.5)).toBe('cushion');
+    expect(pickMessProp(props, 0, 0, 1.5, true)).toBe('mug');
+    expect(pickMessProp(props.slice(0, 2), 0, 0, 1.5, true)).toBeNull();
   });
 });

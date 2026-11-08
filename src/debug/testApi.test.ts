@@ -526,6 +526,77 @@ describe('perf()', () => {
   });
 });
 
+describe('mamaLines (story 3.8)', () => {
+  const LINES = [
+    { reaction: 'laugh', points: 0, lineId: 'laugh_any', text: 'Ha ha !' },
+    { reaction: 'scream', points: 3, lineId: 'stairs_again', text: "*Encore* l'escalier ?!" },
+  ] as const;
+
+  it('is null before a level is scored', () => {
+    expect(createTestApi(createFakeTestHost()).mamaLines()).toBeNull();
+  });
+
+  it('reads the host at call time and gives the lines, with their ids and their raw text', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    host.setMamaLines(LINES);
+    expect(api.mamaLines()).toEqual(LINES);
+    host.setMamaLines(null);
+    expect(api.mamaLines()).toBeNull();
+  });
+
+  it('hands out a copy: changing it changes nothing in the app', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    host.setMamaLines(LINES);
+    const copy = api.mamaLines() as unknown as { text: string }[];
+    (copy[0] as { text: string }).text = 'changed';
+    expect(api.mamaLines()).toEqual(LINES);
+    expect(api.mamaLines()).not.toBe(api.mamaLines());
+  });
+});
+
+describe('highlights (story 3.9)', () => {
+  const MOMENTS = [
+    {
+      t: asSimMs(12_000),
+      threatId: 4,
+      points: 4,
+      kinds: ['perfect', 'waveLast'],
+      anchorId: 'stairs',
+    },
+    { t: asSimMs(31_500), threatId: 9, points: 2, kinds: ['nearMiss'], anchorId: null },
+  ] as const;
+
+  it('is null before a level is scored, and [] for a game with no moment', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    expect(api.highlights()).toBeNull();
+    host.setHighlights([]);
+    expect(api.highlights()).toEqual([]);
+  });
+
+  it('reads the host at call time and gives the moments with their times, kinds and anchors', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    host.setHighlights(MOMENTS);
+    expect(api.highlights()).toEqual(MOMENTS);
+    host.setHighlights(null);
+    expect(api.highlights()).toBeNull();
+  });
+
+  it('hands out a copy: changing it changes nothing in the app', () => {
+    const host = createFakeTestHost();
+    const api = createTestApi(host);
+    host.setHighlights(MOMENTS);
+    const copy = api.highlights() as unknown as { t: number; kinds: string[] }[];
+    (copy[0] as { t: number }).t = 1;
+    (copy[0] as { kinds: string[] }).kinds.push('messyGag');
+    expect(api.highlights()).toEqual(MOMENTS);
+    expect(api.highlights()).not.toBe(api.highlights());
+  });
+});
+
 describe('installTestApi', () => {
   it('sets __PP__ once, and a second call is a no-op with a warning', async () => {
     const host = createFakeTestHost();
@@ -541,8 +612,11 @@ describe('installTestApi', () => {
         'events',
         'freeze',
         'fx',
+        'highlights',
         'journal',
         'loadLevel',
+        'mamaLines',
+        'pagePoint',
         'perf',
         'send',
         'setFeel',
@@ -561,12 +635,26 @@ describe('fx (story 2.5)', () => {
     let state = {
       cameraZoom: 1,
       cameraYawDeg: 0,
+      cameraMode: 'fixed',
+      cameraCentreXM: 0.35,
+      cameraCentreZM: -0.1,
       shakeOffsetM: 0,
       particlesAlive: 0,
       stampCount: 0,
       babyLayDownPct: 0,
       doorOpenDeg: 0,
       dangerTintsShown: 0,
+      lightsFactor: 1,
+      mischiefDecals: 0,
+      choreShards: 0,
+      papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+      papaLeanDeg: 0,
+      papaStoopDeg: 0,
+      papaHeadYawDeg: 0,
+      papaGaze: 'ahead',
+      papaBreathDeg: 0,
+      babyBreathDeg: 0,
+      papaEyelidsPct: 0,
     };
     const host = createFakeTestHost();
     (host as { fxState: () => typeof state }).fxState = () => state;
@@ -575,14 +663,61 @@ describe('fx (story 2.5)', () => {
     state = {
       cameraZoom: 1.18,
       cameraYawDeg: 6,
+      cameraMode: 'follow',
+      cameraCentreXM: -4.2,
+      cameraCentreZM: 1.5,
       shakeOffsetM: 0.02,
       particlesAlive: 9,
       stampCount: 2,
       babyLayDownPct: 40,
       doorOpenDeg: 65,
       dangerTintsShown: 1,
+      lightsFactor: 0.4,
+      mischiefDecals: 2,
+      choreShards: 0,
+      papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+      // The life layer (story 7.8) goes through as it is.
+      papaLeanDeg: 6.5,
+      papaStoopDeg: 15,
+      papaHeadYawDeg: -32,
+      papaGaze: 'threat',
+      papaBreathDeg: -1.2,
+      babyBreathDeg: 0.8,
+      papaEyelidsPct: 100,
     };
     expect(api.fx()).toEqual(state);
+  });
+});
+
+describe('pagePoint (story 9.2)', () => {
+  it("answers the host's live projection, as a copy", () => {
+    const host = createFakeTestHost();
+    let point = { xPx: 120.5, yPx: 64 };
+    const seen: [number, number, number][] = [];
+    host.pagePoint = (xM, yM, zM) => {
+      seen.push([xM, yM, zM]);
+      return point;
+    };
+    const api = createTestApi(host);
+    const first = api.pagePoint(-6.4, 1.05, -2);
+    expect(first).toEqual({ xPx: 120.5, yPx: 64 });
+    expect(first).not.toBe(point);
+    point = { xPx: 300, yPx: 210.25 };
+    expect(api.pagePoint(0, 0, 0)).toEqual(point);
+    expect(seen).toEqual([
+      [-6.4, 1.05, -2],
+      [0, 0, 0],
+    ]);
+  });
+
+  it.each([
+    ['a NaN', [Number.NaN, 0, 0]],
+    ['an infinity', [0, Number.POSITIVE_INFINITY, 0]],
+    ['a string', [0, 0, '1']],
+  ])('throws, naming itself, on %s', (_name, args) => {
+    const api = createTestApi(createFakeTestHost());
+    const [xM, yM, zM] = args as [number, number, number];
+    expect(() => api.pagePoint(xM, yM, zM)).toThrow(/__PP__\.pagePoint/);
   });
 });
 

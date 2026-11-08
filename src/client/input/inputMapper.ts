@@ -1,4 +1,6 @@
+import { CHORE_STATION_KINDS } from '@content/schemas/chore';
 import type { Feel } from '@content/schemas/feel';
+import type { ObjectKind } from '@content/schemas/level';
 import { GAMEPAD_PRESS_ID, KEYBOARD_PRESS_ID } from '@shared/constants';
 import { log } from '@shared/log';
 import { asRealMs, asSimMs, type SimMs } from '@shared/time';
@@ -51,6 +53,11 @@ export interface InputMapperDeps {
   onTap?(xM: number, zM: number): void;
   /** The threats of the level being played and their icon points, or null outside a level. */
   getThreatTargets(): ThreatTargets | null;
+  /**
+   * The threat whose off-screen bubble is under the page point `(clientX, clientY)` (story 9.3, D4), or
+   * null: asked first, so a bubble wins over whatever lies under it. Absent: no bubbles (a fixed level).
+   */
+  pickOffscreenBubble?(clientX: number, clientY: number): number | null;
   /** `feel.input.touchRadiusPx`: how far from a threat's icon a press still counts, in CSS px. */
   touchRadiusPx: number;
   /** `feel.input.objectTouchRadiusPx`: how far from an object's icon point a press still counts, in CSS px. */
@@ -85,6 +92,11 @@ export interface InputMapperDeps {
    * aims there, not at Papa's feet axis. Read at each tap.
    */
   babyCarriedForwardM: number;
+  /**
+   * How far the baby is drawn from his sim point on the floor (the stairs gag's slide, story 3.15): a
+   * tap aims at the drawn baby, so it follows him while he is downstairs. Absent: no offset.
+   */
+  getBabySlideM?(): Readonly<{ xM: number; zM: number }>;
   /** The interactive objects of the level being played (`sim.objects`), or an empty list. */
   getObjects(): readonly ObjectTarget[];
   /**
@@ -171,6 +183,24 @@ export interface InputMapper {
 }
 
 /**
+ * The kinds of object that refuse a baby in the arms (the sim's `ToiletRefused` and, from story 9.4,
+ * `ChoreRefused`): a tap on one shows no marker and Space or A skips them, so that the action puts the
+ * baby down instead.
+ */
+const CARRIED_REFUSED_KINDS: readonly ObjectKind[] = ['toilet', ...CHORE_STATION_KINDS];
+
+/** Whether Papa works at this object now (a chore's station, `chore` state): a tap on it is the beat's press, not a walk. */
+function isWorkingAt(active: ActiveLevel, objectId: string): boolean {
+  const { world } = active.sim;
+  if (world.papa.state !== 'chore') return false;
+  const { chores } = active.sim;
+  for (let i = 0; i < chores.length; i++) {
+    if (chores[i]?.objectId === objectId && world.chores[i]?.state === 'working') return true;
+  }
+  return false;
+}
+
+/**
  * Turns raw input into typed, timestamped `SimCommand`s (the sim never sees an event). The gate
  * (D9): only while `appState === 'level'`, the game `running` and a level active. Keys and stick
  * are tracked outside it, so that a resume can send what is held. The calibration offset
@@ -192,14 +222,16 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     world: Readonly<World>,
     objects: readonly ObjectTarget[],
   ): readonly PickTarget[] => {
-    if (world.flow.state !== 'finalRush') return objects;
+    // Outside the rush a debris of the coffee table's gag is a target too (story 3.15): picked up on arrival.
+    const isRush = world.flow.state === 'finalRush';
+    // The level's objects first, then the props (a tie goes to the object).
     messTargets.length = 0;
     for (let i = 0; i < objects.length; i++) messTargets.push(objects[i] as ObjectTarget);
     for (let i = 0; i < world.props.length; i++) {
       const prop = world.props[i] as World['props'][number];
-      if (prop.isMess) messTargets.push(prop);
+      if (prop.isMess && (isRush || prop.debrisPickUpMs > 0)) messTargets.push(prop);
     }
-    return messTargets;
+    return messTargets.length === objects.length ? objects : messTargets;
   };
   let lastDevice: InputDevice | null = null;
   let wasPadPresent = false;
@@ -244,8 +276,10 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     active.sim.world.flow.state === 'sequence' && !isStealthStepRunning(active.sim.world);
 
   // Papa drinks, sleeps, is on the phone or in the toilet (stories 1.19 D6, 1.20, 4.3): the sim
-  // ignores every move and press meanwhile, so the client sends none either. A key held through it walks again on `PapaStateChanged → idle`
-  // (boot calls `resumeHeld`).
+  // ignores every move and press meanwhile, so the client sends no move, floor, object or baby
+  // command. A press on a threat is the one it does send (story 2.12): the sim refuses it with
+  // `TapRefused`, or judges it if that step already has Papa free. A key held through it walks again
+  // on `PapaStateChanged → idle` (boot calls `resumeHeld`).
   const isBusy = (active: ActiveLevel): boolean => isPapaBusy(active.sim.world.papa);
 
   // A new level begins with nothing sent and no finger down on a threat of the old one.
@@ -329,12 +363,19 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       return;
     }
     bindTo(active);
-    if (isBusy(active)) {
-      if (log.enabled('debug')) log.debug('input', 'action dropped: Papa is busy');
-      return;
-    }
     const t = stampOf(active);
     const threatId = targetNow(active);
+    if (isBusy(active)) {
+      // The finger is recorded so that its `Release` follows (D2); no target-highlight mark.
+      if (threatId !== null) {
+        heldPressAt = t;
+        active.sim.enqueue({ type: 'PressThreat', t, threatId });
+        press.pressed(pressId, threatId);
+      } else if (log.enabled('debug')) {
+        log.debug('input', 'action dropped: Papa is busy');
+      }
+      return;
+    }
     if (threatId !== null) {
       heldPressAt = t;
       active.sim.enqueue({ type: 'PressThreat', t, threatId });
@@ -366,9 +407,12 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     const { papa, baby } = active.sim.world;
     const { contextReachM } = deps.input;
     // In the final rush a prop that is a mess comes first (story 3.5): ahead of the baby, carried or
-    // not, and of any object. With none in reach the action is what it always was.
-    if (active.sim.world.flow.state === 'finalRush') {
-      const propId = pickMessProp(active.sim.world.props, papa.xM, papa.zM, contextReachM);
+    // not, and of any object. Outside it only a debris of the coffee table's gag counts (story 3.15),
+    // and the baby comes first while he is in the arms (put him down) or at the bottom of the stairs
+    // (fetch him). With none in reach the action is what it always was.
+    const isRush = active.sim.world.flow.state === 'finalRush';
+    if (isRush || (baby.state !== 'carried' && baby.state !== 'downstairs')) {
+      const propId = pickMessProp(active.sim.world.props, papa.xM, papa.zM, contextReachM, !isRush);
       if (propId !== null) {
         active.sim.enqueue({ type: 'TapObject', t, objectId: propId });
         return;
@@ -376,6 +420,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
     }
     const objects = deps.getObjects();
     const isCarried = baby.state === 'carried';
+    // A station whose chore is done is inert (story 9.4): it must not shadow a baby beside it.
+    const { chores: stations } = active.sim;
+    const isDoneStation = (id: string): boolean => {
+      for (let i = 0; i < stations.length; i++) {
+        if (stations[i]?.objectId === id) return active.sim.world.chores[i]?.state === 'done';
+      }
+      return false;
+    };
     // A toilet is no object in reach while the baby is carried (story 4.3): the sim refuses the trip,
     // so the action puts him down, and the next press goes in.
     const objectId = pickContextObject(
@@ -383,7 +435,8 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       papa.xM,
       papa.zM,
       contextReachM,
-      isCarried ? 'toilet' : null,
+      isCarried ? CARRIED_REFUSED_KINDS : null,
+      isDoneStation,
     );
     const babyDistSq = (baby.xM - papa.xM) ** 2 + (baby.zM - papa.zM) ** 2;
     const isBabyInReach = babyDistSq <= contextReachM * contextReachM;
@@ -535,21 +588,34 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       const rect = deps.canvasRect();
       if (!(rect.width > 0 && rect.height > 0)) return;
       bindTo(active);
+      const targets = deps.getThreatTargets();
+      // A bubble is the threat it stands for (story 9.3): the same press, whatever is under it.
+      const bubbleThreatId = deps.pickOffscreenBubble?.(sample.clientX, sample.clientY) ?? null;
+      const threatId =
+        bubbleThreatId !== null
+          ? bubbleThreatId
+          : targets === null
+            ? null
+            : deps.hitTester.pickThreat(
+                sample.clientX,
+                sample.clientY,
+                rect,
+                targets,
+                deps.touchRadiusPx,
+              );
       if (isBusy(active)) {
-        if (log.enabled('debug')) log.debug('input', 'tap dropped: Papa is busy');
+        // The press the client used to drop (story 2.12 D2): the sim refuses it with `TapRefused`,
+        // or judges it if that step already has Papa free. The finger is recorded so that its
+        // `Release` follows. No highlight mark, no tap marker, and no floor, object or baby command.
+        if (threatId !== null) {
+          heldPressAt = toSim(active, sample.timeStamp);
+          active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId });
+          press.pressed(sample.pointerId, threatId);
+        } else if (log.enabled('debug')) {
+          log.debug('input', 'tap dropped: Papa is busy');
+        }
         return;
       }
-      const targets = deps.getThreatTargets();
-      const threatId =
-        targets === null
-          ? null
-          : deps.hitTester.pickThreat(
-              sample.clientX,
-              sample.clientY,
-              rect,
-              targets,
-              deps.touchRadiusPx,
-            );
       if (threatId !== null) {
         heldPressAt = toSim(active, sample.timeStamp);
         active.sim.enqueue({ type: 'PressThreat', t: heldPressAt, threatId });
@@ -589,6 +655,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
       // Where he is drawn: lifted, and a little in front of Papa, when he is in his arms.
       babyAim.xM = isCarried ? baby.xM + baby.gazeX * deps.babyCarriedForwardM : baby.xM;
       babyAim.zM = isCarried ? baby.zM + baby.gazeZ * deps.babyCarriedForwardM : baby.zM;
+      // Downstairs he is drawn away from his sim point, lower: aim at the drawn body.
+      if (baby.state === 'downstairs') {
+        const slideM = deps.getBabySlideM?.();
+        if (slideM !== undefined) {
+          babyAim.xM += slideM.xM;
+          babyAim.zM += slideM.zM;
+        }
+      }
       const babyDistSq = deps.hitTester.pickBaby(
         sample.clientX,
         sample.clientY,
@@ -648,8 +722,14 @@ export function createInputMapper(deps: InputMapperDeps): InputMapper {
           return;
         }
         // The marker shows where Papa will stand: the object's floor point. Not for a toilet while
-        // he carries the baby (story 4.3): Papa goes nowhere, the sim refuses and the hint says why.
-        if (object !== undefined && !(isCarried && object.kind === 'toilet')) {
+        // he carries the baby (story 4.3), nor for a chore's station (story 9.4): Papa goes nowhere,
+        // the sim refuses and the hint says why. Nor for the station Papa already works at: the tap
+        // is the beat's press and he stays.
+        if (
+          object !== undefined &&
+          !(isCarried && CARRIED_REFUSED_KINDS.includes(object.kind)) &&
+          !isWorkingAt(active, object.id)
+        ) {
           deps.showTapMarker(object.xM, object.zM);
           deps.onTap?.(object.xM, object.zM);
         }

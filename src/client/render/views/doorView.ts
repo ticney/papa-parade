@@ -64,14 +64,18 @@ export function doorPlacementOf(
  * How far the door is open at the render's sim clock `clockMs`, in degrees: shut until the rush
  * starts (`finalRushAt` null, or still ahead), then a smooth swing over `openMs` to `openAngleDeg`, and open
  * from then on (through `photo`, and `ended` after a `mamaWoke` in the rush). `isMotionReduced`
- * jumps it open at the rush's start. Pure: a pause or a slow-mo holds it, since the clock does.
+ * jumps it open at the rush's start. Mama come home early (`isBurstOpen`, story 3.16 D7) bursts it
+ * open at once: the end photo is taken in the very step that ends the level, so a swing would never
+ * show, and there is no rush to count from. Pure: a pause or a slow-mo holds it, since the clock does.
  */
 export function doorOpenAngleDegAt(
   finalRushAt: number | null,
   clockMs: number,
   look: Pick<DoorLook, 'openMs' | 'openAngleDeg'>,
   isMotionReduced: boolean,
+  isBurstOpen = false,
 ): number {
+  if (isBurstOpen) return look.openAngleDeg;
   if (finalRushAt === null || clockMs < finalRushAt) return 0;
   if (isMotionReduced) return look.openAngleDeg;
   const progress = Math.min(1, Math.max(0, (clockMs - finalRushAt) / look.openMs));
@@ -94,8 +98,16 @@ export function doorYawRadAt(placement: DoorPlacement, angleDeg: number): number
 }
 
 export interface DoorView {
-  /** Draws the door at the render's sim clock; allocates nothing. */
-  update(finalRushAt: number | null, clockMs: number, isMotionReduced: boolean): void;
+  /**
+   * Draws the door at the render's sim clock; allocates nothing. `isBurstOpen` is a Mama come home
+   * early (`world.flow.endReason === 'mamaHome'`, story 3.16): open at once, no swing.
+   */
+  update(
+    finalRushAt: number | null,
+    clockMs: number,
+    isMotionReduced: boolean,
+    isBurstOpen?: boolean,
+  ): void;
   /** How open the door was last drawn, in degrees (the debug `fx()`). */
   readonly openAngleDeg: number;
   /** The panel's group, for the scene's tests. */
@@ -131,8 +143,8 @@ export function createDoorView(
     get openAngleDeg() {
       return drawnAngleDeg;
     },
-    update(finalRushAt, clockMs, isMotionReduced) {
-      const angleDeg = doorOpenAngleDegAt(finalRushAt, clockMs, look, isMotionReduced);
+    update(finalRushAt, clockMs, isMotionReduced, isBurstOpen = false) {
+      const angleDeg = doorOpenAngleDegAt(finalRushAt, clockMs, look, isMotionReduced, isBurstOpen);
       if (angleDeg === drawnAngleDeg) return;
       drawnAngleDeg = angleDeg;
       hinge.rotation.y = doorYawRadAt(placement, angleDeg);

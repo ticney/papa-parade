@@ -7,6 +7,7 @@ import {
 } from '../../src/shared/constants.ts';
 import {
   appHistory,
+  appUrl,
   collectConsoleErrors,
   collectLoadWarnings,
   collectProblems,
@@ -246,7 +247,7 @@ test.describe('an uncaught exception', () => {
     // `expect` polls at growing gaps (100, 250, 500, then 1000 ms): the app must stay in `level` for
     // longer than the longest gap, or a poll can fall between « loading » and « oops » and never see
     // `level` (it did on WebKit once the load took 350-550 ms).
-    await page.goto(`/?throwAfterMs=${LEVEL_HOLD_BEFORE_THROW_MS}`);
+    await page.goto(appUrl(`/?throwAfterMs=${LEVEL_HOLD_BEFORE_THROW_MS}`));
     await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
     await pressStart(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
@@ -273,7 +274,7 @@ test.describe('an uncaught exception', () => {
     page.on('console', (message) => {
       if (message.type() === 'warning') warnings.push(message.text());
     });
-    await page.goto('/?throwAfterMs=abc');
+    await page.goto(appUrl('/?throwAfterMs=abc'));
     await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
     await pressStart(page);
     await expectRunning(page);

@@ -7,15 +7,19 @@ import type {
   TestHost,
 } from '../../src/client/app/testHost.ts';
 import type { SoundedNote } from '../../src/client/audio/beatScheduler.ts';
+import type { Highlight } from '../../src/client/endOfLevel/highlights.ts';
 import type { InputDevice } from '../../src/client/input/inputMapper.ts';
 import type { RenderStats } from '../../src/client/render/renderer.ts';
 import type { ContentBundle } from '../../src/content/contentBundle.ts';
-import type { Sim, SimEvent } from '../../src/sim/index.ts';
+import type { MamaReactionLine, Sim, SimEvent } from '../../src/sim/index.ts';
 import { createTestContent } from './testContent.ts';
 
 const NO_FX_STATE: FxState = {
   cameraZoom: 1,
   cameraYawDeg: 0,
+  cameraMode: 'fixed',
+  cameraCentreXM: 0,
+  cameraCentreZM: 0,
   shakeOffsetM: 0,
   particlesAlive: 0,
   stampCount: 0,
@@ -23,8 +27,22 @@ const NO_FX_STATE: FxState = {
   papaClip: null,
   babyClip: null,
   papaMixerMs: 0,
+  papaBodyYawRad: 0,
+  papaSteamSwayDeg: 0,
+  papaBlablaTiltDeg: 0,
   doorOpenDeg: 0,
   dangerTintsShown: 0,
+  lightsFactor: 1,
+  mischiefDecals: 0,
+  choreShards: 0,
+  papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+  papaLeanDeg: 0,
+  papaStoopDeg: 0,
+  papaHeadYawDeg: 0,
+  papaGaze: 'ahead',
+  papaBreathDeg: 0,
+  babyBreathDeg: 0,
+  papaEyelidsPct: 0,
 };
 
 /** A `TestHost` for the debug modules' tests, with handles to fire what the app would. */
@@ -39,6 +57,10 @@ export interface FakeTestHost extends TestHost {
   fireGameResumed(): void;
   /** What `lastInputDevice()` answers from now on (default `null`: no input yet). */
   setLastInputDevice(device: InputDevice | null): void;
+  /** What `mamaLines()` answers from now on (default `null`: no level scored yet; story 3.8). */
+  setMamaLines(lines: readonly MamaReactionLine[] | null): void;
+  /** What `highlights()` answers from now on (default `null`: no level scored yet; story 3.9). */
+  setHighlights(moments: readonly Highlight[] | null): void;
   fireCuePlayed(record: CuePlayedRecord): void;
   /** A note of a rhythm step that sounded (story 4.5). */
   fireBeatSounded(note: SoundedNote): void;
@@ -71,6 +93,8 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
   let stepHook: ((sim: Sim) => void) | null = null;
   let isBlocked = false;
   let lastInput: InputDevice | null = null;
+  let mamaLines: readonly MamaReactionLine[] | null = null;
+  let highlights: readonly Highlight[] | null = null;
   let pause: PauseState = 'running';
 
   const subscribe = <T>(listeners: Set<T>, listener: T): (() => void) => {
@@ -109,7 +133,10 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     fxState: () => options.fxState ?? NO_FX_STATE,
     setPapaLook: () => {},
     threatScreenPoints: () => [],
+    pagePoint: (xM, _yM, zM) => ({ xPx: xM * 100, yPx: zM * 100 }),
     lastInputDevice: () => lastInput,
+    mamaLines: () => mamaLines,
+    highlights: () => highlights,
     auditionCue(cueId) {
       calls.push(`audition:${cueId}`);
       return options.isAudioRunning ?? true;
@@ -156,6 +183,12 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     },
     setLastInputDevice: (device) => {
       lastInput = device;
+    },
+    setMamaLines: (lines) => {
+      mamaLines = lines;
+    },
+    setHighlights: (moments) => {
+      highlights = moments;
     },
     setPause: (state) => {
       pause = state;

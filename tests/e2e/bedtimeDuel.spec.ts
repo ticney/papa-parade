@@ -5,6 +5,7 @@ import { RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import { calibratedSaveValue, SAVE_STORAGE_KEY } from './support/calibratedSave.ts';
 import {
   advanceTo,
+  chronoRingsInShownMarkers,
   cueIds,
   openFrozen,
   realTap,
@@ -15,6 +16,7 @@ import {
   untilTelegraphed,
 } from './support/duel.ts';
 import {
+  appUrl,
   collectProblems,
   hapticPatternOfCue,
   html,
@@ -243,6 +245,8 @@ test.describe('the marker (looked at at 667 × 375)', () => {
       }),
     ]);
     expect((await shownMarkers(page))[0]?.classes).not.toContain('pp-threat--signal');
+    // A wait has no chrono-ring at all: its timing would hand the player the signal (story 2.11).
+    expect(await chronoRingsInShownMarkers(page)).toBe(0);
     await shot(page, testInfo, 'marker-before.png');
 
     await advanceTo(page, windowOpenAt + STEP_MS);
@@ -308,7 +312,7 @@ test.describe('autoplay', () => {
   test('the perfect bot wins the duel: outcome succeeded', async ({ page }) => {
     test.setTimeout(120_000);
     const problems = collectProblems(page);
-    await page.goto('/?autoplay=perfect&seed=42&speed=4');
+    await page.goto(appUrl('/?autoplay=perfect&seed=42&speed=4'));
     await waitForTestApi(page);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'level', { timeout: 20_000 });
     await expect.poll(async () => (await ppState(page)) !== null).toBe(true);

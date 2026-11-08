@@ -5,6 +5,7 @@ import { createSim, type SimEvent } from '@sim';
 import { describe, expect, it } from 'vitest';
 import { loadSimLevel } from '../../../tools/sim/loadSimLevel.ts';
 import { makeBot } from '../../support/botSupport.ts';
+import { silenceCatastrophe } from '../../support/noCatastrophe.ts';
 
 const CONTENT_DIR = fileURLToPath(new URL('../../../content', import.meta.url));
 const SEEDS = [1, 2, 3];
@@ -19,12 +20,17 @@ describe('the phone of the live salon_crawler, with the idle bot', () => {
     const loaded = await loadSimLevel(CONTENT_DIR, 'salon_crawler');
     if (!loaded.ok) throw new Error(loaded.error);
     const { content, geometry, level } = loaded.value;
+    // This is about the phone, not the catastrophe (story 3.16 D14): an idle player's gags would bring Mama home first.
+    silenceCatastrophe(content.feel);
     const sim = await createSim({ content, geometry, level, seed, strictInvariants: true });
     const bot = makeBot('idle', {
       seed,
       holdMinMs: content.feel.input.holdMinMs,
       responses: {},
       releaseDefIds: [],
+      choreObjectIds: [],
+      isChronoRingShown: true,
+      view: null,
       safeSpot: null,
       settings: content.bots,
     });

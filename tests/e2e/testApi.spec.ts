@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { STEP_MS } from '../../src/shared/constants.ts';
 import {
   anchorMirror,
+  appUrl,
   collectProblems,
   FAILED_REQUEST,
   html,
@@ -30,7 +31,7 @@ const SIM_STEP_S = STEP_MS / 1000;
 
 /** Opens the quiet room with the test API and starts the level frozen at sim time 0. */
 async function openFrozenLevel(page: Parameters<typeof waitForTestApi>[0], seed = SEED) {
-  await page.goto(`/${THREATS_OFF}`);
+  await page.goto(appUrl(`/${THREATS_OFF}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, seed);
@@ -40,9 +41,9 @@ async function openFrozenLevel(page: Parameters<typeof waitForTestApi>[0], seed 
 const FAR = anchorMirror('phone');
 
 test.describe('window.__PP__', () => {
-  test('exists in dev without ?debug=1, with its thirteen methods', async ({ page }) => {
+  test('exists in dev without ?debug=1, with its fifteen methods', async ({ page }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     const methods = await page.evaluate(() => Object.keys(window.__PP__ ?? {}).sort());
     expect(methods).toEqual([
@@ -52,8 +53,11 @@ test.describe('window.__PP__', () => {
       'events',
       'freeze',
       'fx',
+      'highlights',
       'journal',
       'loadLevel',
+      'mamaLines',
+      'pagePoint',
       'perf',
       'send',
       'setFeel',
@@ -67,7 +71,7 @@ test.describe('window.__PP__', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto(`/${THREATS_OFF}`);
+    await page.goto(appUrl(`/${THREATS_OFF}`));
     await waitForTestApi(page);
     expect(await ppState(page)).toBeNull();
 
@@ -90,7 +94,7 @@ test.describe('window.__PP__', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto(`/${THREATS_OFF}`);
+    await page.goto(appUrl(`/${THREATS_OFF}`));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await expect.poll(async () => (await ppWorld(page)).time.sim).toBeGreaterThan(0);
@@ -224,7 +228,7 @@ test.describe('window.__PP__', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto(`/${THREATS_OFF}`);
+    await page.goto(appUrl(`/${THREATS_OFF}`));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await expect(html(page)).toHaveAttribute('data-pp-seed', String(SEED));
@@ -242,7 +246,7 @@ test.describe('window.__PP__', () => {
     page,
   }) => {
     const problems = collectProblems(page, { allowedErrors: FAILED_REQUEST });
-    await page.goto(`/${THREATS_OFF}`);
+    await page.goto(appUrl(`/${THREATS_OFF}`));
     await waitForTestApi(page);
     await expect(ppLoadLevel(page, 'nowhere', 1)).rejects.toThrow(/__PP__\.loadLevel.*nowhere/);
     await expect(html(page)).toHaveAttribute('data-pp-app', 'oops');

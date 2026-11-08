@@ -56,6 +56,8 @@ export interface CharacterContract {
   readonly clips: readonly string[];
   /** Bones the code writes every frame: a clip with a track on one would fight it (D4). */
   readonly codeDrivenBones: readonly string[];
+  /** Nodes (objects, not bones) the code moves every frame: a clip track on one would fight it (story 2.13, D3). */
+  readonly codeDrivenNodes: readonly string[];
 }
 
 function trianglesOf(json: CharacterJson, primitive: CharacterPrimitive, where: string): number {
@@ -142,7 +144,10 @@ export function characterRigProblems(document: unknown, contract: CharacterContr
   for (const animation of animations) {
     for (const channel of animation.channels ?? []) {
       const target = nodes[channel.target?.node ?? -1]?.name;
-      if (target !== undefined && contract.codeDrivenBones.includes(target)) {
+      if (
+        target !== undefined &&
+        (contract.codeDrivenBones.includes(target) || contract.codeDrivenNodes.includes(target))
+      ) {
         problems.push(
           `clip "${animation.name}" has a ${channel.target?.path} track on "${target}", which the code drives`,
         );

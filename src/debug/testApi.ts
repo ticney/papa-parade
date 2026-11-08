@@ -1,7 +1,7 @@
 import type { LevelStartOptions } from '@client/app/levelSession';
-import type { CuePlayedRecord, FxState, TestHost } from '@client/app/testHost';
+import type { CuePlayedRecord, FxState, PagePoint, TestHost } from '@client/app/testHost';
 import type { SoundedNote } from '@client/audio/beatScheduler';
-import type { PapaLook } from '@client/render/views/papaView';
+import type { Highlight } from '@client/endOfLevel/highlights';
 import {
   ADVANCE_MAX_STEPS,
   TEST_API_BEAT_NOTES_MAX,
@@ -13,7 +13,7 @@ import {
 import { cloneJson } from '@shared/hash';
 import { log } from '@shared/log';
 import { asSimMs } from '@shared/time';
-import type { Journal, SimCommand, SimEvent, World } from '@sim';
+import type { Journal, MamaReactionLine, PapaLook, SimCommand, SimEvent, World } from '@sim';
 import { applyFeelPatch, effectiveFeel, type FeelPatch } from './feelPatch.ts';
 import { feedPerfMeter } from './perfFeed.ts';
 import { createPerfMeter, type PerfReport } from './perfMeter.ts';
@@ -93,7 +93,27 @@ export interface PPTestApi {
    * the stamps shown so far. Reduced motion shows as a turn of 0 and an offset of 0.
    */
   fx(): FxState;
-  /** Shows the parts of Papa's look (story 7.2: nothing in a game sets it until story 3.7). */
+  /**
+   * The lines Mama says on the current Result screen (story 3.8), one per reaction in the order they play,
+   * each with its `lineId` in `content/mama-lines.json` and its `text` (`*word*` is the emphasis the bubble
+   * shows in italics). `null` before the first `LevelScored` and after the next level starts loading; the
+   * lines stay the same on a rebuilt Result screen. Specs assert the bubble against it.
+   */
+  mamaLines(): readonly MamaReactionLine[] | null;
+  /**
+   * The moments of the current Result's highlight replay (story 3.9), in the order they play, each with its
+   * sim time `t`, its `threatId`, its `points`, its `kinds` and the `anchorId` it is framed on (`null` for a
+   * threat on Papa). `null` before the first `LevelScored` and after the next level starts loading; `[]` for a
+   * game with no moment (the Result then has no `replay` phase). The same on a rebuilt Result screen.
+   */
+  highlights(): readonly Highlight[] | null;
+  /**
+   * Where the world point `(xM, yM, zM)` (metres) is on the page now, in CSS px: the live game camera,
+   * moved by the follow camera and the perfect's move (story 9.2). For a Playwright tap on a level
+   * whose camera follows Papa. Throws on a coordinate that is not a finite number.
+   */
+  pagePoint(xM: number, yM: number, zM: number): PagePoint;
+  /** Shows the parts of Papa's look on top of the world's (story 3.7: a debug overlay; the gags set the world's own). */
   setPapaLook(look: PapaLook): void;
   /** A copy of what the level's frames measured so far: frame intervals (real ms), draw calls, triangles. */
   perf(): PerfReport;
@@ -305,6 +325,30 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     },
     fx() {
       return host.fxState();
+    },
+
+    mamaLines() {
+      const lines = host.mamaLines();
+      // A copy: the page may keep or change what it reads, never the app's own array.
+      return lines === null ? null : lines.map((line) => ({ ...line }));
+    },
+
+    highlights() {
+      const moments = host.highlights();
+      // A copy: the page may keep or change what it reads, never the app's own array.
+      return moments === null
+        ? null
+        : moments.map((moment) => ({ ...moment, kinds: [...moment.kinds] }));
+    },
+
+    pagePoint(xM, yM, zM) {
+      if (![xM, yM, zM].every((value) => typeof value === 'number' && Number.isFinite(value))) {
+        throw new Error(
+          `__PP__.pagePoint: the point must be three finite numbers (${String(xM)}, ${String(yM)}, ${String(zM)})`,
+        );
+      }
+      const { xPx, yPx } = host.pagePoint(xM, yM, zM);
+      return { xPx, yPx };
     },
 
     perf() {

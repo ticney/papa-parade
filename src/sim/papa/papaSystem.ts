@@ -1,23 +1,29 @@
 import type { ObjectKind } from '@content/schemas/level';
 import { STEP_MS } from '@shared/constants';
-import { asSimMs } from '@shared/time';
 import { isBabyCarried } from '../baby/babyFsm.ts';
 import { isBabyInReach, isInSafeZone, putDownBaby, takeBaby } from '../baby/carry.ts';
 import { isBabyFoundNow } from '../baby/silence.ts';
+import { choreIndexOfObject, resumeChoreOfPot, startChore } from '../chores/chores.ts';
 import type { SimObjectSpec, StepContext } from '../context.ts';
 import { answerPhone, ringingDisruptionAt } from '../disruptions/phone.ts';
 import { bladderSpeedFactor } from '../gauges/bladder.ts';
 import { advanceAlongPath } from '../nav/followPath.ts';
 import { isBabyJustLaid } from '../sequences/layDown.ts';
 import { isStealthStepRunning } from '../sequences/stealthExit.ts';
+import {
+  debrisIndexOf,
+  finishPapaBusy,
+  startCarryUp,
+  startPickUp,
+} from '../threats/afterEffects.ts';
 import type { ThreatInstance, World } from '../world.ts';
-import { finishCoffee, startCoffee } from './coffee.ts';
-import { startGlide } from './glide.ts';
+import { startCoffee } from './coffee.ts';
+import { startGlide, startGlideTo } from './glide.ts';
 import { enterPapaState, isPapaBusy } from './papaFsm.ts';
 import { startCall } from './phoneCall.ts';
 import { startWalkTo } from './planWalk.ts';
 import { messPropIndexOf, tidyProp } from './tidyProp.ts';
-import { finishToilet, startToilet } from './toilet.ts';
+import { startToilet } from './toilet.ts';
 import { stepInDirection } from './walk.ts';
 
 /**
@@ -48,6 +54,11 @@ const OBJECT_ACTIONS: Readonly<Record<ObjectKind, ObjectAction>> = {
     startToilet(world, ctx, object.id);
     return true;
   },
+  // A house chore's station (story 9.4): Papa works there until he leaves, unless the chore is done
+  // (then he is only standing at the stove, idle).
+  stove: (world, ctx, object) => startChore(world, ctx, object.id),
+  // The second station (story 9.6): the dishwasher is emptied the same way, and Papa opens its door.
+  dishwasher: (world, ctx, object) => startChore(world, ctx, object.id),
 };
 
 /** Every object kind the sim has an action for. */
@@ -60,6 +71,8 @@ function isTakeable(world: World, ctx: StepContext): boolean {
     ctx.level.hasCarry &&
     state !== 'carried' &&
     state !== 'mischiefSilent' &&
+    state !== 'downstairs' &&
+    state !== 'carriedUp' &&
     isBabyInReach(world, ctx)
   );
 }
@@ -67,7 +80,9 @@ function isTakeable(world: World, ctx: StepContext): boolean {
 /**
  * `TapBaby` (story 4.1 rule 6), in this order. The tap that found a hiding baby is spent (Papa stays
  * for the parry). In a level that does not carry, or for a hiding baby who is not found, Papa just
- * walks to where the baby is (story 1.21). A carried baby is put down here. A baby within reach is
+ * walks to where the baby is (story 1.21). A baby left at the bottom of the stairs (story 3.15) is
+ * fetched, before any of the rest: carried up at once if he is within reach, else walked to
+ * (`fetchBaby`). A carried baby is put down here. A baby within reach is
  * taken at once; a farther one is walked to, and taken on arrival if he is then within reach. True
  * when the baby was taken or put down, so that `runPapa` can ignore a second `TapBaby` in the same
  * step (a pointer tap and Space together) instead of undoing the first.
@@ -75,6 +90,12 @@ function isTakeable(world: World, ctx: StepContext): boolean {
 function tapBaby(world: World, ctx: StepContext): boolean {
   if (isBabyFoundNow(world, ctx)) return false;
   const { baby, papa } = world;
+  if (baby.state === 'downstairs') {
+    if (isBabyInReach(world, ctx)) startCarryUp(world, ctx);
+    else if (startWalkTo(world, ctx, baby.xM, baby.zM) !== null) papa.intent = 'fetchBaby';
+    return false;
+  }
+  if (baby.state === 'carriedUp') return false;
   if (!ctx.level.hasCarry || baby.state === 'mischiefSilent') {
     startWalkTo(world, ctx, baby.xM, baby.zM);
   } else if (baby.state === 'carried') {
@@ -106,8 +127,11 @@ function arrive(world: World, ctx: StepContext): void {
   const { papa } = world;
   papa.path.length = 0;
   papa.pathIndex = 0;
+  const glideThreatId = papa.glide?.threatId ?? null;
   papa.glide = null;
   ctx.events.push({ type: 'PapaArrived', t: world.time.sim, xM: papa.xM, zM: papa.zM });
+  // A glide to a chore's own pot (story 9.5, review): the heat lowered, Papa goes back to the cooking.
+  if (glideThreatId !== null && resumeChoreOfPot(world, ctx, glideThreatId)) return;
   const objectId = papa.objectId;
   papa.objectId = null;
   // The walk was to take the baby (if he is then within reach and free to be taken) or to put him down.
@@ -121,6 +145,13 @@ function arrive(world: World, ctx: StepContext): void {
     putDownBaby(world, ctx);
     return;
   }
+  // The walk was to fetch the baby from the stairs (story 3.15): if he climbed back meanwhile, or the
+  // walk ended short of him (a blocked path), nothing more.
+  if (intent === 'fetchBaby') {
+    if (isBabyInReach(world, ctx)) startCarryUp(world, ctx);
+    if (world.papa.state !== 'carryingUp') enterPapaState(world, ctx, 'idle');
+    return;
+  }
   if (objectId !== null) {
     const objects = ctx.level.objects;
     for (let i = 0; i < objects.length; i++) {
@@ -130,9 +161,16 @@ function arrive(world: World, ctx: StepContext): void {
     // The walk was to a prop of the final rush (story 3.5): still a mess on arrival, it is tidied.
     const propIndex = messPropIndexOf(world, objectId);
     if (propIndex >= 0) {
-      tidyProp(world, ctx, propIndex);
-      enterPapaState(world, ctx, 'idle');
-      return;
+      if (world.flow.state === 'finalRush') {
+        tidyProp(world, ctx, propIndex);
+        enterPapaState(world, ctx, 'idle');
+        return;
+      }
+      // Outside the rush only a debris is walked to (story 3.15): Papa picks it up, a busy occupation.
+      if (debrisIndexOf(world, objectId) >= 0) {
+        startPickUp(world, ctx, propIndex);
+        return;
+      }
     }
   }
   enterPapaState(world, ctx, 'idle');
@@ -141,8 +179,8 @@ function arrive(world: World, ctx: StepContext): void {
 /**
  * Walks to an interactive object of the level exactly as a tap on its anchor does, then says so.
  * The walk remembers the object (`papa.objectId`): arriving runs its action. In the final rush the
- * id of a prop that is a mess is walked to the same way and tidied on arrival (story 3.5). An unknown
- * id does nothing.
+ * id of a prop that is a mess is walked to the same way and tidied on arrival (story 3.5); outside it a
+ * debris is picked up on arrival (story 3.15). An unknown id does nothing.
  */
 function tapObject(world: World, ctx: StepContext, objectId: string): void {
   const objects = ctx.level.objects;
@@ -154,16 +192,33 @@ function tapObject(world: World, ctx: StepContext, objectId: string): void {
       ctx.events.push({ type: 'ToiletRefused', t: world.time.sim, objectId });
       return;
     }
+    // A chore's station (story 9.4): Papa glides to it and works on arrival; the baby in his arms
+    // refuses it at the tap (D10). A done chore's station is only somewhere to walk to.
+    const choreIndex = choreIndexOfObject(ctx, objectId);
+    if (choreIndex >= 0 && world.chores[choreIndex]?.state !== 'done') {
+      if (isBabyCarried(world)) {
+        ctx.events.push({ type: 'ChoreRefused', t: world.time.sim, objectId, reason: 'carrying' });
+        return;
+      }
+      if (startGlideTo(world, ctx, object.xM, object.zM, null)) {
+        world.papa.objectId = objectId;
+        ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
+      }
+      return;
+    }
     if (startWalkTo(world, ctx, object.xM, object.zM) !== null) {
       world.papa.objectId = objectId;
       ctx.events.push({ type: 'ObjectTapped', t: world.time.sim, objectId });
     }
     return;
   }
-  // In the final rush only, a prop that is a mess is walked to like an object (story 3.5); the same
-  // id outside the rush, or a prop that is not a mess, does nothing.
-  if (world.flow.state !== 'finalRush') return;
-  const propIndex = messPropIndexOf(world, objectId);
+  // In the final rush, a prop that is a mess is walked to like an object (story 3.5); outside it,
+  // only a debris of the coffee table's gag is (story 3.15, picked up on arrival); any other prop
+  // does nothing.
+  const propIndex =
+    world.flow.state === 'finalRush'
+      ? messPropIndexOf(world, objectId)
+      : debrisIndexOf(world, objectId);
   const prop = propIndex >= 0 ? world.props[propIndex] : undefined;
   if (prop === undefined) return;
   if (startWalkTo(world, ctx, prop.xM, prop.zM) !== null) {
@@ -252,14 +307,7 @@ export function runPapa(world: World, ctx: StepContext): void {
   if (isJustLaid) putDownBaby(world, ctx);
 
   if (isPapaBusy(papa) && world.time.sim >= papa.busyUntil) {
-    if (papa.state === 'drink') {
-      finishCoffee(world, ctx);
-    } else if (papa.state === 'onToilet') {
-      finishToilet(world, ctx);
-    } else {
-      papa.busyUntil = asSimMs(0);
-      enterPapaState(world, ctx, 'idle');
-    }
+    finishPapaBusy(world, ctx);
   }
 
   let hasToggledCarry = false;

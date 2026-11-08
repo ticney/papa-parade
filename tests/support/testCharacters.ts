@@ -1,5 +1,6 @@
 import type { CharacterAsset } from '@client/assets/gltf';
 import { BABY_CONTRACT, PAPA_CONTRACT } from '@client/render/views/characterClips';
+import { createLifeInputs, type LifeInputs } from '@client/render/views/lifeLayer';
 import {
   AnimationClip,
   Bone,
@@ -15,6 +16,7 @@ import {
   Uint16BufferAttribute,
   VectorKeyframeTrack,
 } from 'three';
+import { createTestContent } from './testContent.ts';
 
 /** How long each clip of the fixture lasts, in seconds: loops and one-shots alike. */
 export const TEST_CLIP_S = 1;
@@ -77,8 +79,25 @@ export function createTestCharacter(contract: {
   };
 }
 
-export const createTestPapa = (): CharacterAsset => createTestCharacter(PAPA_CONTRACT);
+/** As `papa.glb` has it, the steam is the mug's child: it shows and hides with the mug (story 2.13). */
+export const createTestPapa = (): CharacterAsset => {
+  const asset = createTestCharacter(PAPA_CONTRACT);
+  const steam = asset.scene.getObjectByName('papa_mug_steam');
+  if (steam !== undefined) asset.scene.getObjectByName('papa_mug')?.add(steam);
+  return asset;
+};
 export const createTestBaby = (): CharacterAsset => createTestCharacter(BABY_CONTRACT);
+
+/**
+ * The life layer's inputs of a frame (story 7.8), on the test feel's `characters` (its own copy: a test
+ * may retune it), with `patch` laid over: fatigue 0, no alert, nothing seen, motion not reduced.
+ */
+export function createTestLife(patch: Partial<LifeInputs> = {}): LifeInputs {
+  return Object.assign(
+    createLifeInputs(structuredClone(createTestContent().feel.characters)),
+    patch,
+  );
+}
 export const createTestCharacters = (): { papa: CharacterAsset; baby: CharacterAsset } => ({
   papa: createTestPapa(),
   baby: createTestBaby(),

@@ -2,11 +2,17 @@ import { asSimMs } from '@shared/time';
 import type { BabySlice, PapaSlice } from '@sim';
 import { type Mesh, Scene, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createTestBaby } from '../../../../tests/support/testCharacters.ts';
+import { createTestBaby, createTestLife } from '../../../../tests/support/testCharacters.ts';
 import { createBlobKit } from '../blobShadow.ts';
 import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
-import { BABY_CARRIED_HEIGHT_M, type BabyPose, babyPoseAt, createBabyView } from './babyView.ts';
+import {
+  BABY_CARRIED_HEIGHT_M,
+  BABY_LIFE_BONES,
+  type BabyPose,
+  babyPoseAt,
+  createBabyView,
+} from './babyView.ts';
 import { createCharacterRig } from './characterRig.ts';
 
 const TOON_TONES = [96, 178, 255];
@@ -31,6 +37,7 @@ function baby(patch: Partial<BabySlice> = {}): BabySlice {
     approachSpeedMps: 0,
     cryStartedAt: null,
     cryEndsAt: null,
+    downstairsUntil: null,
     ...patch,
   };
 }
@@ -64,7 +71,8 @@ describe('babyPoseAt', () => {
 });
 
 describe('createBabyView', () => {
-  const MOTION = { turnRateDegPerSec: 360, clips: [{ clip: 'crawl', speedMps: 0.6 }] };
+  const MOTION = { clips: [{ clip: 'crawl', speedMps: 0.6 }] };
+  const LIFE = createTestLife();
 
   function build(radiusM = 0.2) {
     const scene = new Scene();
@@ -72,8 +80,8 @@ describe('createBabyView', () => {
     const rig = createCharacterRig(
       createTestBaby(),
       toon,
-      100,
       createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
+      BABY_LIFE_BONES,
     );
     const view = createBabyView(scene, createBlobKit(), radiusM, rig, MOTION);
     return { scene, toon, rig, view };
@@ -94,31 +102,70 @@ describe('createBabyView', () => {
     expect(body.position.y).toBe(0);
   });
 
-  it('turns the head to the gaze at once, and the body at the turn rate; the shadow keeps its orientation', () => {
+  it('turns the head to the gaze at once, and the body on its spring; the shadow keeps its orientation', () => {
     const { scene, view } = build();
     view.update(baby({ gazeX: 0, gazeZ: 1 }), 1);
     const looking = baby({ gazeX: 1, gazeZ: 0 });
     view.update(looking, 1);
-    view.animate(looking, 125); // 360 °/s for 125 ms is 45°
     const body = scene.getObjectByName('baby') as Mesh;
     const head = scene.getObjectByName('head') as Mesh;
-    expect(body.rotation.y).toBeCloseTo(Math.PI / 4, 12);
-    // Body and head together are the gaze: it never waits for the body.
+    view.animate(looking, 120, LIFE);
+    expect(body.rotation.y).toBeGreaterThan(0.1);
+    expect(body.rotation.y).toBeLessThan(Math.PI / 2);
+    expect(view.bodyYawRad).toBe(body.rotation.y);
+    // Body and head together are the gaze: it never waits for the body, nor swings with it (story 7.8).
     expect(body.rotation.y + head.rotation.y).toBeCloseTo(Math.PI / 2, 12);
+    for (let i = 0; i < 30; i++) {
+      view.animate(looking, 10, LIFE);
+      expect(body.rotation.y + head.rotation.y).toBeCloseTo(Math.PI / 2, 12);
+    }
     expect((scene.getObjectByName('blob_baby') as Mesh).rotation.y).toBe(0);
-    view.animate(looking, 1000);
-    expect(body.rotation.y).toBeCloseTo(Math.PI / 2, 12);
-    expect(head.rotation.y).toBeCloseTo(0, 12);
+    view.animate(looking, 5000, LIFE);
+    expect(body.rotation.y).toBeCloseTo(Math.PI / 2, 9);
+    expect(head.rotation.y).toBeCloseTo(0, 9);
+  });
+
+  it('swings past a 90° turn by at most overshootMaxDeg and settles; under reduced motion it never passes (D5, D11)', () => {
+    const peakYawOf = (life: ReturnType<typeof createTestLife>): number => {
+      const { scene, view } = build();
+      view.update(baby({ gazeX: 0, gazeZ: 1 }), 1);
+      const looking = baby({ gazeX: 1, gazeZ: 0 });
+      view.update(looking, 1);
+      const body = scene.getObjectByName('baby') as Mesh;
+      let peak = 0;
+      for (let i = 0; i < 100; i++) {
+        view.animate(looking, 10, life);
+        peak = Math.max(peak, body.rotation.y);
+      }
+      expect(body.rotation.y).toBeCloseTo(Math.PI / 2, 2);
+      return peak;
+    };
+    const { overshootMaxDeg } = LIFE.characters.turn;
+    const overshootDeg = (peak: number): number => (peak * 180) / Math.PI - 90;
+    expect(overshootDeg(peakYawOf(LIFE))).toBeGreaterThan(1);
+    expect(overshootDeg(peakYawOf(LIFE))).toBeLessThanOrEqual(overshootMaxDeg + 1e-6);
+    expect(overshootDeg(peakYawOf(createTestLife({ isMotionReduced: true })))).toBeLessThan(1e-6);
+  });
+
+  it('breathes over his clip on the sim clock, and not under reduced motion (story 7.8)', () => {
+    const { view } = build();
+    view.update(baby(), 1);
+    view.animate(baby(), LIFE.characters.breath.periodMs / 4, LIFE);
+    expect(view.breathDeg).toBeCloseTo(LIFE.characters.breath.babyAmplitudeDeg, 6);
+    view.animate(baby(), 0, LIFE);
+    expect(view.breathDeg).toBeCloseTo(LIFE.characters.breath.babyAmplitudeDeg, 6);
+    view.animate(baby(), 10, createTestLife({ isMotionReduced: true }));
+    expect(view.breathDeg).toBe(0);
   });
 
   it('plays the loop of his state, and his cry over any of them', () => {
     const { view } = build();
     view.update(baby(), 1);
-    view.animate(baby({ state: 'wander' }), 10);
+    view.animate(baby({ state: 'wander' }), 10, LIFE);
     expect(view.clipName).toBe('crawl');
-    view.animate(baby({ state: 'targetLocked' }), 10);
+    view.animate(baby({ state: 'targetLocked' }), 10, LIFE);
     expect(view.clipName).toBe('locked');
-    view.animate(baby({ state: 'wander', cryEndsAt: asSimMs(9000) }), 10);
+    view.animate(baby({ state: 'wander', cryEndsAt: asSimMs(9000) }), 10, LIFE);
     expect(view.clipName).toBe('cry');
   });
 
@@ -128,7 +175,7 @@ describe('createBabyView', () => {
     expect(lids.scale.y).toBeLessThan(0.05);
     view.setEyelids(1);
     view.update(baby(), 1);
-    view.animate(baby(), 100);
+    view.animate(baby(), 100, LIFE);
     expect(lids.scale.y).toBe(1);
     view.setEyelids(0.5);
     expect(lids.scale.y).toBe(0.5);

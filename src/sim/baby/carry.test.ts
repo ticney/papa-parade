@@ -400,6 +400,8 @@ describe('taking the baby cancels the threats aimed at him (rule 7)', () => {
     const threat = world.threats[0];
     if (threat === undefined) throw new Error('no outlet');
     runUntil(gagged, () => threat.state === 'gag');
+    // The outlet's séquelle holds Papa for 1.5 s (story 3.15): the take waits for him, the cooldown outlasts it.
+    runUntil(gagged, () => world.papa.state === 'idle');
     tapBaby(gagged);
     const events = stepEvents(gagged);
     expect(ofType(events, 'BabyPickedUp')).toHaveLength(1);

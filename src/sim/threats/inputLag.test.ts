@@ -3,8 +3,8 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
-  createTestContent,
   createTestGeometry,
   createTestLevel,
   OUTLET,
@@ -20,7 +20,8 @@ import type { ThreatInstance } from '../world.ts';
 // so a press reaches the sim `lagMs` after the instant its `t` names. The sim waits that long before
 // it decides what no command has come to say. Bounds come from the frozen feel, never from literals.
 
-const content = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const content = createTestContentWithoutCatastrophe();
 const geometry = createTestGeometry();
 const { input } = content.feel;
 const HOLD_UNTIL_MS = 1500;
@@ -99,7 +100,7 @@ describe('SetInputLag', () => {
     expect(sim.journal().entries.map((entry) => entry.command.type)).toContain('SetInputLag');
     const snapshot = sim.snapshot();
     expect(snapshot.world.input.lagMs).toBe(180);
-    expect(snapshot.version).toBe(28);
+    expect(snapshot.version).toBe(34);
   });
 });
 

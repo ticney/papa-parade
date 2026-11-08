@@ -39,4 +39,14 @@ export function tidyProp(world: World, ctx: StepContext, propIndex: number): voi
   prop.isMess = false;
   world.score.propsTidied += 1;
   ctx.events.push({ type: 'PropTidied', t: world.time.sim, propId: prop.id });
+  // A debris of the coffee table's gag is no debris once tidied, picked up or by the final rush (story 3.15).
+  if (prop.debrisPickUpMs > 0) {
+    prop.debrisPickUpMs = 0;
+    ctx.events.push({
+      type: 'AfterEffectEnded',
+      t: world.time.sim,
+      kind: 'debris',
+      propId: prop.id,
+    });
+  }
 }

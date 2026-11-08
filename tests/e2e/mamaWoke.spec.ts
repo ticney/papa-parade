@@ -1,6 +1,8 @@
 import { expect, type Page, test } from '@playwright/test';
+import { mamaReactionsOf } from '../../src/sim/scoring/mamaReactions.ts';
 import {
   advanceToEnd,
+  appUrl,
   collectProblems,
   cueCount,
   emulateReducedMotion,
@@ -8,6 +10,8 @@ import {
   html,
   liveFeedback,
   liveFeel,
+  mamaHapticsOf,
+  passReplayToActions,
   recordVibrations,
   THREATS_OFF,
   vibrations,
@@ -54,7 +58,7 @@ const hasVibrate = (): boolean => test.info().project.name === 'chromium';
  */
 async function openLoud(page: Page): Promise<{ cues: number; vibrationCount: number }> {
   await recordVibrations(page);
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -82,9 +86,7 @@ const waitForInputGrace = (page: Page): Promise<void> =>
   page.waitForTimeout(liveFeedback.resultScreen.inputGraceMs + GRACE_MARGIN_MS);
 
 async function waitForActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page, SEQUENCE_TIMEOUT_MS);
   await waitForInputGrace(page);
 }
 
@@ -147,9 +149,14 @@ test.describe('Mama wakes', () => {
     const before = await openLoud(page);
     const scored = await wake(page);
     await waitForActions(page);
-    // The photo's shutter (story 3.6), the door-slam cue, each earned star, each lost star: no other
-    // cue between the two screens, and Mama's header comes after the photo, not before it.
-    expect(await cueCount(page)).toBe(before.cues + 1 + 1 + scored.stars + scored.lostStars);
+    // The photo's shutter (story 3.6), one cue for each of Mama's reactions (story 3.7: a woken Mama always
+    // screams, so at least one), the door-slam cue, each earned star, each lost star: no other cue between
+    // the two screens, and Mama's header comes after the photo and her reactions, not before.
+    const reactions = mamaReactionsOf(scored as never, 'mamaWoke');
+    expect(reactions.map(({ reaction }) => reaction)).toContain('scream');
+    expect(await cueCount(page)).toBe(
+      before.cues + 1 + reactions.length + 1 + scored.stars + scored.lostStars,
+    );
     if (hasVibrate()) {
       const shutter = hapticPatternOf('PhotoTaken');
       const slam = hapticPatternOf('ResultMamaWokeShown');
@@ -161,6 +168,7 @@ test.describe('Mama wakes', () => {
       expect(lostLight).not.toBeNull();
       expect((await vibrations(page)).slice(before.vibrationCount)).toEqual([
         shutter,
+        ...mamaHapticsOf(reactions),
         slam,
         ...Array.from({ length: scored.stars - 1 }, () => light),
         heavy,
@@ -172,11 +180,16 @@ test.describe('Mama wakes', () => {
   test('a skip places the lost star silently: no lost-star cue, no stamp', async ({ page }) => {
     const before = await openLoud(page);
     const scored = await wake(page);
-    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
-    // The shutter played with the photo (story 3.6) and the door slam plays when the header comes up,
-    // with the rows; nothing after it on a skip.
+    // Behind the photo's hold and Mama's reactions (story 3.7).
+    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+      timeout: SEQUENCE_TIMEOUT_MS,
+    });
+    // The shutter played with the photo (story 3.6), then Mama's reactions (story 3.7), and the door slam plays
+    // when the header comes up, with the rows; nothing after it on a skip.
     const cuesAfterOpen = await cueCount(page);
-    expect(cuesAfterOpen).toBe(before.cues + 1 + 1);
+    expect(cuesAfterOpen).toBe(
+      before.cues + 1 + mamaReactionsOf(scored as never, 'mamaWoke').length + 1,
+    );
     const vibrationsAfterOpen = hasVibrate() ? (await vibrations(page)).length : 0;
     await waitForInputGrace(page);
     await expect(html(page)).toHaveAttribute('data-pp-result', /rows|stars/);
@@ -242,6 +255,8 @@ test.describe('Mama wakes', () => {
 
   for (const viewport of [
     { width: 844, height: 390 },
+    // The smallest landscape phone the UX names, just above the 360px tightening (story 3.12 review).
+    { width: 667, height: 375 },
     { width: 750, height: 340 },
   ]) {
     test(`fits ${viewport.width} × ${viewport.height} with the header, without scrolling`, async ({
@@ -272,7 +287,7 @@ test.describe('Mama wakes', () => {
 
   test('a timer end has no header, no lost star and the reason timer', async ({ page }) => {
     // No threat: a level nobody plays would wake Mama before its end (the table's props make noise, story 3.5).
-    await page.goto(`/${THREATS_OFF}`);
+    await page.goto(appUrl(`/${THREATS_OFF}`));
     await waitForTestApi(page);
     await ppFreeze(page, true);
     await ppLoadLevel(page, LEVEL, SEED);

@@ -1,7 +1,6 @@
 import type { ThreatDef } from '@content/schemas/threat';
-import { instinctWindowModifier } from '../assist/paternalInstinct.ts';
 import type { StepContext } from '../context.ts';
-import { activeDifficulty } from '../timing/difficulty.ts';
+import { heldSpanMs, plannedWindowMs } from '../director/fairness.ts';
 import type { World } from '../world.ts';
 
 /**
@@ -26,13 +25,10 @@ export function isJudgeableBeforeEnd(
     // A `nothing` counts `nothingMs`, which no tier, fatigue or instinct scales (story 4.9), and has no tolerance.
     return now + delayMs + (def.nothingMs ?? 0) <= endMs;
   }
-  const judgedByMs =
-    now +
-    delayMs +
-    (def.maxDelayMs ?? 0) +
-    (def.windowMs ?? timing.windowMs) *
-      activeDifficulty(world, ctx).windowMultiplier *
-      instinctWindowModifier(world, ctx) +
-    timing.toleranceMs;
+  // A Firmness is judged when its hold ends, not when its window closes (story 9.7 review).
+  const windowMs = plannedWindowMs(world, ctx, def);
+  const answerMs = windowMs + timing.toleranceMs;
+  const holdMs = heldSpanMs(def, windowMs, timing.toleranceMs, ctx.feel.input.holdMinMs);
+  const judgedByMs = now + delayMs + (def.maxDelayMs ?? 0) + Math.max(answerMs, holdMs);
   return judgedByMs <= endMs;
 }

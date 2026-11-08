@@ -1,16 +1,19 @@
+import type { ChoreStationKind } from '@content/schemas/chore';
 import type { BeatEntry, ComboSlice, StealthSlice, ThreatInstance, World } from '@sim';
 import type { Camera, Scene } from 'three';
 import { Scene as ThreeScene } from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { type ActivityBubble, type ActivityPapa, createActivityBubble } from './activityBubble.ts';
 import { type BeatRing, createBeatRing } from './beatRing.ts';
 import { type BreathRing, createBreathRing } from './breathRing.ts';
+import type { ChronoRing } from './chronoRing.ts';
 import { type ComboBadge, type ComboBadgeOptions, createComboBadge } from './comboBadge.ts';
 import { createGlyphChip, type GlyphChip } from './glyphChip.ts';
-import { createObjectMarkers, type ObjectMarkerSpec } from './objectMarkers.ts';
+import { createObjectMarkers, type ObjectMarkers } from './objectMarkers.ts';
 import { createPapaHint, type PapaHint } from './papaHint.ts';
 import { createStealthExitMarker, type StealthExitMarker } from './stealthExitMarker.ts';
 import { createTapMarker, type TapMarker } from './tapMarker.ts';
-import { createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
+import { type ChronoDraw, createThreatMarkers, type ThreatMarkerEntry } from './threatMarkers.ts';
 import { createTidyMarkers } from './tidyMarkers.ts';
 import { createBrowserVerbMetrics, type VerbMetrics } from './verbMetrics.ts';
 
@@ -37,6 +40,24 @@ export interface WorldUi {
     approachMs: number,
     papa: Readonly<{ xM: number; zM: number }> | null,
   ): void;
+  /** The bubble above a busy Papa, with its ring draining to `busyUntil` (story 2.12). */
+  readonly activityBubble: ActivityBubble;
+  /**
+   * Once per frame, before `updateCombo` (the badge moves to the bubble's right while it shows) and `render`:
+   * the activity bubble from the world's Papa (not the pose: he is hidden on the toilet), the sim time as
+   * drawn and the real time of the frame. It steps left while a threat that follows Papa is up and holds the
+   * centre. Allocation-free.
+   */
+  updateActivity(
+    papa: Readonly<ActivityPapa> | null,
+    renderSimMs: number,
+    threats: readonly Readonly<ThreatInstance>[],
+    nowAtReal: number,
+    choreProgressPct?: number,
+    choreStation?: ChoreStationKind | null,
+  ): void;
+  /** A tap on a threat was refused: the bubble shakes (story 2.12). */
+  shakeActivity(nowAtReal: number): void;
   /** The ring of breath around Papa during a stealth step (story 4.9). */
   readonly breathRing: BreathRing;
   /**
@@ -52,6 +73,17 @@ export interface WorldUi {
   readonly stealthExitMarker: StealthExitMarker;
   /** Mounts the threat icons of a level, replacing the previous level's (all hidden until a frame shows them). */
   mountThreats(entries: readonly ThreatMarkerEntry[]): void;
+  /**
+   * The chrono-ring geometry (story 2.11) the marker of `threatId` holds, as drawn at its last telegraph: the
+   * judged mirror reads the per-mille the ring would draw at a press instant from it. Null for a threat with
+   * no ring, or one not drawn yet. The marker's own object: allocation-free.
+   */
+  chronoRingOf(threatId: number): Readonly<ChronoRing> | null;
+  /**
+   * What the marker of `threatId` drew of its chrono-ring in the last `updateThreats` (story 9.3): the
+   * off-screen bubble draws the same. Null when it draws none. One record, rewritten at each call.
+   */
+  chronoDrawOf(threatId: number): Readonly<ChronoDraw> | null;
   /** Removes the threat icons (a restart hides the old ones before its countdown). */
   unmountThreats(): void;
   /**
@@ -88,8 +120,11 @@ export interface WorldUi {
    * `PapaHint.update`). `nowAtReal` is the real time of the frame, in ms. Allocation-free.
    */
   updatePapaHint(papa: Readonly<{ xM: number; zM: number }> | null, nowAtReal: number): void;
-  /** Mounts the icons of the level's interactive objects (the coffee machine, the toilet door), replacing the previous level's. */
-  mountObjects(objects: readonly ObjectMarkerSpec[]): void;
+  /**
+   * Mounts the icons of the level's interactive objects (the coffee machine, the toilet door), replacing the previous level's.
+   * `stationVerbs` are the translated verbs of each station's beats (story 9.5).
+   */
+  mountObjects: ObjectMarkers['mount'];
   /** Removes the object icons. */
   unmountObjects(): void;
   /**
@@ -98,6 +133,14 @@ export interface WorldUi {
    * `isToiletOccupied` Papa being on the toilet.
    */
   updateObjects(isCoffeeUrgent: boolean, isToiletUrgent: boolean, isToiletOccupied: boolean): void;
+  /**
+   * Once per frame, before `render`, in a level with chores (story 9.4): the chrono-ring of each station's
+   * announced beat and its done look, from the world's chores and the sim time as drawn. True when an arc lit in
+   * this frame (the caller plays `ChronoArcLit`). Allocation-free.
+   */
+  updateChores: ObjectMarkers['updateChores'];
+  /** What the ring of a chore's station drew in the last `updateChores` (the tests'). */
+  choreRingDrawOf: ObjectMarkers['choreRingDrawOf'];
   /** Mounts one « RANGE ! » marker per prop of the level (`world.props` order), replacing the previous level's (story 3.5). */
   mountTidy(propCount: number): void;
   /** Removes the tidy markers. */
@@ -121,9 +164,10 @@ export interface WorldUi {
   refitVerbs(): void;
   /**
    * Places the elements for this frame's camera: first the verb layout (the verbs that would overlap
-   * are offset, the most urgent threat is in front) and the chip beside its verb, then the DOM renderer.
+   * are offset, the most urgent threat is in front; every verb, a station's too, is kept inside the layer
+   * and under the HUD's top row) and the chip beside its verb, then the DOM renderer.
    * Returns at once, without calling the DOM renderer, while nothing in the layer is visible (no tap
-   * marker, no threat icon, no object icon, no chip, no combo badge, no papa hint).
+   * marker, no threat icon, no object icon, no chip, no combo badge, no papa hint, no activity bubble).
    */
   render(camera: Camera): void;
   dispose(): void;
@@ -155,7 +199,12 @@ export function createWorldUi(
     return verbMetrics;
   });
   let layerWidthPx = 0;
-  const objects = createObjectMarkers(scene, doc);
+  let layerHeightPx = 0;
+  // The stations' rings hang from the icon's size on the current surface (story 9.4): the page's, read lazily.
+  const objects = createObjectMarkers(scene, doc, () => {
+    verbMetrics ??= createBrowserVerbMetrics();
+    return verbMetrics;
+  });
   // After the markers above it (index 4) and before the object markers, which moved up to 5+ with
   // it: the earlier children keep their places (a test reads them by index).
   const beatRing = createBeatRing(scene, doc, { isMotionReduced: comboOptions.isMotionReduced });
@@ -164,6 +213,20 @@ export function createWorldUi(
   const stealthExitMarker = createStealthExitMarker(scene, doc, comboOptions.translate);
   // After the exit marker: the earlier children keep their places (a test reads them by index).
   const tidyMarkers = createTidyMarkers(scene, doc, comboOptions.translate);
+  // Last: the earlier children keep their places (tests read them by index).
+  const activityBubble = createActivityBubble(scene, doc, {
+    isMotionReduced: comboOptions.isMotionReduced,
+  });
+  // A threat that follows Papa (the micro-sleep, the cry in the arms) is up: it holds the centre above him.
+  const isFollowingThreatUp = (threatInstances: readonly Readonly<ThreatInstance>[]): boolean => {
+    const entries = threats.entries;
+    for (let i = 0; i < entries.length; i++) {
+      if (!entries[i]?.followsPapa) continue;
+      const state = threatInstances[i]?.state;
+      if (state === 'telegraph' || state === 'windowOpen') return true;
+    }
+    return false;
+  };
   return {
     scene,
     tapMarker,
@@ -179,25 +242,39 @@ export function createWorldUi(
       breathRing.update(stealth, breathCapacityMs, papa);
       stealthExitMarker.update(stealth);
     },
+    activityBubble,
+    updateActivity(papa, renderSimMs, threatInstances, nowAtReal, choreProgressPct, choreStation) {
+      activityBubble.update(
+        papa,
+        renderSimMs,
+        isFollowingThreatUp(threatInstances),
+        nowAtReal,
+        choreProgressPct,
+        choreStation,
+      );
+    },
+    shakeActivity: activityBubble.shake,
     updateCombo(combo, minMultiplier, papa, threatInstances, nowAtReal) {
-      const entries = threats.entries;
-      let isAside = false;
-      for (let i = 0; i < entries.length; i++) {
-        if (!entries[i]?.followsPapa) continue;
-        const state = threatInstances[i]?.state;
-        if (state === 'telegraph' || state === 'windowOpen') {
-          isAside = true;
-          break;
-        }
-      }
-      comboBadge.update(combo.multiplier, minMultiplier, papa, isAside, nowAtReal);
+      comboBadge.update(
+        combo.multiplier,
+        minMultiplier,
+        papa,
+        isFollowingThreatUp(threatInstances),
+        nowAtReal,
+        // Visible, not active: the badge keeps its place beside the bubble until the pop is over.
+        activityBubble.isVisible,
+      );
     },
     mountThreats: threats.mount,
     unmountThreats: threats.unmount,
     updateThreats: threats.update,
+    chronoRingOf: threats.chronoRing,
+    chronoDrawOf: threats.chronoDrawOf,
     mountObjects: objects.mount,
     unmountObjects: objects.unmount,
     updateObjects: objects.update,
+    updateChores: objects.updateChores,
+    choreRingDrawOf: objects.choreRingDrawOf,
     mountTidy: tidyMarkers.mount,
     unmountTidy: tidyMarkers.unmount,
     updateTidy: tidyMarkers.update,
@@ -208,11 +285,14 @@ export function createWorldUi(
       renderer.setSize(widthPx, heightPx);
       threats.setSize(widthPx, heightPx);
       layerWidthPx = widthPx;
+      layerHeightPx = heightPx;
       papaHint.refit(widthPx);
+      objects.refit(widthPx, heightPx);
     },
     refitVerbs() {
       threats.refit();
       papaHint.refit(layerWidthPx);
+      objects.refit(layerWidthPx, layerHeightPx);
     },
     render(camera) {
       if (
@@ -226,13 +306,15 @@ export function createWorldUi(
           beatRing.isVisible ||
           breathRing.isVisible ||
           stealthExitMarker.isVisible ||
-          tidyMarkers.isAnyVisible
+          tidyMarkers.isAnyVisible ||
+          activityBubble.isVisible
         )
       ) {
         return;
       }
       // Before the DOM renderer: the layout writes the offsets and the z-indices it places.
       threats.layout(camera);
+      objects.layout(camera);
       papaHint.layout(camera);
       glyphChip.refresh();
       renderer.render(scene, camera);
@@ -246,6 +328,7 @@ export function createWorldUi(
       breathRing.dispose();
       stealthExitMarker.dispose();
       tidyMarkers.dispose();
+      activityBubble.dispose();
       threats.dispose();
       objects.dispose();
     },

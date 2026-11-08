@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { LevelContent } from '@content/contentBundle';
 import { parseContentFile } from '@content/parseContentFile';
+import { type ChoreDef, ChoreDefSchema } from '@content/schemas/chore';
 import { LevelSchema } from '@content/schemas/level';
 import { type SequenceDef, SequenceDefSchema } from '@content/schemas/sequence';
 import {
@@ -32,6 +33,7 @@ import { createTestContent, createTestGeometry } from '../support/testContent.ts
 const THREATS_DIR = fileURLToPath(new URL('../../content/threats/', import.meta.url));
 const LEVELS_DIR = fileURLToPath(new URL('../../content/levels/', import.meta.url));
 const SEQUENCES_DIR = fileURLToPath(new URL('../../content/sequences/', import.meta.url));
+const CHORES_DIR = fileURLToPath(new URL('../../content/chores/', import.meta.url));
 const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));
 
 /**
@@ -43,6 +45,23 @@ const FIXTURE_ANCHORS: Readonly<Record<string, string>> = {
   test_firm: 'door',
   test_wait: 'phone',
 };
+
+/** How long the catalogue's chore must be abandoned before its pot starts, in sim ms (a short wait, the live one is 30 s). */
+const STATION_AFTER_MS = 1000;
+
+/**
+ * Where the catalogue puts the dishwasher and its open door (story 9.6): a floor point of the frozen room that
+ * no live def uses and no fixture takes (`FIXTURE_ANCHORS`). The live dishwasher's own anchor is not in this room.
+ */
+const DOOR_STATION_ANCHOR = 'baby_spawn';
+
+/**
+ * Where the catalogue plays a def that only the big salon plans (story 9.7: the five mischiefs of the kitchen and
+ * the dining corner, at anchors the frozen room does not have): a floor point of the frozen room that no live def
+ * uses, no fixture takes and no object stands on. An anchor is planned once per level, so `levelPlanning` plans
+ * only the tested one there, and leaves the other kitchen-only defs out of that level (they are not its subject).
+ */
+const KITCHEN_CATALOG_ANCHOR = 'toilet';
 
 /** A release time beyond every case's horizon: the other defs stay idle while one is tested. */
 const CATALOG_OTHERS_FROM_MS = 600_000;
@@ -78,6 +97,8 @@ const frozenAnchorIds = new Set(
   [...frozenRoom.anchors, ...frozenRoom.zones].map((point) => point.id),
 );
 const anchors = new Map<string, string>();
+/** The defs a live level plans at some anchor, the frozen room's or not: what is left of `anchors` is the big salon's own. */
+const plannedAtAnyAnchor = new Set<string>();
 /**
  * The defs a live level spawns on Papa (`gauges.fatigue.microSleepDef`, `carry.armsCryDef`): they
  * have no anchor.
@@ -95,6 +116,18 @@ const duelDefs = new Set<string>();
  * and a real wake (a `parry`), both on `target: "baby"`, which no wave can plan.
  */
 const stealthDefs = new Set<string>();
+/**
+ * The ones a live chore turns into when it is abandoned (story 9.5), on `target: "station"`: no wave plans
+ * them, they come when the chore has been `paused` for the chore's `afterMs`, so they are tested through a
+ * level with the chore (its own, with a short `afterMs`).
+ */
+const stationDefs = new Map<string, ChoreDef>();
+/**
+ * The ones a live chore names as its open door (`openThreat`, story 9.6), on a normal `anchor` target: a wave plans
+ * them, but the director draws them only while the chore is paused with its door open, so they are tested through
+ * a level with the chore (Papa opens the station and walks away).
+ */
+const doorDefs = new Map<string, ChoreDef>();
 let liveStealthSequence: SequenceDef | undefined;
 for (const name of readdirSync(LEVELS_DIR).sort()) {
   if (!name.endsWith('.json') || name.endsWith('.geometry.json')) continue;
@@ -102,9 +135,19 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
   const parsed = parseContentFile(`content/levels/${name}`, text, LevelSchema);
   if (!parsed.ok) throw new Error(`${name} is invalid: ${JSON.stringify(parsed.error)}`);
   for (const entry of parsed.value.waves.flatMap((wave) => wave.threats)) {
+    plannedAtAnyAnchor.add(entry.def);
     if (!anchors.has(entry.def) && frozenAnchorIds.has(entry.anchor)) {
       anchors.set(entry.def, entry.anchor);
     }
+  }
+  for (const entry of parsed.value.chores ?? []) {
+    const choreText = readFileSync(`${CHORES_DIR}${entry.def}.json`, 'utf8');
+    const chore = parseContentFile(`content/chores/${entry.def}.json`, choreText, ChoreDefSchema);
+    if (!chore.ok) throw new Error(`${entry.def} is invalid: ${JSON.stringify(chore.error)}`);
+    if (chore.value.abandonedThreat !== undefined) {
+      stationDefs.set(chore.value.abandonedThreat.def, chore.value);
+    }
+    if (chore.value.openThreat !== undefined) doorDefs.set(chore.value.openThreat, chore.value);
   }
   const microSleepDef = parsed.value.gauges.fatigue?.microSleepDef;
   if (microSleepDef !== undefined) spawnedOnPapa.add(microSleepDef);
@@ -138,6 +181,22 @@ for (const name of readdirSync(LEVELS_DIR).sort()) {
     }
   }
 }
+
+/**
+ * The anchored defs only the big salon plans, at anchors the frozen room lacks (story 9.7). The open door of a chore
+ * has its own station level (`doorDefs`), so it is not one of them.
+ */
+const kitchenOnlyDefs = new Set(
+  liveDefs
+    .filter(
+      (def) =>
+        def.target === 'anchor' &&
+        plannedAtAnyAnchor.has(def.id) &&
+        !anchors.has(def.id) &&
+        !doorDefs.has(def.id),
+    )
+    .map((def) => def.id),
+);
 
 /** The cry in the arms a duel level carries with (the schema asks for one): the first a live level has. */
 const CARRY_CRY_DEF = [...armsCryDefs][0] ?? 'arms_cry';
@@ -230,8 +289,9 @@ function anchorOf(def: ThreatDef): string {
     return fixtureAnchor;
   }
   const anchor = anchors.get(def.id);
-  if (anchor === undefined) throw new Error(`"${def.id}" is planned by no level`);
-  return anchor;
+  if (anchor !== undefined) return anchor;
+  if (kitchenOnlyDefs.has(def.id)) return KITCHEN_CATALOG_ANCHOR;
+  throw new Error(`"${def.id}" is planned by no level`);
 }
 
 /**
@@ -240,7 +300,15 @@ function anchorOf(def: ThreatDef): string {
  * `contentFor` makes it due at once.
  */
 function levelPlanning(tested: ThreatDef): LevelContent {
-  const anchored = defs.filter((def) => def.target !== 'papa' && def.target !== 'baby');
+  const anchored = defs.filter(
+    (def) =>
+      def.target !== 'papa' &&
+      def.target !== 'baby' &&
+      def.target !== 'station' &&
+      !doorDefs.has(def.id) &&
+      // Only the tested one of the big salon's own defs: they would share `KITCHEN_CATALOG_ANCHOR`.
+      (!kitchenOnlyDefs.has(def.id) || def === tested),
+  );
   const planned = (def: ThreatDef) => ({ def: def.id, anchor: anchorOf(def) });
   if (duelDefs.has(tested.id)) {
     const cry = defs.find((def) => def.id === CARRY_CRY_DEF);
@@ -254,12 +322,71 @@ function levelPlanning(tested: ThreatDef): LevelContent {
         gauges: {},
         carry: { armsCryDef: cry.id },
         sequences: ['catalog_duel'],
+        camera: 'fixed',
         feelOverrides: {},
         waves: [],
       },
       threats: Object.fromEntries([tested, cry].map((def) => [def.id, def])),
       disruptions: {},
       sequences: { catalog_duel: duelSequenceOf(tested) },
+    };
+  }
+  const stationChore = stationDefs.get(tested.id);
+  if (stationChore !== undefined) {
+    // The chore of a live level, the stove at a floor point of the frozen room, a short wait.
+    const chore: ChoreDef = {
+      ...stationChore,
+      abandonedThreat: { def: tested.id, afterMs: STATION_AFTER_MS },
+    };
+    return {
+      level: {
+        id: 'salon_crawler',
+        variant: 'nap' as const,
+        durationMs: CATALOG_OTHERS_FROM_MS,
+        objects: [{ id: 'stove', kind: 'stove' as const, anchor: 'stairs_top' }],
+        chores: [{ def: chore.id, object: 'stove' }],
+        gauges: {},
+        sequences: [],
+        camera: 'fixed',
+        feelOverrides: {},
+        waves: [],
+      },
+      threats: { [tested.id]: tested },
+      disruptions: {},
+      sequences: {},
+      chores: [chore],
+    };
+  }
+  const doorChore = doorDefs.get(tested.id);
+  if (doorChore !== undefined) {
+    // The chore of a live level, its station at a floor point of the frozen room, the door planned there.
+    return {
+      level: {
+        id: 'salon_crawler',
+        variant: 'nap' as const,
+        durationMs: CATALOG_OTHERS_FROM_MS,
+        objects: [{ id: 'dishwasher', kind: doorChore.station, anchor: DOOR_STATION_ANCHOR }],
+        chores: [{ def: doorChore.id, object: 'dishwasher' }],
+        gauges: {},
+        sequences: [],
+        camera: 'fixed',
+        feelOverrides: {},
+        waves: [
+          {
+            fromMs: 0,
+            maxSimultaneous: 2,
+            gapMinMs: 0,
+            gapMaxMs: 0,
+            lullMs: 0,
+            threats: [{ def: tested.id, anchor: DOOR_STATION_ANCHOR }],
+            disruptions: [],
+          },
+        ],
+      },
+      threats: { [tested.id]: tested },
+      disruptions: {},
+      sequences: {},
+      chores: [doorChore],
     };
   }
   if (stealthDefs.has(tested.id)) {
@@ -275,6 +402,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
         gauges: {},
         carry: { armsCryDef: cry.id },
         sequences: [liveStealthSequence.id],
+        camera: 'fixed',
         feelOverrides: {},
         waves: [],
       },
@@ -293,6 +421,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
         gauges: {},
         carry: { armsCryDef: tested.id },
         sequences: [],
+        camera: 'fixed',
         feelOverrides: {},
         waves: [],
       },
@@ -310,6 +439,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
         objects: [],
         gauges: { fatigue: { microSleepDef: tested.id } },
         sequences: [],
+        camera: 'fixed',
         feelOverrides: {},
         waves: [],
       },
@@ -318,7 +448,8 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       sequences: {},
     };
   }
-  const wave = { maxSimultaneous: 1, gapMinMs: 0, gapMaxMs: 0, lullMs: 0, disruptions: [] };
+  // Two, not one: a silence counts for two against `maxSimultaneous` (story 3.13), and the catalog plans one.
+  const wave = { maxSimultaneous: 2, gapMinMs: 0, gapMaxMs: 0, lullMs: 0, disruptions: [] };
   return {
     level: {
       id: 'salon_crawler',
@@ -327,6 +458,7 @@ function levelPlanning(tested: ThreatDef): LevelContent {
       objects: [],
       gauges: {},
       sequences: [],
+      camera: 'fixed',
       feelOverrides: {},
       waves: [
         { ...wave, fromMs: 0, threats: [planned(tested)] },
@@ -469,6 +601,31 @@ async function telegraphed(
     const events = [...sim.drainEvents()];
     expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
     sim.world.sequence.stealth.nextAlertAt = asSimMs(CATALOG_OTHERS_FROM_MS);
+  } else if (stationDefs.has(def.id)) {
+    // Story 9.5: Papa starts the chore, leaves it, and the pot comes when the wait is over.
+    sim.enqueue({ type: 'TapObject', t: asSimMs(sim.world.time.sim), objectId: 'stove' });
+    for (let i = 0; i < 1000 && sim.world.chores[0]?.state !== 'working'; i++) sim.step();
+    expect(sim.world.chores[0]?.state).toBe('working');
+    sim.enqueue({ type: 'TapFloor', t: asSimMs(sim.world.time.sim), xM: 0, zM: 0 });
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 1000 && !events.some((e) => e.type === 'ThreatTelegraphed'); i++) {
+      sim.step();
+      events.push(...sim.drainEvents());
+    }
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
+  } else if (doorDefs.has(def.id)) {
+    // Story 9.6: Papa opens the dishwasher and walks away; the baby may now choose the open door.
+    sim.enqueue({ type: 'TapObject', t: asSimMs(sim.world.time.sim), objectId: 'dishwasher' });
+    for (let i = 0; i < 1000 && sim.world.chores[0]?.state !== 'working'; i++) sim.step();
+    expect(sim.world.chores[0]?.state).toBe('working');
+    expect(sim.world.chores[0]?.isOpen).toBe(true);
+    sim.enqueue({ type: 'TapFloor', t: asSimMs(sim.world.time.sim), xM: 0, zM: 0 });
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 1000 && !events.some((e) => e.type === 'ThreatTelegraphed'); i++) {
+      sim.step();
+      events.push(...sim.drainEvents());
+    }
+    expect(events.some((event) => event.type === 'ThreatTelegraphed')).toBe(true);
   } else if (armsCryDefs.has(def.id)) {
     // Papa takes the baby (he is in reach); the cry in the arms is telegraphed at the next step.
     sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) });
@@ -530,7 +687,9 @@ describe('the threat catalogue', () => {
           ? spawnedOnPapa.has(id)
           : target === 'baby'
             ? stealthDefs.has(id)
-            : anchors.has(id);
+            : target === 'station'
+              ? stationDefs.has(id)
+              : anchors.has(id) || doorDefs.has(id) || kitchenOnlyDefs.has(id);
       expect(planned, `"${id}" is planned by no level`).toBe(true);
     },
   );
@@ -543,6 +702,28 @@ describe('the threat catalogue', () => {
     for (const def of fixtureDefs) {
       expect(liveDefs.map((live) => live.id)).not.toContain(def.id);
       expect(def.target).toBe('anchor');
+    }
+  });
+
+  it("plays the big salon's own defs at one free anchor of the frozen room, a level apiece (story 9.7)", () => {
+    expect([...kitchenOnlyDefs].sort()).toEqual([
+      'bin_rummage',
+      'low_cabinet_open',
+      'papa_mug_low',
+      'plant_dig',
+      'tablecloth_pull',
+    ]);
+    expect(frozenAnchorIds.has(KITCHEN_CATALOG_ANCHOR)).toBe(true);
+    // Nothing else stands on it: no live def, no fixture, not the chore's station.
+    expect([...anchors.values()]).not.toContain(KITCHEN_CATALOG_ANCHOR);
+    expect(Object.values(FIXTURE_ANCHORS)).not.toContain(KITCHEN_CATALOG_ANCHOR);
+    expect(DOOR_STATION_ANCHOR).not.toBe(KITCHEN_CATALOG_ANCHOR);
+    // A level plans the tested one and no other kitchen-only def (an anchor is planned once per level).
+    for (const tested of kitchenOnlyDefs) {
+      const def = defs.find((candidate) => candidate.id === tested) as ThreatDef;
+      const planned = levelPlanning(def).level.waves.flatMap((wave) => wave.threats);
+      const atKitchenAnchor = planned.filter((entry) => entry.anchor === KITCHEN_CATALOG_ANCHOR);
+      expect(atKitchenAnchor.map((entry) => entry.def)).toEqual([tested]);
     }
   });
 
@@ -587,6 +768,8 @@ describe.each(
 )('threat %s at the %s tier', (_id, tier, def) => {
   // A Firmness judged on its release (story 4.8) is pressed early and judged on the release: its own set below.
   const release = def.release;
+  // Its marker covers its station's, so an early press is a glide, never a gag: a pot (story 9.5) or the open door of a chore (story 9.6, review).
+  const isOnStationMarker = def.target === 'station' || doorDefs.has(def.id);
 
   it('is perfect when answered at the centre of the window', async () => {
     const { sim, center, openAt, threatId } = await telegraphed(def, tier);
@@ -610,17 +793,34 @@ describe.each(
     expect(gags(events)).toEqual([]);
   });
 
-  it.skipIf(release !== undefined)('is a gag when answered too early', async () => {
-    const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);
-    const t = openAt - window.toleranceMs - window.bufferMs - 1;
-    sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
-    const events = runUntil(sim, openAt);
-    expect(results(events)).toEqual([
-      expect.objectContaining({ quality: 'fail', reason: 'early', offsetMs: t - center }),
-    ]);
-    expect(gags(events)).toEqual([expect.objectContaining({ reason: 'early', threatId })]);
-    expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
-  });
+  // A pot on the stove (story 9.5, review) and the open door of a chore (story 9.6, review) take an early
+  // press as a glide, whatever `earlyPress` says.
+  it.skipIf(release !== undefined || !isOnStationMarker)(
+    'ignores a press answered too early, on a station marker',
+    async () => {
+      const { sim, openAt, window, threatId } = await telegraphed(def, tier);
+      const t = openAt - window.toleranceMs - window.bufferMs - 1;
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+      const events = runUntil(sim, openAt);
+      expect(results(events)).toEqual([]);
+      expect(gags(events)).toEqual([]);
+    },
+  );
+
+  it.skipIf(release !== undefined || isOnStationMarker)(
+    'is a gag when answered too early',
+    async () => {
+      const { sim, center, openAt, window, threatId } = await telegraphed(def, tier);
+      const t = openAt - window.toleranceMs - window.bufferMs - 1;
+      sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId });
+      const events = runUntil(sim, openAt);
+      expect(results(events)).toEqual([
+        expect.objectContaining({ quality: 'fail', reason: 'early', offsetMs: t - center }),
+      ]);
+      expect(gags(events)).toEqual([expect.objectContaining({ reason: 'early', threatId })]);
+      expect(ThreatGagIds(def)).toContain((gags(events)[0] as { gag: string }).gag);
+    },
+  );
 
   it('is a gag when not answered in time', async () => {
     const { sim, enteredAt, openAt, window, threatId } = await telegraphed(def, tier);

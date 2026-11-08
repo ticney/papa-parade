@@ -1,6 +1,7 @@
 import { STEP_MS } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   createTestContent,
   createTestGeometry,
@@ -13,11 +14,17 @@ import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
 
 const DURATION_MS = 15_000;
-const content = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const content = createTestContentWithoutCatastrophe();
 const RUSH_AT = DURATION_MS - content.feel.endOfLevel.finalRushMs;
 /** How long a dropped mug is given to land and stop bouncing, after the push. */
 const DROP_SETTLE_MS = 1500;
-const SIGH_POINTS = content.feel.mama.sighPerPropOnFloorPoints;
+// A row is a whole number: half a point rounds up (story 3.12).
+// The sigh row of one prop on the floor, the only mess here: the row is rounded once over all the
+// props (story 3.12), so it is not a per-prop cost from any other count.
+const ONE_PROP_SIGH_POINTS = Math.round(
+  Math.min(content.feel.mama.sighPerPropOnFloorPoints, content.feel.mama.sighMaxPoints),
+);
 
 interface Options {
   finalRush?: boolean;
@@ -265,10 +272,10 @@ describe('the note (AC 12)', () => {
     };
     const untidied = await noteOf(false);
     const tidied = await noteOf(true);
-    expect(untidied?.sighPoints).toBe(SIGH_POINTS);
+    expect(untidied?.sighPoints).toBe(ONE_PROP_SIGH_POINTS);
     expect(tidied?.sighPoints).toBe(0);
-    expect((untidied?.sighPoints ?? 0) - (tidied?.sighPoints ?? 0)).toBe(SIGH_POINTS);
-    expect((tidied?.scorePoints ?? 0) - (untidied?.scorePoints ?? 0)).toBe(SIGH_POINTS);
+    expect((untidied?.sighPoints ?? 0) - (tidied?.sighPoints ?? 0)).toBe(ONE_PROP_SIGH_POINTS);
+    expect((tidied?.scorePoints ?? 0) - (untidied?.scorePoints ?? 0)).toBe(ONE_PROP_SIGH_POINTS);
   });
 });
 
@@ -334,7 +341,7 @@ describe('a snapshot in the middle of a rush walk (AC 23)', () => {
     tap(sim, 'mug_01');
     runTo(sim, sim.world.time.sim + 3 * STEP_MS);
     const snapshot = roundTrip(sim);
-    snapshot.world.flow = { state: 'playing', enteredAt: 0, finalRushAt: null };
+    snapshot.world.flow = { state: 'playing', enteredAt: 0, finalRushAt: null, endReason: null };
     expect(() => sim.restore(snapshot)).toThrow(/world\.papa\.objectId/);
   });
 

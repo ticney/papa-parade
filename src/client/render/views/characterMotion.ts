@@ -1,4 +1,4 @@
-import { STEP_MS } from '@shared/constants';
+import { ISO_YAW_DEG, STEP_MS } from '@shared/constants';
 
 /** How far a travelling clip may be slowed or sped up: past this its feet read as a glitch, not a pace. */
 const CLIP_TIME_SCALE_MIN = 0.3;
@@ -46,18 +46,45 @@ export function wrapAngleRad(angleRad: number): number {
   return (wrapped < 0 ? wrapped + FULL_TURN_RAD : wrapped) - Math.PI;
 }
 
+/** Where one of Papa's clips turns his body (`feedback.json › characters.papaClipFacing`). */
+export interface ClipFacing {
+  readonly clip: string;
+  readonly facing: 'camera' | 'awayFromBaby';
+}
+export type ClipFacings = readonly ClipFacing[];
+
+/** Papa and the baby closer than this, in metres, have no away: the angle between them is noise. */
+const FACING_BABY_MIN_DISTANCE_M = 0.05;
+const CAMERA_YAW_RAD = (ISO_YAW_DEG * Math.PI) / 180;
+
 /**
- * `fromRad` turned toward `toRad` by the shortest arc, by at most `turnRateDegPerSec` for `dtMs` of sim
- * time. A `dtMs` of 0 holds it, so a pause and a hitstop hold the turn too. Pure.
+ * The yaw Papa's drawn body turns to while `clip` plays, in radians (0 faces +z, positive toward +x), or
+ * `null` for his heading (story 2.13, D5). `camera` faces the screen; `awayFromBaby` turns his back to the
+ * baby, and gives way to his heading when there is no baby to turn from: carried in his arms, hiding
+ * (a turn away from a hidden baby would point the player at him), or on top of him. Pure, allocates
+ * nothing, and takes no threat: the pose says nothing the player does not see.
  */
-export function turnToward(
-  fromRad: number,
-  toRad: number,
-  turnRateDegPerSec: number,
-  dtMs: number,
-): number {
-  const gapRad = wrapAngleRad(toRad - fromRad);
-  const stepRad = (((turnRateDegPerSec * Math.PI) / 180) * dtMs) / MS_PER_S;
-  if (Math.abs(gapRad) <= stepRad) return toRad;
-  return fromRad + Math.sign(gapRad) * stepRad;
+export function papaFacingYawRad(
+  papa: Readonly<{ xM: number; zM: number }>,
+  baby: Readonly<{ xM: number; zM: number; state: string }>,
+  clip: string | null,
+  facings: ClipFacings,
+): number | null {
+  if (clip === null) return null;
+  for (let i = 0; i < facings.length; i++) {
+    const row = facings[i] as ClipFacing;
+    if (row.clip !== clip) continue;
+    if (row.facing === 'camera') return CAMERA_YAW_RAD;
+    if (baby.state === 'carried' || baby.state === 'mischiefSilent') return null;
+    const awayX = papa.xM - baby.xM;
+    const awayZ = papa.zM - baby.zM;
+    if (Math.hypot(awayX, awayZ) < FACING_BABY_MIN_DISTANCE_M) return null;
+    return Math.atan2(awayX, awayZ);
+  }
+  return null;
+}
+
+/** One cycle of a side effect as a sine of its sim clock: a pause, a hitstop and a slow-mo move it as they move the sim. */
+export function busyCycleAt(clockMs: number, periodMs: number): number {
+  return Math.sin((2 * Math.PI * clockMs) / periodMs);
 }

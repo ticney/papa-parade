@@ -157,6 +157,17 @@ describe('loadJournals', () => {
     ]);
   });
 
+  it('keeps a journal exported before v2.3, with the four-row score (story 3.12)', async () => {
+    const legacy = JSON.parse(JSON.stringify(makeJournal({ sessionId: '00000001' })));
+    const { calmPoints: _calm, homePoints: _home, ...rows } = legacy.summary.score;
+    legacy.summary.score = { ...rows, babyStatePoints: 20 };
+    put('T1/a.json', legacy);
+    journal('T1/b.json', { sessionId: '00000001', gameIndex: 2 });
+    const loaded = await loadedOk();
+    expect(loaded.skipped).toEqual([]);
+    expect(loaded.testers[0]?.games.map((game) => game.file)).toEqual(['T1/a.json', 'T1/b.json']);
+  });
+
   it('warns about a file whose suffix differs only by case, and about a symbolic link', async () => {
     journal('T1/a.json');
     journal('T1/b.JSON', { sessionId: '00000002' });

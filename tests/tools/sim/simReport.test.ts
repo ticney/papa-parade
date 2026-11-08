@@ -1,3 +1,4 @@
+import type { VisibilityCounters } from '@bots/bot';
 import { asSimMs } from '@shared/time';
 import type { SimEvent } from '@sim';
 import { createSim } from '@sim';
@@ -15,12 +16,17 @@ import {
   createTestGeometry,
   createTestLevel,
   createTestResponseWindow,
+  DISHWASHER_OPEN,
   FATIGUE_GAUGES,
   NEED_GAUGES,
   NOISE_GAUGES,
   OUTLET,
+  TEST_COOKING,
+  TEST_DISHWASHER,
   TEST_OBJECTS,
+  TEST_STOVE,
   TEST_TOILET,
+  TEST_UNLOAD_DISHWASHER,
   testPhoneEntry,
   testWave,
 } from '../../support/testContent.ts';
@@ -29,6 +35,7 @@ const INPUT = {
   level: 'salon_crawler',
   bot: 'human',
   tier: 'normal' as const,
+  chronoRing: 'on' as const,
   seed: 5,
   untilSimMs: 1000,
   hashes: { feel: 'f', geometry: 'g', level: 'l', bots: 'b' },
@@ -47,7 +54,9 @@ const NO_NOISE: RunSummary['noiseBySourcePct'] = {
   floorCreak: 0,
   breathReleased: 0,
   sniff: 0,
+  debrisStep: 0,
   snore: 0,
+  gag: 0,
   debug: 0,
 };
 
@@ -56,11 +65,21 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     seed,
     worldHash: `hash${seed}`,
     responses: 0,
+    visibility: null,
     gags: 0,
     nearMisses: 0,
     microSleeps: 0,
     coffees: 0,
     asleepGags: 0,
+    afterEffects: {
+      electrified: 0,
+      babyDownstairs: 0,
+      debris: 0,
+      mess: 0,
+      asleep: 0,
+      dim: 0,
+      carryUp: 0,
+    },
     phoneRings: 0,
     phoneAnswers: 0,
     phoneRingingSeconds: 0,
@@ -78,6 +97,15 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     comboPeakMultiplier: 0,
     instinctTriggers: 0,
     toiletVisits: 0,
+    chores: {
+      beats: { perfect: 0, success: 0, fail: 0 },
+      completed: 0,
+      homePoints: 0,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {},
+      objectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
+    },
     sequencesStarted: 0,
     sequencesSucceeded: 0,
     sequencesFailed: 0,
@@ -94,6 +122,10 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     finalRushes: 0,
     propsTidied: 0,
     frozenNearMisses: 0,
+    lookParts: 0,
+    fairnessViolations: 0,
+    stretchedTelegraphs: 0,
+    stretchSumMs: 0,
     bladderPeakPct: 0,
     noisePeakPct: 0,
     noiseFinalPct: 0,
@@ -105,9 +137,12 @@ function run(seed: number, overrides: Partial<RunSummary> = {}): RunSummary {
     isEnded: false,
     endReason: null,
     mamaWokeAtMs: null,
+    mamaHomeAtMs: null,
+    catastrophePeakPct: 0,
     scorePoints: null,
     stars: null,
     lostStars: null,
+    rows: null,
     ...overrides,
   };
 }
@@ -124,6 +159,25 @@ const tally = (overrides: Partial<RunSummary['threats'][string]> = {}) => ({
 });
 
 describe('summarizeRuns', () => {
+  it('the pooled perfect rate counts every response of every run, each run keeps its own, none is null (story 3.14)', () => {
+    const perfect = (responses: number, perfects: number) =>
+      run(1, {
+        responses,
+        threats: { outlet: tally({ responses, perfect: perfects, success: responses - perfects }) },
+      });
+    const report = summarizeRuns({ ...INPUT, chronoRing: 'off' }, [
+      { ...perfect(4, 1), seed: 1 },
+      { ...perfect(8, 5), seed: 2 },
+      { ...run(3, {}), seed: 3 },
+    ]);
+    // 6 perfects of 12 responses: pooled over the responses, not the mean of the runs' rates (25 and 62.5).
+    expect(report.perfectPct).toBe(50);
+    expect(report.runList.map((entry) => entry.perfectPct)).toEqual([25, 62.5, null]);
+    expect(report.chronoRing).toBe('off');
+    expect(summarizeRuns(INPUT, [run(1, {})]).perfectPct).toBeNull();
+    expect(summarizeRuns(INPUT, []).perfectPct).toBeNull();
+  });
+
   it('counts per threat def, with percentages rounded to 0.1 and the mean offset', () => {
     const report = summarizeRuns(INPUT, [
       run(5, {
@@ -157,6 +211,9 @@ describe('summarizeRuns', () => {
       meanAbsOffsetMs: 15,
     });
     expect(report.meanSuccessPct).toBe(66.7);
+    expect(report.perfectPct).toBe(33.3);
+    expect(report.chronoRing).toBe('on');
+    expect(report.comparison).toBeNull();
     expect(report.gags).toEqual({
       total: 1,
       meanPerRun: 1,
@@ -166,18 +223,24 @@ describe('summarizeRuns', () => {
     // No run ended: no score, and no star count.
     expect(report.meanScore).toBeNull();
     expect(report.meanStars).toBeNull();
+    expect(report.meanRows).toBeNull();
     expect(report.starCounts).toEqual([0, 0, 0, 0, 0, 0]);
     expect(report.runList).toEqual([
       {
         seed: 5,
         worldHash: 'hash5',
         responses: 3,
+        perfectPct: 33.3,
         gags: 1,
+        fairnessViolations: 0,
         commands: 6,
         scorePoints: null,
         stars: null,
         endReason: null,
         lostStars: null,
+        mamaHomeAtMs: null,
+        catastrophePeakPct: 0,
+        rows: null,
         sequencesStarted: 0,
         sequencesSucceeded: 0,
         sequencesFailed: 0,
@@ -188,6 +251,52 @@ describe('summarizeRuns', () => {
         beatsStray: 0,
       },
     ]);
+  });
+
+  it('totals the séquelles per kind and per run, every kind present (story 3.15)', () => {
+    const none = {
+      electrified: 0,
+      babyDownstairs: 0,
+      debris: 0,
+      mess: 0,
+      asleep: 0,
+      dim: 0,
+      carryUp: 0,
+    };
+    const report = summarizeRuns(INPUT, [
+      run(1, { afterEffects: { ...none, electrified: 2, dim: 2, carryUp: 1 } }),
+      run(2, { afterEffects: { ...none, electrified: 1, dim: 1, debris: 1 } }),
+      run(3, {}),
+    ]);
+    expect(report.afterEffects.byKind).toEqual({
+      ...none,
+      electrified: 3,
+      dim: 3,
+      carryUp: 1,
+      debris: 1,
+    });
+    // 8 séquelles over 3 games.
+    expect(report.afterEffects.meanPerRun).toBe(2.67);
+    expect(summarizeRuns(INPUT, []).afterEffects).toEqual({ byKind: none, meanPerRun: 0 });
+  });
+
+  it('adds the fairness violations and stretched telegraphs of the runs, with the mean stretch to one decimal (story 3.13)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { fairnessViolations: 2, stretchedTelegraphs: 2, stretchSumMs: 1000 }),
+      run(2, { fairnessViolations: 0, stretchedTelegraphs: 1, stretchSumMs: 700 }),
+      run(3, {}),
+    ]);
+    expect(report.fairnessViolations).toBe(2);
+    expect(report.stretchedTelegraphs).toBe(3);
+    expect(report.meanStretchMs).toBe(566.7);
+    expect(report.runList.map((entry) => entry.fairnessViolations)).toEqual([2, 0, 0]);
+  });
+
+  it('has no mean stretch when no telegraph was stretched, not 0 (story 3.13)', () => {
+    const report = summarizeRuns(INPUT, [run(1, {}), run(2, {})]);
+    expect(report.stretchedTelegraphs).toBe(0);
+    expect(report.meanStretchMs).toBeNull();
+    expect(report.fairnessViolations).toBe(0);
   });
 
   it('gives Mama’s mean score and stars over the runs that ended, and counts the runs per star (story 1.22)', () => {
@@ -209,6 +318,42 @@ describe('summarizeRuns', () => {
       [null, null],
     ]);
     expect(report).not.toHaveProperty('scoreNote');
+  });
+
+  it('gives the mean of each of the five rows over the runs that ended, one decimal (story 3.12)', () => {
+    const rows = (laugh: number, calm: number, home: number, sigh: number, scream: number) => ({
+      laughPoints: laugh,
+      calmPoints: calm,
+      homePoints: home,
+      sighPoints: sigh,
+      screamPoints: scream,
+    });
+    const report = summarizeRuns(INPUT, [
+      run(1, { isEnded: true, scorePoints: 60, stars: 3, rows: rows(10, 20, 0, 5, 0) }),
+      run(2, { isEnded: true, scorePoints: 40, stars: 2, rows: rows(11, 11, 0, 8, 3) }),
+      run(3, { isEnded: true, scorePoints: 30, stars: 1, rows: rows(0, 0, 3, 15, 15) }),
+      // Cut by `--until-ms`: no note, left out of the means.
+      run(4, {}),
+      // A score without its rows (a summary built before 3.12): counted in `meanScore`, never as zero rows.
+      run(5, { isEnded: true, scorePoints: 50, stars: 2, rows: null }),
+    ]);
+    expect(report.meanRows).toEqual({
+      laughPoints: 7,
+      calmPoints: 10.3,
+      homePoints: 1,
+      sighPoints: 9.3,
+      screamPoints: 6,
+    });
+    expect(report.runList.map((entry) => entry.rows)).toEqual([
+      rows(10, 20, 0, 5, 0),
+      rows(11, 11, 0, 8, 3),
+      rows(0, 0, 3, 15, 15),
+      null,
+      null,
+    ]);
+    // Nothing that 3.14 and the playtest metrics read has moved: run 5 counts in the score's mean.
+    expect(report.meanScore).toBe(45);
+    expect(report.meanStars).toBe(2);
   });
 
   it('counts how the games ended, every reason present, and the mean time Mama woke at (story 3.2)', () => {
@@ -233,7 +378,7 @@ describe('summarizeRuns', () => {
       // Cut by `--until-ms`: ended for nobody.
       run(4, {}),
     ]);
-    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 2, cycleDone: 0 });
+    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 2, cycleDone: 0, mamaHome: 0 });
     expect(Object.values(report.endsByReason).reduce((sum, count) => sum + count, 0)).toBe(
       report.endedRuns,
     );
@@ -244,6 +389,53 @@ describe('summarizeRuns', () => {
       ['mamaWoke', 1],
       [null, null],
     ]);
+  });
+
+  it('counts the games Mama came home early in, with the mean time and the mean peak of the gauge (story 3.16)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        isEnded: true,
+        endReason: 'timer',
+        scorePoints: 80,
+        stars: 3,
+        lostStars: 0,
+        catastrophePeakPct: 40,
+      }),
+      run(2, {
+        isEnded: true,
+        endReason: 'mamaHome',
+        mamaHomeAtMs: 30_000,
+        catastrophePeakPct: 100,
+        scorePoints: 50,
+        stars: 0,
+        lostStars: 0,
+      }),
+      run(3, {
+        isEnded: true,
+        endReason: 'mamaHome',
+        mamaHomeAtMs: 40_001,
+        catastrophePeakPct: 100,
+        scorePoints: 50,
+        stars: 0,
+        lostStars: 0,
+      }),
+      // Cut by `--until-ms`: no end, but its peak still counts in the mean.
+      run(4, { catastrophePeakPct: 10 }),
+    ]);
+    expect(report.endsByReason).toEqual({ timer: 1, mamaWoke: 0, cycleDone: 0, mamaHome: 2 });
+    expect(report.mamaHomeMeanAtMs).toBe(35_000.5);
+    expect(report.meanCatastrophePeakPct).toBe(62.5);
+    expect(report.runList.map(({ mamaHomeAtMs }) => mamaHomeAtMs)).toEqual([
+      null,
+      30_000,
+      40_001,
+      null,
+    ]);
+    // A mama who never came home leaves no mean time; the peak mean is there as soon as there is a run.
+    const quiet = summarizeRuns(INPUT, [run(1, { isEnded: true, endReason: 'timer' })]);
+    expect(quiet.mamaHomeMeanAtMs).toBeNull();
+    expect(quiet.meanCatastrophePeakPct).toBe(0);
+    expect(summarizeRuns(INPUT, []).meanCatastrophePeakPct).toBeNull();
   });
 
   it('folds the bedtime cycle: runs completed, mean entries, and each sequence by id (story 4.10)', () => {
@@ -267,10 +459,10 @@ describe('summarizeRuns', () => {
 
   it('keeps every endsByReason key at 0 when nothing ended, and no mean time when Mama never woke', () => {
     const none = summarizeRuns(INPUT, [run(1, {})]);
-    expect(none.endsByReason).toEqual({ timer: 0, mamaWoke: 0, cycleDone: 0 });
+    expect(none.endsByReason).toEqual({ timer: 0, mamaWoke: 0, cycleDone: 0, mamaHome: 0 });
     expect(none.mamaWokeMeanAtMs).toBeNull();
     const timerOnly = summarizeRuns(INPUT, [run(1, { isEnded: true, endReason: 'timer' })]);
-    expect(timerOnly.endsByReason).toEqual({ timer: 1, mamaWoke: 0, cycleDone: 0 });
+    expect(timerOnly.endsByReason).toEqual({ timer: 1, mamaWoke: 0, cycleDone: 0, mamaHome: 0 });
     expect(timerOnly.mamaWokeMeanAtMs).toBeNull();
   });
 
@@ -335,6 +527,18 @@ describe('summarizeRuns', () => {
     expect(report.gags.nearMisses).toBe(2);
     expect(report.runList.map((entry) => entry.seed)).toEqual([5, 6]);
     expect(summarizeRuns(INPUT, []).frozenNearMisses).toBe(0);
+  });
+
+  it('adds the parts of Papa’s look up, with the mean per run (story 3.7)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(5, { lookParts: 3 }),
+      run(6, { lookParts: 0 }),
+      run(7, { lookParts: 1 }),
+    ]);
+    expect(report.lookParts).toBe(4);
+    expect(report.meanLookPartsPerRun).toBe(1.33);
+    expect(summarizeRuns(INPUT, []).lookParts).toBe(0);
+    expect(summarizeRuns(INPUT, []).meanLookPartsPerRun).toBe(0);
   });
 
   it('adds the micro-sleeps and the coffees up, and counts the runs where Papa fell asleep', () => {
@@ -472,6 +676,155 @@ describe('summarizeRuns', () => {
   });
 });
 
+describe('summarizeRuns › chores (story 9.4)', () => {
+  const chores = (
+    perfect: number,
+    success: number,
+    fail: number,
+    completed: number,
+    homePoints: number,
+    abandoned = { telegraphed: 0, resolved: 0, boiledOver: 0 },
+  ): RunSummary['chores'] => ({
+    beats: { perfect, success, fail },
+    completed,
+    homePoints,
+    abandoned,
+    byDef: {},
+    objectsBroken: 0,
+    open: { telegraphed: 0, closed: 0, gagged: 0 },
+  });
+
+  it('is all zero in a level with no station, and for no run at all', () => {
+    const empty = {
+      runsCompleted: 0,
+      beats: { perfect: 0, success: 0, fail: 0 },
+      meanHomePoints: 0,
+      meanBeatsPerRun: 0,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {},
+      meanObjectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
+    };
+    expect(summarizeRuns(INPUT, [run(1, {}), run(2, {})]).chores).toEqual(empty);
+    expect(summarizeRuns(INPUT, []).chores).toEqual(empty);
+  });
+
+  it('counts the runs where a chore was finished, the beats by quality and the means per run', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { chores: chores(4, 0, 0, 1, 7.5) }),
+      run(2, { chores: chores(2, 1, 2, 0, 0) }),
+      run(3, { chores: chores(1, 3, 0, 1, 7.5) }),
+      run(4, {}),
+    ]);
+    expect(report.chores).toEqual({
+      runsCompleted: 2,
+      beats: { perfect: 7, success: 4, fail: 2 },
+      // 15 points over 4 runs, 13 beats judged over 4 runs (3.25, to one decimal).
+      meanHomePoints: 3.75,
+      meanBeatsPerRun: 3.3,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {},
+      meanObjectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
+    });
+  });
+
+  // Story 9.6: a report per chore def, the plates the chores broke and the open dishwasher's threats.
+  const byDefRun = (
+    cooking: { completed: number; perfect: number; success: number; fail: number },
+    dishwasher: { completed: number; perfect: number; success: number; fail: number },
+    objectsBroken: number,
+    open = { telegraphed: 0, closed: 0, gagged: 0 },
+  ): RunSummary['chores'] => ({
+    ...chores(
+      cooking.perfect + dishwasher.perfect,
+      cooking.success + dishwasher.success,
+      cooking.fail + dishwasher.fail,
+      cooking.completed + dishwasher.completed,
+      7.5 * (cooking.completed + dishwasher.completed),
+    ),
+    byDef: {
+      cooking: {
+        completed: cooking.completed,
+        beats: { perfect: cooking.perfect, success: cooking.success, fail: cooking.fail },
+      },
+      unload_dishwasher: {
+        completed: dishwasher.completed,
+        beats: { perfect: dishwasher.perfect, success: dishwasher.success, fail: dishwasher.fail },
+      },
+    },
+    objectsBroken,
+    open,
+  });
+
+  it('reports each chore def: the runs it was finished in, its beats and its mean beats missed', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        chores: byDefRun(
+          { completed: 1, perfect: 4, success: 0, fail: 0 },
+          { completed: 1, perfect: 3, success: 1, fail: 2 },
+          2,
+        ),
+      }),
+      run(2, {
+        chores: byDefRun(
+          { completed: 1, perfect: 4, success: 0, fail: 1 },
+          { completed: 0, perfect: 1, success: 0, fail: 3 },
+          3,
+        ),
+      }),
+      run(3, {}),
+    ]);
+    expect(report.chores.byDef).toEqual({
+      cooking: {
+        runsCompleted: 2,
+        beats: { perfect: 8, success: 0, fail: 1 },
+        meanBeatsMissed: 0.33,
+      },
+      unload_dishwasher: {
+        runsCompleted: 1,
+        beats: { perfect: 4, success: 1, fail: 5 },
+        meanBeatsMissed: 1.67,
+      },
+    });
+    // The runs that saw nothing of a def still count in the mean: three runs, five plates.
+    expect(report.chores.meanObjectsBroken).toBe(1.67);
+  });
+
+  it('sums the open-door threats over the runs, and means the broken objects over zero runs to 0', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        chores: byDefRun(
+          { completed: 0, perfect: 0, success: 0, fail: 0 },
+          { completed: 0, perfect: 0, success: 0, fail: 0 },
+          0,
+          { telegraphed: 3, closed: 2, gagged: 1 },
+        ),
+      }),
+      run(2, {
+        chores: byDefRun(
+          { completed: 0, perfect: 0, success: 0, fail: 0 },
+          { completed: 0, perfect: 0, success: 0, fail: 0 },
+          0,
+          { telegraphed: 1, closed: 0, gagged: 1 },
+        ),
+      }),
+    ]);
+    expect(report.chores.open).toEqual({ telegraphed: 4, closed: 2, gagged: 2 });
+    expect(summarizeRuns(INPUT, []).chores.meanObjectsBroken).toBe(0);
+    expect(summarizeRuns(INPUT, []).chores.byDef).toEqual({});
+  });
+
+  it('sums the pots of the abandoned chores over the runs (story 9.5)', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, { chores: chores(0, 0, 0, 0, 0, { telegraphed: 3, resolved: 2, boiledOver: 1 }) }),
+      run(2, { chores: chores(0, 0, 0, 0, 0, { telegraphed: 1, resolved: 0, boiledOver: 1 }) }),
+      run(3, {}),
+    ]);
+    expect(report.chores.abandoned).toEqual({ telegraphed: 4, resolved: 2, boiledOver: 2 });
+  });
+});
+
 describe('createRunRecorder', () => {
   it('counts a Firmness let go too soon under its own reason, "released" (story 1.23)', async () => {
     const sim = await createSim({
@@ -534,6 +887,9 @@ describe('createRunRecorder', () => {
     recorder.onEvent({ type: 'NearMiss', t: asSimMs(0), threatId, gag: 'stairs_slide' });
     // The photo's near miss is counted on its own, never as one of play (story 3.6).
     recorder.onEvent({ type: 'NearMissFrozen', t: asSimMs(0), threatId, gag: 'stairs_slide' });
+    // Two parts of the look, one event each (story 3.7).
+    recorder.onEvent({ type: 'PapaLookChanged', t: asSimMs(0), part: 'hairOnEnd', threatId });
+    recorder.onEvent({ type: 'PapaLookChanged', t: asSimMs(0), part: 'mashOnCheek', threatId });
     const summary = recorder.finish();
     expect(summary).toMatchObject({
       seed: 1,
@@ -541,6 +897,7 @@ describe('createRunRecorder', () => {
       gags: 1,
       nearMisses: 1,
       frozenNearMisses: 1,
+      lookParts: 2,
       commands: 0,
       byGag: { outlet_hair: 1 },
     });
@@ -561,6 +918,7 @@ describe('createRunRecorder', () => {
       scorePoints: null,
       stars: null,
       lostStars: null,
+      rows: null,
     });
   });
 
@@ -577,7 +935,8 @@ describe('createRunRecorder', () => {
       type: 'LevelScored',
       t: asSimMs(0),
       laughPoints: 30,
-      babyStatePoints: 20,
+      calmPoints: 15,
+      homePoints: 0,
       sighPoints: 5,
       screamPoints: 3,
       scorePoints: 72,
@@ -588,9 +947,12 @@ describe('createRunRecorder', () => {
       isEnded: true,
       endReason: 'timer',
       mamaWokeAtMs: null,
+      mamaHomeAtMs: null,
+      catastrophePeakPct: 0,
       scorePoints: 72,
       stars: 3,
       lostStars: 0,
+      rows: { laughPoints: 30, calmPoints: 15, homePoints: 0, sighPoints: 5, screamPoints: 3 },
     });
   });
 
@@ -624,6 +986,36 @@ describe('createRunRecorder', () => {
     });
     expect(summary.lostStars).toBeGreaterThanOrEqual(1);
     expect(summary.mamaWokeAtMs).toBeLessThan(60_000);
+    expect(summary.mamaHomeAtMs).toBeNull();
+  });
+
+  it('records Mama coming home early: the end time and the peak of the gauge, from the events (story 3.16)', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    const recorder = createRunRecorder(sim, 1);
+    sim.step();
+    sim.drainEvents();
+    sim.enqueue({ type: 'SetCatastrophe', t: asSimMs(sim.world.time.sim), pct: 70 });
+    sim.step();
+    for (const event of sim.drainEvents()) recorder.onEvent(event);
+    sim.enqueue({ type: 'SetCatastrophe', t: asSimMs(sim.world.time.sim), pct: 100 });
+    sim.step();
+    for (const event of sim.drainEvents()) recorder.onEvent(event);
+    const summary = recorder.finish();
+    expect(sim.world.flow.endReason).toBe('mamaHome');
+    expect(summary).toMatchObject({
+      isEnded: true,
+      endReason: 'mamaHome',
+      mamaHomeAtMs: sim.world.flow.enteredAt,
+      catastrophePeakPct: 100,
+      mamaWokeAtMs: null,
+      stars: 0,
+      lostStars: 0,
+    });
   });
 
   describe('the waves', () => {
@@ -797,8 +1189,8 @@ describe('createRunRecorder', () => {
       });
     });
 
-    it('counts a silence as one pick of its wave, found or not: a result with no telegraph before it keeps the active count right', async () => {
-      const recorder = await recorderOf([{ maxSimultaneous: 1 }]);
+    it('counts a silence as one pick of its wave, found or not, for two places (story 3.13): a result with no telegraph before it keeps the active count right', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 2 }]);
       const hidden = (threatId: number): SimEvent => ({
         type: 'ThreatHidden',
         t: asSimMs(0),
@@ -818,7 +1210,22 @@ describe('createRunRecorder', () => {
       recorder.onEvent(telegraph(8, 0));
       recorder.onEvent(resolved(8));
       const [wave] = recorder.finish().waves;
-      expect(wave).toEqual({ telegraphs: 3, peakSimultaneous: 1, isOverLimit: false });
+      expect(wave).toEqual({ telegraphs: 3, peakSimultaneous: 2, isOverLimit: false });
+    });
+
+    it('holds a wave over its limit when a silence (two places) and another threat are active in a wave of two, as the director would never let happen', async () => {
+      const recorder = await recorderOf([{ maxSimultaneous: 2 }]);
+      recorder.onEvent({
+        type: 'ThreatHidden',
+        t: asSimMs(0),
+        threatId: 7,
+        kind: 'silence_mischief',
+        anchorId: 'behind_sofa',
+        waveIndex: 0,
+      });
+      recorder.onEvent(telegraph(8, 0));
+      const [wave] = recorder.finish().waves;
+      expect(wave).toEqual({ telegraphs: 2, peakSimultaneous: 3, isOverLimit: true });
     });
 
     it('knows whether the level ended', async () => {
@@ -1079,5 +1486,284 @@ describe('a level that carries the baby (story 4.1)', () => {
       armsCries: 3,
       cancelledThreats: 3,
     });
+  });
+});
+
+describe('createRunRecorder › chores (story 9.4)', () => {
+  const judged = (quality: 'perfect' | 'success' | 'fail', t = 0): SimEvent => ({
+    type: 'ChoreBeatJudged',
+    t: asSimMs(t),
+    choreIndex: 0,
+    beatIndex: 0,
+    quality,
+    reason: quality === 'fail' ? 'late' : null,
+    offsetMs: quality === 'fail' ? 400 : 0,
+  });
+
+  it('counts the beats judged by quality and the chores completed with their points', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    const recorder = createRunRecorder(sim, 1);
+    for (const quality of ['perfect', 'success', 'fail', 'perfect', 'fail', 'fail'] as const) {
+      recorder.onEvent(judged(quality));
+    }
+    recorder.onEvent({ type: 'ChoreCompleted', t: asSimMs(0), choreIndex: 0, homePoints: 7.5 });
+    recorder.onEvent({ type: 'ChoreCompleted', t: asSimMs(0), choreIndex: 1, homePoints: 2.5 });
+    expect(recorder.finish().chores).toEqual({
+      beats: { perfect: 2, success: 1, fail: 3 },
+      completed: 2,
+      homePoints: 10,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      // The level has no chore def to put them under, and no door.
+      byDef: {},
+      objectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
+    });
+  });
+
+  it('counts a pot telegraphed, lowered in time and boiled over, and never as a micro-sleep (story 9.5)', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    const threatId = sim.world.threats[0]?.id ?? 0;
+    const defId = sim.world.threats[0]?.defId ?? '';
+    // The first threat of the level stands in for the pot: the recorder is told it is one.
+    const recorder = createRunRecorder(sim, 1, [], null, new Set(), null, new Set([defId]));
+    const telegraphed = (): SimEvent => ({
+      type: 'ThreatTelegraphed',
+      t: asSimMs(0),
+      threatId,
+      kind: defId,
+      anchorId: 'stove',
+      waveIndex: -1,
+    });
+    const resolved = (quality: 'perfect' | 'fail'): SimEvent =>
+      quality === 'fail'
+        ? {
+            type: 'ResponseResolved',
+            t: asSimMs(0),
+            threatId,
+            response: 'parry',
+            quality,
+            reason: 'late',
+            offsetMs: null,
+            responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+          }
+        : {
+            type: 'ResponseResolved',
+            t: asSimMs(0),
+            threatId,
+            response: 'parry',
+            quality,
+            offsetMs: 0,
+            responseWindow: { windowMs: 0, perfectMs: 0, toleranceMs: 0, bufferMs: 0 },
+          };
+    recorder.onEvent(telegraphed());
+    recorder.onEvent(resolved('perfect'));
+    recorder.onEvent(telegraphed());
+    recorder.onEvent(resolved('fail'));
+    recorder.onEvent({
+      type: 'GagTriggered',
+      t: asSimMs(0),
+      threatId,
+      gag: 'pot_boiled_over',
+      reason: 'late',
+    });
+    const summary = recorder.finish();
+    expect(summary.chores.abandoned).toEqual({ telegraphed: 2, resolved: 1, boiledOver: 1 });
+    expect(summary.microSleeps).toBe(0);
+  });
+
+  it('counts nothing for a game that never touches a station', async () => {
+    const sim = await createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: botTestLevel(),
+      seed: 1,
+    });
+    expect(createRunRecorder(sim, 1).finish().chores).toEqual({
+      beats: { perfect: 0, success: 0, fail: 0 },
+      completed: 0,
+      homePoints: 0,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {},
+      objectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
+    });
+  });
+});
+
+describe('createRunRecorder › the dishwasher (story 9.6)', () => {
+  async function kitchen() {
+    return createSim({
+      content: createTestContent(),
+      geometry: createTestGeometry(),
+      level: createTestLevel({
+        waves: [testWave([DISHWASHER_OPEN], { fromMs: 500_000 })],
+        objects: [...TEST_OBJECTS, TEST_STOVE, TEST_DISHWASHER],
+        chores: [TEST_COOKING, TEST_UNLOAD_DISHWASHER],
+      }),
+      seed: 1,
+    });
+  }
+  const judged = (choreIndex: number, quality: 'perfect' | 'success' | 'fail'): SimEvent => ({
+    type: 'ChoreBeatJudged',
+    t: asSimMs(0),
+    choreIndex,
+    beatIndex: 0,
+    quality,
+    reason: quality === 'fail' ? 'late' : null,
+    offsetMs: quality === 'fail' ? 400 : 0,
+  });
+
+  it('lists every chore def of the level from the start, with nothing counted', async () => {
+    const sim = await kitchen();
+    expect(createRunRecorder(sim, 1).finish().chores).toEqual({
+      beats: { perfect: 0, success: 0, fail: 0 },
+      completed: 0,
+      homePoints: 0,
+      abandoned: { telegraphed: 0, resolved: 0, boiledOver: 0 },
+      byDef: {
+        cooking: { completed: 0, beats: { perfect: 0, success: 0, fail: 0 } },
+        unload_dishwasher: { completed: 0, beats: { perfect: 0, success: 0, fail: 0 } },
+      },
+      objectsBroken: 0,
+      open: { telegraphed: 0, closed: 0, gagged: 0 },
+    });
+  });
+
+  it('counts the beats under their def, and a plate only for a def that breaks them', async () => {
+    const sim = await kitchen();
+    const plates = sim.chores[1]?.def.missBrokenObjects as number;
+    expect(plates).toBeGreaterThan(0);
+    const recorder = createRunRecorder(sim, 1);
+    for (const event of [
+      judged(0, 'perfect'),
+      judged(0, 'fail'),
+      judged(1, 'success'),
+      judged(1, 'fail'),
+      judged(1, 'fail'),
+    ]) {
+      recorder.onEvent(event);
+    }
+    recorder.onEvent({ type: 'ChoreCompleted', t: asSimMs(0), choreIndex: 1, homePoints: 7.5 });
+    const { byDef, objectsBroken, completed } = recorder.finish().chores;
+    expect(byDef.cooking).toEqual({ completed: 0, beats: { perfect: 1, success: 0, fail: 1 } });
+    expect(byDef.unload_dishwasher).toEqual({
+      completed: 1,
+      beats: { perfect: 0, success: 1, fail: 2 },
+    });
+    // Two dishwasher misses, none counted for the cooking's.
+    expect(objectsBroken).toBe(2 * plates);
+    expect(completed).toBe(1);
+  });
+
+  it('counts the open door telegraphed, closed in time and got into, by the threat that stands at it', async () => {
+    const sim = await kitchen();
+    const doorIndex = sim.chores[1]?.openThreatIndex as number;
+    const door = sim.world.threats[doorIndex]!;
+    const recorder = createRunRecorder(sim, 1, [{ maxSimultaneous: 1 }]);
+    const telegraph = (): SimEvent => ({
+      type: 'ThreatTelegraphed',
+      t: asSimMs(0),
+      threatId: door.id,
+      kind: door.defId,
+      anchorId: door.anchorId,
+      waveIndex: 0,
+    });
+    const resolved = (quality: 'perfect' | 'success' | 'fail'): SimEvent => ({
+      type: 'ResponseResolved',
+      t: asSimMs(0),
+      threatId: door.id,
+      response: 'parry',
+      quality,
+      offsetMs: 0,
+      responseWindow: { windowMs: 400, perfectMs: 100, toleranceMs: 50, bufferMs: 50 },
+    });
+    recorder.onEvent(telegraph());
+    recorder.onEvent(resolved('perfect'));
+    recorder.onEvent(telegraph());
+    recorder.onEvent(resolved('success'));
+    recorder.onEvent(telegraph());
+    recorder.onEvent(resolved('fail'));
+    recorder.onEvent({
+      type: 'GagTriggered',
+      t: asSimMs(0),
+      threatId: door.id,
+      gag: 'baby_in_dishwasher',
+      reason: 'late',
+    });
+    expect(recorder.finish().chores.open).toEqual({ telegraphed: 3, closed: 2, gagged: 1 });
+  });
+});
+
+describe('summarizeRuns › visibility (story 9.8)', () => {
+  const sight = (patch: Partial<VisibilityCounters>): VisibilityCounters => ({
+    telegraphs: 0,
+    seenOffscreen: 0,
+    cappedMs: 0,
+    neverSeen: 0,
+    seenLate: 0,
+    seenLateDelayMs: 0,
+    ...patch,
+  });
+
+  it('sums the human bot’s counters over the runs, and averages the delay over the threats seen late', () => {
+    const report = summarizeRuns(INPUT, [
+      run(1, {
+        visibility: sight({
+          telegraphs: 10,
+          seenOffscreen: 2,
+          cappedMs: 150,
+          neverSeen: 1,
+          seenLate: 2,
+          seenLateDelayMs: 200,
+        }),
+      }),
+      run(2, {
+        visibility: sight({
+          telegraphs: 6,
+          seenOffscreen: 1,
+          cappedMs: 0,
+          neverSeen: 0,
+          seenLate: 1,
+          seenLateDelayMs: 130,
+        }),
+      }),
+    ]);
+    expect(report.visibility).toEqual({
+      telegraphs: 16,
+      seenOffscreen: 3,
+      cappedMs: 150,
+      neverSeen: 1,
+      meanSeenDelayMs: 110,
+    });
+  });
+
+  it('has no mean delay when nothing was seen late', () => {
+    const report = summarizeRuns(INPUT, [run(1, { visibility: sight({ telegraphs: 4 }) })]);
+    expect(report.visibility).toEqual({
+      telegraphs: 4,
+      seenOffscreen: 0,
+      cappedMs: 0,
+      neverSeen: 0,
+      meanSeenDelayMs: null,
+    });
+  });
+
+  it('is null for a bot with no sight, in a fixed level, and with no run at all', () => {
+    expect(summarizeRuns(INPUT, [run(1), run(2)]).visibility).toBeNull();
+    expect(summarizeRuns(INPUT, []).visibility).toBeNull();
+    // Mixed runs cannot happen in one batch; a missing block is never read as zeros.
+    expect(
+      summarizeRuns(INPUT, [run(1, { visibility: sight({ telegraphs: 1 }) }), run(2)]).visibility,
+    ).toBeNull();
   });
 });

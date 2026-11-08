@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { DEBUG_TIMELINE_ROWS, RESUME_COUNTDOWN_MS, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   liveFeedback,
@@ -19,6 +20,7 @@ import {
   ppLoadLevel,
   ppSend,
   ppSetFeel,
+  ppSilenceCatastrophe,
   ppState,
   ppWorld,
   waitForTestApi,
@@ -58,7 +60,7 @@ const CELL_VERTICES = 6;
 
 /** Opens the app with the test API and starts the level frozen at sim time 0. */
 async function openFrozenLevel(page: Page, seed = SEED): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, seed);
@@ -227,7 +229,7 @@ test.describe('the debug overlay › opening', () => {
 test.describe('the debug overlay › performance and views', () => {
   test('shows FPS, the loop timings, draw calls and triangles while open', async ({ page }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await page.keyboard.press('F1');
@@ -358,6 +360,8 @@ test.describe('the debug overlay › the timing timeline', () => {
   test('shows « no press » for a window nobody answered, and keeps ten rows', async ({ page }) => {
     const problems = collectProblems(page);
     await openFrozenLevel(page);
+    // Ten unanswered windows are ten gags: without this the catastrophe would bring Mama home first.
+    await ppSilenceCatastrophe(page);
     await page.keyboard.press('F1');
     await stepToFirstTelegraph(page);
     // Let the level run unanswered: threats time out one after another, past ten responses.
@@ -387,7 +391,7 @@ test.describe('the debug overlay › the timing timeline', () => {
 test.describe('the debug overlay › time controls and cheats', () => {
   test('pauses, steps and resumes through the level session', async ({ page }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await page.keyboard.press('F1');
@@ -412,7 +416,7 @@ test.describe('the debug overlay › time controls and cheats', () => {
     page,
   }) => {
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await page.keyboard.press('F1');
@@ -611,7 +615,7 @@ test.describe('the debug overlay › time controls and cheats', () => {
   test('a skip leaves nothing frozen: the next level runs', async ({ page }) => {
     test.setTimeout(SKIP_TIMEOUT_MS + RESUME_COUNTDOWN_MS + 30_000);
     const problems = collectProblems(page);
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await waitForTestApi(page);
     await ppLoadLevel(page, LEVEL, SEED);
     await page.keyboard.press('F1');
@@ -943,7 +947,9 @@ test.describe('the debug overlay › keeps its fields away from the game', () =>
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', {
       timeout: SKIP_TIMEOUT_MS,
     });
-    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
+    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+      timeout: SKIP_TIMEOUT_MS,
+    });
     // Past the screen's input grace, when a key would skip the sequence for real.
     await waitFrames(page, Math.ceil(liveFeedback.resultScreen.inputGraceMs / FRAME_MS_UPPER) + 10);
     await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');

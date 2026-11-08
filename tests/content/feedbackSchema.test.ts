@@ -17,11 +17,13 @@ const real: Json = JSON.parse(readFileSync(FEEDBACK_URL, 'utf8'));
 // unit gets a deliberate, commented entry here.
 // `pulses` is a count of rings, not a quantity: it has no unit. `laidHeightM` is a height in metres (story 4.8).
 // The door (story 3.5) adds `openAngleDeg` (degrees) and its size in metres: `widthM`, `heightM`, `thicknessM`.
-// The characters (story 7.2) add `speedMps` and `turnRateDegPerSec`. The look (story 7.3) adds `pulseHz`,
+// The characters (story 7.2) add `speedMps` (their `turnRateDegPerSec` moved to `feel.json › characters.turn` in story 7.8). The look (story 7.3) adds `pulseHz`,
 // `radiusM`, `sunOffsetM`, and two numbers with no unit: a light's `…Intensity` and the 0-255 `toonTones`.
+// The highlight replay (story 3.9) adds the frame of its camera in metres (`frameWidthM`, `frameDepthM`) and four numbers
+// with no unit: the `momentCount`, the `messyGagMinProps` and the `points` of each kind (`perfect`, `messyGag`, `nearMiss`, `waveLast`).
 // The end photo (story 3.6) adds the size of its canvas in pixels, `widthPx` and `heightPx`, spelled out for the same reason.
 const UNIT_SUFFIX =
-  /(?:Pct|Ms|Mps|DegPerSec|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses)$/;
+  /(?:Pct|Ms|Mps|RadiusM|AmplitudeM|HeightM|Deg|Hz|OffsetM|^ambientIntensity|^sunIntensity|^radiusM|^toonTones|^widthM|^heightM|^thicknessM|^widthPx|^heightPx|^pulses|^frameWidthM|^frameDepthM|^momentCount|^messyGagMinProps|^perfect|^messyGag|^nearMiss|^waveLast)$/;
 
 type Json = Record<string, unknown>;
 
@@ -348,6 +350,13 @@ describe('content/feedback.json', () => {
     expect(mutated(['resultScreen.inputGraceMs', 0])).toMatchObject({ ok: true });
   });
 
+  it('accepts the mama clip category, and still refuses a made-up one (story 3.7)', () => {
+    expect(mutated(['cues.papa_bump.audio.clip', 'mama_laugh'])).toMatchObject({ ok: true });
+    expect(failedPaths(mutated(['cues.papa_bump.audio.clip', 'mum_laugh']))).toEqual([
+      'cues.papa_bump.audio.clip',
+    ]);
+  });
+
   describe('the end photo (story 3.6)', () => {
     it.each<[string, [string, unknown][], string]>([
       ['a missing photo', [['photo', undefined]], 'photo'],
@@ -408,6 +417,21 @@ describe('content/feedback.json', () => {
         [['resultScreen.photoHoldMs', undefined]],
         'resultScreen.photoHoldMs',
       ],
+      [
+        'a negative reaction hold',
+        [['resultScreen.reactionHoldMs', -1]],
+        'resultScreen.reactionHoldMs',
+      ],
+      [
+        'a fractional reaction hold',
+        [['resultScreen.reactionHoldMs', 1.5]],
+        'resultScreen.reactionHoldMs',
+      ],
+      [
+        'a missing reaction hold',
+        [['resultScreen.reactionHoldMs', undefined]],
+        'resultScreen.reactionHoldMs',
+      ],
     ])('refuses %s', (_name, changes, path) => {
       expect(failedPaths(mutated(...changes))).toEqual([path]);
     });
@@ -422,6 +446,7 @@ describe('content/feedback.json', () => {
           ['photo.vignetteOpacityPct', 0],
           ['photo.vignetteRadiusPct', 10],
           ['resultScreen.photoHoldMs', 0],
+          ['resultScreen.reactionHoldMs', 0],
         ),
       ).toMatchObject({ ok: true });
       expect(
@@ -547,6 +572,7 @@ describe('the characters table (story 7.2)', () => {
   const characters = real.characters as {
     squash: Json[];
     clipSpeeds: Json[];
+    papaClipFacing: Json[];
   };
 
   it('refuses a second squash of the same character on the same event', () => {
@@ -574,6 +600,76 @@ describe('the characters table (story 7.2)', () => {
 
   it('squashes only on events the sim emits: a typo would silence a squash', () => {
     for (const event of SQUASH_EVENTS) expect(SIM_EVENT_TYPES, event).toContain(event);
+  });
+});
+
+describe('the busy props and the facing of Papa (story 2.13)', () => {
+  const characters = real.characters as { papaClipFacing: Json[]; busyProps: Json };
+
+  it('refuses a second facing for the same clip', () => {
+    const first = characters.papaClipFacing[0] as Json;
+    const result = mutated([
+      'characters.papaClipFacing',
+      [...characters.papaClipFacing, { ...first, facing: 'awayFromBaby' }],
+    ]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.papaClipFacing'))).toBe(
+      true,
+    );
+  });
+
+  it('refuses a facing that is neither the camera nor away from the baby', () => {
+    const result = mutated(['characters.papaClipFacing', [{ clip: 'drink', facing: 'sideways' }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.papaClipFacing'))).toBe(
+      true,
+    );
+  });
+
+  it('accepts a table with no facing row: Papa then faces his heading', () => {
+    expect(mutated(['characters.papaClipFacing', []])).toMatchObject({ ok: true });
+  });
+
+  it.each([
+    ['a sway of the steam past 45 degrees', 'steamSwayDeg', 46],
+    ['a negative sway of the steam', 'steamSwayDeg', -1],
+    ['a stretch of the steam past 50 percent', 'steamStretchPct', 51],
+    ['a steam period under the 3 Hz flash cap', 'steamPeriodMs', 333],
+    ['a tilt of the bubble past 45 degrees', 'blablaTiltDeg', 46],
+    ['a bob of the bubble past 0.2 m', 'blablaBobAmplitudeM', 0.21],
+    ['a bubble period under the 3 Hz flash cap', 'blablaPeriodMs', 333],
+  ])('refuses %s', (_name, key, value) => {
+    const result = mutated([`characters.busyProps.${key}`, value]);
+    expect(failedPaths(result)).toContain(`characters.busyProps.${key}`);
+  });
+
+  it.each([
+    ['a bubble more than 1 m aside', 'screenOffsetM', 1.1],
+    ['a bubble more than 1 m aside, to the left', 'screenOffsetM', -1.1],
+    ['a bubble under 0.3 m high', 'heightM', 0.2],
+    ['a bubble over 1.2 m high', 'heightM', 1.3],
+  ])('refuses %s', (_name, key, value) => {
+    const result = mutated([`characters.busyProps.blablaPlace.${key}`, value]);
+    expect(failedPaths(result)).toContain(`characters.busyProps.blablaPlace.${key}`);
+  });
+
+  it('accepts a period exactly at the flash cap', () => {
+    expect(mutated(['characters.busyProps.steamPeriodMs', 334])).toMatchObject({ ok: true });
+  });
+
+  it('squashes Papa when the coffee is drunk, and maps the first sip to a cue with audio, visual and haptic', () => {
+    const parsed = parse(real);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(
+      parsed.value.characters.squash.some(
+        (row) => row.event === 'CoffeeDrunk' && row.character === 'papa',
+      ),
+    ).toBe(true);
+    const cueId = parsed.value.events.CoffeeStarted;
+    expect(cueId).toBeDefined();
+    const cue = parsed.value.cues[cueId as string];
+    expect(cue?.audio).toBeDefined();
+    expect(cue?.visual).toBeDefined();
+    expect(cue?.haptic).toBeDefined();
   });
 });
 

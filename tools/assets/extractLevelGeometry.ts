@@ -3,10 +3,11 @@ import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseNodeName, REQUIRED_ANCHOR_IDS } from '@content/levelNodeNames';
 import { type LevelGeometry, LevelGeometrySchema } from '@content/schemas/levelGeometry';
-import { DEFAULT_LEVEL_ID, NAV_CELL_M } from '@shared/constants';
+import { NAV_CELL_M } from '@shared/constants';
 import { log } from '@shared/log';
 import { err, ok, type Result } from '@shared/result';
 import { parseGlb } from './glb.ts';
+import { levelIdArg } from './levelIdArg.ts';
 import { geometryPath, glbPath } from './paths.ts';
 
 /** A validation, not a game number: how far an anchor may be from the nearest walkable cell, in metres. */
@@ -463,7 +464,13 @@ export function renderGeometry(geometry: LevelGeometry): string {
 }
 
 async function main(): Promise<void> {
-  const id = process.argv[2] ?? DEFAULT_LEVEL_ID;
+  const parsedId = levelIdArg(process.argv.slice(2), 'assets:extract');
+  if (!parsedId.ok) {
+    log.error('assets', parsedId.error);
+    process.exitCode = 1;
+    return;
+  }
+  const id = parsedId.value;
   const source = glbPath(id);
   const bytes = await readFile(source).catch((cause: unknown) => {
     log.error('assets', `cannot read ${source}: run \`npm run assets:export\` first`, cause);

@@ -14,6 +14,13 @@ export const SECONDS_PER_MINUTE = 60;
 export const STEP_MS = 10;
 
 /**
+ * How many places a suspicious silence takes against a wave's `maxSimultaneous` (story 3.13, GDD
+ * mechanic 17): the baby hides and Papa must search, so it counts for two while it is under way or
+ * announced. A rule of the GDD, not a tunable.
+ */
+export const SILENCE_SIMULTANEOUS_WEIGHT = 2;
+
+/**
  * How long past its close a beat waits for a late tap before it is called a miss (story 4.5), in sim
  * ms: two sim steps, a 60 fps frame. A tap reaches the sim at the first step of the next frame, so a
  * tap stamped just after the window would otherwise find the beat already missed and be judged
@@ -170,6 +177,15 @@ export const ISO_CAMERA_DISTANCE_M = 40;
 /** Breathing room added around the room when the camera is fitted to the window, in percent. */
 export const ISO_FIT_MARGIN_PCT = 4;
 
+/**
+ * The follow camera (story 9.2) jumps to its goal instead of catching up when more sim time than
+ * this passed since its last step (a level start, a restart, a debug `advance` of many steps).
+ */
+export const FOLLOW_SNAP_AFTER_MS = 1000;
+
+/** The share of a sudden jump of its goal the follow camera covers in `feel.camera.catchUpMs`, in %. */
+export const FOLLOW_CATCH_UP_SHARE_PCT = 95;
+
 /** Near plane of the isometric camera, in metres: the room is ~`ISO_CAMERA_DISTANCE_M` away, so nothing is ever this close. */
 export const ISO_CAMERA_NEAR_M = 0.1;
 
@@ -194,8 +210,22 @@ export const TOUCH_TARGET_MIN_PX = 44;
 /** The HUD band is at most this share of the room height, in percent. */
 export const HUD_BAND_MAX_PCT = 12;
 
-/** The HUD layer has at most this many DOM nodes. */
-export const HUD_MAX_DOM_NODES = 40;
+/**
+ * The HUD layer has at most this many DOM nodes. 40 until story 3.16, raised to 43 by Geo
+ * (2026-11-04) when Mama's face (3 nodes) came in: the busiest measured HUD, a silence with its ring,
+ * reads 42. Then 64 for story 9.3: the big room's HUD already had 36 (39 with the silence ring), and
+ * 3 off-screen bubbles at 6 nodes each bring its peak to 60 with the catastrophe-face; Geo raised it
+ * to 64 (2026-11-04).
+ */
+export const HUD_MAX_DOM_NODES = 64;
+
+/**
+ * The most plates the client draws as shards on the floor in front of a station (story 9.6): one cluster of
+ * splinters per plate a missed beat broke, all in the one mesh of the station; a count. A game that drops
+ * more plates than this shows this many; Mama's Soupir counts them all (it is held to its own maximum
+ * anyway).
+ */
+export const CHORE_SHARDS_MAX = 12;
 
 /** A panel pops in within this much real time, in ms (a plain fade under reduced motion). */
 export const PANEL_POP_MAX_MS = 220;
@@ -236,8 +266,16 @@ export const MAX_BABY_RADIUS_M = 1;
 /** A level's shipped payload (the optimised `.glb`) is at most this many bytes (NFR3: 3 MB). */
 export const LEVEL_PAYLOAD_MAX_BYTES = 3 * 1024 * 1024;
 
-/** The level the prototype loads, until story 1.10 gives the level JSON its own `id`. */
-export const DEFAULT_LEVEL_ID = 'salon_crawler';
+/**
+ * Levels whose payload may exceed `LEVEL_PAYLOAD_MAX_BYTES` (NFR15: the big room with its kitchen,
+ * story 9.1). Open assumption: 5 MB is to be confirmed with the real audio of Epic 9's chores.
+ */
+export const LEVEL_PAYLOAD_MAX_BYTES_BY_ID: Readonly<Record<string, number>> = {
+  salon_kitchen: 5 * 1024 * 1024,
+};
+
+/** The first level of the game (story 9.8): the one a start with no `?level=`, a production build and `npm run sim` without `--level` play. The old salon stays a level (`?level=salon_crawler`). */
+export const DEFAULT_LEVEL_ID = 'salon_kitchen';
 
 /** How long one flavour line of the loading screen stays up before the next, in real ms. */
 export const LOADING_LINE_INTERVAL_MS = 2000;
@@ -280,6 +318,25 @@ export const HOLD_RING_STROKE_PX = 5;
 
 /** ...and its outer ink outline is this wide, in CSS px (DESIGN.md › hold-ring `outerOutline`). */
 export const HOLD_RING_OUTLINE_PX = 2;
+
+/**
+ * The chrono-ring (story 2.11; DESIGN.md › chrono-ring). Its progress band and its ink outline are the
+ * hold-ring's (`HOLD_RING_STROKE_PX`, `HOLD_RING_OUTLINE_PX`); `holdRingSpec.test.ts` pins all of these.
+ * The gap between the hold-ring's outline and the chrono-ring's band, in CSS px (`gapFromHoldRing`).
+ */
+export const CHRONO_RING_GAP_PX = 2;
+
+/** ...the lit final arc's thickness, growing outward from the band's inner edge, in CSS px (`finalArcStrokeWidth`). */
+export const CHRONO_RING_FINAL_ARC_STROKE_PX = 8;
+
+/** ...the perfect notch's width, in CSS px (`perfectNotch`: a 2 px ink tick). */
+export const CHRONO_RING_NOTCH_PX = 2;
+
+/** The target-highlight's ring is this thick, in CSS px (DESIGN.md › target-highlight `outline`), inside its ink outlines. */
+export const TARGET_HIGHLIGHT_STROKE_PX = 4;
+
+/** ...and each of its two ink outlines (inside and outside the ring) is this wide, in CSS px. */
+export const TARGET_HIGHLIGHT_OUTLINE_PX = 2;
 
 /** A threat's verb never shrinks under this font size, in CSS px (DESIGN.md › verb-label `minFontSize`). */
 export const VERB_MIN_FONT_PX = 28;
@@ -324,6 +381,13 @@ export const NEUTRAL_WINDOW_MODIFIER = 1;
  * change the game it plays, and the same seed must not give the bot the world's sfc32 stream.
  */
 export const BOT_SEED_SALT = 0xb07b07b0;
+
+/**
+ * XORed with the level's seed to seed the local stream that breaks a tie between Mama's lines (story 3.8, D6):
+ * the choice of a line draws nothing from `world.rng` (it would move every golden), and must not share the world's
+ * sfc32 stream either.
+ */
+export const MAMA_LINES_SEED_SALT = 0x4d414d41;
 
 /** The longest game `npm run sim --until-ms` accepts, in sim ms (one hour): a larger value is a typo, not a test. */
 export const SIM_CLI_MAX_UNTIL_MS = 3_600_000;
@@ -444,6 +508,14 @@ export const GAUGE_MAX_POINTS = 100;
 /** Mama's note is out of this many points (GDD › economy, story 1.22); `MamaSchema` makes its four maxima add up to it. */
 export const MAMA_SCORE_MAX_POINTS = 100;
 
+/**
+ * Mama's three reactions on the Result screen, in the order they play (story 3.7, GDD › Note de
+ * Maman): she laughs, sighs or screams. `mamaReactionsOf` picks which ones play; story 3.8's
+ * `MamaLinesSchema` keys her lines by them.
+ */
+export const MAMA_REACTIONS = ['laugh', 'sigh', 'scream'] as const;
+export type MamaReactionId = (typeof MAMA_REACTIONS)[number];
+
 /** Mama gives at most this many stars: one per `feel.mama.starThresholdPoints` (story 1.22). */
 export const STAR_COUNT_MAX = 5;
 
@@ -465,6 +537,16 @@ export const PHONE_RINGING_EVERY_MS = 1000;
  */
 export const BABY_CRYING_EVERY_MS = 1000;
 
+/**
+ * The longest a séquelle may keep Papa busy, glissade comprise, in sim ms (story 3.15, GDD mechanic
+ * 13: « aucune ne dépasse 2 s »). A rule of the GDD, not a tunable: the threat schema refuses a
+ * longer `afterEffect` duration, so a tuning typo cannot break the promise.
+ */
+export const AFTER_EFFECT_BUSY_MAX_MS = 2000;
+
+/** The micro-sleep's séquelle is the one exception to {@link AFTER_EFFECT_BUSY_MAX_MS}: 3 s at most (story 3.15). */
+export const MICRO_SLEEP_BUSY_MAX_MS = 3000;
+
 /** A feel is a few levels deep; a `SetFeel` patch nested deeper than this is refused (it stops a runaway or cyclic patch). */
 export const PATCH_MAX_DEPTH = 8;
 
@@ -485,6 +567,12 @@ export const PARTICLE_GRAVITY_MPS2 = 9.8;
 
 /** UX ceiling of the « PARADE PARFAITE » stamp, in real ms (UX-DR15): never longer, whatever `feel.fx` says. */
 export const EPIC_STAMP_MAX_MS = 900;
+
+/**
+ * Sim ms between two snapshots of the live sim, kept by the client for the highlight replay
+ * (architecture « Snapshots », story 3.9, D2): the sim itself never takes one.
+ */
+export const SNAPSHOT_EVERY_MS = 5000;
 
 /** Reduced motion keeps this share of a burst's particles (EXPERIENCE.md: « −60 % »). */
 export const REDUCED_MOTION_PARTICLE_KEEP_PCT = 40;
@@ -544,4 +632,89 @@ export const VOLUME_STEP_PCT = 5;
 export const VOLUME_MAX_PCT = 100;
 
 /** The version of the save the game writes. Every bump adds a migration `v{n-1} → v{n}` (story 2.7). */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
+
+/**
+ * The activity bubble above a busy Papa (story 2.12; DESIGN.md › activity-bubble). Every size is a
+ * DESIGN value, written to the page root by `applyActivityBubbleMetrics` and pinned by
+ * `activityBubbleSpec.test.ts`; the ring's band and outline are the hold-ring's constants.
+ * The bubble's ink border, in CSS px (`borderWidth`).
+ */
+export const ACTIVITY_BUBBLE_BORDER_PX = 3;
+
+/** ...its diameter on the compact surface, in CSS px (`sizeCompact`; the same surface as `--pp-threat-size` 56). */
+export const ACTIVITY_BUBBLE_COMPACT_PX = 48;
+
+/** ...and on the regular surface, in CSS px (`sizeRegular`; `--pp-threat-size` is 64 there). */
+export const ACTIVITY_BUBBLE_REGULAR_PX = 56;
+
+/** The bubble shakes for this long when a tap on a threat is refused, in real ms (`refusedShakeMs`). */
+export const ACTIVITY_BUBBLE_REFUSED_SHAKE_MS = 150;
+
+/** Reduced motion: the border is this thick for the same `refusedShakeMs`, in CSS px (3 → 5, like the gauge alert). */
+export const ACTIVITY_BUBBLE_REDUCED_BORDER_PX = 5;
+
+/** The bubble squashes in for this long when it appears, in real ms (an `[ASSUMPTION]` of the UX spec). */
+export const ACTIVITY_BUBBLE_SQUASH_MS = 180;
+
+/** ...starting from this scale (a squash: flat, then back to 1). */
+export const ACTIVITY_BUBBLE_SQUASH_SCALE_FROM = 0.5;
+
+/** The bubble pops out (scales up and fades) for this long when Papa is free again, in real ms. */
+export const ACTIVITY_BUBBLE_POP_MS = 160;
+
+/** ...up to this scale. */
+export const ACTIVITY_BUBBLE_POP_SCALE_TO = 1.4;
+
+/** The gap between the bubble's ring and the combo badge, or the chrono-ring of a threat on Papa, in CSS px. */
+export const ACTIVITY_BUBBLE_GAP_PX = 8;
+
+/** Half the combo badge's width at its widest (« x8 » in the combo type, stroke included), in CSS px. */
+export const COMBO_BADGE_HALF_WIDTH_PX = 24;
+
+/** The threat icon's size on the compact surface, in CSS px (`--pp-threat-size`; `activityBubbleSpec.test.ts` pins it to `ui.css`). */
+export const THREAT_ICON_COMPACT_PX = 56;
+
+/** ...and on the regular surface, in CSS px. */
+export const THREAT_ICON_REGULAR_PX = 64;
+
+/** A threat icon floats this far above the top of the body it marks (Papa's cube, the baby's), in metres: the client's marker and the `human` bot's frame test (story 9.8) both read it. */
+export const THREAT_MARKER_OFFSET_M = 0.3;
+
+/**
+ * The off-screen bubble of a follow level (story 9.3; DESIGN.md › offscreen-bubble, UX-DR30): a paper
+ * disc at the left, right or top edge for a threat whose icon is outside the follow frame. DESIGN sizes
+ * and plumbing, not feel (D9): `offscreenBubbleSpec.test.ts` pins them to DESIGN.md. At most this many
+ * at once (`maxCount`).
+ */
+export const OFFSCREEN_BUBBLE_MAX_COUNT = 3;
+
+/** The threat icon inside the bubble on the compact surface, in CSS px (`iconSizeCompact`). */
+export const OFFSCREEN_BUBBLE_ICON_COMPACT_PX = 40;
+
+/** ...and on the regular surface, in CSS px (`iconSizeRegular`). */
+export const OFFSCREEN_BUBBLE_ICON_REGULAR_PX = 48;
+
+/** The bubble's ink border, in CSS px (`borderWidth`). */
+export const OFFSCREEN_BUBBLE_BORDER_PX = 3;
+
+/** Paper between the ring's outermost ink and the bubble's border, in CSS px. */
+export const OFFSCREEN_BUBBLE_PADDING_PX = 2;
+
+/** How far the ink chevron reaches beyond the bubble's border, toward the threat, in CSS px. */
+export const OFFSCREEN_BUBBLE_CHEVRON_PX = 10;
+
+/** The gap between two bubbles' outer edges, chevrons included, and under the HUD row, in CSS px (`stackGap`, `{spacing.2}`). */
+export const OFFSCREEN_BUBBLE_STACK_GAP_PX = 8;
+
+/** A shown bubble hides once its threat's icon is this much further inside the frame, in CSS px: no flicker at the edge. */
+export const OFFSCREEN_BUBBLE_HYSTERESIS_PX = 12;
+
+/** The DOM nodes one bubble costs with a circle icon, at most (UX-DR26, the HUD's budget). */
+export const OFFSCREEN_BUBBLE_MAX_NODES = 7;
+
+/** The room the layout keeps for the glyph chip beside a targeted bubble, in CSS px (« Espace » at its widest, outline included). */
+export const OFFSCREEN_BUBBLE_CHIP_WIDTH_PX = 96;
+
+/** ...and its height (the chip's 32 px). */
+export const OFFSCREEN_BUBBLE_CHIP_HEIGHT_PX = 32;

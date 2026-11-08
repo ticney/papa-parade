@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
+import { CHORE_STATION_KINDS, type ChoreStationKind } from './chore.ts';
 
 // `content/levels/<id>.json`: what a level plans, beside `<id>.geometry.json` (its room) and
 // `assets/levels/<id>.glb` (its look). Story 1.18 replaced the flat `threats` list with waves and
@@ -7,7 +8,8 @@ import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 // interactive things (coffee machine, phone) Space or A can walk Papa to. Story 1.19 added
 // `gauges` (the fatigue system a level opts into) and the `kind` of an object; story 3.1 added `gauges.noise`. Story 1.20 added
 // `disruptions` to a wave: the phone that rings at a fixed time, on an object of the level. Story 4.3 added
-// `gauges.need` (the pressing need) and the `toilet` object kind.
+// `gauges.need` (the pressing need) and the `toilet` object kind. Story 9.2 added `camera`: whether the
+// view stays on the whole room or follows Papa (the client alone reads it).
 
 /** The level variants the game has. Each one has its own timer icon (`client/ui/hud/timerHud.ts`). */
 export const LEVEL_VARIANTS = ['nap'] as const;
@@ -23,10 +25,21 @@ export type GaugeId = (typeof GAUGE_IDS)[number];
 /**
  * What an interactive object is, hence what Papa does on arriving at it: the sim has one action per
  * kind (a `Record<ObjectKind, …>`, so a kind with no action does not compile). The phone's is story 1.20,
- * the toilet's story 4.3.
+ * the toilet's story 4.3, the stove's and the dishwasher's (the two chore stations) stories 9.4 and 9.6.
  */
-export const OBJECT_KINDS = ['coffee_machine', 'phone', 'toilet'] as const;
+export const OBJECT_KINDS = ['coffee_machine', 'phone', 'toilet', 'stove', 'dishwasher'] as const;
 export type ObjectKind = (typeof OBJECT_KINDS)[number];
+
+// Every chore station is an object kind (story 9.4): a station kind that is not one does not compile.
+const _stationKindsAreObjectKinds: ChoreStationKind extends ObjectKind ? true : never = true;
+void _stationKindsAreObjectKinds;
+
+/**
+ * How the game camera frames the level (story 9.2): `fixed` fits the whole room, `follow` keeps a
+ * frame of `feel.camera`'s size on Papa (the big room). Client only: the sim never reads it.
+ */
+export const LEVEL_CAMERA_MODES = ['fixed', 'follow'] as const;
+export type LevelCameraMode = (typeof LEVEL_CAMERA_MODES)[number];
 
 const idSchema = (description: string) =>
   z.string().regex(SNAKE_ID_PATTERN, 'an id is lower_snake_case').describe(description);
@@ -108,6 +121,15 @@ const LevelObjectSchema = z
     anchor: idSchema('An anchor of the level geometry, without the `ANCHOR_` prefix.'),
   })
   .describe('One interactive object: what Space or A can walk Papa to, and where it stands.');
+
+const LevelChoreSchema = z
+  .strictObject({
+    def: idSchema('The id of a `content/chores/<def>.json`.'),
+    object: idSchema(
+      'The id of an entry of the level `objects` that is its station; its `kind` must equal the def `station`.',
+    ),
+  })
+  .describe('One house chore the level offers (story 9.4): what, and at which object.');
 
 const LevelGaugesSchema = z
   .strictObject({
@@ -208,6 +230,13 @@ export const LevelSchema = z
       .array(LevelObjectSchema)
       .default([])
       .describe('The interactive objects of the level (story 1.17); none by default.'),
+    chores: z
+      .array(LevelChoreSchema)
+      .min(1)
+      .optional()
+      .describe(
+        'The house chores of the level (story 9.4), each on a station object. An object is named by at most one chore and each object of a station kind by exactly one. Absent: no chore.',
+      ),
     gauges: LevelGaugesSchema.default({}).describe(
       'The gauges of the level (story 1.19); none by default.',
     ),
@@ -226,6 +255,12 @@ export const LevelSchema = z
     finalRush: LevelFinalRushSchema.optional().describe(
       'The final rush (story 3.5): the door opens before the end and the level ends on the photo. Absent: the level ends on `ended`, as before.',
     ),
+    camera: z
+      .enum(LEVEL_CAMERA_MODES)
+      .default('fixed')
+      .describe(
+        'How the camera frames the level (story 9.2): `fixed` shows the whole room, `follow` follows Papa with a frame of `feel.camera`. Client only. Default `fixed`.',
+      ),
     feelOverrides: z
       .record(z.string(), z.unknown())
       .default({})
@@ -239,6 +274,35 @@ export const LevelSchema = z
         path: ['sequences', i],
         message: `sequences[${i}]: the sequence "${sequence}" is already listed`,
       });
+    });
+    const stationed = new Set<string>();
+    level.chores?.forEach((chore, i) => {
+      const object = level.objects.find((candidate) => candidate.id === chore.object);
+      if (object === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['chores', i, 'object'],
+          message: `chores[${i}]: the object "${chore.object}" is not in the level objects`,
+        });
+      }
+      if (stationed.has(chore.object)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['chores', i, 'object'],
+          message: `chores[${i}]: the object "${chore.object}" is already the station of another chore`,
+        });
+      }
+      stationed.add(chore.object);
+    });
+    level.objects.forEach((object, i) => {
+      const isStation = (CHORE_STATION_KINDS as readonly string[]).includes(object.kind);
+      if (isStation && !stationed.has(object.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['objects', i],
+          message: `objects[${i}]: the ${object.kind} "${object.id}" is a station and no chore names it`,
+        });
+      }
     });
     const planned = new Map<string, string>();
     const disrupted = new Map<string, string>();
@@ -331,6 +395,7 @@ export type Level = z.infer<typeof LevelSchema>;
 export type LevelWave = z.infer<typeof LevelWaveSchema>;
 export type LevelWaveThreat = z.infer<typeof LevelWaveThreatSchema>;
 export type LevelWaveDisruption = z.infer<typeof LevelWaveDisruptionSchema>;
+export type LevelChore = z.infer<typeof LevelChoreSchema>;
 export type LevelObject = z.infer<typeof LevelObjectSchema>;
 export type LevelGauges = z.infer<typeof LevelGaugesSchema>;
 export type LevelCarry = z.infer<typeof LevelCarrySchema>;

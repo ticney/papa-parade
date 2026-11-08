@@ -1,9 +1,10 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { makeJournal } from '../playtest/support.ts';
 
 // The only spawning test: the exit-code paths of the two real commands, which the unit tests of
 // the pieces cannot see. It reads the live content, so it asserts no tuned value.
@@ -83,6 +84,8 @@ describe('npm run sim', () => {
       const report = join(dir, 'report.json');
       const games = join(dir, 'games');
       const played = run('runSim', [
+        '--level',
+        'salon_crawler',
         '--bot',
         'human',
         '--seed',
@@ -113,6 +116,72 @@ describe('npm run sim', () => {
       const refused = run('replaySim', [alteredFile]);
       expect(refused.status).toBeGreaterThan(0);
       expect(refused.stderr).toContain('another state');
+    },
+    TIMEOUT_MS,
+  );
+});
+
+describe('npm run sim --compare (story 3.14)', () => {
+  /** A panel of one tester with one five-star game of perfects: far above what an idle bot can do. */
+  function writePanel(): string {
+    const panel = join(dir, 'panel');
+    mkdirSync(join(panel, 'geo'), { recursive: true });
+    const responses = Array.from({ length: 5 }, () => ({
+      threat: 'outlet',
+      quality: 'perfect' as const,
+    }));
+    const journal = makeJournal({ stars: 5, responses });
+    writeFileSync(join(panel, 'geo', '1.json'), JSON.stringify(journal));
+    return panel;
+  }
+
+  it(
+    'writes the comparison block, and a KO is not an error (exit 0)',
+    () => {
+      const report = join(dir, 'compare.json');
+      const done = run('runSim', [
+        '--level',
+        'salon_crawler',
+        '--bot',
+        'idle',
+        '--runs',
+        '1',
+        '--compare',
+        writePanel(),
+        '--out',
+        report,
+      ]);
+      expect(done.status).toBe(0);
+      const { comparison, chronoRing } = JSON.parse(readFileSync(report, 'utf8'));
+      expect(chronoRing).toBe('on');
+      expect(comparison).toMatchObject({
+        games: 1,
+        medianStars: 5,
+        starStatus: 'KO',
+        perfectStatus: 'OK',
+      });
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'has no comparison block without --compare',
+    () => {
+      const done = run('runSim', ['--bot', 'idle', '--until-ms', '10000']);
+      expect(done.status).toBe(0);
+      expect(JSON.parse(done.stdout).comparison).toBeNull();
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'exits non-zero on a folder it cannot read, naming it',
+    () => {
+      const done = run('runSim', ['--bot', 'idle', '--compare', join(dir, 'nowhere')]);
+      expect(done.status).toBeGreaterThan(0);
+      expect(done.stderr).toContain('--compare');
+      expect(done.stderr).toContain('nowhere');
+      expect(done.stderr).not.toMatch(/\n\s+at /);
     },
     TIMEOUT_MS,
   );

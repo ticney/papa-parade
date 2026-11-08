@@ -3,7 +3,8 @@ title: 'Game Architecture'
 project: 'papa-parade'
 date: '2026-10-26'
 author: 'Geo'
-version: '1.0'
+version: '1.2'
+lastUpdated: '2026-11-08'
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9]
 status: 'complete'
 engine: 'Three.js r186 (three@0.186.1) + Vite 8.3 + TypeScript 7.0'
@@ -24,6 +25,8 @@ brief: null
 ## Statut du document
 
 **Statut :** complet (workflow GDS Architecture, 9 étapes sur 9), validé le 2026-10-26.
+**Mise à jour v1.1 (2026-11-03) :** GDD v2.3 et Sprint Change Proposal du 2026-11-03 (`sprint-change-proposal-2026-11-03.md`, §4.8) : caméra qui suit, équité de trajet (ADR-011), jauge de catastrophe et fin anticipée, séquelles, tâches de la maison, note sur cinq lignes, NFR15. Les ajouts portent la mention « (v2.3, 2026-11-03) ».
+**Mise à jour v1.2 (2026-11-08) :** GDD v2.4 et Sprint Change Proposal du 2026-11-08 (`sprint-change-proposal-2026-11-08.md`, §4.6) : animation des personnages (couche de vie, variantes reproductibles, contrat des personnages étendu, réglages dans `feel.json › characters`), mouvement réduit. Les ajouts portent la mention « (v2.4, 2026-11-08) ».
 Le document est rédigé en français, comme le GDD (dérogation à `document_output_language: English`, décidée par Geo le 2026-10-26). Les identifiants de code restent en anglais. Il est la source de vérité **technique** ; le GDD reste la source de vérité des **règles du jeu**, et la spécification UX (`DESIGN.md`, `EXPERIENCE.md`) celle de **l'interface**.
 
 ## Résumé exécutif
@@ -47,7 +50,7 @@ L'architecture de **Papa Parade** repose sur Three.js r186, Vite 8.3 et TypeScri
 
 ### Vue d'ensemble
 
-**Papa Parade** — action chaotique à timing, solo : un papa « pare » les dangers de son enfant comme dans un jeu de combat. Vue isométrique fixe, 3D low poly, une pièce par niveau, niveaux de 3 à 5 min. Verbe central : « lire, puis répondre juste » (parer, fermeté, esquiver, attendre, ne rien faire).
+**Papa Parade** — action chaotique à timing, solo : un papa « pare » les dangers de son enfant comme dans un jeu de combat. Vue isométrique ; caméra fixe dans une petite pièce, qui suit papa dans une grande (`level.camera`, v2.3, 2026-11-03). 3D low poly, une pièce par niveau, niveaux de 3 à 5 min. Verbe central : « lire, puis répondre juste » (parer, fermeté, esquiver, attendre, ne rien faire).
 
 ### Périmètre technique
 
@@ -67,13 +70,13 @@ L'architecture de **Papa Parade** repose sur Three.js r186, Vite 8.3 et TypeScri
 | Menaces pilotées par les données : télégraphe → fenêtre → résolution (réussite, parfaite, gag) | Haute | Catalogue des menaces |
 | IA du bébé : choix de cible, déplacement, regard verrouillé, babillage et silence | Moyenne | Micro-boucle, Silence comme télégraphe |
 | Déplacement de papa et glissade freeflow (0,6 s max) | Moyenne | Glissade freeflow |
-| Jauges : fatigue, bruit (puis envie pressante) ; instinct paternel | Moyenne | Besoins de papa, Jauge de bruit |
+| Jauges : fatigue, bruit (puis envie pressante), catastrophe (v2.3) ; instinct paternel ; séquelles des gags (v2.3) | Moyenne | Besoins de papa, Jauge de bruit, mécaniques 13–14 |
 | Perturbations (téléphone) | Basse | Catalogue des menaces |
 | Note de Maman : score, étoiles, mémoire des parties | Moyenne | Économie et ressources |
 | Fin de niveau : porte, rush final, photo figée, replay | Moyenne à haute (le replay suppose un enregistrement) | Macro-boucle |
 | Retours multimodaux : chaque événement émet son, équivalent visuel et haptique | Haute | Pilier 3, Audio et musique |
 | Audio adaptatif (coupure, bascule au ralenti) | Moyenne | Audio et musique |
-| Rendu iso Three.js : toon, contours, caméra dynamique (zoom au ralenti) | Moyenne | Style visuel |
+| Rendu iso Three.js : toon, contours, caméra dynamique (zoom au ralenti) ; caméra qui suit papa dans une grande pièce (v2.3, E9) | Moyenne | Style visuel, Cadre de level design |
 | Physique légère Rapier (chutes, rebonds) | Moyenne | Physique légère |
 | Contenu JSON et validation par schéma | Moyenne | Principe de production |
 | Fichier de feeling unique, réglable sans toucher à la logique | Moyenne | E2 |
@@ -187,10 +190,10 @@ Aucun starter communautaire : les starters Three.js imposent des structures (Rea
 | Feeling | `feel.json` unique, surcharges par niveau ; panneau Tweakpane en dev, réglage à chaud, sauvegarde via un plugin Vite | tweakpane 4.0.5 | E1, E2 | Règle d'or : Geo règle sans toucher à la logique |
 | Rendu | `WebGLRenderer`, `MeshToonMaterial` (rampe 3 tons), contours inverted hull, pas de post-process lourd, DPR plafonné et adaptatif | three 0.186.1 | E1, E7 | Fiable en WebView mobile, 60 FPS ; WebGPU réévalué en E7 : on reste sur WebGL (ADR-008) |
 | Audio | Web Audio maison : bus musique / sfx / voix / UI, buffers pré-décodés, stems synchronisés, déverrouillage au premier tap | API native | E1, E2, E4 | Maîtrise de la latence et de la synchro ; Howler n'est plus maintenu |
-| UI et HUD | DOM superposé en vanilla TS + CSS ; éléments ancrés au monde via `CSS2DRenderer` ; tokens et composants définis par `DESIGN.md` et `EXPERIENCE.md` | addon three | E1, E2, E3 | Lisible par Playwright, facile à écrire pour l'IA, sans framework |
+| UI et HUD | DOM superposé en vanilla TS + CSS ; éléments ancrés au monde via `CSS2DRenderer` (dont anneau-chrono, bulle d'activité et bulle hors cadre, v2.3) ; tokens et composants définis par `DESIGN.md` et `EXPERIENCE.md` | addon three | E1, E2, E3 | Lisible par Playwright, facile à écrire pour l'IA, sans framework |
 | Pipeline d'assets | Blender 5.2 LTS (greybox dès E1, via Blender MCP) → `.glb` avec convention `COL_` / `NAV_` / `ANCHOR_` ; optimisation gltfpack | Blender 5.2.3, gltfpack 1.3.0 | E1, E7 | Le pipeline est validé tôt ; les niveaux JSON référencent les ancres par nom |
 | Chargement | Par niveau : préchargement complet avant le début du niveau | — | E1, E6 | Aucun accroc en jeu ; < 5 s en 4G |
-| IA du bébé | `WaveDirector` (JSON du niveau) + FSM du bébé | — | E1, E4, E6 | Rythme des vagues contrôlé par les données |
+| IA du bébé | `WaveDirector` (JSON du niveau) + FSM du bébé ; équité de trajet dans le directeur (ADR-011, v2.3) | — | E1, E3, E4, E6, E9 | Rythme des vagues contrôlé par les données ; jamais deux fenêtres impossibles à tenir |
 | Navigation | Grille 2D + A* sur le plan du sol, cuite depuis les `NAV_` du `.glb` | — | E1 | Simple et suffisant pour une pièce |
 | Automatisation | CLI Node `sim` (headless, graine, bots) + `?autoplay=` dans le navigateur + `window.__PP__` pour Playwright | vitest 5.0.5, @playwright/test 1.64.1 | Toutes | Jouable de bout en bout sans humain ; équilibrage en masse |
 | Persistance | `StoragePort` : localStorage (web), `@capacitor/preferences` (natif) ; JSON versionné avec migrations | @capacitor/preferences 8.0.1 | E2, E3 | Petit volume ; repli sûr si les données sont corrompues |
@@ -209,6 +212,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 - **Échelle de temps :** `timeScale` est un état de la sim (ralenti parfait ×0,3, dernière menace ×0,2, instinct ×0,8). Chaque pas de sim vaut toujours 10 ms de `simTime` ; c'est le nombre de pas exécutés par seconde réelle qui varie. Avec `timeScale = 0,3`, il y a 30 pas par seconde réelle.
 - **Hitstop :** c'est un gel. La sim décide du hitstop et expose `freezeRealMs` (80 ms, depuis `feel.json`). La boucle client consomme ce gel en temps réel : aucun pas n'est exécuté et le rendu continue, avec tremblement et particules. En headless, le gel est sans effet, car aucun temps de jeu ne s'écoule pendant un gel. La sim ne lit jamais le temps réel.
 - **Pause :** la boucle arrête d'exécuter des pas. Au retour, un décompte de 3 s en temps réel précède la reprise. L'état de la sim n'a pas bougé, d'où une reprise exacte.
+- **Anneaux ancrés au monde (v2.3, 2026-11-03) :** l'anneau-chrono et l'anneau de la bulle d'activité sont calculés en `simTime` à partir du `World` (télégraphe, fenêtre effective, `busyUntil`). Ils ralentissent, se figent ou s'arrêtent avec le temps de jeu ; le client ne garde aucune minuterie en temps réel pour eux.
 - **Correspondance des temps :** le client tient un historique circulaire de paires `(realTime, simTime)` mis à jour à chaque pas. Une entrée horodatée en temps réel est d'abord corrigée de la latence calibrée, puis convertie en `simTime` par interpolation dans cet historique.
 
 ### Chaîne d'entrées
@@ -217,7 +221,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
    - Le clavier est lié par `KeyboardEvent.code` (position physique) : ZQSD en AZERTY et WASD en QWERTY marchent sans réglage. Les glyphes affichés (`glyph-chip`) viennent de `navigator.keyboard.getLayoutMap()` quand l'API existe, et sinon « Espace » et des flèches.
    - La famille de la manette (Xbox par défaut, PlayStation) est déduite de `Gamepad.id` pour les glyphes. `gamepaddisconnected` met la partie en pause.
    - Pause en jeu : bouton du HUD, Échap, Start/Options, retour Android (`@capacitor/app`). B ne met jamais en pause, car B + direction sert à esquiver.
-2. **Mapping** (client, `InputMapper`) : la position écran est projetée sur le plan du sol par la caméra. Le hit-test donne la priorité aux menaces, puis au bébé, puis aux objets interactifs, puis au sol, avec un rayon tactile généreux en px écran fixé dans `feel.json`. Au clavier et à la manette, la menace la plus urgente dans la direction visée est ciblée automatiquement.
+2. **Mapping** (client, `InputMapper`) : la position écran est projetée sur le plan du sol à travers la caméra courante, telle qu'elle est rendue à cette frame (fixe, ou mobile en mode `follow` : v2.3, 2026-11-03). Le hit-test donne la priorité aux menaces, puis au bébé, puis aux objets interactifs, puis au sol, avec un rayon tactile généreux en px écran fixé dans `feel.json`. Un tap sur une bulle hors cadre vaut un tap sur sa menace (même `PressThreat`). Au clavier et à la manette, la menace la plus urgente dans la direction visée est ciblée automatiquement, y compris hors cadre.
 3. **Commandes** : le client envoie à la sim des commandes typées et horodatées en `simTime` : `PressThreat{threatId, t}`, `Release{t}`, `TapFloor{x, z, t}`, `TapObject{objectId, t}`, `TapBaby{t}`, `Swipe{dir, t}`. La sim ne voit jamais d'événement brut. Les bots produisent directement ces commandes.
 4. **Jugement** (sim) : la réponse est jugée sur `t` de l'appui. Le type de réponse se décide au relâchement, ou à 400 ms de maintien : en dessous de `holdMinMs` (400), c'est Parer ; au-delà, Fermeté. Le buffer d'entrée (100 ms) accepte un appui légèrement antérieur à l'ouverture de la fenêtre. « Attendre » et « Ne rien faire » sont jugés par les machines à états des menaces, sur l'absence de commande visant la menace pendant la période requise.
 5. **Fenêtre effective** = base × palier de difficulté × modificateur de fatigue × modificateur d'instinct, puis ± tolérance cachée. Cet ordre est fixe ; il est défini et testé dans `sim/timing`.
@@ -226,8 +230,8 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 
 **Approche :** des données pures et des systèmes, sans bibliothèque ECS.
 
-- `World` est un objet sérialisable : ni classes, ni fonctions, ni références Three.js. Il contient `time`, `rng`, `papa`, `baby`, `threats[]`, `props[]`, `gauges`, `director`, `score` et `flow`.
-- Les systèmes sont des fonctions `(world, ctx) => void`, exécutées dans un ordre fixe à chaque pas : commandes → timing → director → IA du bébé → menaces → déplacement de papa → physique → jauges → instinct → score → flux. Ils émettent des événements dans `ctx.events`.
+- `World` est un objet sérialisable : ni classes, ni fonctions, ni références Three.js. Il contient `time`, `rng`, `papa`, `baby`, `threats[]`, `props[]`, `gauges`, `director`, `score` et `flow` ; v2.3 (2026-11-03) ajoute `gauges.catastrophe`, les séquelles actives (`afterEffects`), les tâches de la maison (`chores`) et `score.calm` (temps sous le seuil de bruit).
+- Les systèmes sont des fonctions `(world, ctx) => void`, exécutées dans un ordre fixe à chaque pas : commandes → timing → director → IA du bébé → menaces (séquelles comprises : `threats/afterEffects.ts`) → tâches (E9) → déplacement de papa → physique → jauges (catastrophe comprise : `gauges/catastrophe.ts`) → instinct → score → flux. La catastrophe passe donc avant le score et le flux, qui lisent sa valeur du même pas. Ils émettent des événements dans `ctx.events`.
 - Les menaces, le bébé et le flux du niveau sont des machines à états explicites : un `state` en chaîne littérale et un `enteredAt` en `simTime`.
 - La physique Rapier vit à côté du `World`, dans `PhysicsPort`. Son snapshot binaire (`world.takeSnapshot()`) est joint au snapshot du `World`.
 
@@ -235,7 +239,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 
 - La sim tire tout son hasard d'un PRNG à graine (mulberry32 ou sfc32) stocké dans `World`.
 - **Journal de partie :** la graine, la version du contenu, le hash de `feel.json` et la liste horodatée des commandes. Rejouer le journal reproduit la partie à l'identique sur la même plateforme.
-- **Snapshots :** un snapshot du `World` et de Rapier toutes les 5 s de `simTime`. Le replay des meilleurs moments repart du snapshot qui précède le moment, puis rejoue les commandes. La photo de fin est le snapshot final, rendu sans simulation.
+- **Snapshots :** un snapshot du `World` et de Rapier toutes les 5 s de `simTime` (`SNAPSHOT_EVERY_MS`). Le replay des meilleurs moments repart du snapshot qui précède le moment, puis rejoue les commandes. La photo de fin est le snapshot final, rendu sans simulation. **Ils sont pris par le client (story 3.9, D2)** : `levelSession` les prend dans le `beforeStep` de sa boucle (avant le bot d'autoplay), à `world.time.sim === 0` puis à chaque multiple de 5 s, et les range dans `endOfLevel/snapshotLog.ts` ; la sim ne change pas (ni option, ni commande, ni événement, ni version de snapshot, ni journal, ni golden). Un snapshot coûte 0,2 à 0,7 ms et pèse environ 33 ko de JSON (environ 37 pour un niveau de 3 minutes).
 - **Tests golden :** un journal de référence est rejoué dans Vitest, et l'on compare le hash de l'état final et la séquence d'événements.
 
 ### Physique
@@ -247,7 +251,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 
 ### Retours multimodaux
 
-- **Mouvement réduit** (`save.settings.reducedMotion`) : seul le client le lit (`FeedbackDirector`, `cameraFx`, `vfx/`, UI). Il supprime le tremblement et la rotation de caméra, plafonne le zoom à 50 %, réduit les particules de 60 % et remplace les flashs par une lueur. Il ne touche jamais la sim : hitstop, ralentis et fenêtres restent identiques, et les tests golden ne changent pas. Quel que soit le réglage, rien ne clignote à plus de 3 Hz.
+- **Mouvement réduit** (`save.settings.reducedMotion`) : seul le client le lit (`FeedbackDirector`, `cameraFx`, `vfx/`, UI). Il supprime le tremblement et la rotation de caméra, plafonne le zoom à 50 %, réduit les particules de 60 % et remplace les flashs par une lueur. Caméra qui suit (v2.3, 2026-11-03) : rattrapage plus lent et sans rebond. Animation des personnages (v2.4, 2026-11-08) : la respiration, l'élan, la mèche et les attentes s'arrêtent, et le demi-tour ne dépasse plus sa cible ; les clips, les poses qui portent un état, la voûte de fatigue, le regard et les expressions restent. Il ne touche jamais la sim : hitstop, ralentis et fenêtres restent identiques, et les tests golden ne changent pas. Quel que soit le réglage, rien ne clignote à plus de 3 Hz.
 
 - La sim émet des événements de domaine typés, comme `ThreatTelegraphed`, `WindowOpened`, `ResponseResolved{quality: perfect | success | fail}`, `GagTriggered`, `SilenceStarted`, `NoiseChanged` ou `MamaWoke`.
 - Le client relaie ces événements au `FeedbackDirector`, qui consulte `content/feedback.json` : à chaque événement correspondent des `audio`, `visual`, `haptic` et `camera` (facultatif).
@@ -259,7 +263,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 - Le contenu vit dans `content/`, en JSON, avec un schéma Zod par type : `threats/`, `levels/`, `disruptions/`, `feedback.json`, `mama-lines.json`, `feel.json`.
 - Les schémas se trouvent dans `src/content/schemas/` et produisent à la fois les types TS (`z.infer`) et des fichiers JSON Schema (`z.toJSONSchema`), générés dans `content/_schemas/` pour l'autocomplétion.
 - **Validation :** `npm run content:check` en CI, et au chargement en dev (erreur affichée à l'écran).
-- `feel.json` contient toutes les valeurs chiffrées du GDD : fenêtres, tolérance, buffer, hitstop, ralentis, seuils tap / maintien, glissade, jauges, instinct, paliers de difficulté, note de Maman. Un niveau peut surcharger des clés via `feelOverrides`.
+- `feel.json` contient toutes les valeurs chiffrées du GDD : fenêtres, tolérance, buffer, hitstop, ralentis, seuils tap / maintien, glissade, jauges, instinct, paliers de difficulté, note de Maman (cinq lignes), et depuis v2.3 (2026-11-03) `catastrophe`, `director` (`fairnessMarginMs`) et `camera` (zone morte, rattrapage), et depuis v2.4 (2026-11-08) `characters` (couche de vie, cadence des attentes, expressions, netteté ; client seul). Un niveau peut surcharger des clés via `feelOverrides`.
 - **Panneau de feeling :** Tweakpane 4, généré à partir du schéma de `feel.json`. Il est disponible avec l'overlay de debug (en dev et avec `?debug=1`). Les valeurs s'appliquent à chaud à la sim en cours via la commande `SetFeel` (P6). Le bouton « Enregistrer » n'existe qu'en dev : il envoie un POST au plugin Vite `feel-writer`, qui écrit `content/feel.json`. Le panneau est absent des builds stores.
 
 ### Gestion des assets
@@ -268,16 +272,37 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 - **Pipeline :** fichier `.blend` → script d'export (exécuté via Blender MCP ou `blender -b -P tools/blender/export.py`) → `.glb` → gltfpack (meshopt) → `public/assets/`. Une étape `assets:extract` lit les nœuds `COL_`, `NAV_` et `ANCHOR_` et produit les données de niveau dont la sim a besoin.
 - **Prototype :** le salon est bloqué en cubes dans Blender par l'IA via Blender MCP, dès E1.
 
+### Animation des personnages (v2.4)
+
+- **Client seul.** La couche de vie, les variantes, les attentes et les expressions vivent dans `src/client/render/views/`. La sim n'en sait rien, et aucune ne change une position, une durée ni une fenêtre.
+- **Ordre dans une frame :** l'état choisit la boucle et les événements les ponctuels (D5 de la story 7.2) ; le mixer avance du `dt` de la sim ; la couche de vie ajoute ses rotations (bassin, buste, cou, tête : élan, respiration, voûte, regard) ; les os pilotés par le code (paupières, sourcils, mèche) sont écrits en dernier. Aucun clip n'a de piste sur un os piloté par le code.
+- **Fondus et demi-tour :** une durée de fondu par passage (mise en route, arrêt, retour d'un ponctuel), sur une courbe douce. Le demi-tour est un ressort sous-amorti sur le cap dessiné. Ils remplacent `feedback.json › characters.crossFadeMs` et `turnRateDegPerSec`.
+- **Reproductible :**
+  - Tout avance sur l'horloge de la sim (D6 de la story 7.2).
+  - Les ressorts (demi-tour, élan, mèche) s'intègrent au pas fixe de la sim (`STEP_MS`), pas à la frame : la photo de fin, le replay et les captures ne dépendent pas du framerate.
+  - Le choix d'une variante ou d'une attente est une fonction pure de la graine du niveau, d'instants de la sim et de compteurs que le `World` porte déjà (réponses jugées, combo). Jamais `Math.random`, ni le temps réel, ni `world.rng` : le client ne tire pas dans le PRNG de la sim.
+  - « Jamais deux fois la même de suite » tient aussi dans un replay qui repart d'un snapshot (story 3.9) : la vue ne garde pas en mémoire la variante précédente, elle la recalcule à partir des mêmes entrées.
+- **Interruption :** une commande acceptée ou un changement d'état de papa coupe une attente, une réaction ou un démarrage dans la même frame. Le fondu de mise en route est le plus long admis, et NFR2 tient.
+- **Information cachée (extension du D9 de la story 7.2) :** ces modules ne lisent que papa, le bébé, les événements et ce que l'écran montre (anneau-chrono, bulles).
+  - Le regard suit le bébé dessiné et non caché, sinon la menace télégraphiée visible dont l'anneau est le plus avancé ; jamais le silence suspect.
+  - Pendant le duel du coucher, la sortie en infiltration et les feintes, aucune variante, aucune attente ni aucune expression ne s'ajoute aux signaux.
+  - Un test scanne ces modules à la recherche de `windowOpenAt`, `feintAt`, `realWakePct` et de la tolérance cachée.
+- **Contrat des personnages :** os v2 (32 au plus : `CHARACTER_BONES_MAX` ne change pas), os pilotés par le code, nœuds cachés (joues gonflées), clips et variantes. `characterArt.ts` et `tests/architecture/characterAssets.test.ts` les vérifient. Le budget de triangles ne change pas.
+- **Netteté :** les personnages ont leurs propres matériaux toon (liseré clair) et un contour 1,5 fois plus épais que celui des meubles, sans draw call de plus. Le 4ᵉ ton d'ombrage est un réglage.
+- **Réglages :** `feel.json › characters`, client seul comme `camera`, donc dans le panneau de feeling (FR65). Une clé ajoutée entre dans la copie figée des tests et régénère les empreintes `feelHash` des goldens. `feedback.json › characters` garde les tables liées aux assets (`squash`, `clipSpeeds`, `papaClipFacing`, `busyProps`).
+
 ### IA du bébé et navigation
 
 - Le `WaveDirector` lit les vagues du niveau (menaces activables, simultanéité maximale, perturbations, délais) et choisit la prochaine cible du bébé avec le PRNG.
+- **Équité de trajet (v2.3, 2026-11-03 ; ADR-011, FR75) :** avant de programmer une menace, le directeur vérifie que sa fenêtre s'ouvre à au moins `glideMaxMs + feel.director.fairnessMarginMs` (300) de toute autre fenêtre ouverte ou programmée ; sinon il allonge le délai ou la fait attendre. Tant que papa cherche puis soulève le bébé du silence suspect, aucune autre fenêtre ne s'ouvre avant « fin de la parade du silence + glissade vers la menace + marge ». Un silence suspect actif compte pour deux dans `maxSimultaneous`. Les séquelles et les occupations choisies (café, téléphone, tâche) ne sont pas protégées.
 - La FSM du bébé : `wander` → `babble` → `targetLocked` (télégraphe) → `approach` → `act` ; `mischiefSilent` (silence suspect) ; `carried` (prévu pour E4) ; `gagRecovery`.
-- **Navigation :** une grille 2D de 0,25 m, cuite depuis les `NAV_`, et un A* avec lissage. La glissade de papa suit le chemin A* à une vitesse calculée pour arriver en `glideMaxMs` (0,6 s) au plus.
+- **Navigation :** une grille 2D de 0,25 m, cuite depuis les `NAV_`, et un A* avec lissage. La glissade de papa suit le chemin A* à une vitesse calculée pour arriver en `glideMaxMs` (0,6 s) au plus ; le grand salon (E9) le surcharge à 900 ms par `feelOverrides`, à vitesse inchangée (v2.3).
 
 ### Automatisation
 
 - **`npm run sim -- --level salon_crawler --seed 42 --bot perfect --runs 1000`** exécute la sim headless dans Node et produit un rapport JSON : score, étoiles, taux de réussite par menace, distribution des jauges.
 - **Bots :** `perfect`, `human` (gigue gaussienne et temps de réaction réglables), `random`, `idle`. Ils produisent des commandes, comme le client.
+- **Bot `human` réaliste (v2.3, 2026-11-03, story 3.14) :** paramètres dans `content/bots.json › human` : temps de réaction (moyenne, écart-type), erreur de lecture du moment d'appui selon ce qui est affiché (plus grande sans anneau-chrono, plus petite avec), probabilité de ne pas voir une menace quand il est occupé ailleurs. Cible : à moins d'une étoile de la médiane des journaux de Geo. **Modèle de visibilité (E9) :** avec la caméra qui suit, il ne réagit à une menace hors cadre qu'après l'apparition de sa bulle ; le cadre est recalculé depuis la position de papa et `feel.camera`, sans `three`.
 - **Dans le navigateur :** `?autoplay=human&seed=42&speed=4` pour jouer seul, et `window.__PP__`, disponible en dev et en test, pour lire l'état, lire les événements, injecter des commandes, avancer de N pas et figer le temps (captures Playwright stables).
 
 ### Persistance
@@ -288,7 +313,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
   - `calibration` : `{ visualOffsetMs, audioOffsetMs, audioSkipped, measuredAt, device }` ;
   - `settings` : `{ tier, volumes: { music, sfx, voice, ui }, haptics, reducedMotion, largeVerbs }` ;
   - `progress` : `{ bestStars: { [levelId]: number }, seenUnlocks: LevelId[], failStreak: { [levelId]: number } }` ;
-  - `mamaMemory` : `{ counts: { [tagId]: number } }`.
+  - `mamaMemory` : `{ counts: { [tagId]: number } }`. **Sauvegarde v4 (story 3.8, D1) :** `counts` compte les **parties** où chaque gag s'est produit (un tag est un `GagId`), pas les occurrences ; le client y ajoute les tags de la partie à chaque fin de niveau (`LevelScored`), jamais pour un niveau quitté avant sa fin ni sous `?autoplay`. La migration `v3 → v4` ajoute `{ counts: {} }`.
 - Un échec d'écriture reste silencieux pour le joueur (`warn` dans les logs).
 
 ### Télémétrie de playtest
@@ -300,7 +325,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 
 - **ADR-001 — Simulation TS pure, découplée du rendu.** *Contexte :* la règle d'or impose une logique testable et jouable sans humain. *Décision :* `src/sim` n'importe ni `three`, ni le DOM, ni `@capacitor/*`. *Conséquences :* la sim tourne dans Node (tests, bots, équilibrage) ; le client n'est qu'un adaptateur.
 - **ADR-002 — Pas fixe 10 ms, deux horloges, fenêtres en temps de jeu.** *Contexte :* des fenêtres en ms indépendantes du framerate, avec ralentis, hitstop et pause exacte. *Décision :* voir « Boucle de jeu et modèle de temps ». *Conséquences :* le ralenti est généreux pour le joueur ; la calibration se convertit via l'historique `(realTime, simTime)`.
-- **ADR-003 — Jugement à l'horodatage de l'appui.** *Contexte :* une glissade de 0,6 s face à une fenêtre de 300 ms, et ≤ 50 ms tap → visuel. *Décision :* la réponse est jugée sur `event.timeStamp` corrigé ; la glissade est cosmétique. *Conséquences :* le résultat est connu avant l'arrivée de papa ; le rendu doit enchaîner glissade et animation sans contredire le résultat.
+- **ADR-003 — Jugement à l'horodatage de l'appui.** *Contexte :* une glissade de 0,6 s face à une fenêtre de 300 ms, et ≤ 50 ms tap → visuel. *Décision :* la réponse est jugée sur `event.timeStamp` corrigé ; la glissade est cosmétique. *Conséquences :* le résultat est connu avant l'arrivée de papa ; le rendu doit enchaîner glissade et animation sans contredire le résultat. *Renvoi (v2.3, 2026-11-03) :* ADR-011 ne change pas cette règle. La glissade reste cosmétique pour le jugement ; seul le directeur lit `glideMaxMs`, la position de papa et ses occupations, pour programmer les délais.
 - **ADR-004 — Déterminisme et journal de commandes.** *Décision :* PRNG à graine, Rapier deterministic, commandes journalisées, snapshots toutes les 5 s. *Conséquences :* replay, tests golden et reproduction des bugs sont gratuits ; tout accès à `Math.random`, `Date` ou `performance.now` dans `src/sim` est interdit par lint.
 - **ADR-005 — Rapier dans la sim, objets seulement.** *Décision :* `rapier3d-deterministic-compat` derrière `PhysicsPort` ; personnages cinématiques. *Conséquences :* des accidents émergents qui comptent pour le score ; un coût CPU un peu plus élevé que la build optimisée, acceptable pour une dizaine d'objets.
 - **ADR-006 — Retours pilotés par les données, avec triple équivalence testée.** *Décision :* `feedback.json` est lu par le `FeedbackDirector`. *Conséquences :* le pilier 3 est garanti par un test, et Geo règle les retours hors code.
@@ -308,6 +333,7 @@ Versions vérifiées sur le registre npm le 2026-10-26.
 - **ADR-008 — WebGL, toon et contours inverted hull, UI en DOM.** *Conséquences :* priorité aux 60 FPS sur mobile et à la testabilité. **WebGPU réévalué en E7 (story 7.3), décision : on reste sur `WebGLRenderer`.** *Raisons :* aucun goulot à résoudre (voir les mesures de la story 7.3, à confirmer sur appareils réels) ; `three/webgpu` ajoute environ 91 Ko gzip au bundle (mesure sur three 0.186.1 : 145 Ko pour WebGL, 236 Ko pour WebGPU, à périmètre égal) ; `MeshToonMaterial` a son équivalent nœud, mais pas `ShaderMaterial`, donc les contours devraient être réécrits en matériau nœud ; un repli vers WebGL ferait deux rendus à tester. *Non établi :* aucune documentation d'Apple sur WebGPU dans `WKWebView` (le shell d'E8) n'a été trouvée ; seule une réponse sur les forums Apple indique qu'il suit l'activation par défaut d'iOS 26. La part des téléphones concernés n'est pas vérifiée non plus. *À rouvrir* seulement si E8 ou la passe sur appareils trouve un budget qu'un rendu WebGL ne peut pas tenir.
 - **ADR-009 — Blender greybox dès E1, conventions de nommage, données extraites au build.** *Conséquences :* la sim ne lit jamais de `.glb` ; le pipeline est validé dès le prototype.
 - **ADR-010 — Relâché < 400 ms = Parer.** *Contexte :* le GDD ne définit pas la zone 0,2–0,4 s. *Décision :* un seuil unique `holdMinMs` = 400 ; `tapMaxMs` est conservé pour d'éventuels usages futurs. *Conséquences :* plus indulgent sur mobile ; à valider au playtest.
+- **ADR-011 — Équité de trajet dans le directeur (v2.3, 2026-11-03).** *Contexte :* au premier playtest, le silence suspect derrière le canapé et une autre menace tombaient en même temps : papa ne pouvait en sauver qu'une (FR75, mécanique 17 du GDD). *Décision :* la règle vit dans le `WaveDirector`, à la programmation, pas dans le jugement. Deux fenêtres de réponse ne s'ouvrent jamais à moins de `glideMaxMs + feel.director.fairnessMarginMs` (300 ms) l'une de l'autre ; le directeur allonge le délai ou fait attendre la menace. Pendant la recherche puis la parade du silence suspect, aucune fenêtre ne s'ouvre avant que papa, libre, puisse l'atteindre une fois ; le silence compte pour deux dans `maxSimultaneous`. Séquelles et occupations choisies (café, téléphone, tâche) ne sont pas protégées. *Conséquences :* ADR-003 est inchangé (jugement à l'appui, glissade cosmétique pour le jugement) ; le directeur lit `glideMaxMs`, la position de papa et ses occupations, en données pures et déterministes ; « simultanées » veut dire actives ensemble, fenêtres décalées (FR31). Vérifié par le bot `perfect` sur 200 graines : 0 raté dû à des fenêtres impossibles (story 3.13).
 
 ## Préoccupations transverses
 
@@ -399,6 +425,13 @@ if (log.enabled('debug')) log.debug('input', 'press mapped', { target: hit.kind,
 
 **Nommage :** PascalCase au passé, avec le sujet en tête : `ThreatTelegraphed`, `WindowOpened`, `ResponseResolved`, `GagTriggered`, `SilenceStarted`, `NoiseChanged`, `MamaWoke`, `LevelEnded`. Le champ discriminant s'appelle `type`, et chaque événement porte `t` (en `simTime`).
 
+**Ajouts v2.3 (2026-11-03) :**
+- `LevelEnded.reason` gagne `mamaHome` (jauge de catastrophe pleine : fin anticipée, sans rush final, 0 étoile). Le journal exporté garde la raison ; `sim:replay` la rejoue.
+- `CatastropheChanged{value, delta}` (story 3.16), sur le modèle de `NoiseChanged`.
+- `AfterEffectStarted{kind, until, propId}` / `AfterEffectEnded{kind, propId}` : séquelles des gags (story 3.15). `kind` est celui du `afterEffect` de la menace (`electrified`, `babyDownstairs`, `debris`, `mess`, `asleep`) plus `dim` (la pénombre) et `carryUp` (la seconde moitié de la séquelle de l'escalier) ; `until` est `null` pour `debris` et `mess` ; `propId` n'est non nul que pour `debris` (plusieurs débris s'empilent, leurs fins se distinguent). `DebrisSteppedOn{propId}` : Papa marche sur un débris (+3 % de bruit). Le sim publie des faits, le client dessine (la pénombre ne touche que les lumières 3D).
+- `ChoreBeatTelegraphed` / `ChoreBeatJudged{quality}` / `ChoreCompleted` : tâches de la maison (E9, stories 9.4–9.6).
+- `TapRefused{t, threatId}` : commande visant une menace pendant une occupation non interruptible ; elle reste refusée, mais le refus devient visible et audible (story 2.12, bulle d'activité).
+
 **Exemple :**
 
 ```ts
@@ -408,7 +441,9 @@ export type SimEvent =
   | { type: 'ResponseResolved'; t: number; threatId: ThreatInstanceId; response: ResponseKind; quality: 'perfect' | 'success' | 'fail'; reason?: 'early' | 'late' | 'wrongResponse' | 'released' | 'acted'; offsetMs: number }
   | { type: 'InvariantViolated'; t: number; name: string; value: number }
   | { type: 'SilenceStarted'; t: number }
-  | { type: 'NoiseChanged'; t: number; value: number; delta: number };
+  | { type: 'NoiseChanged'; t: number; value: number; delta: number }
+  | { type: 'CatastropheChanged'; t: number; value: number; delta: number }                    // v2.3
+  | { type: 'LevelEnded'; t: number; reason: 'timer' | 'mamaWoke' | 'cycleDone' | 'mamaHome' }; // mamaHome : v2.3
 
 // src/sim/systems/threats.ts
 ctx.events.push({ type: 'ThreatTelegraphed', t: world.time.sim, threatId: th.id, kind: th.kind });
@@ -483,18 +518,19 @@ papa-parade/
 │   │   ├── journal.ts             # Journal de partie : enregistrement, relecture
 │   │   ├── time/                  # clock.ts, timeScale.ts, hitstop.ts
 │   │   ├── timing/                # effectiveWindow.ts, judge.ts, classifyPress.ts
-│   │   ├── threats/               # threatFsm.ts, threatSystem.ts, gags.ts
+│   │   ├── threats/               # threatFsm.ts, threatSystem.ts, gags.ts, afterEffects.ts (séquelles, v2.3)
 │   │   ├── director/              # waveDirector.ts
 │   │   ├── baby/                  # babyFsm.ts, babySystem.ts, babble.ts (silence)
 │   │   ├── papa/                  # papaSystem.ts, glide.ts, coffee.ts
 │   │   ├── nav/                   # navGrid.ts, astar.ts, smoothPath.ts
 │   │   ├── physics/               # physicsPort.ts, rapierPhysics.ts (seul importeur de Rapier), propsSystem.ts
-│   │   ├── gauges/                # fatigue.ts, noise.ts
+│   │   ├── gauges/                # fatigue.ts, noise.ts, catastrophe.ts (v2.3)
 │   │   ├── disruptions/           # phone.ts
 │   │   ├── assist/                # paternalInstinct.ts
-│   │   ├── scoring/               # mamaScore.ts, stars.ts, mamaMemory.ts
-│   │   ├── flow/                  # levelFlow.ts : intro → vagues → porte → rush final → photo → résultat
-│   │   └── sequences/             # (E4+) lullabyWalk.ts, bedtimeDuel.ts, diaperBoss.ts… : séquences spéciales
+│   │   ├── scoring/               # mamaScore.ts (cinq lignes, v2.3), calmTracker.ts (v2.3), stars.ts, mamaMemory.ts
+│   │   ├── flow/                  # levelFlow.ts : intro → vagues → porte → rush final → photo → résultat ; catastrophe pleine → porte sans rush → photo → résultat (v2.3)
+│   │   ├── sequences/             # (E4+) lullabyWalk.ts, bedtimeDuel.ts, diaperBoss.ts… : séquences spéciales
+│   │   └── chores/                # (E9, v2.3) choreSystem.ts : tâches de la maison (P1 enchaîné, déclenchées par TapObject)
 │   ├── bots/                      # Joueurs automatiques : lisent World, produisent des SimCommand
 │   │   ├── bot.ts                 # Interface Bot
 │   │   └── perfectBot.ts, humanBot.ts, randomBot.ts, idleBot.ts
@@ -509,7 +545,7 @@ papa-parade/
 │   │   ├── timeMap.ts             # Historique (realTime, simTime) et conversion
 │   │   ├── app/                   # appFsm.ts : boot → start → (calibration) → fridge → loading → level → result, + settings, credits, oops ; pauseController.ts
 │   │   ├── input/                 # pointerInput.ts, keyboardInput.ts, gamepadInput.ts, inputMapper.ts, hitTest.ts, autoTarget.ts, calibration.ts
-│   │   ├── render/                # renderer.ts, isoCamera.ts, cameraFx.ts, levelScene.ts, interpolate.ts
+│   │   ├── render/                # renderer.ts, isoCamera.ts (modes fixed / follow, v2.3), cameraFx.ts, levelScene.ts, interpolate.ts
 │   │   │   ├── views/             # papaView.ts, babyView.ts, threatView.ts, propView.ts
 │   │   │   ├── materials/         # toonMaterial.ts, outlineHull.ts, palette.ts
 │   │   │   └── vfx/               # particles.ts, screenShake.ts, dangerTint.ts
@@ -518,10 +554,10 @@ papa-parade/
 │   │   ├── ui/
 │   │   │   ├── strings.ts         # t(key) : lecture de content/strings.fr.json
 │   │   │   ├── hud/               # gaugesHud.ts, timerHud.ts, sequenceBar.ts, pauseButton.ts, countdown.ts
-│   │   │   ├── world/             # verbLabel.ts, threatIcon.ts, targetHighlight.ts, holdRing.ts, glyphChip.ts, comboBadge.ts, silenceBubble.ts, tapMarker.ts (CSS2DRenderer)
+│   │   │   ├── world/             # verbLabel.ts, threatIcon.ts, targetHighlight.ts, holdRing.ts, glyphChip.ts, comboBadge.ts, silenceBubble.ts, tapMarker.ts, chronoRing.ts, activityBubble.ts, offscreenBubble.ts (v2.3) (CSS2DRenderer)
 │   │   │   ├── screens/           # startScreen.ts, loadingScreen.ts, menuScreen.ts (le Frigo), calibrationScreen.ts, pauseScreen.ts, settingsScreen.ts, resultScreen.ts, creditsScreen.ts, oopsScreen.ts, portraitOverlay.ts
 │   │   │   └── styles/            # ui.css, tokens.css (reflet 1:1 du frontmatter de DESIGN.md, vérifié par tests/architecture/designTokens.test.ts)
-│   │   ├── endOfLevel/            # photo.ts, highlights.ts (replay des meilleurs moments)
+│   │   ├── endOfLevel/            # photo.ts, highlights.ts, snapshotLog.ts, momentSim.ts, highlightReplay.ts (replay des meilleurs moments, story 3.9, D2 à D7)
 │   │   ├── save/                  # saveStore.ts, migrations.ts
 │   │   ├── telemetry/             # sessionLog.ts, exportLog.ts
 │   │   └── assets/                # loadLevelAssets.ts, gltf.ts, audioAssets.ts
@@ -538,6 +574,7 @@ papa-parade/
 │   ├── disruptions/               # phone.json (E6 : dog.json, pot.json)
 │   ├── levels/                    # salon_crawler.json (rédigé) + salon_crawler.geometry.json (généré depuis le .glb)
 │   ├── sequences/                 # (E4+) définitions des séquences spéciales
+│   ├── chores/                    # (E9, v2.3) tâches de la maison, une fiche par poste (<id>.json : temps forts, espacement, gag de raté, points Maison)
 │   ├── cries/                     # (E5) pleurs typés et remèdes
 │   ├── objects/                   # (E6) objets et valeur de coolitude
 │   ├── children/                  # (E6) paramètres de l'enfant par âge
@@ -576,24 +613,25 @@ Les tests unitaires sont colocalisés : `src/sim/timing/judge.test.ts` est à c�
 | Correspondance temps réel → temps de jeu | `src/client/timeMap.ts` | Conversion des horodatages d'entrée |
 | Boucle | `src/client/loop.ts` | Accumulateur, pas fixes, interpolation, drain des événements |
 | Fenêtres et jugement | `src/sim/timing/` | Fenêtre effective, jugement, classification Parer / Fermeté |
-| Menaces | `src/sim/threats/` | FSM télégraphe → fenêtre → résolution, gags |
-| Vagues | `src/sim/director/` | Planification des menaces et des perturbations |
+| Menaces | `src/sim/threats/` | FSM télégraphe → fenêtre → résolution, gags ; séquelles (`afterEffects.ts`, v2.3) |
+| Vagues | `src/sim/director/` | Planification des menaces et des perturbations ; équité de trajet (ADR-011, v2.3) |
 | Bébé | `src/sim/baby/` | FSM, regard, babillage, silence suspect |
 | Papa, glissade, café | `src/sim/papa/` | Déplacement, glissade freeflow, interactions |
 | Navigation | `src/sim/nav/` | Grille 2D, A*, lissage |
 | Physique | `src/sim/physics/` | `PhysicsPort`, Rapier, contacts → bruit et bazar |
-| Jauges | `src/sim/gauges/` | Fatigue, bruit (envie pressante en E-suivantes) |
+| Jauges | `src/sim/gauges/` | Fatigue, bruit (envie pressante en E-suivantes), catastrophe (`catastrophe.ts`, v2.3) |
 | Perturbations | `src/sim/disruptions/` | Téléphone |
+| Tâches de la maison (E9, v2.3) | `src/sim/chores/`, `content/chores/` | Postes, temps forts jugés comme des parades, progression gardée, ligne Maison |
 | Instinct paternel | `src/sim/assist/` | Déclenchement, effets, recharge |
-| Note de Maman | `src/sim/scoring/` | Score, étoiles, mémoire des parties |
-| Flux du niveau | `src/sim/flow/` | Vagues, porte, rush final, photo, résultat |
+| Note de Maman | `src/sim/scoring/` | Score sur cinq lignes (`mamaScore.ts` : Rire, Calme du bébé, Maison, Soupir, Hurlement ; v2.3), `calmTracker` (temps sous le seuil de bruit, dans `world.score`), étoiles, mémoire des parties |
+| Flux du niveau | `src/sim/flow/` | Vagues, porte, rush final, photo, résultat ; fin anticipée par catastrophe (`mamaHome`, v2.3) |
 | Snapshot, journal | `src/sim/snapshot.ts`, `src/sim/journal.ts` | Pause exacte, replay, tests golden |
 | Flux de l'app | `src/client/app/` | Boot, démarrage, calibration, Frigo (menu), chargement, niveau, résultat, réglages, crédits, « Oups », pause et portrait |
 | Entrées | `src/client/input/` | Capture, hit-test, ciblage auto, calibration → `SimCommand` |
-| Rendu | `src/client/render/` | Scène iso, vues, toon, contours, caméra, VFX |
+| Rendu | `src/client/render/` | Scène iso, vues, toon, contours, caméra, VFX ; `isoCamera.ts` en mode `fixed` ou `follow` (zone morte, rattrapage, bornes de la pièce, réglages dans `feel.camera` ; v2.3) |
 | Audio | `src/client/audio/` | Moteur Web Audio, bus, musique adaptative |
 | Retours multimodaux | `src/client/feedback/` | `SimEvent` → son + visuel + haptique + caméra |
-| UI et HUD | `src/client/ui/` | DOM : HUD, éléments ancrés au monde, écrans |
+| UI et HUD | `src/client/ui/` | DOM : HUD, éléments ancrés au monde, écrans ; `chronoRing.ts`, `activityBubble.ts`, `offscreenBubble.ts` (projection d'une position monde hors du frustum vers le bord gauche, droit ou haut, jamais dans le tiers bas ; v2.3) |
 | Photo et replay | `src/client/endOfLevel/` | Rendu du snapshot final, meilleurs moments |
 | Sauvegarde | `src/client/save/` + `src/platform/*/…Storage.ts` | Sauvegarde versionnée, migrations |
 | Télémétrie | `src/client/telemetry/` | Journal de partie exportable |
@@ -732,7 +770,7 @@ export function judgePress(pressT: number, windowOpenAt: number, w: EffectiveWin
 - **Fermeté :** l'appui doit tomber dans la fenêtre et le maintien durer jusqu'à `holdUntilMs` (fin de l'attaque). Un relâchement avant cette échéance est un gag. Le type de réponse (Parer ou Fermeté) se décide au relâchement ou à `holdMinMs`.
 - **Mauvaise réponse dans la fenêtre** (par exemple Parer sur une menace qui demande Fermeté) : c'est un gag.
 - **Plusieurs menaces actives :** chaque commande vise **une** `threatId`. Le hit-test et le ciblage automatique la choisissent côté client, et la sim ne devine jamais la cible.
-- **Papa occupé** (glissade en cours vers une autre menace) : la nouvelle commande est acceptée et jugée sur son horodatage, et la chorégraphie s'enchaîne (P3).
+- **Papa occupé** (glissade en cours vers une autre menace) : la nouvelle commande est acceptée et jugée sur son horodatage, et la chorégraphie s'enchaîne (P3). À ne pas confondre avec une **occupation** (café, téléphone, toilettes, séquelle qui l'occupe, tâche non interruptible) : la commande qui vise une menace y reste refusée. Depuis v2.3 (2026-11-03), ce refus n'est plus silencieux : `TapRefused`, bulle d'activité qui tremble et son « occupé » (story 2.12).
 - **Menaces générées par un système :** une menace n'est pas toujours planifiée par le director. Exemple : la micro-sieste de papa, `content/threats/papa_microsleep.json` (`target: "papa"`, `response: "parry"`). Au-dessus du seuil de fatigue (70), `fatigue.ts` crée une instance toutes les 8 à 12 s (PRNG), avec le télégraphe « paupières qui tombent, son cotonneux ». Elle suit la même FSM et le même jugement que toute autre menace.
 
 #### P2 — L'absence comme réponse (« Attendre » et « Ne rien faire »)
@@ -774,6 +812,7 @@ if (th.def.response === 'nothing' && th.state === 'windowOpen') {
 - Le son de réponse et l'haptique partent au jugement (latence minimale). La pose finale (bébé soulevé, cache-prise posé) se joue à l'arrivée.
 - Un ralenti parfait démarre au jugement : la glissade se fait au ralenti, comme un plan de film d'action.
 - La glissade dure `min(glideMaxMs, distance / glideSpeed)`, sur le chemin A*. Si un gag survient sur une autre menace pendant la glissade, il se joue en parallèle.
+- **v2.3 (2026-11-03) :** `glideMaxMs` vaut 600 ms dans une petite pièce et 900 ms dans le grand salon (E9). Il ne pèse jamais sur le jugement (ADR-003) ; seul le directeur le lit, pour espacer les fenêtres (ADR-011). Avec la caméra qui suit, la caméra rattrape la glissade sans à-coup.
 
 #### P4 — Le silence comme télégraphe
 
@@ -781,7 +820,7 @@ if (th.def.response === 'nothing' && th.state === 'windowOpen') {
 
 - **Dans la sim :** `baby.babbling` est vrai par défaut. La FSM du bébé passe en `mischiefSilent` quand le director choisit une bêtise silencieuse. Le bébé se rend alors dans une `ZONE_hidden_*` et `babbling` passe à `false`.
 - Quand `babbling` est faux **et** que le bébé est dans une zone cachée depuis `silenceAlertMs` (2 s, dans `feel.json`), la sim émet `SilenceStarted`. Elle émet `SilenceEnded` quand papa a trouvé le bébé (papa dans la zone ou tap sur le bébé) ; la menace « silence suspect » passe alors en `windowOpen`.
-- **Dans le client :** `feedback.json` associe `SilenceStarted` à la coupure de la musique, au retrait du babillage, à l'affichage de la bulle « … » clignotante au bord de l'écran (du côté de la zone) et à une vibration courte.
+- **Dans le client :** `feedback.json` associe `SilenceStarted` à la coupure de la musique, au retrait du babillage, à l'affichage de la bulle « … » clignotante au bord de l'écran (du côté de la zone) et à une vibration courte. **v2.3 (2026-11-03) :** avec la caméra qui suit (grand salon), la bulle « … » reste sans flèche ni direction : trouver le bébé reste le défi ; la bulle hors cadre avec flèche n'apparaît qu'une fois le bébé trouvé (story 9.3). Un anneau à côté de la bulle mesure `findMaxMs` (story 2.11). Pour le directeur, un silence actif compte pour deux menaces (ADR-011).
 - **Babillage audio :** le client joue le babillage en boucle tant que `baby.babbling` est vrai. Son arrêt **est** le signal sonore : il faut donc que ce babillage reste audible et continu.
 
 #### P5 — Calibration et correspondance des temps
@@ -818,13 +857,13 @@ sim.enqueue({ type: 'PressThreat', threatId: hit.id, t });
 
 **Objectif :** une fin de niveau mémorable, sans enregistrer de vidéo.
 
-- **Détection :** `highlights.ts` (client) note chaque `SimEvent` à fort score : réponse parfaite (3), gag avec bazar ≥ 2 objets (2), presque-accident (2), dernière menace d'une vague (1). En fin de niveau, il retient les 3 meilleurs moments, espacés d'au moins 5 s.
-- **Replay :** pour un moment à l'instant `t`, on restaure le snapshot qui précède `t − 2 s` (World + Rapier) dans une **sim de replay séparée**, on rejoue les commandes du journal jusqu'à `t + 1,5 s`, et on rend le tout avec une caméra de replay (cadrage serré, bandeau « REPLAY »).
+- **Détection (story 3.9, D3 à D5) :** `highlights.ts` (client, pur) note les `SimEvent` à fort score. **Un candidat est une menace à un instant `t`** : les événements d'une même menace dans un même pas s'additionnent. Réponse parfaite (`ResponseResolved` de qualité `perfect` : 3, ni les temps de corvée ni ceux du rythme), gag avec bazar (2 : au moins `messyGagMinProps` props **distincts** touchés ou cassés, `PropImpact` avec `otherPropId`, `PropBroken`, dans les `messWindowMs` qui suivent le `GagTriggered`), presque-accident (`NearMiss` : 2 ; **`NearMissFrozen` est exclu**, c'est la fin de niveau), dernière réponse d'une vague (1, calculée en fin de partie, jamais pour une menace sans vague). En fin de niveau, `pick` retient jusqu'à `momentCount` (3) candidats de score > 0, du plus fort au plus faible, **à égalité le plus tardif** puis le plus petit `threatId`, espacés d'au moins `minSpacingMs` (5 s), et les rend **dans l'ordre chronologique**. **Niveau perdu (`mamaHome`) :** ce sont les derniers `GagTriggered` de la partie, du plus tardif au plus ancien, avec le même espacement : la cascade de catastrophes qui a fait rentrer Maman (le dernier gag y est toujours). **Limite connue :** la cascade ne suit que les gags, alors que la jauge monte aussi par un temps de corvée raté ou la propre catastrophe d'une menace (`CatastropheSource`) ; une partie perdue sur une corvée rejoue donc les derniers gags, et une partie perdue sans aucun gag n'a pas de replay. Geo a gardé ce choix (revue de la story 3.9) ; la cascade bâtie sur `CatastropheChanged` est notée dans `deferred-work.md`. Tout est en données dans `content/feedback.json › replay` (`ReplaySchema`), hors de `feel.json` : la sim ne le lit pas et aucun golden ne bouge.
+- **Replay (story 3.9, D6, D7) :** pour un moment à l'instant `t`, `momentSim.ts` restaure le dernier snapshot au plus tard à `t − preRollMs` (World + Rapier) dans une **sim de replay séparée** (même bundle de contenu que la sim vivante, `restore(snapshot, queue du journal)`), avance en silence jusqu'à `t − preRollMs`, puis `highlightReplay.ts` la fait tourner avec le **`createGameLoop` du jeu** (son propre `timeMap`, donc le ralenti d'une parade parfaite et les hitstops, et jamais le `timeMap` du jeu) jusqu'à `t + postRollMs`, une sim à la fois, détruite à la fin du moment. Rendu par une caméra de replay (l'angle de la caméra du jeu, un cadre `camera.frameWidthM × frameDepthM` centré sur l'ancre de la menace, ou sur Papa), sous le bandeau « REPLAY ». **Un second directeur de feedback** (même table et même audio) joue les sons et les effets de scène, sans vibration, sans flash, sans bandeau « PARADE PARFAITE » et sans rien compter dans `cueLog()` ni les miroirs. Un appui passe le moment, un second le reste.
 - **Photo de fin :** le snapshot final, rendu sans simulation, avec une caméra et un filtre « photo ».
-- **Mémoire de Maman :** `save.mamaMemory = { counts: { [tagId]: number } }`, incrémenté à chaque fin de niveau à partir des tags des gags et des presque-accidents. `mama-lines.json` liste des répliques conditionnelles. La plus spécifique dont la condition est satisfaite l'emporte, avec un tirage par le PRNG en cas d'égalité.
+- **Mémoire de Maman (story 3.8, D1) :** `save.mamaMemory = { counts: { [tagId]: number } }`, incrémenté à chaque fin de niveau (`LevelScored`) à partir des tags des gags et des presque-accidents : **un tag est un `GagId`** (le `gag` de chaque `GagTriggered`, `NearMiss` et `NearMissFrozen`), compté **une fois par partie** (D2, D3). `mama-lines.json` liste des répliques conditionnelles. **Le choix est une fonction pure de `@sim`** (`chooseMamaLines`, `src/sim/scoring/mamaMemory.ts`) que le client appelle à `LevelScored` avec la mémoire **d'avant** la partie, les tags de la partie et la graine du niveau ; ce n'est ni un état du monde ni une option de `createSim` (ni commande, ni événement, ni version de snapshot, ni changement de journal ou de golden). La ligne la plus spécifique dont la condition est satisfaite l'emporte (plus de conditions `tag` / `endReason`, puis plus grand `minPrevious`) ; en cas d'égalité, un tirage dans un flux **local** initialisé par la graine du niveau (jamais `world.rng`) ; à défaut, la réplique générique de la réaction (D6). `content:check` vérifie les tags (`GAG_IDS`), les fins de niveau (`LEVEL_END_REASONS`), l'unicité des ids et une réplique générique par réaction.
 
 ```json
-{ "id": "shelf_again", "when": { "tag": "shelf_climb", "minPrevious": 1 }, "reaction": "scream", "text": "*Encore* l'étagère ?!" }
+{ "id": "stairs_again", "when": { "tag": "stairs_slide", "minPrevious": 1 }, "reaction": "scream", "text": "*Encore* l'escalier ?!" }
 ```
 
 ### Patterns de communication
@@ -955,6 +994,8 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | E2 | Calibration de la latence | `src/client/input/calibration.ts`, `src/client/ui/screens/calibrationScreen.ts` | P5 |
 | E2 | Instinct paternel, mode assistance | `src/sim/assist/paternalInstinct.ts`, `feel.difficultyTiers` | Fenêtre effective |
 | E2 | Réglages, mouvement réduit, grands verbes | `src/client/ui/screens/settingsScreen.ts`, `save.settings` | Client seul (la sim n'est pas touchée) |
+| E2 (v2.3) | Anneau-chrono autour des menaces (2.11) | `src/client/ui/world/chronoRing.ts`, miroirs `data-pp-*` | Anneaux en `simTime` (Boucle de jeu) ; fenêtre effective |
+| E2 (v2.3) | Bulle d'activité, tap refusé visible (2.12) ; poses exagérées du café et du téléphone (2.13) | `src/client/ui/world/activityBubble.ts`, événement `TapRefused`, `public/assets/characters/papa.glb` | P1 (papa occupé), ADR-006 |
 | **E3 (prototype)** | Jauge de bruit, variante Sieste (réveil anticipé : −1 étoile) | `src/sim/gauges/noise.ts`, `level.variant = 'nap'`, `src/sim/flow/` | Événement `MamaWoke` |
 | E3 (v1) | Porte, rush final, photo figée | `src/sim/flow/levelFlow.ts`, `src/client/endOfLevel/photo.ts` | P7 |
 | E3 (v1) | Réactions de Maman, étoiles, dégaine de papa | `src/sim/scoring/`, `World.papa.look` | — |
@@ -962,8 +1003,13 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | E3 (v1) | Mémoire de Maman, répliques | `src/sim/scoring/mamaMemory.ts`, `content/mama-lines.json`, sauvegarde | P7 |
 | E3 (v1) | Variante Retour | `level.variant = 'return'` | — |
 | E3 (v1) | Frigo, déblocage, carte d'échecs répétés | `src/client/ui/screens/menuScreen.ts`, `save.progress` | `EXPERIENCE.md` › Fridge, Result |
+| E3 (rattrapage v2.3) | Note de Maman sur cinq lignes (3.12) | `src/sim/scoring/mamaScore.ts`, `calmTracker` dans `world.score`, `feel.mama`, `resultScreen.ts` | Données ; goldens régénérés |
+| E3 (rattrapage v2.3) | Équité de trajet du directeur (3.13) | `src/sim/director/waveDirector.ts`, `feel.director.fairnessMarginMs` | ADR-011 |
+| E3 (rattrapage v2.3) | Joueur simulé humain réaliste (3.14) | `src/bots/humanBot.ts`, `content/bots.json` | Automatisation |
+| E3 (rattrapage v2.3) | Séquelles des gags (3.15) | `src/sim/threats/afterEffects.ts`, séquelles dans `content/threats/<id>.json` | P1, événements `AfterEffectStarted` / `AfterEffectEnded` |
+| E3 (rattrapage v2.3) | Jauge de catastrophe, « Maman est rentrée plus tôt ! » (3.16) | `src/sim/gauges/catastrophe.ts`, `src/sim/flow/`, `feel.catastrophe`, HUD (visage de Maman) | `CatastropheChanged`, `LevelEnded{mamaHome}` |
 | **E4** | Bras-bébé (une main, fatigue doublée) | `World.papa.carrying`, `babyFsm` (`carried`), `classifyPress.ts` (Fermeté interdite) | FSM |
-| E4 | 100 pas en rythme (90 → 60 BPM, fenêtre de 180 ms) | `src/sim/sequences/lullabyWalk.ts`, `content/sequences/`, `audioOffsetMs` | P1 généralisé : un « temps » = une fenêtre ; audio planifié depuis le `simTime` |
+| E4 | 100 pas en rythme (90 → 60 BPM, fenêtre de 180 ms) | `src/sim/sequences/lullabyWalk.ts`, `content/sequences/`, `audioOffsetMs` | P1 généralisé : un « temps » = une fenêtre ; audio planifié depuis le `simTime`. Précédent des tâches de la maison (E9, v2.3) |
 | E4 | Duel du coucher, faux sommeil | ThreatDef `response: 'wait'` | P2 |
 | E4 | Dépose-bombe, sortie en infiltration (lattes, souffle retenu, fausses alertes) | `src/sim/sequences/`, `ZONE_creak_*`, commande `HoldAnywhere` | P1, P2 |
 | E4 | Combo à encaisser | `src/sim/scoring/combo.ts`, `ZONE_safe_*` | — |
@@ -973,11 +1019,18 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | E5 | Vomi en jet (Esquiver) | ThreatDef `response: 'dodge'`, commande `Swipe` | P1 |
 | **E6** | Âges suivants (jauge d'attention, provocation, aide invisible, fugue) | `content/levels/`, `src/sim/gauges/attention.ts`, `babyFsm` par âge (`content/children/`) | P1, P2 |
 | E6 | Désarmement, coolitude, préparation entre les vagues | `content/objects/` (`coolness`), `src/sim/flow/` (état `prep`) | Données |
-| E6 | Chien, casserole | `content/disruptions/` | P1 |
+| E6 | Chien (la casserole passe en E9, story 9.5 ; v2.3) | `content/disruptions/` | P1 |
 | **E7** | Personnages riggés et animés | `public/assets/characters/`, `AnimationMixer` dans les vues | Patterns d'entités (pools de vues) |
+| E7 (v2.4) | Couche de vie, netteté (7.8) | `src/client/render/views/`, `materials/`, `feel.characters` | Animation des personnages |
+| E7 (v2.4) | Squelette v2, visages, panel (7.9 à 7.15) | `assets-src/blender/characters/`, `public/assets/characters/`, `characterClips.ts`, `characterArt.ts` | Contrat des personnages, D9 étendu |
 | E7 | Rendu toon final, palette, VFX, célébration | `src/client/render/materials/`, `vfx/` | ADR-008 (WebGPU réévalué : on reste sur WebGL) |
 | E7 | Musique adaptative par âge | `src/client/audio/adaptiveMusic.ts`, `content/music/` | — |
 | **E8** | Capacitor iOS et Android | `capacitor.config.ts`, `src/platform/native/`, `ios/`, `android/` | Déploiement |
+| **E9** (v2.3) | Grand salon avec cuisine ouverte (9.1) | `assets-src/blender/`, `public/assets/levels/salon_kitchen.glb`, `content/levels/salon_kitchen.json` | ADR-009, NFR15 (≤ 5 Mo) |
+| E9 | Caméra qui suit papa (9.2) | `src/client/render/isoCamera.ts` (`follow`), `feel.camera`, `level.camera`, `src/client/input/hitTest.ts` | Chaîne d'entrées (hit-test à travers la caméra courante) |
+| E9 | Bulle d'info hors cadre (9.3) | `src/client/ui/world/offscreenBubble.ts` | P4 (le silence garde sa bulle sans flèche) |
+| E9 | Cadre des tâches, cuisine et casserole, lave-vaisselle (9.4–9.6) | `src/sim/chores/`, `content/chores/`, commande `TapObject` | P1 enchaîné (précédent : 100 pas d'E4) ; `ChoreBeatTelegraphed` / `ChoreBeatJudged` / `ChoreCompleted` |
+| E9 | Nouvelles bêtises, niveau jouable de bout en bout (9.7, 9.8) | `content/threats/`, `content/levels/salon_kitchen.json`, `src/bots/` (modèle de visibilité) | P1, ADR-011, Automatisation |
 
 ## Architecture des données
 
@@ -986,12 +1039,13 @@ export function runFatigue(world: World, ctx: StepContext): void {
 | Feeling | `content/feel.json` | `FeelSchema` | Geo (panneau), l'IA | sim (`ctx.feel`), client (rayon tactile, caméra) |
 | Définitions des menaces | `content/threats/<id>.json` | `ThreatDefSchema` | L'IA, Geo | sim |
 | Perturbations | `content/disruptions/<id>.json` | `DisruptionDefSchema` | L'IA | sim |
+| Tâches de la maison (E9, v2.3) | `content/chores/<id>.json` | `ChoreDefSchema` | L'IA, Geo | sim, client (anneau-chrono des temps forts) |
 | Niveau (gameplay) | `content/levels/<id>.json` | `LevelSchema` | L'IA | sim, client |
 | Niveau (géométrie) | `content/levels/<id>.geometry.json` | `LevelGeometrySchema` | `tools/assets/extractLevelGeometry.ts` (généré) | sim (colliders, nav, ancres, zones) |
 | Table de retours | `content/feedback.json` | `FeedbackTableSchema` | L'IA, Geo | client |
-| Répliques de Maman | `content/mama-lines.json` | `MamaLinesSchema` | L'IA, Geo | sim (sélection), client (affichage) |
+| Répliques de Maman | `content/mama-lines.json` | `MamaLinesSchema` | L'IA, Geo | sim (sélection, fonction pure appelée par le client), client (affichage) (story 3.8, D1) |
 | Textes de l'UI | `content/strings.fr.json` | `StringsSchema` | L'IA, Geo | client (`t(key)`) |
-| Sauvegarde | `StoragePort`, clé `papa-parade.save` | `SaveSchema` (versionné) | client | client, sim (mémoire de Maman passée à `createSim`) |
+| Sauvegarde | `StoragePort`, clé `papa-parade.save` | `SaveSchema` (versionné) | client | client (la mémoire de Maman est lue au `LevelScored`, story 3.8, D1) |
 | Journal de partie | export manuel en JSON | `JournalSchema` | client | sim (replay), `tools/sim/` |
 
 **Relations :**
@@ -1009,6 +1063,7 @@ export function runFatigue(world: World, ctx: StepContext): void {
   "id": "salon_crawler",
   "age": "crawler",
   "variant": "nap",
+  "camera": "fixed",
   "durationMs": 180000,
   "geometry": "salon_crawler.geometry.json",
   "papaSpawn": "papa_spawn",
@@ -1022,13 +1077,18 @@ export function runFatigue(world: World, ctx: StepContext): void {
 }
 ```
 
+**v2.3 (2026-11-03) :**
+- `camera: "fixed" | "follow"` : `fixed` dans une petite pièce (salon actuel, chambre), `follow` dans le grand salon (E9). Le client seul le lit ; la sim ne connaît pas la caméra (le bot `human` en recalcule le cadre pour son modèle de visibilité).
+- `maxSimultaneous` compte les menaces actives en même temps, fenêtres décalées par l'équité de trajet (ADR-011). Un silence suspect actif compte pour deux : il ne peut donc pas apparaître dans une vague à `maxSimultaneous: 1`.
+- Un niveau avec postes déclare ses tâches de la maison (références vers `content/chores/<id>.json` et leurs ancres) ; `content:check` vérifie ces références.
+
 ## Contrats d'API (internes)
 
 Il n'y a pas d'API réseau. Les contrats sont internes et typés :
 
 ```ts
 // src/sim/index.ts — seule API publique de la sim
-export async function createSim(opts: { content: ContentBundle; seed: number; mamaMemory?: MamaMemory; journal?: Journal }): Promise<Sim>;
+export async function createSim(opts: { content: ContentBundle; seed: number; journal?: Journal }): Promise<Sim>;  // pas de mamaMemory (story 3.8, D1)
 export interface Sim {
   enqueue(cmd: SimCommand): void;         // commande horodatée en simTime
   step(): void;                           // un pas de STEP_MS
@@ -1087,7 +1147,7 @@ interface Platform {
 | Ombres | ombres « blob » (disques) sous les personnages et les props ; pas de shadow map en E1 |
 | Contours | inverted hull uniquement sur les personnages, les menaces actives et les props saillants |
 | DPR | `min(devicePixelRatio, 2)` ; la résolution descend par paliers (2 → 1,5 → 1) si le temps de frame moyen dépasse 18 ms pendant 2 s |
-| Poids d'un niveau | ≤ 3 Mo compressés (glb + audio du niveau), donc < 5 s en 4G |
+| Poids d'un niveau | NFR15 (v2.3, 2026-11-03) : ≤ 3 Mo compressés (glb + audio du niveau), sauf le grand salon (E9) : ≤ 5 Mo ; chargement < 5 s en 4G. Vérifié par `dist:check`. Les budgets de rendu (draw calls, triangles) ne changent pas |
 | Mémoire | ≤ 300 Mo de heap JS + GPU sur mobile |
 | Latence tap → visuel | ≤ 50 ms : retour dès `pointerdown` (surbrillance + amorce de glissade dans la frame suivante), pas de travail lourd dans les gestionnaires d'événements |
 
@@ -1120,13 +1180,13 @@ interface Platform {
 | Compatibilité des décisions | OK | 2 conflits corrigés (`clampInvariant` vs « la sim ne logue pas » ; hitstop vs sim sans temps réel). Incompatibilité TS 7 / typescript-eslint résolue par Biome |
 | Couverture du GDD | OK | Micro-siestes de papa ajoutées (P1, menace générée par un système). Tous les systèmes du Contexte ont un emplacement et un pattern |
 | Complétude des patterns | OK | Création d'entités, communication, état, erreurs, accès aux données, événements : définis avec exemples ; 7 patterns nouveaux |
-| Correspondance des epics | OK | E1 à E8 rattachés ligne par ligne ; prototype « Bébé à 4 pattes » (E1, E2, E3 partiel) entièrement couvert |
+| Correspondance des epics | OK | E1 à E9 rattachés ligne par ligne (E9 et le rattrapage v2.3 ajoutés le 2026-11-03) ; prototype « Bébé à 4 pattes » (E1, E2, E3 partiel) entièrement couvert |
 | Complétude du document | OK | Aucun placeholder ; versions vérifiées le 2026-10-26 ; sections données, API, sécurité, performances et déploiement ajoutées |
 
 ### Couverture
 
 - **Systèmes couverts :** 18 sur 18 (tableau « Systèmes centraux »).
-- **Décisions prises :** 24 (synthèse) et 10 ADR.
+- **Décisions prises :** 24 (synthèse) et 11 ADR (ADR-011 ajouté le 2026-11-03).
 - **Patterns définis :** 7 nouveaux (P1 à P7) et 4 standard (communication, entités, état, données), plus 12 règles de cohérence vérifiées.
 
 ### Problèmes résolus
@@ -1148,6 +1208,7 @@ interface Platform {
 - Choix de l'hébergeur (Cloudflare Pages ou Netlify) : au premier déploiement de playtest, sans impact sur le code (build statique, base relative).
 - WebGPU : réévalué en E7, on reste sur WebGL (ADR-008).
 - CI : à créer avec le dépôt git (pipeline défini dans « Déploiement »).
+- Budget du grand salon (v2.3, 2026-11-03) : 5 Mo à confirmer avec l'audio réel d'E9 (NFR15) ; taille de la zone morte et vitesse de rattrapage de la caméra, réglées dans `feel.camera` au playtest.
 
 ### Date de validation
 

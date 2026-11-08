@@ -14,6 +14,7 @@ function papaAt(xM: number, zM: number, patch: Partial<PapaSlice> = {}): PapaSli
     prevZM: zM,
     headingX: 0,
     headingZ: 1,
+    look: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
     path: [],
     pathIndex: 0,
     dirX: 0,

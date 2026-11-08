@@ -1,0 +1,26 @@
+{
+  "version": 3,
+  "seed": 57,
+  "feelHash": "15826aab52d289",
+  "geometryHash": "1fad21f04c6015",
+  "levelHash": "10c406bca8d620",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 100,
+      "command": {
+        "t": 100,
+        "threatId": 1,
+        "type": "ForceThreat"
+      }
+    },
+    {
+      "applyAt": 12000,
+      "command": {
+        "t": 12000,
+        "threatId": 1,
+        "type": "ForceThreat"
+      }
+    }
+  ]
+}

@@ -5,21 +5,40 @@ import { describe, expect, it } from 'vitest';
 import {
   CARRY,
   COFFEE_TABLE,
+  createTestAbandonableCooking,
   createTestContent,
+  createTestDishwasherOpen,
   createTestGeometry,
   createTestLevel,
+  createTestMicroSleep,
+  DISHWASHER_OPEN,
   FATIGUE_GAUGES,
   OUTLET,
   SILENCE,
   STAIRS,
   stepN,
+  TEST_COOKING,
+  TEST_DISHWASHER,
+  TEST_OBJECTS,
+  TEST_STOVE,
+  TEST_UNLOAD_DISHWASHER,
+  testMicroSleepBusyMs,
   testWave,
 } from '../../../tests/support/testContent.ts';
 import type { StepContext } from '../context.ts';
 import { createSim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 import type { World } from '../world.ts';
-import { applyGag, GAG_IDS, type GagId, isNearMissGag } from './gags.ts';
+import { applyAfterEffect } from './afterEffects.ts';
+import {
+  AFTER_EFFECT_OF_GAG,
+  applyGag,
+  CATASTROPHE_OF_GAG,
+  catastropheProblem,
+  GAG_IDS,
+  type GagId,
+  isNearMissGag,
+} from './gags.ts';
 
 const content = createTestContent();
 const { pushImpulseNs, propReachDistM } = content.feel.gags.tableObjectFall;
@@ -30,10 +49,15 @@ async function setup(feel: Feel = content.feel) {
     content: { ...content, feel },
     geometry: createTestGeometry(),
     level: createTestLevel({
-      waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE])],
+      waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE, SILENCE, DISHWASHER_OPEN])],
       gauges: FATIGUE_GAUGES,
       carry: CARRY,
       sequences: ['bedtime_duel', 'fake_sleep_duel', 'bomb_drop', 'stealth_exit'],
+      // The pot on the stove (story 9.5) is the threat of an abandoned cooking; the open dishwasher
+      // (story 9.6) is the door of the dishwasher chore.
+      objects: [...TEST_OBJECTS, TEST_STOVE, TEST_DISHWASHER],
+      chores: [TEST_COOKING, TEST_UNLOAD_DISHWASHER],
+      choreDefs: { cooking: createTestAbandonableCooking() },
     }),
     seed: 1,
   });
@@ -61,7 +85,10 @@ async function setup(feel: Feel = content.feel) {
 
 const withReach = (reachM: number): Feel => ({
   ...content.feel,
-  gags: { tableObjectFall: { pushImpulseNs, propReachDistM: reachM } },
+  gags: {
+    ...content.feel.gags,
+    tableObjectFall: { pushImpulseNs, propReachDistM: reachM },
+  },
 });
 
 /** What each gag does on the threat that owns it: a `Record`, so that a new gag with no row is a type error. */
@@ -69,11 +96,22 @@ const OWN_THREAT: Record<GagId, { defId: string; eventCount: number; pushCount: 
   outlet_hair: { defId: 'outlet', eventCount: 0, pushCount: 0 },
   stairs_slide: { defId: 'stairs', eventCount: 1, pushCount: 0 },
   table_object_fall: { defId: 'coffee_table_object', eventCount: 0, pushCount: 1 },
-  // One `PapaStateChanged`: he falls asleep, nothing else (no near miss, no prop).
-  papa_asleep: { defId: 'papa_microsleep', eventCount: 1, pushCount: 0 },
+  // Nothing: the nap is the séquelle of the micro-sleep's def (`applyAfterEffect`, story 3.15).
+  papa_asleep: { defId: 'papa_microsleep', eventCount: 0, pushCount: 0 },
   // The surprise mischiefs of the silence: mess only, no near miss (story 1.21 D11).
   tissues_everywhere: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
   crayon_scribbles: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
+  // The pot boiling over (story 9.5): a mischief like the silence's, nothing to push.
+  pot_boiled_over: { defId: 'pot_on_stove', eventCount: 0, pushCount: 0 },
+  // The baby in the open dishwasher (story 9.6): a mischief too, nothing to push.
+  baby_in_dishwasher: { defId: 'dishwasher_open', eventCount: 0, pushCount: 0 },
+  // The five mischiefs of the big salon (story 9.7) are mischiefs like the silence's: the frozen room has no
+  // def of theirs, so they ride on its mess threat (the live defs are played by the catalogue and the live test).
+  dishes_on_floor: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
+  pan_concert: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
+  peelings_everywhere: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
+  soil_on_rug: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
+  coffee_spilled: { defId: 'silence_mischief', eventCount: 0, pushCount: 0 },
   // The cry is the def's `gagCryMs` (story 3.1 D9), not the gag's: nothing else happens (story 4.1).
   arms_wail: { defId: 'arms_cry', eventCount: 0, pushCount: 0 },
   // The retreat is the sequence's (story 4.6): the gag itself does nothing.
@@ -137,13 +175,130 @@ describe('applyGag', () => {
   });
 });
 
-describe('papa_asleep', () => {
-  it('puts Papa to sleep for feel.fatigue.asleepMs, with no near miss and no prop pushed', async () => {
+describe('pot_boiled_over (story 9.5)', () => {
+  it('is a mess, not a near miss: one mischief for Mama, no event, nothing pushed', async () => {
     const { world, ctx, events, impulses, threatOf } = await setup();
-    applyGag(world, ctx, threatOf('papa_microsleep'), 'papa_asleep');
+    applyGag(world, ctx, threatOf('pot_on_stove'), 'pot_boiled_over');
+    expect(world.mess.mischiefs).toBe(1);
+    expect(world.score.nearMisses).toBe(0);
+    expect(isNearMissGag('pot_boiled_over')).toBe(false);
+    expect(events).toEqual([]);
+    expect(impulses).toEqual([]);
+  });
+
+  it('goes with the mess séquelle and the mess catastrophe, and its def says so', async () => {
+    expect(CATASTROPHE_OF_GAG.pot_boiled_over).toBe('mess');
+    expect(catastropheProblem('pot_on_stove', ['pot_boiled_over'], 'mess')).toBeNull();
+    expect(catastropheProblem('pot_on_stove', ['pot_boiled_over'], 'nearMiss')).toMatch(
+      /whose catastrophe must be "mess"/,
+    );
+    const { threatOf } = await setup();
+    expect(AFTER_EFFECT_OF_GAG.pot_boiled_over).toBe('mess');
+    expect(threatOf('pot_on_stove')).toBeDefined();
+  });
+});
+
+describe('baby_in_dishwasher (story 9.6)', () => {
+  it('is a mess, not a near miss: one mischief for Mama, no event, nothing pushed', async () => {
+    const { world, ctx, events, impulses, threatOf } = await setup();
+    applyGag(world, ctx, threatOf('dishwasher_open'), 'baby_in_dishwasher');
+    expect(world.mess.mischiefs).toBe(1);
+    expect(world.score.nearMisses).toBe(0);
+    expect(isNearMissGag('baby_in_dishwasher')).toBe(false);
+    expect(events).toEqual([]);
+    expect(impulses).toEqual([]);
+  });
+
+  it('leaves its mess at the dishwasher, where he gets in, wherever the baby is when it happens', async () => {
+    const { world, ctx, threatOf } = await setup();
+    const door = threatOf('dishwasher_open');
+    // Another threat drew him away before this one's window closed.
+    world.baby.xM = door.xM + 5;
+    world.baby.zM = door.zM + 4;
+    applyAfterEffect(world, ctx, createTestDishwasherOpen(), 'baby_in_dishwasher', door);
+    expect(world.afterEffects.mischiefMarks).toEqual([
+      { gag: 'baby_in_dishwasher', xM: door.xM, zM: door.zM },
+    ]);
+  });
+
+  it('goes with the mess séquelle and the mess catastrophe, and its def says so', async () => {
+    expect(CATASTROPHE_OF_GAG.baby_in_dishwasher).toBe('mess');
+    expect(catastropheProblem('dishwasher_open', ['baby_in_dishwasher'], 'mess')).toBeNull();
+    expect(catastropheProblem('dishwasher_open', ['baby_in_dishwasher'], 'nearMiss')).toMatch(
+      /whose catastrophe must be "mess"/,
+    );
+    const { threatOf } = await setup();
+    expect(AFTER_EFFECT_OF_GAG.baby_in_dishwasher).toBe('mess');
+    expect(threatOf('dishwasher_open')).toBeDefined();
+  });
+});
+
+describe('the five mischiefs of the big salon (story 9.7)', () => {
+  const NEW_GAGS = [
+    'dishes_on_floor',
+    'pan_concert',
+    'peelings_everywhere',
+    'soil_on_rug',
+    'coffee_spilled',
+  ] as const;
+
+  it.each(NEW_GAGS)(
+    '%s is a mess, not a near miss: one mischief per gag for Mama, no event, nothing pushed',
+    async (gag) => {
+      const { world, ctx, events, impulses, threatOf } = await setup();
+      applyGag(world, ctx, threatOf('silence_mischief'), gag);
+      applyGag(world, ctx, threatOf('silence_mischief'), gag);
+      expect(world.mess.mischiefs).toBe(2);
+      expect(world.score.nearMisses).toBe(0);
+      expect(isNearMissGag(gag)).toBe(false);
+      expect(events).toEqual([]);
+      expect(impulses).toEqual([]);
+    },
+  );
+
+  it.each(NEW_GAGS)('%s goes with the mess séquelle and the mess catastrophe', (gag) => {
+    expect(AFTER_EFFECT_OF_GAG[gag]).toBe('mess');
+    expect(CATASTROPHE_OF_GAG[gag]).toBe('mess');
+    expect(catastropheProblem('any_def', [gag], 'mess')).toBeNull();
+    expect(catastropheProblem('any_def', [gag], 'nearMiss')).toMatch(
+      /whose catastrophe must be "mess"/,
+    );
+  });
+
+  it.each(NEW_GAGS)(
+    '%s leaves its mess at the threat, wherever the baby is when it happens',
+    async (gag) => {
+      const { world, ctx, threatOf } = await setup();
+      const threat = threatOf('dishwasher_open');
+      world.baby.xM = threat.xM + 5;
+      world.baby.zM = threat.zM + 4;
+      applyAfterEffect(world, ctx, createTestDishwasherOpen(), gag, threat);
+      expect(world.afterEffects.mischiefMarks).toEqual([{ gag, xM: threat.xM, zM: threat.zM }]);
+    },
+  );
+});
+
+describe('papa_asleep', () => {
+  it('is a gag with nothing to do: the nap belongs to the afterEffect of the micro-sleep', async () => {
+    const { world, ctx, events, threatOf } = await setup();
+    applyGag(world, ctx, threatOf('papa_microsleep'), 'papa_asleep', createTestMicroSleep());
+    expect(world.papa.state).toBe('idle');
+    expect(events).toEqual([]);
+  });
+
+  it('puts Papa to sleep for the afterEffect busyMs of the micro-sleep, with no near miss and no prop pushed', async () => {
+    const { world, ctx, events, impulses } = await setup();
+    applyAfterEffect(world, ctx, createTestMicroSleep(), 'papa_asleep');
     expect(world.papa.state).toBe('asleep');
-    expect(world.papa.busyUntil).toBe(world.time.sim + content.feel.fatigue.asleepMs);
-    expect(events.map((event) => event.type)).toEqual(['PapaStateChanged']);
+    expect(world.papa.busyUntil).toBe(world.time.sim + testMicroSleepBusyMs());
+    expect(events.map((event) => event.type)).toEqual(['PapaStateChanged', 'AfterEffectStarted']);
+    expect(events[1]).toEqual({
+      type: 'AfterEffectStarted',
+      t: world.time.sim,
+      kind: 'asleep',
+      until: world.papa.busyUntil,
+      propId: null,
+    });
     expect(impulses).toEqual([]);
   });
 });
@@ -296,5 +451,30 @@ describe('table_object_fall (real Rapier, through createSim)', () => {
     stepN(sim, Math.round(MS_PER_S / STEP_MS));
     expect(mug.isOnFloor).toBe(true);
     sim.dispose();
+  });
+});
+
+describe('CATASTROPHE_OF_GAG (story 3.16)', () => {
+  it('has a category for every gag, and the outlet is a nearMiss without being a NearMiss', () => {
+    expect(Object.keys(CATASTROPHE_OF_GAG).sort()).toEqual([...GAG_IDS].sort());
+    expect(CATASTROPHE_OF_GAG.outlet_hair).toBe('nearMiss');
+    expect(isNearMissGag('outlet_hair')).toBe(false);
+  });
+
+  it('names the def, the gag and the expected category when a def disagrees', () => {
+    expect(catastropheProblem('outlet', ['outlet_hair'], 'nearMiss')).toBeNull();
+    expect(catastropheProblem('outlet', ['outlet_hair'], 'mess')).toBe(
+      'the threat "outlet" has the gag "outlet_hair", whose catastrophe must be "nearMiss", not "mess"',
+    );
+  });
+
+  it('checks every gag of a def, and leaves an unknown gag to its own message', () => {
+    expect(
+      catastropheProblem('silence', ['tissues_everywhere', 'crayon_scribbles'], 'mess'),
+    ).toBeNull();
+    expect(catastropheProblem('silence', ['tissues_everywhere', 'papa_asleep'], 'mess')).toContain(
+      '"papa_asleep"',
+    );
+    expect(catastropheProblem('x', ['not_a_gag'], 'none')).toBeNull();
   });
 });

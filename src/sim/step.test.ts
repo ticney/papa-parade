@@ -24,7 +24,9 @@ describe('system order', () => {
       'runDisruptions',
       'runBaby',
       'runThreats',
+      'runChores',
       'runPapa',
+      'settleChores',
       'runPhysics',
       'runGauges',
       'runInstinct',
@@ -59,7 +61,8 @@ describe('system order', () => {
 });
 
 describe('a step after the level has ended', () => {
-  const DURATION_MS = 3000;
+  // Long enough for the outlet's gag and its séquelle (Papa electrified for 1.5 s) to be over (story 3.15).
+  const DURATION_MS = 5000;
   async function endedSim(waves = true) {
     const sim = await createSim({
       content: createTestContent(),

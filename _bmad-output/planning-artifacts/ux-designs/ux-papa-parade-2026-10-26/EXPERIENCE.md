@@ -2,13 +2,15 @@
 title: 'EXPERIENCE.md — Papa Parade'
 status: final
 created: 2026-10-26
-updated: 2026-10-26
+updated: 2026-11-08
 design_ref: ./DESIGN.md
 sources:
   - ../../gdds/gdd-papa-parade-2026-10-26/gdd.md
   - ../../game-architecture.md
   - ../../epics.md
   - ../../implementation-readiness-report-2026-10-26.md
+  - ../../sprint-change-proposal-2026-11-03.md
+  - ../../sprint-change-proposal-2026-11-08.md
 form_factor: 'Mobile landscape, touch-first (primary); web desktop with keyboard, mouse or gamepad; iOS and Android via Capacitor (landscape locked)'
 ---
 
@@ -20,6 +22,7 @@ This spine covers behaviour, flows and states. Visual identity is in [DESIGN.md]
 - Constraints inherited from the sources cite their story or ARCH section and are not tagged.
 - GDD and PRD content is inherited by reference, not restated.
 - **Visual references**: four key-screen mockups in [`./mockups/`](./mockups/) are linked at the sections they illustrate. **The spines win on any conflict with a mockup.**
+- **v2.3 update (2026-11-03)**: applies the approved [Sprint Change Proposal](../../sprint-change-proposal-2026-11-03.md) §4.9 (GDD v2.3, after Geo's first playtest): chrono-ring, activity-bubble and the refused tap, catastrophe-face and the early end « Maman est rentrée plus tôt ! », offscreen-bubble, the follow camera of the large room, and a five-row result. Additions are marked "(v2.3)". The mockups predate them and do not show them.
 
 ## Foundation
 
@@ -63,6 +66,7 @@ flowchart TD
   Pause -->|"Quitter vers le frigo, confirmed"| Fridge
   Lvl -->|"door → final rush → photo"| Result["Result: Mama → scores and stars → REPLAY → actions"]
   Level -->|"door → final rush → photo"| Result
+  Lvl -->|"catastrophe at 100%: door, no final rush → photo (v2.3)"| Result
   Result -->|"Rejouer"| Load
   Result -->|"Âge suivant (≥ 2★)"| Load
   Result -->|"Frigo"| Fridge
@@ -84,7 +88,7 @@ flowchart TD
 | Fridge | Returning launch, Result › Frigo, Pause › Quitter, Crédits | Home and age select: 5 captioned age polaroids, star magnets, locked slots. `[ASSUMPTION]` | Diegetic screen |
 | Level | Loading | Play, with the HUD and world-anchored UI. | Play |
 | Pause | Level | « Pause »: Reprendre · Recommencer · Réglages · Quitter vers le frigo. `[ASSUMPTION]` | Overlay (panel on scrim) |
-| Result | End-of-level sequence | Frozen photo polaroid, Mama's reactions, 4 score rows, stars, highlight replay, then the actions (stories 1.22, 3.6–3.9, 3.11). `[ASSUMPTION]` for the composition | Diegetic screen |
+| Result | End-of-level sequence | Frozen photo polaroid, Mama's reactions, 5 score rows (v2.3, story 3.12), stars, highlight replay, then the actions (stories 1.22, 3.6–3.9, 3.11). `[ASSUMPTION]` for the composition | Diegetic screen |
 | Réglages | Fridge magnet, Pause, repeated-failure card | Settings and Crédits (story 2.8). | Plain panel |
 | Crédits | Réglages; plays automatically on the first Adulte completion with ≥ 1★ `[ASSUMPTION]` | Credits (content open upstream). | Plain panel |
 | Oups | Load failure, uncaught exception | Light-tone error with "Réessayer" (story 1.6). | Plain panel |
@@ -98,8 +102,8 @@ Rules `[ASSUMPTION]`:
 
 **Result sequence** (follows the GDD macro loop) `[ASSUMPTION]`:
 
-1. Photo polaroid: it drops in with a camera flash and a shutter sound (story 3.6), stands alone for a short hold (`photoHoldMs`), and a press skips the hold. A woken Mama's header and its cue come after it, when the score rows start: nothing sits between the photo and her reaction. A level that could not take the photo skips this step.
-2. Mama's reactions (mum-bubble).
+1. Photo polaroid: it drops in with a camera flash and a shutter sound (story 3.6), stands alone for a short hold (`photoHoldMs`), and a press skips the hold. A woken Mama's header (or the early-end header, v2.3) and its cue come after it, when the score rows start: nothing sits between the photo and her reaction. A level that could not take the photo skips this step.
+2. Mama's reactions (mum-bubble, story 3.7): in the order Laugh, Sigh, Scream, only those she has points for, each held for `reactionHoldMs` (1.2 s) with her line, her face, its animation, its cue and a `+N` / `−N` chip (none for a reaction worth 0). A woken Mama (`mamaWoke`) and a Mama come home early (`mamaHome`) always scream, even with no near miss, before their header and door slam, which come with the rows. A game with nothing in it still gets her laugh, with no chip. With a photo she stands on the polaroid's top-right corner; with none she has the left column alone. A press skips them all (none plays) and leaves her at rest on the last reaction, as does a rebuilt screen. The lines are placeholders until story 3.8.
 3. Score rows and stars stamp in.
 4. Highlight replay with the "REPLAY" banner (skippable).
 5. The actions appear.
@@ -112,6 +116,7 @@ Rules `[ASSUMPTION]`:
 | < 2★ | "Rejouer" | "Âge suivant", visible but locked, with the hint « 2 étoiles pour débloquer » | "Frigo" | — |
 | Adulte (last age) | "Frigo" (replaces "Âge suivant") | "Rejouer" | — | The first completion with ≥ 1★ plays the Crédits, then returns to the Fridge |
 | Mama woke (any of the above) | per case | per case | per case | « Maman s'est réveillée ! » with its cue; the lost star is a dashed empty star with a « −1 » chip (story 3.2) |
+| Mama came home early (catastrophe at 100%, v2.3) | "Rejouer" | "Âge suivant", locked as in < 2★ | "Frigo" | « Maman est rentrée plus tôt ! » with its cue; 0 stars, every slot a dashed empty star, no chip (story 3.16, GDD "Conditions de victoire") |
 | 3rd consecutive ≤ 1★ on the same level, outside Assistance | per case | per case | per case | Repeated-failure card (see State Patterns › Result) |
 
 ### HUD information hierarchy
@@ -120,11 +125,11 @@ The ranking follows the read-then-respond pillar and the HUD fade rule (see HUD 
 
 | Rank | Elements | Where | Rule |
 |---|---|---|---|
-| 1 | verb-label, threat-icon, target-highlight, hold-ring, silence-bubble, glyph-chip | World-anchored, or at the screen edge | Always at full opacity; never hidden during active play |
-| 2 | hud-gauge (max 3, in one horizontal pill: Bruit · Fatigue · Envie), hud-timer, sequence-bar | Top-left, top-centre | Fade to 70% opacity when idle `[ASSUMPTION]` |
-| 3 | combo-badge, breath-ring, attention-meter | World-anchored over characters | Shown only when relevant `[ASSUMPTION]` |
+| 1 | verb-label, threat-icon, chrono-ring (v2.3), target-highlight, hold-ring, silence-bubble, offscreen-bubble (v2.3), glyph-chip | World-anchored, or at the screen edge | Always at full opacity; never hidden during active play |
+| 2 | hud-gauge (max 3, in one horizontal pill: Bruit · Fatigue · Envie), hud-timer with the catastrophe-face beside it (v2.3), sequence-bar | Top-left, top-centre | Fade to 70% opacity when idle `[ASSUMPTION]` |
+| 3 | activity-bubble (v2.3), combo-badge, breath-ring, attention-meter | World-anchored over characters | Shown only when relevant `[ASSUMPTION]` |
 | 4 | button-icon (pause) | Top-right | Always present during play (story 1.5) |
-| — | Mama score | Never during play | Revealed only at the end; Papa's degrading look is the in-play hint `[ASSUMPTION]` |
+| — | Mama score | Never during play | Her score, never; her worry, yes (v2.3): the catastrophe-face shows how worried she is, not the score. The score is revealed only at the end; Papa's degrading look is the in-play hint `[ASSUMPTION]` |
 
 ## Voice and Tone
 
@@ -133,7 +138,7 @@ Microcopy rules `[ASSUMPTION]`:
 - French, **tutoiement**, short.
 - The Domestic register is warm and wry; the Epic register is trailer-parody caps.
 - Verbs are imperative, one word where possible, uppercase and followed by " !" (with the French space).
-- Failure is never named: no "échec", "perdu", "game over" or "mort" (NFR9).
+- Failure is never named: no "échec", "perdu", "game over" or "mort" (NFR9). Since v2.3, NFR9 means no *hard* game over: a level never ends on the first miss, and the one early end (catastrophe at 100%) is a gag worded « Maman est rentrée plus tôt ! », with none of these words. "Niveau perdu" is a design term only (GDD).
 - Never mock the baby or shame the parent. Mama is exasperated-loving, never cruel.
 - No explanatory tutorial text anywhere in play (NFR6, story 6.9). Loading lines are flavour only, never instructions.
 - Errors are light, never technical. Save failures are silent for the player.
@@ -168,10 +173,11 @@ Unless a source is cited, every string's wording is `[ASSUMPTION]`.
 | « Sûr ? Le niveau sera perdu. » | Armed label of "Quitter vers le frigo" | `[ASSUMPTION]` |
 | « 3 » « 2 » « 1 » | Resume countdown | `[ASSUMPTION]` |
 | « Manette débranchée. Rebranche-la pour reprendre. » | Pause panel after a gamepad-disconnect auto-pause | `[ASSUMPTION]` |
-| « *Encore* l'étagère ?! » | mum-bubble example (Mama remembers past runs). Mama's lines are content-driven (`mama-lines.json`; the most specific line wins, story 3.8), so the mockup's use of this line is illustrative only | GDD |
+| « *Encore* l'escalier ?! » | mum-bubble example (Mama remembers past runs; in the game the shelf is the stairs, story 3.8). Mama's lines are content-driven (`mama-lines.json`; the most specific line wins), so the mockup's use of this line is illustrative only | GDD |
 | « Maman s'est réveillée ! » | Result header when Mama woke | `[ASSUMPTION]` |
+| « Maman est rentrée plus tôt ! » | Result header after an early end (catastrophe at 100%) (v2.3) | GDD v2.3, story 3.16 |
 | « Nouvel âge débloqué ! » | Result header when the next age unlocks | `[ASSUMPTION]` |
-| « Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15 | score-row labels with their maxima (the rows add up to the score) | `[ASSUMPTION]` |
+| « Rires » /35, « Calme du bébé » /20, « Maison » /15, « Sans soupir » /15, « Sans hurlement » /15 | score-row labels with their maxima, in this order (the rows add up to the score) (v2.3) | GDD v2.3 « Note de Maman », UX-DR13, story 3.12 |
 | « −1 » | Lost-star chip when Mama woke | `[ASSUMPTION]` |
 | « Rejouer » | Result | Story 1.22 |
 | « Âge suivant », « Frigo » | Result | `[ASSUMPTION]` |
@@ -204,27 +210,33 @@ These are behavioural rules. The visual specs are in DESIGN.md › Components, u
 | button-secondary | Menus, panels | Same press and act rules as button-primary. "Quitter vers le frigo" is two-step: the first tap arms it (the label becomes « Sûr ? Le niveau sera perdu. »), a second tap within 3s confirms, and otherwise it reverts. A locked "Âge suivant" shows its hint and does nothing when pressed. `[ASSUMPTION]` |
 | button-tertiary | Result "Frigo"; lowest-priority actions | Same press and act rules as button-primary, but with no lift to collapse. It never takes default focus when a primary action is present. `[ASSUMPTION]` |
 | button-icon | HUD top-right (pause); Fridge top-right (magnet → Réglages); card close | Pause opens the Pause overlay at once, with no confirmation. The same overlay is reachable by Esc, gamepad Start/Options or Android back. At least 44×44pt. `[ASSUMPTION]` |
-| hud-gauge | HUD top-left | At most 3 at once, side by side in one horizontal pill, ordered left to right Bruit · Fatigue · Envie; Bruit appears only in Sieste (hidden in Retour, story 3.10). Below 50% and idle it sits at 70% opacity; it goes to full opacity while changing or at ≥ 70%. At ≥ 70% the fill turns `{colors.gauge-warn}` and the icon chip pulses. Above 80%, noise fires a visual and a haptic cue (story 3.1). Each bar animates as a single `transform: scaleX` fill under a segment mask. `[ASSUMPTION]` for all thresholds except 80% |
+| hud-gauge | HUD top-left | At most 3 at once, side by side in one horizontal pill, ordered left to right Bruit · Fatigue · Envie; Bruit appears only in Sieste (hidden in Retour, story 3.10). Below 50% and idle it sits at 70% opacity; it goes to full opacity while changing or at ≥ 70%. At ≥ 70% the fill turns `{colors.gauge-warn}` and the icon chip pulses. Above 80%, noise fires a visual and a haptic cue (story 3.1). Each bar animates as a single `transform: scaleX` fill under a segment mask. The catastrophe gauge (v2.3) is not one of the three: it shows as the catastrophe-face beside the timer. `[ASSUMPTION]` for all thresholds except 80% |
 | hud-timer | HUD top-centre | Counts down: Mama's sleep in Sieste (4 min), Mama's return in Retour (3 min) (GDD). One icon per variant. It switches to compact while a sequence-bar is shown and restores afterwards. In the final rush (`feel.endOfLevel.finalRushMs`, 10 s today, story 3.5) the pill turns `{colors.alert}` and beats slowly (no pulse under reduced motion); the digits still count down, so colour is never the only signal. `[ASSUMPTION]` for the icon, the compact switch and the rush look |
+| catastrophe-face (v2.3) | Top-centre, attached to hud-timer | Mama's face shows the catastrophe gauge (0–100%) in every level (FR73, UX-DR29, story 3.16), in 4 worry states. Above 70% it turns alarmed: its `{colors.gauge-warn}` ring pulses (under 3Hz), the music tightens, and an alert sound and a vibration fire (pilier 3, ADR-006). It never shows a number or Mama's score. It follows the gauge fade rule (70% opacity when idle and under 50%). It freezes during the final rush, when Mama can no longer "come home early". At 100% the level ends early: the door opens at once with no final rush, then photo and Result. If noise and catastrophe fill on the same step, the catastrophe wins (GDD). `[ASSUMPTION]` for the state thresholds below 70% |
 | sequence-bar | Directly under hud-timer | Slides in when a special sequence starts and out when it ends. Opponent "health" (diaper boss, story 5.7) drains in `{colors.gauge-warn}`. Player resources (calme, story 6.2; souffle) fill in `{colors.gauge-calm}`. `[ASSUMPTION]` |
-| combo-badge | Above Papa | Hidden at x1; visible from x2 up to x8 (story 4.2). Cashing in the combo (baby put down safely) fires slow-mo plus an audio, visual and haptic cue (story 4.2). `[ASSUMPTION]` for the x2 threshold |
+| combo-badge | Above Papa | Hidden at x1; visible from x2 up to x8 (story 4.2). Cashing in the combo (baby put down safely) fires slow-mo plus an audio, visual and haptic cue (story 4.2). While the activity-bubble shows (v2.3), the badge moves beside it, with no overlap. `[ASSUMPTION]` for the x2 threshold |
+| activity-bubble (v2.3) | Above Papa | Shows while Papa is busy: coffee (3s), phone (5s), toilet, a chore, an after-effect that occupies him (the failed micro-sleep, the outlet's shock, carrying the baby back up the stairs), and picking up a debris (FR74, UX-DR28, stories 2.12, 3.15). The pictogram names the action (a cup, a handset, a door, dizzy stars for the nap, the shock and the carry, a hand for the pick-up); a second after-effect replaces the first without lengthening it: the pictogram swaps and the ring restarts toward the same end; the ring drains, in game time, until Papa can respond again. Starts with a small squash; ends with a « ding », a pop and a short vibration (ADR-006 triple equivalence). A tap on a threat during a non-interruptible activity is refused visibly: see Interaction Primitives › Refused tap. Chores are interruptible, so a tap there is not refused (GDD mechanic 16). `[ASSUMPTION]` for the pictograms |
+| penombre (v2.3) | The 3D room, after the outlet's gag (story 3.15) | The room's lights fade to 40 % over 400 ms (`feel.json › fx.dim`) for 6 s, with the outlet's flash on top (the darker of the two wins). Only the lights: threat icons, halos, chrono-rings, hold-rings, the activity bubble, the tidy markers and the verbs are never dimmed, filtered or covered, so every signal stays fully readable. No scrim, no overlay, no filter (the instinct vignette is a different darkening and must never be confused with it). `[ASSUMPTION]` for the values |
+| stairs-fetch (v2.3) | The baby, at the bottom of the stairs (story 3.15) | After the stairs gag the baby sits at the bottom of the steps (a few centimetres lower, a short slide out, drawn from the world's `downstairs` state) and stays there. A tap on him (touch, or Space / A beside him) walks Papa to him and carries him up in two seconds, behind the stars; if nobody comes he climbs back by himself after 6 s. While he is down nothing that needs him is drawn. `[ASSUMPTION]` for the drawing |
 | breath-ring | Around Papa, stealth only | Fills while the breath is held (hold anywhere, E or RT), over the 6000ms breath gauge (story 4.9). Uses the hold-ring visual. `[ASSUMPTION]` |
 | attention-meter | Above the toddler | 5 pips, visible throughout Petite enfance levels. Same fill and idle-opacity rules as hud-gauge. Shows the attention gauge (0–100, story 6.4). `[ASSUMPTION]` |
-| tidy-marker | Above each object left on the floor, in the final rush only (story 3.5) | « RANGE ! » in the look of a verb-label. It shows while the object is a mess, goes the moment it is tidied and is gone for the photo. It takes no tap: the object itself is the target (touch, or Space / A for the nearest one in reach, ahead of the baby). No banner announces the rush: the door, its key sound, the timer and these markers say it. `[ASSUMPTION]` |
+| tidy-marker | Above each object left on the floor in the final rush (story 3.5), and above each debris of the coffee table's gag outside it (story 3.15: a tap on it, or Space / A for the nearest in reach, walks Papa there to pick it up in a second, behind the hand) | « RANGE ! » in the look of a verb-label. It shows while the object is a mess, goes the moment it is tidied and is gone for the photo. It takes no tap: the object itself is the target (touch, or Space / A for the nearest one in reach, ahead of the baby). No banner announces the rush: the door, its key sound, the timer and these markers say it. `[ASSUMPTION]` |
 | verb-label | Above each telegraphed threat | Appears with the telegraph: one word, large. Dodge threats default to « ESQUIVE ! » unless their content overrides it `[ASSUMPTION]`. When verbs overlap they are offset, with the most urgent in front (story 2.2). Uses `{typography.verb-compact}` on compact surfaces; "Grands verbes" adds +25%. Never truncated. |
 | threat-icon | On each threat | Parry is a `{colors.parry}` circle, dodge a `{colors.dodge}` triangle (story 2.2). The telegraph combines the icon, a soft pulsing `{colors.alert}` halo, a telegraph sound and a light vibration (stories 1.11, 2.4). The icon disappears when the threat resolves. |
 | hold-ring | Around the pressed threat icon; on the baby for sniff | Starts filling on press over a threat and fills in 400ms (`holdMinMs`). Releasing before it closes gives Parade. If the ring closes, it is Fermeté: the ring pops solid `{colors.paper}` with a medium haptic (ADR-010). A 2px ink outer outline keeps it readable over light rooms. Sniff is a 1s hold on the baby. While Papa carries the baby, Firmness is impossible and the verb reads "POSE-LE D'ABORD !" (story 4.1). `[ASSUMPTION]` for the ring |
+| chrono-ring (v2.3) | Around the threat icon, outside the hold-ring | Parer, Fermeté and Esquiver threats only (FR71, UX-DR27, story 2.11); never on Wait, Do nothing or feints, where reading the moment is the challenge. Starts filling at the telegraph and is full at the end of the shown window (delay + effective window); the hidden tolerance is not drawn. The final arc matches the effective window (tier, fatigue, instinct), lights up when it opens, with a short vibration; the notch marks the perfect window and shows from the telegraph (it is the « here »; the lit arc is the « now »). The bomb drop (a Fermeté judged on its release) has a ring too. It runs on game time: slows with slow-mo, freezes in hitstop and pause. During a Fermeté hold, the hold-ring fills inside while the chrono-ring drains, from full at the press, to the end of the attack (the lit arc and the notch are not drawn then). Suspicious silence: a ring beside the silence-bubble measures the time to find the baby (`findMaxMs`), then the threat's usual ring takes over. Chore beats (E9) use it too. |
 | glyph-chip | Beside the auto-targeted threat's verb | Keyboard and gamepad only, never on touch. Exactly one at a time; it follows the auto-target as it changes. The glyph swaps per device family (see Input Schemes). `[ASSUMPTION]` |
 | target-highlight | On the targeted or pressed threat | On touch, the pressed threat is highlighted in the frame after `pointerdown`, within 50ms (story 1.11). On keyboard and gamepad, the auto-targeted threat stays highlighted while aiming (story 1.17). The highlight is a solid outline plus a bouncing chevron, so it reads differently from the halo by shape. `[ASSUMPTION]` for the form |
-| silence-bubble | Screen edge, on the side of the silent zone | Appears on a suspicious silence, together with a music cut and a short vibration (story 1.21). Blinks at 3Hz or slower; under reduced motion it pulses at 1Hz or slower. Disappears on `SilenceEnded`, when the baby is found by tapping it. `[ASSUMPTION]` for the rates |
-| tap-marker | Tapped floor point | Shown in the frame after `pointerdown` on the floor (story 1.7). Scales from 0.6 to 1.2 and fades over 300ms. `[ASSUMPTION]` for the animation |
+| silence-bubble | Screen edge, on the side of the silent zone | Appears on a suspicious silence, together with a music cut and a short vibration (story 1.21). Blinks at 3Hz or slower; under reduced motion it pulses at 1Hz or slower. Disappears on `SilenceEnded`, when the baby is found by tapping it. With the follow camera (v2.3) it stays without arrow or direction. `[ASSUMPTION]` for the rates |
+| offscreen-bubble (v2.3) | Left, right or top screen edge, on the threat's side; never in the bottom third | Follow camera only (FR77, UX-DR30, story 9.3). Appears when an active threat outside the frame telegraphs; disappears when the threat enters the frame or resolves. Shows the threat's icon, its chrono-ring and an arrow toward it. A tap on it is the same command as a tap on the threat (Papa glides there); keyboard and gamepad reach it through targeting. At most 3 (one per active threat), stacked without overlap on a shared edge. A suspicious silence off-screen shows only its silence-bubble; the arrowed bubble appears once the baby is found. |
+| tap-marker | Tapped floor point | Shown in the frame after `pointerdown` on the floor (story 1.7). Scales from 0.6 to 1.2 and fades over 300ms. Not shown for a refused tap (v2.3). `[ASSUMPTION]` for the animation |
 | instinct-vignette | Screen edges | Shown during paternal instinct (≥ 3 threats and 2 misses in < 10s, at most once per 30s; GDD), with a heartbeat sound and a haptic twin (story 2.9). Never shown in the Papa expérimenté tier (GDD). |
 | countdown | Centre, over the dimmed scene | A 3s real-time countdown after any resume (« 3 » « 2 » « 1 »): digits in `{typography.countdown}`, with a tick sound, a haptic and a pulse each second (ARCH "Boucle de jeu"). The AudioContext resumes at the end (story 1.9). `[ASSUMPTION]` for the per-second cues |
 | epic-stamp | Over the scene | "PARADE PARFAITE" stamps on perfect responses for at most 900ms and never blocks input. The "REPLAY" banner stays for the whole highlight replay (story 3.9). `[ASSUMPTION]` for PARADE PARFAITE |
 | polaroid | Fridge (ages), Result (end photo) | On the Fridge, tapping an unlocked polaroid (or focusing it and confirming) goes to Loading. A locked slot cannot be selected (story 6.9: only unlocked ages are playable). A new unlock drops its polaroid with a magnet "thunk" and a « Nouveau ! » label on its first appearance. Locked slots keep their age name visible in ink-soft. On Result, the polaroid holds the frozen photo (story 3.6). `[ASSUMPTION]` |
-| star | Result, Fridge only; never in play | On Result, stars stamp in one by one, each with a sound and a light haptic, the last one heavy. On the Fridge, stars show as sticker magnets per age. A lost star (Mama woke) stamps last, as a dashed empty star with a « −1 » chip (story 3.2). `[ASSUMPTION]` for the stamping |
+| star | Result, Fridge only; never in play | On Result, stars stamp in one by one, each with a sound and a light haptic, the last one heavy. On the Fridge, stars show as sticker magnets per age. A lost star (Mama woke) stamps last, as a dashed empty star with a « −1 » chip (story 3.2). After an early end (v2.3) no star stamps: the slots show as dashed empty stars, with a soft sound and no heavy haptic. `[ASSUMPTION]` for the stamping |
 | mum-bubble | Result | Shows the most specific Mama line (story 3.8) for each reaction, in the order Laugh, Sigh, Scream (story 3.7). Mama's voice lines are always on screen in this bubble, which doubles as captions. `[ASSUMPTION]` for the bubble |
-| score-row | Result | 4 rows, each showing points earned out of its maximum: « Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15 (story 1.22). Values count up, and the rows add up to the score. Rows appear after Mama's reactions and before the replay. `[ASSUMPTION]` for the labels and count-up |
+| score-row | Result | 5 rows (v2.3; stories 1.22, 3.12), each showing points earned out of its maximum, in this order: « Rires » /35, « Calme du bébé » /20, « Maison » /15, « Sans soupir » /15, « Sans hurlement » /15. Maison shows « 0 / 15 » in a level without chores; no row is hidden. Values count up, and the rows add up to the score. Rows appear after Mama's reactions and before the replay. `[ASSUMPTION]` for the labels and count-up |
 | panel | Pause, Réglages, Oups, Crédits, repeated-failure card | Pops in with overshoot in 220ms or less; a plain fade under reduced motion. Esc, B or Android back closes it or goes back one level. Closing Pause this way equals "Reprendre", through the countdown. Default focus goes to the panel's first action, the first row in Réglages, and "Réessayer" on Oups. `[ASSUMPTION]` |
 | settings-toggle | Réglages | Flips on tap or confirm and saves instantly; there is no Save button. "Vibrations" is hidden when `capabilities.haptics=false`. `[ASSUMPTION]` |
 | settings-slider | Réglages volumes | One slider per bus (Musique, Effets, Voix, Interface). Drag it, or use left and right when it is focused; changes apply and save instantly. `[ASSUMPTION]` |
@@ -300,6 +312,9 @@ Illustrated in [`./mockups/key-hud-level.html`](./mockups/key-hud-level.html): s
 | Portrait (web) | Auto-pause behind the portrait overlay (story 1.5). |
 | Error | An uncaught exception is logged, then Oups opens and the level restarts (story 1.6). |
 | Instinct | instinct-vignette and heartbeat (story 2.9). |
+| Papa busy (v2.3) | activity-bubble above Papa with its draining ring; a tap on a threat is refused visibly (see Interaction Primitives). |
+| Catastrophe ≥ 70% (v2.3) | catastrophe-face alarmed, tense music, alert sound and vibration. At 100% the level ends early: door, no final rush, photo, Result. |
+| Follow camera (large room, v2.3) | The view follows Papa; off-screen threats show as offscreen-bubbles; the HUD corners do not move. |
 
 ### Pause
 
@@ -320,11 +335,12 @@ Illustrated in [`./mockups/key-result.html`](./mockups/key-result.html): state A
 
 | State | Treatment |
 |---|---|
-| Standard | Photo polaroid → mum-bubble per reaction (Laugh, Sigh, Scream) → 4 score-rows counting up and stars stamping in → REPLAY (story 3.9) → actions per the Result actions table in Information Architecture. |
+| Standard | Photo polaroid → mum-bubble per reaction (Laugh, Sigh, Scream) → 5 score-rows counting up (v2.3) and stars stamping in → REPLAY (story 3.9) → actions per the Result actions table in Information Architecture. |
 | ≥ 2★ (next age unlocked) | Header « Nouvel âge débloqué ! » (story 3.11). Primary "Âge suivant", secondary "Rejouer", tertiary "Frigo". The new polaroid drops in on the next Fridge visit. |
 | < 2★ | Primary "Rejouer". "Âge suivant" stays visible but locked, with « 2 étoiles pour débloquer ». |
 | Adulte (last age) | "Frigo" replaces "Âge suivant" as primary. The first Adulte completion with ≥ 1★ plays the Crédits, then returns to the Fridge. |
 | Mama woke (Sieste, noise at 100%) | Header « Maman s'est réveillée ! », with its cue (door-slam sound, visual, vibration), which comes after the photo, with the score rows (story 3.6). The lost star is a dashed ink-soft empty star with a « −1 » chip in mama-scream (story 3.2). Mama's line itself comes from content (`mama-lines.json`, story 3.8). |
+| Mama came home early (catastrophe at 100%, v2.3) | Modelled on « Maman s'est réveillée ! »: the photo freezes the chaos of the moment, then the header « Maman est rentrée plus tôt ! » comes with its cue (the door bursting open, a visual and a vibration) and the score rows. Mama reacts (scream). The rows still count up, but the result is 0 stars, whatever the score: every slot is a dashed empty star, with no chip. "Rejouer" is primary. The replay shows the cascade of gags that brought Mama home (the latest gags, spaced; a game lost on something other than a gag, such as a failed chore beat, still replays its latest gags, and one with no gag has no replay: story 3.9, Geo's choice). No "perdu", "échec" or "game over" anywhere (NFR9, story 3.16). `[ASSUMPTION]` for the cue |
 | Repeated failure | After 3 consecutive results of ≤ 1★ on the same level, outside Assistance, one gentle card appears: « Envie de souffler ? Essaie le mode Assistance », with a button to Réglages. It can be dismissed and never shows in Assistance. |
 | Replay skip | A tap skips the current moment; a second tap skips the whole replay (story 3.9). |
 | Playtest build | « Copier le journal » appears only in playtest web builds, behind a build flag; store builds hide it (stories 1.22, 3.3). Success shows « Journal copié ! ». If the clipboard API fails, the button becomes « Télécharger le journal » and downloads a .json file. |
@@ -358,7 +374,8 @@ Illustrated in [`./mockups/key-result.html`](./mockups/key-result.html): state A
 
 ## Interaction Primitives
 
-- **Tap**: the main verb. One tap can mean several things; the hit-test priority is threat > object > floor, with a generous touch radius set in `feel.json` (ARCH "Chaîne d'entrées").
+- **Tap**: the main verb. One tap can mean several things; the hit-test priority is threat > object > floor, with a generous touch radius set in `feel.json` (ARCH "Chaîne d'entrées"). An offscreen-bubble counts as its threat (v2.3). With the follow camera, the hit-test projects through the current camera, so a tap hits the right world point (story 9.2).
+- **Refused tap** (v2.3, FR74, story 2.12): while Papa is busy with a non-interruptible activity (coffee, phone, toilet, an after-effect), a tap on a threat is refused, as before, but never silently: the activity-bubble shakes for 150ms, a « busy » sound plays, and a light haptic twins it (ADR-006; the haptic is decided, story 2.12). No tap-marker, no target-highlight, no glide. A chore is interruptible: a tap on a threat or the floor makes Papa leave it, and its progress is kept. A tap on the floor, an object or the baby stays silent for now (open point)
 - **Hold**: decided at release or at 400ms (`holdMinMs`), with feedback through the hold-ring (ADR-010). Sniff is a 1s hold on the baby.
 - **Swipe**: dodge on touch (story 5.1).
 - **Hold anywhere**: holds the breath, in stealth only (story 4.9).
@@ -373,12 +390,12 @@ Illustrated in [`./mockups/key-result.html`](./mockups/key-result.html): state A
 ## HUD & Diegetic UI
 
 - **Mockup**: [`./mockups/key-hud-level.html`](./mockups/key-hud-level.html) shows the HUD, the world-anchored UI, and the auto-target and silence states. Its state B is a reference composite.
-- **Non-diegetic, screen-anchored**: hud-gauge, hud-timer, sequence-bar, button-icon (pause), countdown, silence-bubble. They sit in the locked zones (story 1.5), inside `{spacing.hud-inset}`.
-- **World-anchored (CSS2D)**: verb-label, tidy-marker, threat-icon, hold-ring, breath-ring, combo-badge, attention-meter, glyph-chip, target-highlight, tap-marker.
-- **Diegetic only (3D world, no DOM)**: the baby's gaze lock, the `{colors.smell}` trail, drooping eyelids (microsleep), visual sound waves and bubbles, and Papa's degrading look, which is the only in-play hint of the Mama score (GDD; stories 1.8, 1.19, 3.7, 5.3).
+- **Non-diegetic, screen-anchored**: hud-gauge, hud-timer, catastrophe-face (v2.3), sequence-bar, button-icon (pause), countdown, silence-bubble, offscreen-bubble (v2.3, edges only, never the bottom third). They sit in the locked zones (story 1.5), inside `{spacing.hud-inset}`.
+- **World-anchored (CSS2D)**: verb-label, tidy-marker, threat-icon, chrono-ring (v2.3), hold-ring, breath-ring, activity-bubble (v2.3), combo-badge, attention-meter, glyph-chip, target-highlight, tap-marker. With the follow camera (v2.3) they track the moving view every frame; a threat leaving the frame hands over to its offscreen-bubble.
+- **Diegetic only (3D world, no DOM)**: the baby's gaze lock, the `{colors.smell}` trail, drooping eyelids (microsleep), visual sound waves and bubbles, Papa's exaggerated activity poses (huge mug, huge handset; story 2.13), and Papa's degrading look, which is the only in-play hint of the Mama score (GDD; stories 1.8, 1.19, 3.7, 5.3). The catastrophe-face shows Mama's worry, not her score.
 - **Diegetic menus** `[ASSUMPTION]`: the Fridge and the Result polaroid.
 - **Fade rule** `[ASSUMPTION]`: gauges under 50% idle at 70% opacity, and go to full opacity when changing or at ≥ 70%. The HUD hides during the photo, Mama's reactions and the replay. It stays during slow-mo, and stays visible but dimmed and inert under the scrim during Pause and the countdown.
-- **Budget**: the whole HUD band stays within 12% of the room height (story 1.5), about 45px on a 375px-tall phone `[ASSUMPTION]`. This is why the gauges share one horizontal pill instead of stacking.
+- **Budget**: the whole HUD band stays within 12% of the room height (story 1.5), about 45px on a 375px-tall phone `[ASSUMPTION]`. This is why the gauges share one horizontal pill instead of stacking. The catastrophe-face (v2.3) fits in the same band, beside the timer; it adds no row.
 
 ## Input Schemes
 
@@ -391,7 +408,8 @@ Bindings are inherited (GDD controls table, ARCH, stories 1.7, 1.17, 4.9, 5.1) u
 | Firmness | Hold the threat ≥ 400ms | Space (hold) | A (hold) |
 | Dodge | Swipe | Shift + direction | B + direction |
 | Hold breath (stealth) | Hold anywhere | E (hold) | RT (hold) |
-| Use object (coffee, phone) | Tap the object | Space near the object, with no threat active | A near the object |
+| Use object (coffee, phone) or a chore station (E9, v2.3) | Tap the object or station | Space near the object, with no threat active | A near the object |
+| Go to an off-screen threat (v2.3) | Tap its offscreen-bubble | Auto-target, unchanged | Auto-target, unchanged |
 | Pick up / find the baby | Tap the baby, outside a threat | Space near the baby | A near the baby |
 | Sniff | Hold 1s on the baby | Space (hold) near the baby | A (hold) near the baby |
 | Pause (in play) | button-icon or Android back `[ASSUMPTION]` | Esc `[ASSUMPTION]` | Start / Options `[ASSUMPTION]` |
@@ -402,7 +420,7 @@ Bindings are inherited (GDD controls table, ARCH, stories 1.7, 1.17, 4.9, 5.1) u
 - **Keyboard layout** `[ASSUMPTION]`: keys are bound by `KeyboardEvent.code`, so ZQSD on AZERTY and WASD on QWERTY both work with no setting, and arrows always work. On-screen key glyphs use `navigator.keyboard.getLayoutMap()` when available, otherwise arrows and "Espace".
 - **Gamepad glyphs** `[ASSUMPTION]`: they follow the detected pad family (PlayStation ✕ ○); Xbox-style A B is the default.
 - **Prompts** `[ASSUMPTION]`: touch shows no prompts, because the world is the prompt. Keyboard and gamepad show one glyph-chip beside the auto-targeted threat's verb.
-- **Targeting**: keyboard and gamepad auto-target the most urgent threat in the aimed direction (cone `autoTargetConeDeg`, 60° by default). With no direction, they target the most urgent threat overall (story 1.17).
+- **Targeting**: keyboard and gamepad auto-target the most urgent threat in the aimed direction (cone `autoTargetConeDeg`, 60° by default). With no direction, they target the most urgent threat overall (story 1.17). Off-screen threats (follow camera, v2.3) are candidates like any other: when the target is off-screen, the target-highlight and the glyph-chip sit on its offscreen-bubble (story 9.3). `[ASSUMPTION]` for the placement on the bubble
 - **Remapping** `[ASSUMPTION]`: out of v1 scope; revisit for Steam (see Open Items).
 - **Debug**: F1 or a 3-finger tap, in dev or with `?debug=1` only; stripped from store builds (ARCH, story 1.24).
 
@@ -415,7 +433,11 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Button press | Sticker press on `pointerdown`, action on `pointerup` `[ASSUMPTION]` | — |
 | Panel opens | Overshoot pop, 220ms or less `[ASSUMPTION]` | — |
 | Perfect response | "PARADE PARFAITE" epic-stamp in `{typography.epic}`, at most 900ms `[ASSUMPTION]`; visual flash (story 2.4) | Heavy (story 2.4) |
-| Telegraph | threat-icon with a pulsing `{colors.alert}` halo, plus the verb-label | Light (story 2.4) |
+| Telegraph | threat-icon with a pulsing `{colors.alert}` halo, plus the verb-label; the chrono-ring starts filling (v2.3) | Light (story 2.4) |
+| Chrono-ring final arc lights (v2.3) | The last arc turns `{colors.alert}` and thickens to 8px | Short (FR71) |
+| Activity starts / ends (v2.3) | activity-bubble squashes in; at the end a pop with a « ding » | Short at the end (FR74) |
+| Refused tap (v2.3) | activity-bubble shakes 150ms, « busy » sound; no tap-marker | Light `[ASSUMPTION]` |
+| Catastrophe above 70% (v2.3) | catastrophe-face alarmed, its ring pulses under 3Hz; tense music, alert sound | Alert vibration (FR73) |
 | Hold closes (Fermeté) | hold-ring pops solid `{colors.paper}` `[ASSUMPTION]` | Medium `[ASSUMPTION]` |
 | Tap on the floor | tap-marker scales from 0.6 to 1.2 and fades over 300ms `[ASSUMPTION]` | — |
 | Gauge warning | Icon chip pulses at ≥ 70% `[ASSUMPTION]` | Above 80% noise (story 3.1) |
@@ -436,7 +458,14 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Full-screen flash | Border glow |
 | Characters' clips | Kept: a pose carries state (asleep, on the phone), the same call as hitstop and slow-mo `[ASSUMPTION]` |
 | Characters' squash and stretch | Removed `[ASSUMPTION]` |
+| Characters' life layer (v2.4): breathing, lean, forelock | Removed, and the damped turn no longer overshoots `[ASSUMPTION]`. The fades, the gaze, the fatigue stoop, the expressions and any pose that carries a state stay |
+| Characters' idle variants (v2.4) | Removed: Papa and the baby hold their loop |
 | silence-bubble blink | Slow pulse, 1Hz or slower |
+| Follow camera (large room, v2.3) | Slower catch-up, no overshoot (story 9.2) |
+| catastrophe-face alert pulse (v2.3) | Slow pulse, 1Hz or slower; the alarmed face stays |
+| Papa's busy side effects (steam, bla-bla) (v2.3) | Held still; the pose, the props and the facing stay `[ASSUMPTION]` |
+| activity-bubble squash, pop and refused-tap shake (v2.3) | Removed; the refused tap keeps its sound and haptic, and the bubble outline thickens for 150ms instead `[ASSUMPTION]` |
+| chrono-ring (v2.3) | Unchanged, because it is gameplay timing |
 | Loading bottle | Static fill |
 | Hitstop, slow-mo | Unchanged, because they are gameplay timing |
 | Any flashing | Never faster than 3Hz, with or without the setting (calibration flashes run at 1.67Hz) |
@@ -450,7 +479,7 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Desktop add-ons `[ASSUMPTION]` | A pointer with hover | Hover states and mouse focus |
 
 - The HUD corners never move between surfaces. `[ASSUMPTION]`
-- The iso camera keeps the whole room visible when the window resizes (story 1.4). DPR is capped at 2 and steps down 2 → 1.5 → 1 under load (ARCH).
+- In a small room (the chambre) the iso camera is fixed and keeps the whole room visible when the window resizes (story 1.4). In the large room (salon with open kitchen, E9, v2.3) it follows Papa with a dead zone and a smooth catch-up, bounded by the room, and never rotates except for the short perfect-response rotation (story 9.2); off-screen threats show as offscreen-bubbles, and world-anchored UI tracks the moving view. On resize the follow camera keeps Papa framed and the character scale unchanged. `[ASSUMPTION]` for the resize rule. DPR is capped at 2 and steps down 2 → 1.5 → 1 under load (ARCH).
 - Safe-area insets use `viewport-fit=cover`, verified by a Playwright test in an iPhone 12 landscape viewport (story 1.5).
 - Native builds (story 8.1): orientation locked; native haptics replace `navigator.vibrate`; auto-pause via `appStateChange`; saves via `@capacitor/preferences`.
 - Web Safari on iOS: no haptics (`capabilities.haptics=false`), and the iOS silent switch mutes web audio. `[ASSUMPTION]` for the silent-switch note, which motivates the calibration skip.
@@ -470,8 +499,8 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Reject | Why |
 |---|---|
 | Text-tutorial popups | NFR6: the first level teaches by itself |
-| Game-over or fail screens | NFR9: failure is a gag |
-| HUD covering the room | Story 1.4: 12% at most, and a free bottom third |
+| Game-over or fail screens | NFR9 (revised v2.3): no hard game over. Even the early end « Maman est rentrée plus tôt ! » is a gag, with its photo and Mama's reaction |
+| HUD covering the room | Story 1.4: 12% at most, and a free bottom third; offscreen-bubbles never enter it (v2.3) |
 | Mid-level ads | See Monetization Guard Rails |
 | Tiny corner buttons | Buttons are at least 44×44pt (story 1.5) |
 | Guilt-trip copy | Voice rule: never shame the parent. The repeated-failure card is an offer, never a verdict |
@@ -481,7 +510,7 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Budget | Value | Source |
 |---|---|---|
 | Tap → visual feedback | 50ms or less: the highlight and the glide start in the frame after `pointerdown`, with no heavy work in handlers | NFR2, ARCH, story 1.11 |
-| HUD DOM nodes | 40 or fewer | `[ASSUMPTION]` |
+| HUD DOM nodes | 64 or fewer, including the catastrophe-face and up to 3 offscreen-bubbles (40 before story 3.16; 43 for the catastrophe-face's 3 nodes, Geo, 2026-11-04; 64 for story 9.3, v2.3: the big room's HUD measured 36 nodes before any bubble, Geo raised it on 2026-11-04) | `[ASSUMPTION]` |
 | Gauge animation | `transform: scaleX` only; no layout work | `[ASSUMPTION]` |
 | CSS2D labels | Pooled; no per-frame allocation | `[ASSUMPTION]`; ARCH pooling rule |
 | Filters | No blur filters and no `backdrop-filter` | `[ASSUMPTION]` |
@@ -512,7 +541,7 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 |---|---|---|
 | Targets | Every UI button is at least 44×44pt | Stories 1.5, 1.22 |
 | Text | 16px or more everywhere, verbs 28px or more; "Grands verbes" adds +25% | Story 1.22; values `[ASSUMPTION]` |
-| Colour | Colour is always doubled by shape (circle / triangle). Signal colours are reserved. Gauges meet 3:1 non-text contrast and also pulse when warning. Full contrast table in DESIGN.md › Colors | NFR8, story 2.2; gauges `[ASSUMPTION]` |
+| Colour | Colour is always doubled by shape (circle / triangle). Signal colours are reserved. Gauges meet 3:1 non-text contrast and also pulse when warning. The chrono-ring's final arc differs by thickness, not only colour (v2.3); the catastrophe-face's state reads from the expression. Full contrast table in DESIGN.md › Colors | NFR8, story 2.2, GDD v2.3; gauges `[ASSUMPTION]` |
 | Sound-off play | Every audio cue has a visual and a haptic twin, enforced by a test | NFR7, ADR-006, story 2.4 |
 | Captions | Mama's voice lines always show on screen in the mum-bubble | `[ASSUMPTION]` |
 | Haptics | "Vibrations" toggle, hidden where haptics are unsupported | Story 2.8; hiding `[ASSUMPTION]` |
@@ -524,7 +553,7 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | One hand | The touch scheme is single-finger, so the game is one-hand playable by design | `[ASSUMPTION]` |
 | Volumes | Per-bus volumes (music, sfx, voice, ui) | Story 2.8 |
 | Interruption | Pause at any time with an exact resume. Auto-pause on background, pad disconnect and portrait | FR14; triggers `[ASSUMPTION]` |
-| Content | All ages; no injury shown; no game over | NFR9 |
+| Content | All ages; no injury shown; no hard game over: a level never ends on the first miss, and the early end is a gag (v2.3) | NFR9 (revised) |
 | Remapping | Not in v1 (open for Steam) | `[ASSUMPTION]` |
 
 ## Key Flows
@@ -559,7 +588,7 @@ Priya is an external playtester on a QWERTY laptop, using the keyboard, from the
 4. Aiming with the movement keys re-targets. The `{colors.alert}` target-highlight outline and its chevron follow the most urgent threat in her direction.
 5. Her noisy responses fill the Bruit gauge. At 70% it turns `{colors.gauge-warn}`, its icon chip starts pulsing, and it goes to full opacity. Above 80%, a visual and haptic cue warns her (story 3.1).
 6. Bruit reaches 100%. Mama wakes, and the level ends early with the door-slam cue (story 3.2).
-7. Result opens on the photo polaroid alone, with its flash; the header « Maman s'est réveillée ! » comes after it, when the rows start (story 3.6). The mum-bubble plays Mama's reactions, and the score-rows count up (« Rires » /40, « État du bébé » /30, « Sans soupir » /15, « Sans hurlement » /15). The lost star stamps as a dashed empty star with a « −1 » chip.
+7. Result opens on the photo polaroid alone, with its flash; the header « Maman s'est réveillée ! » comes after it, when the rows start (story 3.6). The mum-bubble plays Mama's reactions, and the score-rows count up (« Rires » /35, « Calme du bébé » /20, « Maison » /15, « Sans soupir » /15, « Sans hurlement » /15; Maison reads « 0 / 15 » in this room without chores). The lost star stamps as a dashed empty star with a « −1 » chip.
 8. **Climax:** Mama's line (content-driven; « *Encore* l'étagère ?! » would come on a later run) makes her laugh out loud. The lost star reads as a gag, not a failure.
 9. The REPLAY plays; she taps twice to skip it. With fewer than 2★, "Rejouer" is the primary action and "Âge suivant" shows « 2 étoiles pour débloquer ».
 10. She presses « Copier le journal » (one gesture, story 3.3); the button confirms « Journal copié ! ». She sends the log to the team.
@@ -569,6 +598,7 @@ Branches:
 - **Clipboard API fails**: the button becomes « Télécharger le journal » and downloads a .json file.
 - **No `getLayoutMap()` in her browser**: the glyph-chip falls back to arrows and "Espace".
 - **Third result in a row at 1★ or less on this level, outside Assistance**: the card « Envie de souffler ? Essaie le mode Assistance » appears. She can dismiss it or open Réglages.
+- **Her gags pile up before the noise does (v2.3)**: Mama's face beside the timer turns alarmed above 70%, with tense music and a vibration. At 100% the door bursts open with no final rush; the photo freezes the mess, and Result opens with « Maman est rentrée plus tôt ! » and 0 stars, every slot a dashed empty star. "Rejouer" is primary, and the replay shows the cascade that brought Mama home. If noise and catastrophe fill at the same moment, the catastrophe wins.
 
 ### Flow 3: Karim, interrupted by real life, unlocks the next age
 
@@ -604,5 +634,7 @@ Still genuinely open upstream:
 - **Remapping for Steam**: out of v1; the bindings screen will be specified with the Steam port.
 - **Crédits content**: the surface exists (in Réglages, and automatic after the first Adulte completion); its contents do not.
 - **English locale timing**: English is the first post-v1 locale; when it ships is not set.
+- **v2.3 tuning, at the playtest (GDD open questions 8, 9, 12)**: the catastrophe-face's four expressions and their thresholds; the activity pictograms and pose durations; the follow camera's dead zone and catch-up speed; whether telegraph delays lengthen now that the chrono-ring shows them.
+- **v2.3 mockups**: the chrono-ring, activity-bubble, catastrophe-face, offscreen-bubble and the five-row / early-end Result have no mockup yet; the spines are their only reference.
 
 **Review:** every `[ASSUMPTION]` item in both spines was made by the facilitator under Geo's delegation and awaits his review in an Update pass.

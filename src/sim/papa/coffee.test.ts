@@ -149,8 +149,11 @@ describe('the coffee', () => {
     runUntil(sim, 20); // the outlet is telegraphed at the first step
     const outlet = sim.world.threats.find((threat) => threat.defId === 'outlet');
     command(sim, { type: 'TapObject', objectId: 'coffee_machine' });
-    runUntil(sim, 40);
+    // A press the outlet's window buffers (it opens at 1210), released at once: a Parry. An early press
+    // would gag, and the gag's séquelle (electrified) would hold Papa where he is (story 3.15).
+    runUntil(sim, 1120);
     command(sim, { type: 'PressThreat', threatId: outlet?.id ?? 0 });
+    command(sim, { type: 'Release' });
     const events = runUntil(sim, 20_000);
     expect(types(events)).toContain('PapaGlideStarted');
     expect(types(events)).not.toContain('CoffeeStarted');
@@ -223,7 +226,9 @@ describe('the coffee', () => {
       expect.objectContaining({ type: 'ResponseResolved', quality: 'fail', reason: 'late' }),
     );
     expect(types(late)).not.toContain('PapaGlideStarted');
-    expect(sim.world.papa.state).toBe('drink');
+    // The gag's séquelle lands on the coffee and cancels it, as a nap does: electrified, no CoffeeDrunk (story 3.15).
+    expect(sim.world.papa.state).toBe('electrified');
+    expect(types(late)).not.toContain('CoffeeDrunk');
   });
 
   it('is cancelled when Papa falls asleep meanwhile: no CoffeeDrunk, no reduction', async () => {

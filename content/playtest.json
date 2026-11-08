@@ -6,5 +6,23 @@
   "identifiedMinPct": 80,
   "firstEncounterSuccessMinPct": 80,
   "touchVsKeyboardMinPct": 80,
-  "laughedMinPct": 80
+  "laughedMinPct": 80,
+  "humanBot": { "maxStarGap": 1, "maxPerfectExcessPct": 10 },
+  "simulated": {
+    "runs": 200,
+    "seed": 1,
+    "tier": "normal",
+    "humanLossPct": { "min": 10, "max": 30 },
+    "humanMustFailDefs": [
+      "dishwasher_open",
+      "tablecloth_pull",
+      "low_cabinet_open",
+      "plant_dig",
+      "bin_rummage",
+      "papa_mug_low"
+    ],
+    "humanOpenDoorMustGag": true,
+    "perfectChoresEveryRun": true,
+    "idleLosesBeforeTimer": true
+  }
 }

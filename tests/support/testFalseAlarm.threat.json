@@ -18,5 +18,7 @@
     "perfect": "resp_nothing",
     "gag": "gag_baby_woke_by_touch"
   },
+  "catastrophe": "none",
+  "afterEffect": { "kind": "none" },
   "cooldownMs": 500
 }

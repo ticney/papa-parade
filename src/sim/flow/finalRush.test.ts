@@ -85,13 +85,19 @@ describe('the final rush starts (AC 3)', () => {
     const sim = await newSim();
     const before = runTo(sim, RUSH_AT - STEP_MS);
     expect(of(before, 'FinalRushStarted')).toEqual([]);
-    expect(sim.world.flow).toEqual({ state: 'playing', enteredAt: 0, finalRushAt: null });
+    expect(sim.world.flow).toEqual({
+      state: 'playing',
+      enteredAt: 0,
+      finalRushAt: null,
+      endReason: null,
+    });
     const at = runTo(sim, RUSH_AT);
     expect(of(at, 'FinalRushStarted')).toEqual([{ type: 'FinalRushStarted', t: RUSH_AT }]);
     expect(sim.world.flow).toEqual({
       state: 'finalRush',
       enteredAt: RUSH_AT,
       finalRushAt: RUSH_AT,
+      endReason: null,
     });
     expect(isFlowLive(worldOf(sim))).toBe(true);
     const after = runTo(sim, DURATION_MS - STEP_MS);
@@ -115,7 +121,12 @@ describe('the final rush starts (AC 3)', () => {
     const sim = await newSim({ finalRush: false });
     const events = runTo(sim, DURATION_MS);
     expect(of(events, 'FinalRushStarted')).toEqual([]);
-    expect(sim.world.flow).toEqual({ state: 'ended', enteredAt: DURATION_MS, finalRushAt: null });
+    expect(sim.world.flow).toEqual({
+      state: 'ended',
+      enteredAt: DURATION_MS,
+      finalRushAt: null,
+      endReason: 'timer',
+    });
   });
 
   it('closes a running sequence first: SequenceEnded{levelEnded} before FinalRushStarted, no resume', async () => {
@@ -183,6 +194,7 @@ describe('the rush ends on the photo (AC 4)', () => {
       state: 'photo',
       enteredAt: DURATION_MS,
       finalRushAt: RUSH_AT,
+      endReason: 'timer',
     });
     expect(events.map((event) => event.type)).toEqual(['LevelEnded', 'LevelScored']);
     expect(events[0]).toEqual({ type: 'LevelEnded', t: DURATION_MS, reason: 'timer' });
@@ -218,7 +230,12 @@ describe('the other ends in the rush (AC 5)', () => {
       'LevelEnded',
       'LevelScored',
     ]);
-    expect(sim.world.flow).toEqual({ state: 'ended', enteredAt: t, finalRushAt: RUSH_AT });
+    expect(sim.world.flow).toEqual({
+      state: 'ended',
+      enteredAt: t,
+      finalRushAt: RUSH_AT,
+      endReason: 'mamaWoke',
+    });
     expect(of(events, 'LevelEnded')[0]).toEqual({ type: 'LevelEnded', t, reason: 'mamaWoke' });
   });
 
@@ -325,6 +342,7 @@ describe('the rush in a snapshot (AC 23)', () => {
       state: 'photo',
       enteredAt: DURATION_MS,
       finalRushAt: RUSH_AT,
+      endReason: 'timer',
     });
     expect(twin.world).toEqual(sim.world);
   });
@@ -356,7 +374,7 @@ describe('the rush in a snapshot (AC 23)', () => {
   });
 
   it('refuses a photo before the time is up', async () => {
-    const { sim, snapshot } = await damaged({ state: 'photo' });
+    const { sim, snapshot } = await damaged({ state: 'photo', endReason: 'timer' });
     expect(() => sim.restore(snapshot)).toThrow(/world\.flow\.state/);
   });
 

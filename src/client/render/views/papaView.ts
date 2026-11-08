@@ -1,17 +1,44 @@
-import type { BabySlice, PapaSlice } from '@sim';
-import { BoxGeometry, Color, Group, Mesh, type Object3D } from 'three';
+import { ISO_YAW_DEG } from '@shared/constants';
+import type { BabySlice, PapaLook, PapaSlice } from '@sim';
+import { BoxGeometry, Color, Euler, Group, Mesh, type Object3D, Quaternion } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
 import { PALETTE } from '../materials/palette.ts';
 import type { ToonMaterialCache } from '../materials/toonMaterial.ts';
-import { papaClipOf } from './characterClips.ts';
+import { PAPA_TRAVELLING, papaClipOf } from './characterClips.ts';
+import { fadeMsOf } from './characterFades.ts';
 import {
+  busyCycleAt,
+  type ClipFacings,
   clipTimeScaleOf,
+  papaFacingYawRad,
   stepSpeedMpsOf,
   type TravelClips,
-  turnToward,
 } from './characterMotion.ts';
 import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
+import { createSpring, resetSpring, stepAngleSpring, stepSpring } from './characterSpring.ts';
+import {
+  breathPeriodMsOf,
+  createBreathState,
+  createLeanState,
+  type LifeInputs,
+  resetBreath,
+  resetLean,
+  stepBreath,
+  stepLean,
+  stoopDegOf,
+} from './lifeLayer.ts';
+import {
+  createPapaGazeAim,
+  type PapaGazeInput,
+  type PapaGazeKind,
+  papaGazeOf,
+} from './papaGaze.ts';
+
+/** The bones Papa's life layer writes over his clips (story 7.8, D3): the torso and the head. */
+export const PAPA_LIFE_BONES = ['spine', 'head'] as const;
+const DEG_TO_RAD = Math.PI / 180;
+const RAD_TO_DEG = 180 / Math.PI;
 
 /**
  * Papa's height, feet on the floor to the top of his head, in metres: what the markers above him
@@ -38,13 +65,6 @@ export interface PapaPose extends PointXZ {
   yawRad: number;
 }
 
-/** The three parts of Papa's look, each on its own (story 7.2, D2; story 3.7 will drive them). */
-export interface PapaLook {
-  readonly hasMashOnCheek: boolean;
-  readonly hasHairOnEnd: boolean;
-  readonly isShirtInsideOut: boolean;
-}
-
 /**
  * Papa's pose at `alpha` of the way from the last step to the next: the position interpolated
  * between the two last steps (D11), the heading turned into an angle (trigonometry is for the
@@ -55,10 +75,26 @@ export function papaPoseAt(papa: Readonly<PapaSlice>, alpha: number, out: PapaPo
   out.yawRad = Math.atan2(papa.headingX, papa.headingZ);
 }
 
-/** What the view reads from the feedback table (`feedback.json › characters`). */
+/** The side effects of his busy props (`feedback.json › characters.busyProps`, story 2.13). */
+export interface BusyPropsConfig {
+  readonly steamSwayDeg: number;
+  readonly steamStretchPct: number;
+  readonly steamPeriodMs: number;
+  readonly blablaTiltDeg: number;
+  readonly blablaBobAmplitudeM: number;
+  readonly blablaPeriodMs: number;
+  readonly blablaPlace: { readonly screenOffsetM: number; readonly heightM: number };
+}
+
+/**
+ * What the view reads from the feedback table (`feedback.json › characters`), once per level. The fades,
+ * the turn and the rest of the life layer are `feel.json › characters`, read each frame (`LifeInputs`).
+ */
 export interface CharacterMotionConfig {
-  readonly turnRateDegPerSec: number;
   readonly clips: TravelClips;
+  /** Where each clip turns his body (story 2.13). */
+  readonly clipFacing: ClipFacings;
+  readonly busyProps: BusyPropsConfig;
 }
 
 export interface PapaView {
@@ -67,12 +103,20 @@ export interface PapaView {
   /** Moves him and his shadow. Allocates nothing. */
   update(papa: Readonly<PapaSlice>, alpha: number): void;
   /**
-   * Plays the loop the world says now, turns his body toward his heading and advances his mixer by
-   * `dtMs` of sim time; a `dtMs` of 0 holds him. Allocates nothing once the clips have played once.
+   * Plays the loop the world says now (fading in over its passage's fade), turns his body on its spring
+   * toward the facing of the clip the player sees (the camera, away from the baby) or else his heading,
+   * advances his mixer by `dtMs` of sim time, then lays the life layer over the clip (story 7.8, D3):
+   * lean, breath and stoop on `spine`, the gaze on `head`. A `dtMs` of 0 holds him. Allocates nothing
+   * once the clips have played once.
    */
-  animate(papa: Readonly<PapaSlice>, baby: Readonly<BabySlice>, dtMs: number): void;
-  /** Plays a clip once, over his loop. */
-  playOnce(clip: string): void;
+  animate(
+    papa: Readonly<PapaSlice>,
+    baby: Readonly<BabySlice>,
+    dtMs: number,
+    life: Readonly<LifeInputs>,
+  ): void;
+  /** Plays a clip once, over his loop, fading in over `fadeMs`. */
+  playOnce(clip: string, fadeMs: number): void;
   /** The clip the player sees. */
   readonly clipName: string | null;
   /** His mixer's clock, in sim ms. */
@@ -90,10 +134,37 @@ export interface PapaView {
    * ms). Off, it hides the « Z » and leaves the eyelids to `setEyelids`. Allocates nothing.
    */
   setAsleep(isAsleep: boolean, clockMs: number): void;
-  /** A mug in his hand while he drinks. Allocates nothing. */
-  setDrinking(isDrinking: boolean): void;
-  /** A handset at the side of his head while he is on the phone. Allocates nothing. */
-  setOnPhone(isOnPhone: boolean): void;
+  /**
+   * A mug in his hand while he drinks, with its steam swaying on `clockMs` (sim ms). Under reduced motion
+   * the steam is shown, held at its rest transform. Allocates nothing.
+   */
+  setDrinking(isDrinking: boolean, clockMs: number, isMotionReduced: boolean): void;
+  /**
+   * A handset at the side of his head while he is on the phone, and a bla-bla bubble at his side that
+   * wobbles on `clockMs` (sim ms). Under reduced motion the bubble is shown, held at its rest transform.
+   * Allocates nothing.
+   */
+  setOnPhone(isOnPhone: boolean, clockMs: number, isMotionReduced: boolean): void;
+  /** The way his drawn body faces, in radians (0 faces +z, positive toward +x): it turns, the sim's heading does not. */
+  readonly bodyYawRad: number;
+  /** His lean now, in degrees (story 7.8): forward into a start, back from a stop; 0 under reduced motion. */
+  readonly leanDeg: number;
+  /** His lean into a turn now, in degrees, positive toward his right. */
+  readonly leanRollDeg: number;
+  /** His fatigue stoop now, in degrees forward. */
+  readonly stoopDeg: number;
+  /** His breath's pitch now, in degrees; 0 held or under reduced motion. */
+  readonly breathDeg: number;
+  /** His head's turn from his body now, in degrees, positive toward his left. */
+  readonly headYawDeg: number;
+  /** What his head follows now. */
+  readonly gazeKind: PapaGazeKind;
+  /** How shut his eyelids are drawn, 0 (open) to 100: the micro-sleep's telegraph or his sleep, nothing else. */
+  readonly eyelidsPct: number;
+  /** How far the steam leans now, in degrees; 0 while it is hidden or held. */
+  readonly steamSwayDeg: number;
+  /** How far the bla-bla bubble tilts now, in degrees; 0 while it is hidden or held. */
+  readonly blablaTiltDeg: number;
   /**
    * Papa is out of the room (the toilet, story 4.3): the whole of him, blob shadow included, is
    * hidden, and drawn again with the next call that says he is back. Allocates nothing.
@@ -132,7 +203,9 @@ export function createPapaView(
 
   const eyelids = rig.node('eyelids');
   const mug = rig.node('papa_mug');
+  const steam = rig.node('papa_mug_steam');
   const handset = rig.node('papa_handset');
+  const blabla = rig.node('papa_blabla');
   const hair = rig.node('papa_hair');
   const mash = rig.node('papa_look_mash');
   const shirt = rig.node('papa_shirt');
@@ -142,6 +215,22 @@ export function createPapaView(
   hair.visible = false;
   mash.visible = false;
   insideOutShirt.visible = false;
+  blabla.visible = false;
+
+  // The steam sways about the rim it stands on, so its rest transform is the file's: written back as is when held.
+  const steamRestRotationZ = steam.rotation.z;
+  const steamRestScaleY = steam.scale.y;
+  const { busyProps } = motion;
+  const steamSwayRad = (busyProps.steamSwayDeg * Math.PI) / 180;
+  const blablaTiltRad = (busyProps.blablaTiltDeg * Math.PI) / 180;
+  // The bubble leaves the turning body for the group, which never turns, and stands at his side, on
+  // the side of the screen `screenOffsetM` says (screen right is (cos yaw, -sin yaw) for the camera at
+  // `ISO_YAW_DEG`). It faces the camera, so that it reads from every heading (D4).
+  const cameraYawRad = (ISO_YAW_DEG * Math.PI) / 180;
+  const blablaPlace = busyProps.blablaPlace;
+  const blablaBaseX = blablaPlace.screenOffsetM * Math.cos(cameraYawRad);
+  const blablaBaseZ = -blablaPlace.screenOffsetM * Math.sin(cameraYawRad);
+  const blablaRestRotationZ = blabla.rotation.z;
 
   // The « Z »: two bars and a diagonal, in ink, above the head. Made here, not in the file: it
   // floats free of the skeleton.
@@ -165,10 +254,38 @@ export function createPapaView(
 
   const group = new Group();
   group.name = 'papa_group';
-  group.add(body, shadow, zSign);
+  group.add(body, shadow, zSign, blabla);
+  blabla.position.set(blablaBaseX, blablaPlace.heightM, blablaBaseZ);
+  blabla.rotation.set(0, cameraYawRad, blablaRestRotationZ);
   scene.add(group);
   const pose: PapaPose = { xM: 0, zM: 0, yawRad: 0 };
-  let bodyYawRad: number | null = null;
+  /** Whether the body spring has been put on his heading yet (his first frame, or after a restart). */
+  let isBodyPlaced = false;
+  const bodySpring = createSpring(0);
+  // The life layer (story 7.8), made once: the loop's passage, the lean, the breath, the gaze.
+  const spine = rig.node('spine');
+  const head = rig.node('head');
+  let loopClip: string | null = null;
+  let isLoopTravelling = false;
+  const lean = createLeanState();
+  const breath = createBreathState();
+  const headSpring = createSpring(0);
+  const gazeAim = createPapaGazeAim();
+  const gazeInput: { -readonly [K in keyof PapaGazeInput]: PapaGazeInput[K] } = {
+    papaXM: 0,
+    papaZM: 0,
+    bodyYawRad: 0,
+    babyXM: 0,
+    babyZM: 0,
+    isResponding: false,
+    isAsleep: false,
+  };
+  const offsetEuler = new Euler(0, 0, 0, 'XYZ');
+  const offset = new Quaternion();
+  let stoopNowDeg = 0;
+  let breathNowDeg = 0;
+  let steamSwayNowDeg = 0;
+  let blablaTiltNowDeg = 0;
 
   let asleepAmount = 0;
   let wantedEyelids = 0;
@@ -195,25 +312,89 @@ export function createPapaView(
       // The group sits on the floor under him; only the body turns (a round shadow looks the same
       // from every side).
       group.position.set(pose.xM, 0, pose.zM);
-      if (bodyYawRad === null) {
-        bodyYawRad = pose.yawRad;
-        body.rotation.y = bodyYawRad;
+      if (!isBodyPlaced) {
+        isBodyPlaced = true;
+        resetSpring(bodySpring, pose.yawRad);
+        body.rotation.y = pose.yawRad;
       }
     },
-    animate(papa, baby, dtMs) {
-      bodyYawRad = turnToward(
-        bodyYawRad ?? pose.yawRad,
-        pose.yawRad,
-        motion.turnRateDegPerSec,
-        dtMs,
-      );
-      body.rotation.y = bodyYawRad;
+    animate(papa, baby, dtMs, life) {
+      const { characters } = life;
+      const isReduced = life.isMotionReduced;
+      // The loop, and the passage it is (D4): a start, a stop, or any other.
       const clip = papaClipOf(papa, baby);
-      rig.play(clip, clipTimeScaleOf(clip, stepSpeedMpsOf(papa), motion.clips));
-      rig.update(dtMs);
+      const isTravelling = PAPA_TRAVELLING[papa.state];
+      let fadeMs = characters.fades.otherMs;
+      if (clip !== loopClip) {
+        fadeMs = fadeMsOf(isLoopTravelling, isTravelling, 'loop', characters.fades);
+        loopClip = clip;
+        isLoopTravelling = isTravelling;
+      }
+      const speedMps = stepSpeedMpsOf(papa);
+      rig.play(clip, clipTimeScaleOf(clip, speedMps, motion.clips), fadeMs);
+      // The clip the player sees (a one-shot over his loop) decides where he faces; his heading is the
+      // sim's. The drawn body springs toward it (D5); under reduced motion with no overshoot.
+      const wantedYawRad =
+        papaFacingYawRad(papa, baby, rig.clipName, motion.clipFacing) ?? pose.yawRad;
+      if (!isBodyPlaced) {
+        isBodyPlaced = true;
+        resetSpring(bodySpring, wantedYawRad);
+      }
+      const { turn } = characters;
+      body.rotation.y = stepAngleSpring(
+        bodySpring,
+        wantedYawRad,
+        dtMs,
+        turn.reachMs,
+        isReduced ? 1 : turn.dampingRatio,
+        turn.overshootMaxDeg * DEG_TO_RAD,
+      );
+      // The clips first, the life layer's bones back to what the clips give them (D3)...
+      rig.update(dtMs, characters.fades.returnMs);
+      // ...then the offsets over them: the torso (stoop, lean, breath), then the head (the gaze).
+      stepLean(lean, speedMps, bodySpring.velocityPerMs, dtMs, characters.lean, isReduced);
+      const breathFactor = stepBreath(
+        breath,
+        dtMs,
+        breathPeriodMsOf(characters.breath, life.isAlert),
+        life.isBreathHeld,
+        isReduced,
+      );
+      stoopNowDeg = stoopDegOf(life.fatigue, characters.stoop.maxDeg);
+      breathNowDeg = breathFactor * characters.breath.papaAmplitudeDeg;
+      offsetEuler.set(
+        (stoopNowDeg + lean.pitchDeg + breathNowDeg) * DEG_TO_RAD,
+        0,
+        lean.rollDeg * DEG_TO_RAD,
+      );
+      spine.quaternion.multiply(offset.setFromEuler(offsetEuler));
+      gazeInput.papaXM = pose.xM;
+      gazeInput.papaZM = pose.zM;
+      gazeInput.bodyYawRad = bodySpring.drawn;
+      gazeInput.babyXM = life.babyXM;
+      gazeInput.babyZM = life.babyZM;
+      gazeInput.isResponding = life.isResponding;
+      gazeInput.isAsleep = papa.state === 'asleep';
+      papaGazeOf(
+        gazeInput,
+        life.gazeSight,
+        characters.gaze.maxYawDeg * DEG_TO_RAD,
+        characters.gaze.behindDeg * DEG_TO_RAD,
+        gazeAim,
+      );
+      const headYawRad = stepSpring(
+        headSpring,
+        gazeAim.yawRad,
+        dtMs,
+        characters.gaze.reachMs,
+        1,
+        Number.POSITIVE_INFINITY,
+      );
+      offsetEuler.set(0, headYawRad, 0);
+      head.quaternion.multiply(offset.setFromEuler(offsetEuler));
     },
-    playOnce(clip) {
-      rig.playOnce(clip);
+    playOnce(clip, fadeMs) {
+      rig.playOnce(clip, fadeMs);
     },
     get clipName() {
       return rig.clipName;
@@ -227,6 +408,17 @@ export function createPapaView(
     resetAnimation() {
       rig.reset();
       body.scale.set(1, 1, 1);
+      // A restart starts at rest: the body back on his heading at the next frame, no lean, no turn of the head.
+      isBodyPlaced = false;
+      loopClip = null;
+      isLoopTravelling = false;
+      resetLean(lean);
+      resetBreath(breath);
+      resetSpring(headSpring, 0);
+      gazeAim.kind = 'ahead';
+      gazeAim.yawRad = 0;
+      stoopNowDeg = 0;
+      breathNowDeg = 0;
     },
     setEyelids(amount01) {
       const amount = Math.min(1, Math.max(0, amount01));
@@ -247,11 +439,59 @@ export function createPapaView(
       asleepAmount = next;
       applyEyelids();
     },
-    setDrinking(isDrinking) {
+    setDrinking(isDrinking, clockMs, isMotionReduced) {
       mug.visible = isDrinking;
+      if (!isDrinking) {
+        steamSwayNowDeg = 0;
+        return;
+      }
+      // Shown, and still when motion is reduced: a pose carries a state, the steam only decorates it.
+      const cycle = isMotionReduced ? 0 : busyCycleAt(clockMs, busyProps.steamPeriodMs);
+      steam.rotation.z = steamRestRotationZ + cycle * steamSwayRad;
+      steam.scale.y = steamRestScaleY * (1 + cycle * (busyProps.steamStretchPct / 100));
+      steamSwayNowDeg = cycle * busyProps.steamSwayDeg;
     },
-    setOnPhone(isOnPhone) {
+    setOnPhone(isOnPhone, clockMs, isMotionReduced) {
       handset.visible = isOnPhone;
+      blabla.visible = isOnPhone;
+      if (!isOnPhone) {
+        blablaTiltNowDeg = 0;
+        return;
+      }
+      const cycle = isMotionReduced ? 0 : busyCycleAt(clockMs, busyProps.blablaPeriodMs);
+      blabla.rotation.z = blablaRestRotationZ + cycle * blablaTiltRad;
+      blabla.position.y = blablaPlace.heightM + cycle * busyProps.blablaBobAmplitudeM;
+      blablaTiltNowDeg = cycle * busyProps.blablaTiltDeg;
+    },
+    get bodyYawRad() {
+      return isBodyPlaced ? bodySpring.drawn : pose.yawRad;
+    },
+    get leanDeg() {
+      return lean.pitchDeg;
+    },
+    get leanRollDeg() {
+      return lean.rollDeg;
+    },
+    get stoopDeg() {
+      return stoopNowDeg;
+    },
+    get breathDeg() {
+      return breathNowDeg;
+    },
+    get headYawDeg() {
+      return headSpring.drawn * RAD_TO_DEG;
+    },
+    get gazeKind() {
+      return gazeAim.kind;
+    },
+    get eyelidsPct() {
+      return Math.max(wantedEyelids, asleepAmount) * 100;
+    },
+    get steamSwayDeg() {
+      return steamSwayNowDeg;
+    },
+    get blablaTiltDeg() {
+      return blablaTiltNowDeg;
     },
     setAway(isAway) {
       group.visible = !isAway;
@@ -269,6 +509,10 @@ export function createPapaView(
     },
     dispose() {
       rig.dispose();
+      // The bubble left the rig's scene for the group: `rig.dispose()` no longer reaches it or its hull (D4).
+      blabla.traverse((node) => {
+        if (node instanceof Mesh) node.geometry.dispose();
+      });
       zBarGeometry.dispose();
       zDiagonalGeometry.dispose();
       scene.remove(group);

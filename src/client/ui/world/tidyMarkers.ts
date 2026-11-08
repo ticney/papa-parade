@@ -16,7 +16,8 @@ export interface TidyMarkers {
   unmount(): void;
   /**
    * Once per frame, before `worldUi.render`: shows « RANGE ! » above each prop that is a mess while
-   * the flow is `finalRush`, and hides it as soon as the prop is tidied (or broken), and in `photo`.
+   * the flow is `finalRush`, and above each debris of the coffee table's gag (story 3.15) while the level
+   * is live, and hides it as soon as the prop is tidied (or broken), and in `photo`.
    * The marker follows the prop while it still slides. Reads the world's state, never the events,
    * and writes the DOM only when a marker appears or goes. Allocation-free.
    */
@@ -72,11 +73,13 @@ export function createTidyMarkers(scene: Scene, doc: Doc, t: Translator): TidyMa
     unmount,
     update(world) {
       const isRush = world.flow.state === 'finalRush';
+      // A debris is picked up by a tap, so it carries the marker outside the rush too (story 3.15).
+      const isLive = world.flow.state !== 'photo' && world.flow.state !== 'ended';
       let shown = 0;
       for (let i = 0; i < markers.length; i++) {
         const marker = markers[i] as Marker;
-        const prop = isRush ? world.props[i] : undefined;
-        if (prop === undefined || !prop.isMess) {
+        const prop = isLive ? world.props[i] : undefined;
+        if (prop === undefined || !prop.isMess || !(isRush || prop.debrisPickUpMs > 0)) {
           if (marker.object.visible) {
             marker.object.visible = false;
             marker.element.style.display = 'none';

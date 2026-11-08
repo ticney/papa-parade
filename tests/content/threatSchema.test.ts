@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { parseContentFile } from '@content/parseContentFile';
-import { ThreatDefSchema } from '@content/schemas/threat';
+import { THREAT_CATASTROPHE_CATEGORIES, ThreatDefSchema } from '@content/schemas/threat';
+import { AFTER_EFFECT_BUSY_MAX_MS, MICRO_SLEEP_BUSY_MAX_MS } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 
 // Tunable values are never pinned here (golden rule: Geo tunes them). Structure, ranges and
@@ -324,5 +325,139 @@ describe('content/threats/silence_mischief.json (story 1.21)', () => {
       .filter(([, value]) => typeof value === 'number')
       .map(([key]) => key);
     expect(keys.filter((key) => !UNIT_SUFFIX.test(key))).toEqual([]);
+  });
+});
+
+describe('afterEffect (story 3.15)', () => {
+  const effects: [string, Record<string, unknown>][] = [
+    ['none', { kind: 'none' }],
+    ['electrified', { kind: 'electrified', busyMs: 1500, dimMs: 6000 }],
+    ['babyDownstairs', { kind: 'babyDownstairs', carryUpMs: 2000, selfReturnMs: 6000 }],
+    ['debris', { kind: 'debris', pickUpMs: 1000 }],
+    ['mess', { kind: 'mess' }],
+    ['asleep', { kind: 'asleep', busyMs: 3000 }],
+  ];
+
+  it.each(effects)('accepts a %s afterEffect', (_kind, effect) => {
+    expect(mutated(['afterEffect', effect])).toMatchObject({ ok: true });
+  });
+
+  it('is required: a def with none is refused at `afterEffect`', () => {
+    expect(failedPaths(mutated(['afterEffect', undefined]))).toContain('afterEffect');
+  });
+
+  it('refuses an unknown kind, a missing duration and a key of another kind', () => {
+    expect(mutated(['afterEffect', { kind: 'burning' }]).ok).toBe(false);
+    expect(mutated(['afterEffect', { kind: 'electrified', busyMs: 1500 }]).ok).toBe(false);
+    expect(mutated(['afterEffect', { kind: 'mess', busyMs: 1000 }]).ok).toBe(false);
+    expect(mutated(['afterEffect', { kind: 'none', dimMs: 1000 }]).ok).toBe(false);
+    expect(mutated(['afterEffect', { kind: 'debris', pickUpMs: 1000, extra: 1 }]).ok).toBe(false);
+  });
+
+  it('holds what keeps Papa busy to AFTER_EFFECT_BUSY_MAX_MS (2 s), and the nap to MICRO_SLEEP_BUSY_MAX_MS (3 s)', () => {
+    const at = (effect: Record<string, unknown>) => mutated(['afterEffect', effect]).ok;
+    expect(at({ kind: 'electrified', busyMs: AFTER_EFFECT_BUSY_MAX_MS, dimMs: 6000 })).toBe(true);
+    expect(at({ kind: 'electrified', busyMs: AFTER_EFFECT_BUSY_MAX_MS + 1, dimMs: 6000 })).toBe(
+      false,
+    );
+    expect(
+      at({ kind: 'babyDownstairs', carryUpMs: AFTER_EFFECT_BUSY_MAX_MS + 1, selfReturnMs: 6000 }),
+    ).toBe(false);
+    expect(at({ kind: 'debris', pickUpMs: AFTER_EFFECT_BUSY_MAX_MS + 1 })).toBe(false);
+    expect(at({ kind: 'asleep', busyMs: MICRO_SLEEP_BUSY_MAX_MS })).toBe(true);
+    expect(at({ kind: 'asleep', busyMs: MICRO_SLEEP_BUSY_MAX_MS + 1 })).toBe(false);
+    // The nap's cap is not the others': 2.5 s of electrified is refused, 2.5 s of nap is not.
+    expect(at({ kind: 'electrified', busyMs: 2500, dimMs: 6000 })).toBe(false);
+    expect(at({ kind: 'asleep', busyMs: 2500 })).toBe(true);
+  });
+
+  it('wants every duration to be a positive whole number of ms', () => {
+    for (const bad of [0, -100, 1.5]) {
+      expect(mutated(['afterEffect', { kind: 'electrified', busyMs: bad, dimMs: 6000 }]).ok).toBe(
+        false,
+      );
+      expect(mutated(['afterEffect', { kind: 'electrified', busyMs: 1500, dimMs: bad }]).ok).toBe(
+        false,
+      );
+      expect(
+        mutated(['afterEffect', { kind: 'babyDownstairs', carryUpMs: 1000, selfReturnMs: bad }]).ok,
+      ).toBe(false);
+    }
+  });
+});
+
+describe('catastrophe (story 3.16)', () => {
+  it.each(THREAT_CATASTROPHE_CATEGORIES)('accepts the category %s', (category) => {
+    expect(mutated(['catastrophe', category])).toMatchObject({ ok: true });
+  });
+
+  it('is required: a def without it is refused at `catastrophe`', () => {
+    expect(failedPaths(mutated(['catastrophe', undefined]))).toContain('catastrophe');
+  });
+
+  it('refuses a category that is not one of the four (choreBeat is not a threat category)', () => {
+    expect(mutated(['catastrophe', 'choreBeat']).ok).toBe(false);
+    expect(mutated(['catastrophe', 'bogus']).ok).toBe(false);
+    expect(mutated(['catastrophe', 35]).ok).toBe(false);
+  });
+});
+
+describe('content/threats/pot_on_stove.json (story 9.5)', () => {
+  const FILE_POT = 'content/threats/pot_on_stove.json';
+  const pot = JSON.parse(
+    readFileSync(new URL('../../content/threats/pot_on_stove.json', import.meta.url), 'utf8'),
+  ) as Record<string, unknown>;
+  const parsePot = (value: unknown) =>
+    parseContentFile(FILE_POT, JSON.stringify(value), ThreatDefSchema);
+  const withPot = (...changes: [key: string, value: unknown][]) => {
+    const copy = { ...pot };
+    for (const [key, value] of changes) {
+      if (value === undefined) delete copy[key];
+      else copy[key] = value;
+    }
+    return parsePot(copy);
+  };
+  const failed = (result: ReturnType<typeof parsePot>): string[] =>
+    result.ok ? [] : result.error.map((problem) => problem.jsonPath);
+
+  it('parses as a parry on a chore station, with a noise of its own', () => {
+    const parsed = parsePot(pot);
+    expect(parsed).toMatchObject({ ok: true });
+    if (!parsed.ok) return;
+    expect(parsed.value).toMatchObject({
+      id: 'pot_on_stove',
+      target: 'station',
+      response: 'parry',
+      icon: 'pot',
+      verbKey: 'verb.lower_heat',
+      catastrophe: 'mess',
+      afterEffect: { kind: 'mess' },
+    });
+    expect(parsed.value.gagNoisePct).toBeGreaterThan(0);
+  });
+
+  it('refuses a station threat that is not a parry: only a pot to lower is a station threat', () => {
+    expect(failed(withPot(['response', 'firm'], ['holdUntilMs', 1500]))).toEqual(['response']);
+    expect(failed(withPot(['response', 'nothing'], ['nothingMs', 1000]))).toEqual(['response']);
+    expect(failed(withPot(['response', 'parry']))).toEqual([]);
+  });
+
+  it.each([
+    ['zero', 0],
+    ['negative', -5],
+    ['above a whole gauge', 100.5],
+    ['a string', '10'],
+  ])('refuses a gagNoisePct that is %s', (_name, value) => {
+    expect(failed(withPot(['gagNoisePct', value]))).toEqual(['gagNoisePct']);
+  });
+
+  it('accepts a gagNoisePct up to a whole gauge, and none at all (the gag makes no noise)', () => {
+    expect(withPot(['gagNoisePct', 100])).toMatchObject({ ok: true });
+    expect(withPot(['gagNoisePct', 0.5])).toMatchObject({ ok: true });
+    expect(withPot(['gagNoisePct', undefined])).toMatchObject({ ok: true });
+  });
+
+  it('allows gagNoisePct on any threat, like gagCryMs', () => {
+    expect(mutated(['gagNoisePct', 15])).toMatchObject({ ok: true });
   });
 });

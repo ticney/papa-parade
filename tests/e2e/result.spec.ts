@@ -1,7 +1,9 @@
 import { expect, type Page, test } from '@playwright/test';
+import { mamaReactionsOf } from '../../src/sim/scoring/mamaReactions.ts';
 import {
   advanceToEnd,
   appHistory,
+  appUrl,
   canvasPoint,
   collectProblems,
   cueCount,
@@ -9,6 +11,8 @@ import {
   html,
   liveFeedback,
   liveFeel,
+  mamaHapticsOf,
+  passReplayToActions,
   recordAppStates,
   recordVibrations,
   stubGamepad,
@@ -44,7 +48,8 @@ const LANDSCAPE = { width: 844, height: 390 };
 
 interface Scored {
   laughPoints: number;
-  babyStatePoints: number;
+  calmPoints: number;
+  homePoints: number;
   sighPoints: number;
   screamPoints: number;
   scorePoints: number;
@@ -54,7 +59,7 @@ interface Scored {
 /** Opens the game on a frozen level, optionally with a feel patch (a journaled `SetFeel`, applied at the first step), and steps it to its end. */
 async function openResult(page: Page, patch?: Parameters<typeof ppSetFeel>[1]): Promise<Scored> {
   // No threat: a level nobody plays would wake Mama before its end (the table's props make noise, story 3.5).
-  await page.goto(`/${THREATS_OFF}`);
+  await page.goto(appUrl(`/${THREATS_OFF}`));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -75,14 +80,12 @@ const waitForInputGrace = (page: Page): Promise<void> =>
 
 /** The buttons are up and their grace is over: « Rejouer » now answers a press. */
 async function waitForActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page, SEQUENCE_TIMEOUT_MS);
   await waitForInputGrace(page);
 }
 
 test.describe('the Result screen', () => {
-  test('shows Mama’s note: four rows from LevelScored and the live feel that add up, the stars, then « Rejouer » focused', async ({
+  test('shows Mama’s note: five rows from LevelScored and the live feel that add up, the stars, then « Rejouer » focused', async ({
     page,
   }) => {
     const problems = collectProblems(page);
@@ -95,22 +98,31 @@ test.describe('the Result screen', () => {
     const { mama } = liveFeel;
     await expect(page.locator(`${PANEL} .pp-score-label`)).toHaveText([
       STRINGS['result.score_laughs'] as string,
-      STRINGS['result.score_baby_state'] as string,
+      STRINGS['result.score_calm'] as string,
+      STRINGS['result.score_home'] as string,
       STRINGS['result.score_no_sigh'] as string,
       STRINGS['result.score_no_scream'] as string,
     ]);
     const rows = [
       scored.laughPoints,
-      scored.babyStatePoints,
+      scored.calmPoints,
+      scored.homePoints,
       mama.sighMaxPoints - scored.sighPoints,
       mama.screamMaxPoints - scored.screamPoints,
     ];
     await expect(page.locator(`${PANEL} .pp-score-value`)).toHaveText(rows.map(String));
     await expect(page.locator(`${PANEL} .pp-score-max`)).toHaveText(
-      [mama.laughMaxPoints, mama.babyStateMaxPoints, mama.sighMaxPoints, mama.screamMaxPoints].map(
-        (max) => `/${max}`,
-      ),
+      [
+        mama.laughMaxPoints,
+        mama.calmMaxPoints,
+        mama.homeMaxPoints,
+        mama.sighMaxPoints,
+        mama.screamMaxPoints,
+      ].map((max) => `/${max}`),
     );
+    // No house chore before E9 (story 3.12): the Maison row reads « 0 » over its maximum, never hidden.
+    expect(scored.homePoints).toBe(0);
+    await expect(page.locator(`${PANEL} .pp-score-row-home .pp-score-value`)).toHaveText('0');
     expect(rows.reduce((sum, value) => sum + value, 0)).toBe(scored.scorePoints);
     await expect(page.locator(`${PANEL} .pp-score-total-value`)).toHaveText(
       String(scored.scorePoints),
@@ -166,11 +178,13 @@ test.describe('the Result screen', () => {
     await recordVibrations(page);
     const scored = await openResult(page, { mama: { starThresholdPoints: EVERY_STAR } });
     expect(scored.stars).toBe(EVERY_STAR.length);
-    // The level's own vibrations are behind: only the stamps come from here.
+    // The level's own vibrations are behind: only Mama's reactions (story 3.7, they come after the photo's
+    // hold) and the stamps come from here.
+    const reactions = mamaReactionsOf(scored as never, 'timer');
     const vibrationsBefore = (await vibrations(page)).length;
     const cuesBefore = await cueCount(page);
     await waitForActions(page);
-    expect(await cueCount(page)).toBe(cuesBefore + scored.stars);
+    expect(await cueCount(page)).toBe(cuesBefore + reactions.length + scored.stars);
     // Five stars, whatever the game: the outline of every star is the ink (a star on cream is 1.6:1).
     const strokes = await page.evaluate(() => {
       const probe = document.createElement('div');
@@ -189,6 +203,7 @@ test.describe('the Result screen', () => {
       expect(light).not.toBeNull();
       expect(heavy).not.toBeNull();
       expect((await vibrations(page)).slice(vibrationsBefore)).toEqual([
+        ...mamaHapticsOf(reactions),
         ...Array.from({ length: scored.stars - 1 }, () => light),
         heavy,
       ]);
@@ -201,7 +216,10 @@ test.describe('the Result screen', () => {
     await recordVibrations(page);
     await openResult(page, { mama: { starThresholdPoints: EVERY_STAR } });
     await recordAppStates(page);
-    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
+    // Behind the photo's hold and Mama's reactions (story 3.7).
+    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+      timeout: SEQUENCE_TIMEOUT_MS,
+    });
     const cuesBefore = await cueCount(page);
     const vibrationsBefore = (await vibrations(page)).length;
     await waitForInputGrace(page);
@@ -244,7 +262,9 @@ test.describe('the Result screen', () => {
       await openResult(page);
       await pad.setPadPresent(true);
       await recordAppStates(page);
-      await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
+      await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+        timeout: SEQUENCE_TIMEOUT_MS,
+      });
       await waitForInputGrace(page);
       await pad.tapButton(0);
       await waitForActions(page);
@@ -282,7 +302,9 @@ test.describe('the Result screen', () => {
     page,
   }) => {
     await openResult(page);
-    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows');
+    await expect(html(page)).toHaveAttribute('data-pp-result', 'rows', {
+      timeout: SEQUENCE_TIMEOUT_MS,
+    });
     const plannedBefore = (await ppEvents(page)).filter(
       (event) => event.type === 'PapaPathPlanned',
     ).length;

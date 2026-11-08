@@ -76,7 +76,8 @@
     "starIntervalMs": 450,
     "actionsDelayMs": 400,
     "inputGraceMs": 350,
-    "photoHoldMs": 1200
+    "photoHoldMs": 1200,
+    "reactionHoldMs": 1200
   },
   "calibration": {
     "beep": { "clip": "ui_calibration_beep", "bus": "ui", "gainPct": 100 }
@@ -94,8 +95,6 @@
     "laidHeightM": 0.3
   },
   "characters": {
-    "crossFadeMs": 140,
-    "turnRateDegPerSec": 720,
     "squash": [
       { "event": "PapaArrived", "character": "papa", "amountPct": -14, "durationMs": 280 },
       { "event": "PapaBlocked", "character": "papa", "amountPct": -18, "durationMs": 260 },
@@ -104,14 +103,29 @@
       { "event": "BabyPutDown", "character": "baby", "amountPct": -24, "durationMs": 300 },
       { "event": "GagTriggered", "character": "baby", "amountPct": -26, "durationMs": 420 },
       { "event": "BabyWoke", "character": "baby", "amountPct": 28, "durationMs": 360 },
-      { "event": "BabyStirred", "character": "baby", "amountPct": 10, "durationMs": 220 }
+      { "event": "BabyStirred", "character": "baby", "amountPct": 10, "durationMs": 220 },
+      { "event": "CoffeeDrunk", "character": "papa", "amountPct": 18, "durationMs": 320 }
     ],
     "clipSpeeds": [
       { "clip": "walk", "speedMps": 3 },
       { "clip": "carry_walk", "speedMps": 3 },
       { "clip": "crawl", "speedMps": 0.6 },
       { "clip": "sneak", "speedMps": 1.2 }
-    ]
+    ],
+    "papaClipFacing": [
+      { "clip": "drink", "facing": "camera" },
+      { "clip": "coffee_kick", "facing": "camera" },
+      { "clip": "on_phone", "facing": "awayFromBaby" }
+    ],
+    "busyProps": {
+      "steamSwayDeg": 12,
+      "steamStretchPct": 15,
+      "steamPeriodMs": 900,
+      "blablaTiltDeg": 8,
+      "blablaBobAmplitudeM": 0.03,
+      "blablaPeriodMs": 700,
+      "blablaPlace": { "screenOffsetM": 0.85, "heightM": 0.35 }
+    }
   },
   "door": {
     "openMs": 700,
@@ -127,6 +141,18 @@
     "vignetteFromPct": 60,
     "vignetteOpacityPct": 28,
     "vignetteRadiusPct": 70
+  },
+  "replay": {
+    "preRollMs": 2000,
+    "postRollMs": 1500,
+    "minSpacingMs": 5000,
+    "momentCount": 3,
+    "points": { "perfect": 3, "messyGag": 2, "nearMiss": 2, "waveLast": 1 },
+    "messyGagMinProps": 2,
+    "messWindowMs": 1000,
+    "camera": { "frameWidthM": 5, "frameDepthM": 3.4 },
+    "delayMs": 400,
+    "endHoldMs": 300
   },
   "render": {
     "toonTones": [96, 178, 255],
@@ -149,6 +175,7 @@
     "sunOffsetM": [3, 9, 5],
     "outlines": { "widthM": 0.025, "skipMaterials": ["art_ink"] },
     "dangerTint": { "radiusM": 0.55, "minOpacityPct": 35, "peakOpacityPct": 85, "pulseHz": 2 },
+    "decalWallHeightM": 2,
     "blobSkipColliderIds": ["stairs"]
   },
   "cues": {
@@ -173,6 +200,26 @@
       "visual": { "kind": "uiElement" },
       "haptic": "heavy"
     },
+    "mama_home": {
+      "audio": { "clip": "env_door_slam", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "heavy"
+    },
+    "mama_laugh": {
+      "audio": { "clip": "mama_laugh", "bus": "voice", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "light"
+    },
+    "mama_sigh": {
+      "audio": { "clip": "mama_sigh", "bus": "voice", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "light"
+    },
+    "mama_scream": {
+      "audio": { "clip": "mama_scream", "bus": "voice", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "medium"
+    },
     "result_star_lost": {
       "audio": { "clip": "ui_star_lost", "bus": "ui", "gainPct": 90 },
       "visual": { "kind": "uiElement" },
@@ -186,6 +233,22 @@
     },
     "silence_started": { "haptic": "light" },
     "noise_alert": { "visual": { "kind": "uiElement" }, "haptic": "medium" },
+    "catastrophe_alert": {
+      "audio": { "clip": "env_door_key", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "medium"
+    },
+    "chrono_arc_lit": { "visual": { "kind": "uiElement" }, "haptic": "light" },
+    "papa_busy_refused": {
+      "audio": { "clip": "papa_busy", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "light"
+    },
+    "papa_free": {
+      "audio": { "clip": "ui_papa_free_ding", "bus": "ui", "gainPct": 90 },
+      "visual": { "kind": "uiElement" },
+      "haptic": "light"
+    },
     "instinct_triggered": {
       "audio": { "clip": "papa_heartbeat", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "uiElement" },
@@ -359,6 +422,11 @@
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.7, "durationMs": 400 },
       "haptic": "medium"
     },
+    "debris_stepped": {
+      "audio": { "clip": "env_floor_creak", "bus": "sfx", "gainPct": 70 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    },
     "breath_gasped": {
       "audio": { "clip": "papa_breath_gasp", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.5, "durationMs": 300 },
@@ -528,6 +596,172 @@
       "audio": { "clip": "papa_phone_answer", "bus": "sfx", "gainPct": 90 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
       "haptic": "light"
+    },
+    "papa_coffee_slurp": {
+      "audio": { "clip": "papa_coffee_slurp", "bus": "sfx", "gainPct": 90 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
+    },
+    "tel_pot_on_stove": {
+      "audio": { "clip": "tel_pot_on_stove", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.6,
+        "durationMs": 250,
+        "pulses": 3,
+        "pulseIntervalMs": 90
+      },
+      "haptic": "light"
+    },
+    "gag_pot_boiled_over": {
+      "audio": { "clip": "gag_coffee_table", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "chore_beat_cued": { "haptic": "light" },
+    "chore_beat_caught": {
+      "audio": { "clip": "resp_parry", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "object", "maxRadiusM": 0.8, "durationMs": 350 },
+      "haptic": "medium",
+      "fx": "success"
+    },
+    "chore_beat_perfect": {
+      "audio": { "clip": "resp_parry", "bus": "sfx", "gainPct": 100 },
+      "layers": [{ "clip": "baby_laugh_perfect", "bus": "voice", "gainPct": 100 }],
+      "visual": { "kind": "soundWave", "anchor": "object", "maxRadiusM": 1.2, "durationMs": 450 },
+      "flash": { "peakOpacityPct": 35, "durationMs": 180 },
+      "haptic": "heavy",
+      "fx": "perfect"
+    },
+    "chore_puree_stuck": {
+      "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "object", "maxRadiusM": 0.8, "durationMs": 400 },
+      "haptic": "medium",
+      "fx": "gag"
+    },
+    "chore_plate_broken": {
+      "audio": { "clip": "gag_coffee_table", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "object", "maxRadiusM": 1.0, "durationMs": 450 },
+      "haptic": "medium",
+      "fx": "gag"
+    },
+    "tel_dishwasher_open": {
+      "audio": { "clip": "tel_dishwasher_open", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.65,
+        "durationMs": 350,
+        "pulses": 2,
+        "pulseIntervalMs": 110
+      },
+      "haptic": "light"
+    },
+    "gag_baby_in_dishwasher": {
+      "audio": { "clip": "gag_silence_mischief", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "tel_tablecloth_pull": {
+      "audio": { "clip": "tel_tablecloth_pull", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.75,
+        "durationMs": 400,
+        "pulses": 2,
+        "pulseIntervalMs": 140
+      },
+      "haptic": "light"
+    },
+    "gag_tablecloth_pull": {
+      "audio": { "clip": "gag_coffee_table", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.1, "durationMs": 500 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "tel_low_cabinet_open": {
+      "audio": { "clip": "tel_low_cabinet_open", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.55,
+        "durationMs": 300,
+        "pulses": 3,
+        "pulseIntervalMs": 90
+      },
+      "haptic": "light"
+    },
+    "gag_low_cabinet_open": {
+      "audio": { "clip": "gag_coffee_table", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.2, "durationMs": 550 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "tel_bin_rummage": {
+      "audio": { "clip": "tel_bin_rummage", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.6,
+        "durationMs": 450,
+        "pulses": 2,
+        "pulseIntervalMs": 160
+      },
+      "haptic": "light"
+    },
+    "gag_bin_rummage": {
+      "audio": { "clip": "gag_silence_mischief", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "tel_plant_dig": {
+      "audio": { "clip": "tel_plant_dig", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.5,
+        "durationMs": 350,
+        "pulses": 3,
+        "pulseIntervalMs": 120
+      },
+      "haptic": "light"
+    },
+    "gag_plant_dig": {
+      "audio": { "clip": "gag_silence_mischief", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 1.0, "durationMs": 500 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "tel_papa_mug_low": {
+      "audio": { "clip": "tel_papa_mug_low", "bus": "sfx", "gainPct": 90 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "threat",
+        "maxRadiusM": 0.45,
+        "durationMs": 300
+      },
+      "haptic": "light"
+    },
+    "gag_papa_mug_low": {
+      "audio": { "clip": "gag_silence_mischief", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "threat", "maxRadiusM": 0.9, "durationMs": 450 },
+      "haptic": "heavy",
+      "fx": "gag"
+    },
+    "chore_completed": {
+      "audio": { "clip": "env_sequence_succeeded", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 1.2, "durationMs": 500 },
+      "haptic": "medium"
+    },
+    "chore_refused": {
+      "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
+      "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
+      "haptic": "light"
     }
   },
   "events": {
@@ -541,11 +775,13 @@
     "ToiletStarted": "toilet_entered",
     "ToiletFinished": "toilet_flushed",
     "ToiletRefused": "toilet_refused",
+    "ChoreRefused": "chore_refused",
     "FinalRushStarted": "final_rush_started",
     "PropTidied": "prop_tidied",
     "PapaSnored": "papa_snored",
     "BabyWoke": "baby_woke",
     "FloorCreaked": "floor_creak",
+    "DebrisSteppedOn": "debris_stepped",
     "BreathGasped": "breath_gasped",
     "BeatHit": "beat_hit",
     "BabyStirred": "baby_stirred",
@@ -553,11 +789,20 @@
     "DecoyCued": "decoy_cued",
     "ResponseHeld": "hold_closed",
     "NoiseAlertReached": "noise_alert",
+    "CatastropheAlertReached": "catastrophe_alert",
+    "ChronoArcLit": "chrono_arc_lit",
+    "CoffeeStarted": "papa_coffee_slurp",
+    "ActivityBubbleShaken": "papa_busy_refused",
+    "ActivityBubblePopped": "papa_free",
     "InstinctVignetteShown": "instinct_triggered",
     "PhotoTaken": "photo_taken",
     "ResultStarStamped": "result_star",
     "ResultLastStarStamped": "result_star_last",
     "ResultMamaWokeShown": "mama_woke",
+    "ResultMamaHomeShown": "mama_home",
+    "ResultMamaLaughed": "mama_laugh",
+    "ResultMamaSighed": "mama_sigh",
+    "ResultMamaScreamed": "mama_scream",
     "ResultStarLost": "result_star_lost"
   }
 }

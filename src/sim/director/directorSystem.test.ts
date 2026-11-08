@@ -3,6 +3,7 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   COFFEE_TABLE,
   createTestContent,
@@ -18,7 +19,8 @@ import type { SimCommand } from '../commands.ts';
 import { createSim, type Sim } from '../createSim.ts';
 import type { SimEvent } from '../events.ts';
 
-const content = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const content = createTestContentWithoutCatastrophe();
 const geometry = createTestGeometry();
 
 async function newSim(level: LevelContent, seed = 1): Promise<Sim> {
@@ -32,6 +34,18 @@ function runTo(sim: Sim, untilSimMs: number): SimEvent[] {
     for (const event of sim.drainEvents()) events.push(event);
   }
   return events;
+}
+
+/**
+ * Runs `sim` until a silence is under way, then taps the baby so that it is found (the silence's
+ * threat goes `telegraph`). Bounded: a silence that never starts fails the test instead of hanging it.
+ */
+function findTheBaby(sim: Sim): void {
+  for (let i = 0; i < 2000 && sim.world.silence.startedAt === null; i++) {
+    runTo(sim, sim.world.time.sim + STEP_MS);
+  }
+  if (sim.world.silence.startedAt === null) throw new Error('the silence never started');
+  sim.enqueue({ type: 'TapBaby', t: asSimMs(sim.world.time.sim) } as SimCommand);
 }
 
 const telegraphs = (events: readonly SimEvent[]) =>
@@ -417,8 +431,8 @@ describe('the suspicious silence and the director (story 1.21)', () => {
     expect(hidden(runTo(sim, 8 * STEP_MS))).toHaveLength(1);
   });
 
-  it('counts a hidden silence against maxSimultaneous: nothing else is telegraphed meanwhile', async () => {
-    const sim = await newSim(silenceLevel({ maxSimultaneous: 1 }, [OUTLET]));
+  it('counts a silence for two against maxSimultaneous: nothing else is telegraphed meanwhile (story 3.13)', async () => {
+    const sim = await newSim(silenceLevel({ maxSimultaneous: 2 }, [OUTLET]));
     const events = runTo(sim, 12 * STEP_MS);
     // Either was drawn first; the other waits for the first to be over.
     const first = hidden(events).length + telegraphs(events).length;
@@ -427,8 +441,59 @@ describe('the suspicious silence and the director (story 1.21)', () => {
       expect(sim.world.threats.filter((t) => t.state === 'telegraph')).toEqual([]);
   });
 
-  it('keeps the draws of a level with no silence exactly as before (the baseline trace)', async () => {
-    // Captured on the commit before story 1.21: same rng state and same events, to the byte.
+  it.each([
+    { maxSimultaneous: 2, outletComes: false },
+    { maxSimultaneous: 3, outletComes: true },
+  ])(
+    'counts a found silence for two: in a wave of $maxSimultaneous, an outlet is telegraphed while it is announced: $outletComes (story 3.13)',
+    async ({ maxSimultaneous, outletComes }) => {
+      // The silence is forced at once; the director is due to draw (gap 0) as soon as it is found.
+      const sim = await newSim(
+        silenceLevel({ maxSimultaneous, gapMinMs: 0, gapMaxMs: 0 }, [OUTLET]),
+      );
+      const silence = sim.world.threats[0] as { id: number };
+      sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: silence.id } as SimCommand);
+      findTheBaby(sim);
+      const events = runTo(sim, sim.world.time.sim + 20 * STEP_MS);
+      expect(sim.world.threats[0]?.state).toBe('telegraph'); // found, announced, not yet open
+      const outlets = telegraphs(events).filter((event) => event.kind === 'outlet');
+      // A weight of one would leave a place in the wave of two and let the outlet come.
+      expect(outlets).toHaveLength(outletComes ? 1 : 0);
+      expect(sim.world.threats[1]?.state).toBe(outletComes ? 'telegraph' : 'idle');
+    },
+  );
+
+  it('draws a silence only when two places are left: an outlet announced in a wave of two keeps it away', async () => {
+    const sim = await newSim(silenceLevel({ maxSimultaneous: 2 }, [OUTLET]));
+    const outlet = sim.world.threats[1] as { id: number };
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: outlet.id } as SimCommand);
+    const events = runTo(sim, 20 * STEP_MS);
+    // One place is taken by the outlet: the silence needs two, and nothing else is left to draw.
+    expect(hidden(events)).toEqual([]);
+    expect(sim.world.threats[0]?.state).toBe('idle');
+  });
+
+  it('draws no silence while another wave threat is announced, even with places left, and draws it once that threat is over', async () => {
+    const sim = await newSim(silenceLevel({ maxSimultaneous: 3 }, [OUTLET]));
+    const outlet = sim.world.threats[1] as { id: number };
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(0), threatId: outlet.id } as SimCommand);
+    const events = runTo(sim, 60_000);
+    const outletEndedAt = events.find(
+      (event) => event.type === 'ResponseResolved' && event.threatId === outlet.id,
+    )?.t;
+    const hiddenAt = hidden(events)[0]?.t;
+    expect(outletEndedAt).toBeDefined();
+    expect(hiddenAt).toBeDefined();
+    // An announced threat would open its window while Papa searches: the silence waits for the outlet's result.
+    expect(hiddenAt as number).toBeGreaterThanOrEqual(outletEndedAt as number);
+  });
+
+  it('keeps the draws of a level with no silence exactly as before, séquelles aside (the baseline trace)', async () => {
+    // Captured on the commit before story 1.21: same rng state and same events, to the byte. Re-pinned by
+    // story 3.15, which adds the séquelles: what follows a gag moves the rest of the game (a baby left downstairs
+    // draws no babble, a Papa electrified or asleep answers nothing, hence other gags) and adds `AfterEffect*` and
+    // `PapaStateChanged` events (217 instead of 183). `baselineTrace.test.ts` is the proof that the draws
+    // themselves did not move: with the séquelles switched off it ends on the rng state captured before.
     const sim = await createSim({
       content,
       geometry,
@@ -446,15 +511,15 @@ describe('the suspicious silence and the director (story 1.21)', () => {
       seed: 7,
     });
     const events = runTo(sim, 60_000);
-    expect(sim.world.rng).toEqual({ a: 1581132668, b: 1663718832, c: 1567227279, d: 81 });
-    expect(events).toHaveLength(183);
+    expect(sim.world.rng).toEqual({ a: 1395406730, b: -1107192812, c: 768810317, d: 71 });
+    expect(events).toHaveLength(217);
     // Story 2.1 added `responseWindow` to `ResponseResolved`: the trace is compared as it was captured, without it.
     const asCaptured = events.map((event) => {
       if (event.type !== 'ResponseResolved') return event;
       const { responseWindow: _responseWindow, ...rest } = event;
       return rest;
     });
-    expect(hashJson(asCaptured)).toBe('01c85cbbfc3da3');
+    expect(hashJson(asCaptured)).toBe('0576724a320731');
   });
 
   describe('ForceThreat', () => {
@@ -532,5 +597,198 @@ describe('the suspicious silence and the director (story 1.21)', () => {
       expect(hidden(sim.drainEvents())).toEqual([]);
       expect(sim.world.threats[0]?.state).toBe('idle');
     });
+  });
+});
+
+describe('the fairness rule (story 3.13, FR75, ADR-011)', () => {
+  const spacingMs = content.feel.movement.glideMaxMs + content.feel.director.fairnessMarginMs;
+  const defs = createTestLevel({ waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE])] }).threats;
+  const delayOf = (kind: string): number =>
+    defs[kind]?.telegraphDelayMs ?? content.feel.timing.telegraphDelayDefaultMs;
+  const opened = (events: readonly SimEvent[]) =>
+    events.filter(
+      (event): event is Extract<SimEvent, { type: 'WindowOpened' }> =>
+        event.type === 'WindowOpened',
+    );
+  const hidden = (events: readonly SimEvent[]) =>
+    events.filter((event) => event.type === 'ThreatHidden');
+  const force = (sim: Sim, threatId: number, t: number = sim.world.time.sim) =>
+    sim.enqueue({ type: 'ForceThreat', t: asSimMs(t), threatId } as SimCommand);
+  const twoAtOnce = () =>
+    createTestLevel({ waves: [testWave([OUTLET, STAIRS], { maxSimultaneous: 2 })] });
+
+  it('telegraphs at the drawn instant and opens the window at exactly the spacing after the first', async () => {
+    const sim = await newSim(twoAtOnce());
+    const events = runTo(sim, 4000);
+    const [first, second] = telegraphs(events);
+    if (first === undefined || second === undefined) throw new Error('two telegraphs expected');
+    // gap 0: the second is drawn at the next step, announced as ever...
+    expect(second.t).toBe(first.t + STEP_MS);
+    const firstOpen = first.t + delayOf(first.kind);
+    const naturalSecondOpen = second.t + delayOf(second.kind);
+    // ...but its window would open too close (less than S) to the first one's: it is postponed to S after it.
+    expect(Math.abs(naturalSecondOpen - firstOpen)).toBeLessThan(spacingMs);
+    const [firstOpened, secondOpened] = opened(events);
+    expect(firstOpened?.t).toBe(firstOpen);
+    expect(secondOpened?.t).toBe(firstOpen + spacingMs);
+    expect(sim.world.threats.find((t) => t.id === second.threatId)?.windowOpenAt).toBe(
+      firstOpen + spacingMs,
+    );
+  });
+
+  it('leaves a window alone when nothing is near', async () => {
+    const level = createTestLevel({
+      waves: [testWave([OUTLET, STAIRS], { maxSimultaneous: 2, gapMinMs: 3000, gapMaxMs: 3000 })],
+    });
+    const sim = await newSim(level);
+    const events = runTo(sim, 9000);
+    const telegraphed = telegraphs(events);
+    expect(telegraphed.length).toBeGreaterThanOrEqual(2);
+    for (const telegraph of telegraphed) {
+      const open = opened(events).find((event) => event.threatId === telegraph.threatId);
+      expect(open?.t).toBe(telegraph.t + delayOf(telegraph.kind));
+    }
+  });
+
+  it('draws the same pick and gap whether a window is postponed or not (the rng right after the two telegraphs)', async () => {
+    // A twin whose spacing is 1 ms never postpones: same draws, same telegraph instants.
+    const spaced = await newSim(twoAtOnce());
+    const loose = await createSim({
+      content: {
+        ...content,
+        feel: {
+          ...content.feel,
+          movement: { ...content.feel.movement, glideMaxMs: 1 },
+          director: { fairnessMarginMs: 0 },
+        },
+      },
+      geometry,
+      level: twoAtOnce(),
+      seed: 1,
+    });
+    const a = runTo(spaced, 6 * STEP_MS);
+    const b = runTo(loose, 6 * STEP_MS);
+    expect(telegraphs(a).map((e) => [e.t, e.kind])).toEqual(
+      telegraphs(b).map((e) => [e.t, e.kind]),
+    );
+    expect(telegraphs(a)).toHaveLength(2);
+    expect(spaced.world.rng).toEqual(loose.world.rng);
+    expect(spaced.world.director.nextAt).toBe(loose.world.director.nextAt);
+    // And the windows are the only difference.
+    const windows = (sim: Sim) => sim.world.threats.map((t) => t.windowOpenAt);
+    expect(windows(spaced)).not.toEqual(windows(loose));
+  });
+
+  it('chains: three threats announced together open at least the spacing apart', async () => {
+    const level = createTestLevel({
+      waves: [testWave([OUTLET, STAIRS, COFFEE_TABLE], { maxSimultaneous: 3 })],
+    });
+    const sim = await newSim(level);
+    const events = runTo(sim, 8000);
+    const opens = opened(events).map((event) => event.t);
+    expect(opens.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < 3; i++) {
+      expect((opens[i] as number) - (opens[i - 1] as number)).toBeGreaterThanOrEqual(spacingMs);
+    }
+  });
+
+  it('does not telegraph a threat whose postponed window could no longer be judged before the end of the level; the gap is drawn as usual', async () => {
+    // The first window opens at about 1.2 s, the second would open S later: at about 2.1 s plus its
+    // window, past a level that ends at 2.3 s. It waits (stays idle) and the director tries again later.
+    const level = createTestLevel({
+      waves: [testWave([OUTLET, STAIRS], { maxSimultaneous: 2, gapMinMs: 500, gapMaxMs: 500 })],
+      durationMs: 2300,
+    });
+    const sim = await newSim(level);
+    const events = runTo(sim, 1000);
+    expect(telegraphs(events)).toHaveLength(1);
+    expect(sim.world.threats.filter((t) => t.state === 'idle')).toHaveLength(1);
+    // The gap is drawn after the refused attempt as after a telegraph: one gap (500 ms) after the
+    // attempt, which fell on the step at 1 s (the first telegraph was at 500 ms).
+    expect(sim.world.director.nextAt).toBe(1500);
+  });
+
+  it('applies a tuned margin to the next draw and never moves a window already frozen', async () => {
+    const sim = await newSim(twoAtOnce());
+    sim.enqueue({
+      type: 'SetFeel',
+      t: asSimMs(0),
+      patch: { director: { fairnessMarginMs: 1000 } },
+    } as SimCommand);
+    runTo(sim, 4 * STEP_MS);
+    const [a, b] = sim.world.threats;
+    if (a === undefined || b === undefined) throw new Error('two threats expected');
+    const [firstThreat, secondThreat] = a.enteredAt < b.enteredAt ? [a, b] : [b, a];
+    const frozenAt = secondThreat.windowOpenAt;
+    expect(frozenAt).toBe(firstThreat.windowOpenAt + content.feel.movement.glideMaxMs + 1000);
+    sim.enqueue({
+      type: 'SetFeel',
+      t: asSimMs(sim.world.time.sim),
+      patch: { director: { fairnessMarginMs: 0 } },
+    } as SimCommand);
+    runTo(sim, 20 * STEP_MS);
+    expect(secondThreat.windowOpenAt).toBe(frozenAt);
+  });
+
+  it('spaces a threat drawn after a found silence from the end of its parry plus the spacing', async () => {
+    // A seed where the director draws the silence first (the pick is random), then find the baby.
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const level = createTestLevel({
+        waves: [testWave([SILENCE, OUTLET], { maxSimultaneous: 3 })],
+      });
+      const sim = await newSim(level, seed);
+      if (hidden(runTo(sim, STEP_MS)).length === 0) continue;
+      findTheBaby(sim);
+      const events = runTo(sim, sim.world.time.sim + 3 * STEP_MS);
+      const silence = sim.world.threats[0];
+      const outlet = sim.world.threats[1];
+      expect(silence?.state).toBe('telegraph');
+      expect(telegraphs(events).map((event) => event.kind)).toContain('outlet');
+      const parry = silence?.responseWindow;
+      const guardEnd =
+        (silence?.windowOpenAt as number) +
+        (parry?.windowMs as number) +
+        (parry?.toleranceMs as number) +
+        spacingMs;
+      expect(outlet?.windowOpenAt).toBe(Math.ceil(guardEnd / STEP_MS) * STEP_MS);
+      return;
+    }
+    throw new Error('no seed drew the silence first');
+  });
+
+  it.each(['drink', 'onPhone', 'asleep'] as const)(
+    'does not move a window because Papa is %s: it opens exactly its telegraph delay after the telegraph',
+    async (state) => {
+      const level = createTestLevel({
+        waves: [testWave([OUTLET], { fromMs: 100, gapMinMs: 0, gapMaxMs: 0 })],
+      });
+      const sim = await newSim(level);
+      const papa = sim.world.papa as { state: string; busyUntil: ReturnType<typeof asSimMs> };
+      papa.state = state;
+      papa.busyUntil = asSimMs(60_000);
+      const events = runTo(sim, 3000);
+      const [telegraph] = telegraphs(events);
+      expect(telegraph).toBeDefined();
+      const [open] = opened(events);
+      expect(open?.t).toBe((telegraph?.t as number) + delayOf('outlet'));
+    },
+  );
+
+  it('does not postpone ForceThreat: two threats forced 100 ms apart each open their telegraph delay after their telegraph', async () => {
+    const sim = await newSim(
+      createTestLevel({
+        waves: [testWave([OUTLET, STAIRS], { fromMs: 60_000, maxSimultaneous: 2 })],
+      }),
+    );
+    const [outlet, stairs] = sim.world.threats as unknown as [{ id: number }, { id: number }];
+    force(sim, outlet.id, 0);
+    force(sim, stairs.id, 100);
+    const events = runTo(sim, 3000);
+    const [t1, t2] = telegraphs(events);
+    for (const telegraph of [t1, t2]) {
+      const open = opened(events).find((event) => event.threatId === telegraph?.threatId);
+      expect(open?.t).toBe((telegraph?.t as number) + delayOf(telegraph?.kind as string));
+    }
+    expect(Math.abs((t2?.t as number) - (t1?.t as number))).toBeLessThan(spacingMs);
   });
 });

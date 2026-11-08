@@ -39,6 +39,17 @@ export const ppFreeze = (page: Page, on: boolean): Promise<void> =>
 export const ppSetFeel = (page: Page, patch: Patch): Promise<void> =>
   page.evaluate((feelPatch) => window.__PP__?.setFeel(feelPatch), patch);
 
+/**
+ * Story 3.16 D14: every rise of the catastrophe gauge at 0 (a `SetFeel`, applied at the next step). A
+ * spec that lets threats fail on purpose and is not about the catastrophe sends it after the level
+ * is loaded, so that the gags do not bring Mama home and end the level under it. Never lower the
+ * live values in `content/feel.json` to keep a spec green.
+ */
+export const ppSilenceCatastrophe = (page: Page): Promise<void> =>
+  ppSetFeel(page, {
+    catastrophe: { risePct: { nearMiss: 0, mess: 0, microSleep: 0, choreBeat: 0 } },
+  });
+
 export const ppLoadLevel = (page: Page, id: string, seed: number): Promise<void> =>
   page.evaluate(([levelId, levelSeed]) => window.__PP__?.loadLevel(levelId, levelSeed), [
     id,
@@ -59,6 +70,9 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
       window.__PP__?.fx() ?? {
         cameraZoom: 1,
         cameraYawDeg: 0,
+        cameraMode: 'fixed' as const,
+        cameraCentreXM: 0,
+        cameraCentreZM: 0,
         shakeOffsetM: 0,
         particlesAlive: 0,
         stampCount: 0,
@@ -66,11 +80,99 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
         papaClip: null,
         babyClip: null,
         papaMixerMs: 0,
+        papaBodyYawRad: 0,
+        papaSteamSwayDeg: 0,
+        papaBlablaTiltDeg: 0,
         doorOpenDeg: 0,
         dangerTintsShown: 0,
+        lightsFactor: 1,
+        mischiefDecals: 0,
+        choreShards: 0,
+        papaLook: { hasMashOnCheek: false, hasHairOnEnd: false, isShirtInsideOut: false },
+        papaLeanDeg: 0,
+        papaStoopDeg: 0,
+        papaHeadYawDeg: 0,
+        papaGaze: 'ahead' as const,
+        papaBreathDeg: 0,
+        babyBreathDeg: 0,
+        papaEyelidsPct: 0,
       },
   );
+
+/**
+ * The lines Mama says on the current Result screen (`__PP__.mamaLines()`, story 3.8), or `null` before the
+ * first level is scored and after the next one starts loading. Specs assert the bubble against it and pin
+ * known lines by text, so they never copy the choice the product makes.
+ */
+export const ppMamaLines = (page: Page): Promise<ReturnType<PPTestApi['mamaLines']>> =>
+  page.evaluate(() => window.__PP__?.mamaLines() ?? null);
+
+/**
+ * The moments of the current Result's highlight replay (`__PP__.highlights()`, story 3.9), or `null` before
+ * the first level is scored and after the next one starts loading. `[]` is a game with no moment: its Result
+ * has no `replay` phase.
+ */
+export const ppHighlights = (page: Page): Promise<ReturnType<PPTestApi['highlights']>> =>
+  page.evaluate(() => window.__PP__?.highlights() ?? null);
+
+/**
+ * Where a world point is on the page now, in px (`__PP__.pagePoint`, story 9.2): the live game camera,
+ * so it holds on a camera that follows Papa (`pagePointOf` in `game.ts` is the fixed camera's).
+ */
+export async function ppPagePoint(
+  page: Page,
+  xM: number,
+  yM: number,
+  zM: number,
+): Promise<{ x: number; y: number }> {
+  const point = await page.evaluate(([x, y, z]) => window.__PP__?.pagePoint(x, y, z) ?? null, [
+    xM,
+    yM,
+    zM,
+  ] as const);
+  if (point === null) throw new Error('window.__PP__ is not installed');
+  return { x: point.xPx, y: point.yPx };
+}
 
 /** The cues the director played, oldest first, with the visuals each drew (`__PP__.cueLog()`, story 2.4). */
 export const ppCueLog = (page: Page): Promise<ReturnType<PPTestApi['cueLog']>> =>
   page.evaluate(() => window.__PP__?.cueLog() ?? []);
+
+/**
+ * One house chore of the level as `data-pp-chore` mirrors it (story 9.4): `<index>:<state>:<beatsDone>/<beatCount>:<beatState>`,
+ * the entry of chore `index` (the first by default; the mirror joins every chore of the level with `;`, and the
+ * kitchen has two since story 9.6). `''` when the level has no such chore; null when the page is not a mirrored
+ * build (or not in a level).
+ */
+export const ppChore = async (page: Page, index = 0): Promise<string | null> => {
+  const mirror = await page.evaluate(() => document.documentElement.getAttribute('data-pp-chore'));
+  return mirror === null ? null : (mirror.split(';')[index] ?? '');
+};
+
+/** One off-screen bubble as `data-pp-offscreen` mirrors it (story 9.3): its threat, edge, centre (page px) and chevron angle. */
+export interface OffscreenBubbleMirror {
+  threatId: number;
+  edge: 'left' | 'top' | 'right';
+  xPx: number;
+  yPx: number;
+  angleDeg: number;
+}
+
+/** The off-screen bubbles shown (`data-pp-offscreen`, sorted by threat id); empty when none. */
+export async function ppOffscreen(page: Page): Promise<OffscreenBubbleMirror[]> {
+  const value = await page.evaluate(() => document.documentElement.dataset.ppOffscreen ?? '');
+  if (value === '') return [];
+  return value.split(';').map((item) => {
+    const [threatId, edge, xPx, yPx, angleDeg] = item.split(':');
+    if (edge !== 'left' && edge !== 'top' && edge !== 'right') {
+      throw new Error(`data-pp-offscreen has "${item}", not "<id>:<edge>:<x>:<y>:<angle>"`);
+    }
+    return {
+      threatId: Number(threatId),
+      edge,
+      xPx: Number(xPx),
+      yPx: Number(yPx),
+      angleDeg: Number(angleDeg),
+    };
+  });
+}

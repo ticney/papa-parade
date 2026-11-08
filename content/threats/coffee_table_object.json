@@ -16,5 +16,8 @@
     "perfect": "resp_parry_perfect",
     "gag": "gag_coffee_table"
   },
-  "cooldownMs": 6000
+  "catastrophe": "mess",
+  "afterEffect": { "kind": "debris", "pickUpMs": 1000 },
+  "cooldownMs": 6000,
+  "lookChange": "mashOnCheek"
 }

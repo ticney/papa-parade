@@ -1,0 +1,26 @@
+{
+  "version": 3,
+  "seed": 56,
+  "feelHash": "15826aab52d289",
+  "geometryHash": "1fad21f04c6015",
+  "levelHash": "10bf7221eb8e96",
+  "startSimMs": 0,
+  "entries": [
+    {
+      "applyAt": 100,
+      "command": {
+        "points": 100,
+        "t": 100,
+        "type": "SetFatigue"
+      }
+    },
+    {
+      "applyAt": 10500,
+      "command": {
+        "t": 10500,
+        "threatId": 1,
+        "type": "ForceThreat"
+      }
+    }
+  ]
+}

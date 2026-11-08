@@ -74,7 +74,14 @@
             "peek",
             "sweat",
             "open_hand",
-            "sigh"
+            "sigh",
+            "pot",
+            "dishwasher",
+            "tablecloth",
+            "cabinet",
+            "bin",
+            "plant",
+            "cup"
           ]
         },
         "feint": {
@@ -112,7 +119,14 @@
                 "peek",
                 "sweat",
                 "open_hand",
-                "sigh"
+                "sigh",
+                "pot",
+                "dishwasher",
+                "tablecloth",
+                "cabinet",
+                "bin",
+                "plant",
+                "cup"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -177,7 +191,14 @@
             "peek",
             "sweat",
             "open_hand",
-            "sigh"
+            "sigh",
+            "pot",
+            "dishwasher",
+            "tablecloth",
+            "cabinet",
+            "bin",
+            "plant",
+            "cup"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -240,6 +261,147 @@
           "additionalProperties": false,
           "description": "Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11)."
         },
+        "catastrophe": {
+          "type": "string",
+          "enum": [
+            "nearMiss",
+            "mess",
+            "microSleep",
+            "none"
+          ],
+          "description": "How much a gag of this threat raises the catastrophe gauge: the row of `feel.catastrophe.risePct` (`none` = nothing). Must fit the gag (story 3.16)."
+        },
+        "afterEffect": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "none"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "description": "No séquelle (costed later, GDD)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "electrified"
+                },
+                "busyMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa cannot answer, in sim ms (at most 2000)."
+                },
+                "dimMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "How long the room stays dim after the gag, in sim ms."
+                }
+              },
+              "required": [
+                "kind",
+                "busyMs",
+                "dimMs"
+              ],
+              "additionalProperties": false,
+              "description": "Papa is electrified (cannot answer) and the room goes dim (the outlet)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "babyDownstairs"
+                },
+                "carryUpMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa is busy carrying the baby back up, in sim ms (at most 2000)."
+                },
+                "selfReturnMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "If Papa does not fetch him, the baby climbs back by himself after this long, in sim ms."
+                }
+              },
+              "required": [
+                "kind",
+                "carryUpMs",
+                "selfReturnMs"
+              ],
+              "additionalProperties": false,
+              "description": "The baby is at the bottom of the stairs; Papa must fetch him (the stairs)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "debris"
+                },
+                "pickUpMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa is busy picking the debris up, in sim ms (at most 2000)."
+                }
+              },
+              "required": [
+                "kind",
+                "pickUpMs"
+              ],
+              "additionalProperties": false,
+              "description": "The pushed object stays on the floor until picked up (the coffee table)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "mess"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "description": "The mischief stays visible until the end of the level and on the photo (the silence)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "asleep"
+                },
+                "busyMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 3000,
+                  "description": "How long Papa sleeps, in sim ms (at most 3000)."
+                }
+              },
+              "required": [
+                "kind",
+                "busyMs"
+              ],
+              "additionalProperties": false,
+              "description": "Papa nods off (the micro-sleep)."
+            }
+          ],
+          "description": "The séquelle of the threat's gag (story 3.15)."
+        },
         "cooldownMs": {
           "type": "number",
           "minimum": 0,
@@ -251,14 +413,30 @@
           "minimum": 1000,
           "maximum": 9007199254740991
         },
+        "gagNoisePct": {
+          "description": "When a miss ends in the gag, the noise gauge rises by this many points at once (story 9.5: the pot boiling over; no effect in a level with no noise gauge). Absent: the gag makes no noise of its own.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        },
+        "lookChange": {
+          "description": "The part of Papa's look this def degrades when a miss ends in the gag (story 3.7), once per part per level: the part stays shown to the end of the level and each part shown adds Laugh points to Mama's note. Absent: the gag does not change the look.",
+          "type": "string",
+          "enum": [
+            "mashOnCheek",
+            "hairOnEnd",
+            "shirtInsideOut"
+          ]
+        },
         "target": {
           "type": "string",
           "enum": [
             "anchor",
             "papa",
-            "baby"
+            "baby",
+            "station"
           ],
-          "description": "Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), or on the baby (a stealth step spawns it, story 4.9)."
+          "description": "Where the threat stands: a planned anchor, on Papa (system-spawned, story 1.19), on the baby (a stealth step spawns it, story 4.9), or on a chore station (the chore system spawns it, story 9.5)."
         },
         "gag": {
           "type": "string",
@@ -276,12 +454,14 @@
         "iconShape",
         "color",
         "feedback",
+        "catastrophe",
+        "afterEffect",
         "cooldownMs",
         "target",
         "gag"
       ],
       "additionalProperties": false,
-      "description": "A threat that stands on an anchor of the level, on Papa, or on the baby."
+      "description": "A threat that stands on an anchor of the level, on Papa, on the baby, or on a chore station."
     },
     {
       "type": "object",
@@ -356,7 +536,14 @@
             "peek",
             "sweat",
             "open_hand",
-            "sigh"
+            "sigh",
+            "pot",
+            "dishwasher",
+            "tablecloth",
+            "cabinet",
+            "bin",
+            "plant",
+            "cup"
           ]
         },
         "feint": {
@@ -394,7 +581,14 @@
                 "peek",
                 "sweat",
                 "open_hand",
-                "sigh"
+                "sigh",
+                "pot",
+                "dishwasher",
+                "tablecloth",
+                "cabinet",
+                "bin",
+                "plant",
+                "cup"
               ],
               "description": "The glyph drawn in the marker from the feint on, until the signal."
             }
@@ -459,7 +653,14 @@
             "peek",
             "sweat",
             "open_hand",
-            "sigh"
+            "sigh",
+            "pot",
+            "dishwasher",
+            "tablecloth",
+            "cabinet",
+            "bin",
+            "plant",
+            "cup"
           ],
           "description": "Glyph drawn in the threat's marker (the client has one per entry)."
         },
@@ -522,6 +723,147 @@
           "additionalProperties": false,
           "description": "Cues of `feedback.json` › `cues` the client plays for this threat (story 1.11)."
         },
+        "catastrophe": {
+          "type": "string",
+          "enum": [
+            "nearMiss",
+            "mess",
+            "microSleep",
+            "none"
+          ],
+          "description": "How much a gag of this threat raises the catastrophe gauge: the row of `feel.catastrophe.risePct` (`none` = nothing). Must fit the gag (story 3.16)."
+        },
+        "afterEffect": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "none"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "description": "No séquelle (costed later, GDD)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "electrified"
+                },
+                "busyMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa cannot answer, in sim ms (at most 2000)."
+                },
+                "dimMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "How long the room stays dim after the gag, in sim ms."
+                }
+              },
+              "required": [
+                "kind",
+                "busyMs",
+                "dimMs"
+              ],
+              "additionalProperties": false,
+              "description": "Papa is electrified (cannot answer) and the room goes dim (the outlet)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "babyDownstairs"
+                },
+                "carryUpMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa is busy carrying the baby back up, in sim ms (at most 2000)."
+                },
+                "selfReturnMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "If Papa does not fetch him, the baby climbs back by himself after this long, in sim ms."
+                }
+              },
+              "required": [
+                "kind",
+                "carryUpMs",
+                "selfReturnMs"
+              ],
+              "additionalProperties": false,
+              "description": "The baby is at the bottom of the stairs; Papa must fetch him (the stairs)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "debris"
+                },
+                "pickUpMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "description": "How long Papa is busy picking the debris up, in sim ms (at most 2000)."
+                }
+              },
+              "required": [
+                "kind",
+                "pickUpMs"
+              ],
+              "additionalProperties": false,
+              "description": "The pushed object stays on the floor until picked up (the coffee table)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "mess"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false,
+              "description": "The mischief stays visible until the end of the level and on the photo (the silence)."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "asleep"
+                },
+                "busyMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 3000,
+                  "description": "How long Papa sleeps, in sim ms (at most 3000)."
+                }
+              },
+              "required": [
+                "kind",
+                "busyMs"
+              ],
+              "additionalProperties": false,
+              "description": "Papa nods off (the micro-sleep)."
+            }
+          ],
+          "description": "The séquelle of the threat's gag (story 3.15)."
+        },
         "cooldownMs": {
           "type": "number",
           "minimum": 0,
@@ -532,6 +874,21 @@
           "type": "integer",
           "minimum": 1000,
           "maximum": 9007199254740991
+        },
+        "gagNoisePct": {
+          "description": "When a miss ends in the gag, the noise gauge rises by this many points at once (story 9.5: the pot boiling over; no effect in a level with no noise gauge). Absent: the gag makes no noise of its own.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        },
+        "lookChange": {
+          "description": "The part of Papa's look this def degrades when a miss ends in the gag (story 3.7), once per part per level: the part stays shown to the end of the level and each part shown adds Laugh points to Mama's note. Absent: the gag does not change the look.",
+          "type": "string",
+          "enum": [
+            "mashOnCheek",
+            "hairOnEnd",
+            "shirtInsideOut"
+          ]
         },
         "target": {
           "type": "string",
@@ -564,6 +921,8 @@
         "iconShape",
         "color",
         "feedback",
+        "catastrophe",
+        "afterEffect",
         "cooldownMs",
         "target",
         "findMaxMs",

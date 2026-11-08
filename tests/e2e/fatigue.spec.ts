@@ -1,13 +1,16 @@
+import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
 import { THREAT_ICON_PATHS } from '../../src/client/ui/world/threatMarkers.ts';
 import { HUD_MAX_DOM_NODES, STEP_MS } from '../../src/shared/constants.ts';
 import {
+  appUrl,
   collectProblems,
   html,
   liveFeel,
   objectIconPoint,
   pagePointOf,
   WALK_BOUND_MS,
+  waitFrames,
 } from './support/game.ts';
 import { STRINGS } from './support/strings.ts';
 import {
@@ -34,7 +37,12 @@ const FATIGUE_FEEL = (liveFeel as unknown as { fatigue: Record<string, number> }
 const COFFEE_REDUCTION = FATIGUE_FEEL.coffeeReductionPoints as number;
 const COFFEE_STEPS = Math.ceil((FATIGUE_FEEL.coffeeDurationMs as number) / STEP_MS);
 const MICRO_SLEEP_MAX_MS = FATIGUE_FEEL.microSleepMaxMs as number;
-const ASLEEP_MS = FATIGUE_FEEL.asleepMs as number;
+// The nap lasts as long as the micro-sleep's séquelle says (story 3.15: `afterEffect.busyMs`).
+const ASLEEP_MS = (
+  JSON.parse(readFileSync('content/threats/papa_microsleep.json', 'utf8')) as {
+    afterEffect: { busyMs: number };
+  }
+).afterEffect.busyMs;
 /** Upper bound of what a micro-sleep needs to be judged once telegraphed: delay + window + tolerance, rounded up. */
 const MICRO_SLEEP_JUDGE_MS = 2000;
 /** A floor point of the live level in the test viewport (a tap on it plans a walk; the first test of this spec shows it). */
@@ -44,7 +52,7 @@ const CHUNK_STEPS = 25;
 const NEAR_PAPA_PX = 90;
 
 async function openFrozen(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto(appUrl('/'));
   await waitForTestApi(page);
   await ppFreeze(page, true);
   await ppLoadLevel(page, LEVEL, SEED);
@@ -286,7 +294,7 @@ test.describe('the micro-sleep', () => {
     expect(problems).toEqual([]);
   });
 
-  test('unanswered, it puts Papa to sleep for asleepMs: he answers no tap meanwhile, then wakes', async ({
+  test('unanswered, it puts Papa to sleep for its afterEffect busyMs: he answers no tap meanwhile, then wakes', async ({
     page,
   }) => {
     await openFrozen(page);
@@ -305,6 +313,10 @@ test.describe('the micro-sleep', () => {
       (event) => event.type === 'PapaStateChanged' && event.to === 'asleep',
     );
     await expect(html(page)).toHaveAttribute('data-pp-papa-state', 'asleep');
+    // The activity bubble (story 2.12) shows the dizzy stars for the nap.
+    await waitFrames(page, 3);
+    await expect(page.locator('.pp-activity-bubble')).toBeVisible();
+    await expect(page.locator('.pp-activity-bubble')).toHaveClass(/pp-activity-bubble--stars/);
     const events = (await ppEvents(page)).map((event) => event.type);
     expect(events).toContain('GagTriggered');
     expect(events).not.toContain('NearMiss');

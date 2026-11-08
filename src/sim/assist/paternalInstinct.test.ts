@@ -4,9 +4,9 @@ import { STEP_MS } from '@shared/constants';
 import { hashJson } from '@shared/hash';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
+import { createTestContentWithoutCatastrophe } from '../../../tests/support/noCatastrophe.ts';
 import {
   CARRY,
-  createTestContent,
   createTestGeometry,
   createTestLevel,
   createTestMicroSleep,
@@ -35,7 +35,8 @@ import { instinctWindowModifier } from './paternalInstinct.ts';
 // they cover `recordMiss` at its source; the others start the instinct with the debug command.
 // Literals on purpose: the expectations must not be computed with the production formula.
 
-const content = createTestContent();
+// The catastrophe gauge cannot rise (story 3.16 D14): this file is not about it, and a pile of gags would bring Mama home.
+const content = createTestContentWithoutCatastrophe();
 const geometry = createTestGeometry();
 
 /** Five outlets on five anchors, drawn by nobody (the wave is far away): the tests start them with `ForceThreat`. */

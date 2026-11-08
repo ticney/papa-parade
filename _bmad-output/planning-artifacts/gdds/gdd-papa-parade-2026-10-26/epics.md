@@ -2,7 +2,7 @@
 title: Papa Parade — Epics de développement
 gdd: gdd.md
 created: 2026-10-26
-updated: 2026-10-29
+updated: 2026-11-03
 ---
 
 # Papa Parade — Epics de développement
@@ -31,6 +31,8 @@ Détail des epics résumés dans `gdd.md`. Les stories sont de haut niveau ; ell
 
 ## E2 — Game feel et lisibilité
 
+> **v2.3 (rattrapage, avant E9) :** anneau-chrono (v2.2, jamais découpé en stories) et bulle d'activité de papa.
+
 **Objectif :** chaque réponse est satisfaisante et chaque menace se comprend sans explication.
 
 - Fichier de feeling unique : fenêtres, tolérance, buffer, hitstop, ralentis, instinct paternel.
@@ -44,6 +46,8 @@ Détail des epics résumés dans `gdd.md`. Les stories sont de haut niveau ; ell
 - Instinct paternel (rattrapage) et mode assistance.
 
 ## E3 — Bruit et Maman
+
+> **v2.3 (rattrapage, avant E9) :** équité de trajet du directeur, note de Maman sur cinq lignes, joueur simulé humain réaliste ; plus les séquelles et la jauge de catastrophe de la v2.2, jamais découpées en stories.
 
 **Objectif :** relier tous les systèmes par la jauge de bruit et rendre la fin de niveau mémorable.
 
@@ -67,6 +71,18 @@ Détail des epics résumés dans `gdd.md`. Les stories sont de haut niveau ; ell
 - Sortie en infiltration : lattes qui grincent, souffle retenu, fausses alertes (soupir ou vrai réveil).
 - Combo à encaisser : il monte en portant le bébé et à chaque réponse, il s'encaisse à la dépose.
 - Faux sommeil (attaque retardée).
+
+## E9 — Grand salon et maison (troisième prototype)
+
+**Objectif :** plus de place et plus de choses à faire, sans perdre la lisibilité. Vient après le rattrapage de lisibilité v2.3 (anneau-chrono, bulle d'activité, équité de trajet, note sur cinq lignes, joueur simulé humain réaliste) et le playtest qui le suit.
+**Mécaniques livrées :** caméra qui suit, bulle d'info hors cadre, tâches de la maison en parades, ligne Maison de la note, nouvelles bêtises.
+
+- Le salon devient un grand salon avec cuisine ouverte (environ 13–14 × 7 m), modélisé dans Blender.
+- La caméra suit papa avec une zone morte ; une menace hors cadre est signalée par une bulle d'info au bord de l'écran (icône, anneau-chrono, flèche), qu'on peut taper.
+- Deux tâches de la maison : cuisiner la purée et vider le lave-vaisselle, chacune en 4 temps forts de Parer, facultatives et interruptibles.
+- Une cuisson oubliée devient la casserole sur le feu ; un lave-vaisselle ouvert devient une cible du bébé.
+- Nouvelles bêtises tirées de la liste candidate du GDD, triées par Geo.
+- Le poids du niveau peut dépasser 3 Mio si l'audio l'exige.
 
 ## E5 — Hygiène et état caché
 
@@ -92,6 +108,7 @@ Détail des epics résumés dans `gdd.md`. Les stories sont de haut niveau ; ell
 
 - Pipeline Blender : pièces entières, Blender comme éditeur de niveaux, blocage et exports pilotés par l'IA via Blender MCP.
 - Personnages : papa (dégaine qui se dégrade), bébé, enfants par âge, Maman, chien.
+- Animation v2.4 (GDD, « Animation des personnages ») : couche de vie (transitions, demi-tour, élan, respiration, regard, posture de fatigue), squelette v2 et animations reprises, sourcils et expressions, panel de papa et du bébé (première vague d'une douzaine d'animations, puis le reste), personnages détachés du décor (liseré clair, contour plus épais).
 - Rendu toon avec contours, palette limitée avec teinte d'alerte.
 - Effets : hitstop, tremblement, particules, célébration finale.
 - Musique adaptative par âge, bibliothèque de sons.
