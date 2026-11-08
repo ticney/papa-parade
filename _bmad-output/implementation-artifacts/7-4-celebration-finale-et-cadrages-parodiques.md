@@ -10,11 +10,14 @@ As a player,
 I want an outsized celebration on a level's last response, and film framings for each sequence,
 so that I live the epic / mundane contrast.
 
-**Requirements covered:** FR62. **Depends on:** the sequence framing of 4.4 (`framing.camera`, `sequenceFramingBlendAt`, `createFramingChain` from 4.10), the bedtime cycle of 4.10 (`CycleCompleted`), the final rush and the photo of 3.5 and 3.6, the render of 7.3 (`feedback.json › render`, the per-level lights, `reservedHueProblems`, the particle pool).
+**Requirements covered:** FR62, FR79 (GDD v2.4: Papa's victory dance and collapse, added by the sprint change proposal of 2026-11-08, §4.4). **Depends on:** the sequence framing of 4.4 (`framing.camera`, `sequenceFramingBlendAt`, `createFramingChain` from 4.10), the bedtime cycle of 4.10 (`CycleCompleted`), the final rush and the photo of 3.5 and 3.6, the render of 7.3 (`feedback.json › render`, the per-level lights, `reservedHueProblems`, the particle pool), the early return of 3.16 (`LevelEnded{reason: 'mamaHome'}`), the rigged characters of 7.2 (`characterClips.ts`, `characterArt.ts`).
+
+**Base (checked on 2026-11-08):** this branch was cut from `611a5b6`, 106 commits behind `main` that day: 3.12 to 3.16, Epic 9, 3.7, 3.8 and the v2.4 planning came since, and `mamaHome` does not exist on it yet. **Merge `main` into the branch before T1**, then re-check every line reference, the snapshot version and the level names below: they were written against the old base.
 
 **Scope:**
 - **The finale.** The sim names the level's last success with one new event, `FinaleReached` (D1, D2). The client plays a celebration on it: an opera-choir sting, fireworks over the room, an Epic stamp, a flash, and a `fanfare` vibration (D4 to D7). The end of the level waits for the celebration to finish before the photo (D3).
 - **The film framings.** A sequence's JSON names a film grammar: `framing.style` and `framing.titleKey`. The client draws it while the sequence runs: letterbox bars, a grade through the room's lights, a vignette, a camera roll and an Epic title card. The look of each grammar is data in `feedback.json › framingStyles` (D8 to D12).
+- **Papa's two moves (v2.4).** Papa dances his victory dance in the celebration, and collapses when Mama comes home early (D14).
 
 **Not in this story:**
 - The highlight replay (3.9). `FinaleReached` is a natural highlight there; 3.9 decides its score.
@@ -27,6 +30,8 @@ so that I live the epic / mundane contrast.
 The epics' criteria are:
 - *Given a level's last successful response, when it is judged, then a celebration (opera choir, fireworks) plays, with its visual and haptic equivalents.*
 - *Given each special sequence, when it plays, then it applies the visual grammar of its reference (action, infiltration, hostage taking, bomb defusal), defined in its JSON.*
+- *Given a level that ends without Mama coming home early, when the final celebration plays, then Papa dances his victory dance in it (GDD v2.4).* (added on 2026-11-08)
+- *Given « Maman est rentrée plus tôt ! » (catastrophe gauge at 100 %), when the door opens, then Papa collapses, as a gag and with no injury (NFR9; GDD v2.4, read as the lost level only).* (added on 2026-11-08)
 
 **The finale (sim)**
 
@@ -95,9 +100,16 @@ The epics' criteria are:
 17. **Geo has seen it.** Screenshots go in `_bmad-output/implementation-artifacts/7-4-screenshots/`:
     - each of the five sequences at full blend, at 844 × 390, and two of them at 667 × 375;
     - the fireworks mid-burst in both rooms;
-    - reduced motion on one sequence and on the fireworks.
+    - reduced motion on one sequence and on the fireworks;
+    - Papa mid-dance, and Papa collapsed (AC 18, 19).
 
     Every image not opened is listed as not opened. The merge waits for Geo's visual OK.
+
+**Papa's dance and collapse (v2.4, added on 2026-11-08)**
+
+18. **Papa dances in the celebration.** On `FinaleReached`, Papa plays a new one-shot, `victory_dance` (`characterClips.ts › papaOneShotOf`). It belongs to the celebration: the end hold of D3 covers it, and the photo is still taken after `finish()`. It changes no position, no timing and no world field (D2 holds). Under reduced motion it still plays, since a pose carries a state (`EXPERIENCE.md`); only the squash is off. An e2e test reads Papa's clip (`clipsOf`, as `characters.spec.ts` does) and sees `victory_dance` after a finale.
+19. **Papa collapses when Mama comes home early.** On `LevelEnded{reason: 'mamaHome'}` (story 3.16), Papa plays a new one-shot, `collapse`, as the door opens: a gag, with no injury (NFR9). It plays on that end only, never on `timer`, `cycleDone` or `mamaWoke` (D14). An e2e test forces the catastrophe gauge to 100 % and sees `collapse`.
+20. **Both clips keep the character contract.** They are authored in `assets-src/blender/characters/papa.blend` like 7.2's clips, listed in Papa's contract in `tools/assets/characterArt.ts`, and pass `tests/architecture/characterAssets.test.ts` under `CHARACTER_GLB_MAX_BYTES`. Neither lifts Papa or moves his feet off the floor (D8 of 7.2). No golden moves for them.
 
 ## Tasks / Subtasks
 
@@ -144,6 +156,11 @@ The epics' criteria are:
     - refuse pause while it waits;
     - clear everything on `loading`, restart and error.
   - [ ] `__PP__.fx()` gains `fireworksAlive` and `celebrating`. Add the test hook `__PP__.celebrate()` (debug only). It runs the client half with no sim, for specs that cannot reach a real finale fast.
+- [ ] **T5b. Papa's two clips** (AC 18 to 20, D14)
+  - [ ] `assets-src/blender/characters/papa.blend`: author `victory_dance` (no longer than `celebration.endHoldMs`) and `collapse` (ends lying down, and holds). Export with `npm run assets:character:export`, then `npm run assets:character:optimize`.
+  - [ ] `tools/assets/characterArt.ts`: add both clips to Papa's contract. `tests/architecture/characterAssets.test.ts` passes on the committed file.
+  - [ ] `characterClips.ts › papaOneShotOf`: `FinaleReached` → `victory_dance`; `LevelEnded` with `reason: 'mamaHome'` → `collapse`. Unit tests for both, and for the ends that play nothing.
+  - [ ] E2E: the dance after a finale (`celebration.spec.ts`); the collapse after a forced catastrophe, beside the e2e spec of the early return (story 3.16).
 - [ ] **T6. The framings** (AC 10 to 15, D8 to D11)
   - [ ] `cameraFx.ts`: `SequenceFraming` gains `rollDeg`. Compose it like the perfect's yaw (additive, × blend, 0 under reduced motion). Extend the dirty check. **It does not start a refocus.** `createFramingChain` carries the old roll out.
   - [ ] `levelScene.ts`: `setGrade(grade | null, blend)`. The lights are `level × lerp(1, grade.lightsFactor, blend) × gagFactor`, with the colours lerped. It allocates nothing and writes nothing when unchanged.
@@ -199,6 +216,7 @@ The epics' criteria are:
 | D11 | **Bars never hide Papa or the exit.** `letterboxPct` is bounded at 12 % per bar, and an e2e test checks the projections. | The bars cut the room's top and bottom while the zoom of 4.4 is up. Markers are DOM above them, but Papa and the stealth exit are what the player steers by. |
 | D12 | **Look in `feedback.json`, choice in the sequence JSON.** The sequence names `style` and `titleKey`; `framingStyles.<id>` holds the numbers. Both keys are optional in the schema. | The AC wants the grammar « défini dans son JSON ». The sequence JSON is inside `levelHash` (`LevelContent.sequences`, `createSim.ts:687`), so tuning the bars or the grade there would change every live level's hash at each touch. The goldens use the fixtures `tests/support/test*.sequence.json`, which stay as they are (optional keys), so no golden moves for the framing. A live level's hash does move once: a journal exported before this story no longer matches this checkout (check how `sim:replay` reports it, and say so). |
 | D13 | **No bot change.** The bots play as before; only the report counts finales. | The celebration and the framings are presentation. The perfect bot already completes the cycle (`chambreNight.spec.ts:103`). |
+| D14 | **Papa's two moves are one-shots chosen from events, like every one-shot (D5 of 7.2).** The dance belongs to the celebration (`FinaleReached`). The collapse belongs to the early return only (`mamaHome`), read as the lost level. **Approved by Geo on 2026-11-08** (sprint change proposal of that day, §4.4). If story 7.9 (skeleton v2) lands first, author both clips on its skeleton; otherwise 7.9 retakes them with every other clip. | GDD v2.4, « Réactions » of Papa's panel: « effondrement quand Maman rentre ; danse de victoire en fin de niveau réussie (elle alimente la célébration finale) ». If he collapsed every time Mama comes home, he would also collapse at the end of a won level, against the dance. Both are presentation: the sim does not change, and a character `.glb` is in none of `feelHash`, `geometryHash` or `levelHash`, so no golden moves for them. |
 
 ### What exists, and what must keep working
 
@@ -266,6 +284,7 @@ No new dependency. In the pinned `three@0.186.1`, `InstancedMesh.setColorAt` cre
 ### References
 
 - [Source: _bmad-output/planning-artifacts/epics.md#Story 7.4 (L2397-2413), FR62 (L126)]
+- [Source: _bmad-output/planning-artifacts/sprint-change-proposal-2026-11-08.md §4.4; gdd.md v2.4, « Animation des personnages », Papa's panel, « Réactions » (on `main`)]
 - [Source: _bmad-output/planning-artifacts/gdds/gdd-papa-parade-2026-10-26/gdd.md L30, L42, L87, L298-345, L481-482]
 - [Source: _bmad-output/planning-artifacts/game-architecture.md L209, L250-255, P7 L815-826, L978, ADR-006, ADR-008]
 - [Source: _bmad-output/planning-artifacts/ux-designs/ux-papa-parade-2026-10-26/DESIGN.md L365-368, L443, L519, L556; EXPERIENCE.md L403-433, L466]
