@@ -2741,6 +2741,7 @@ export async function boot(): Promise<void> {
           papaLeanDeg: real?.papaLeanDeg ?? 0,
           papaStoopDeg: real?.papaStoopDeg ?? 0,
           papaHeadYawDeg: real?.papaHeadYawDeg ?? 0,
+          papaForelockDeg: real?.papaForelockDeg ?? 0,
           papaGaze: real?.papaGaze ?? 'ahead',
           papaBreathDeg: real?.papaBreathDeg ?? 0,
           babyBreathDeg: real?.babyBreathDeg ?? 0,

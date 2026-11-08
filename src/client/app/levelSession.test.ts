@@ -77,6 +77,7 @@ const NO_REAL_FX = () => ({
   papaLeanDeg: 0,
   papaStoopDeg: 0,
   papaHeadYawDeg: 0,
+  papaForelockDeg: 0,
   papaGaze: 'ahead' as const,
   papaBreathDeg: 0,
   babyBreathDeg: 0,

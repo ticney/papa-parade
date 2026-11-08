@@ -13,6 +13,10 @@ import { roomMaterialProblems } from './roomArt.ts';
 const TRIANGLES_MODE = 4;
 /** A second set of joints is a vertex with more than 4 influences (D10). */
 const EXTRA_INFLUENCES = /^(JOINTS|WEIGHTS)_[1-9]\d*$/;
+/** How far a joint's rest quaternion or scale may stand off the identity: float noise, not a turn (story 7.9). */
+const REST_EPSILON = 1e-4;
+const IDENTITY_ROTATION: readonly number[] = [0, 0, 0, 1];
+const UNIT_SCALE: readonly number[] = [1, 1, 1];
 
 interface CharacterPrimitive {
   attributes?: Record<string, number>;
@@ -23,6 +27,10 @@ interface CharacterNode {
   name?: string;
   mesh?: number;
   children?: number[];
+  rotation?: number[];
+  scale?: number[];
+  /** A node written as a matrix has no TRS to read its rest from: refused on a bone (story 7.9 review). */
+  matrix?: number[];
 }
 interface CharacterAnimation {
   name?: string;
@@ -58,7 +66,14 @@ export interface CharacterContract {
   readonly codeDrivenBones: readonly string[];
   /** Nodes (objects, not bones) the code moves every frame: a clip track on one would fight it (story 2.13, D3). */
   readonly codeDrivenNodes: readonly string[];
+  /** Empty nodes the code reads a place from (story 7.9: the forelock's tip): no mesh, never drawn. */
+  readonly markerNodes: readonly string[];
 }
+
+/** Whether `values` (absent: the glTF default) is `expected` within `REST_EPSILON`. */
+const isRestAt = (values: readonly number[] | undefined, expected: readonly number[]): boolean =>
+  values === undefined ||
+  expected.every((value, i) => Math.abs((values[i] ?? Number.NaN) - value) <= REST_EPSILON);
 
 function trianglesOf(json: CharacterJson, primitive: CharacterPrimitive, where: string): number {
   if (primitive.mode !== undefined && primitive.mode !== TRIANGLES_MODE) {
@@ -115,8 +130,10 @@ function budgetProblems(budget: CharacterBudget): string[] {
 
 /**
  * Every way the file breaks the rules of D4 and D10 or the `contract`, one message each: a missing
- * bone, node or clip, a clip track on a bone the code drives, more than 4 influences, one skeleton
- * only, a texture or a material the toon swap would lose, a count over its budget. Empty when it conforms.
+ * bone, node, marker or clip, a clip track on a bone the code drives, more than 4 influences, one skeleton
+ * only, a texture or a material the toon swap would lose, a count over its budget, a marker with a mesh,
+ * a bone that does not rest at the identity (story 7.9: the code's axes and absolute writes rely on it).
+ * Empty when it conforms.
  */
 export function characterRigProblems(document: unknown, contract: CharacterContract): string[] {
   const json = document as CharacterJson;
@@ -129,13 +146,43 @@ export function characterRigProblems(document: unknown, contract: CharacterContr
   if ((json.skins?.length ?? 0) !== 1) {
     problems.push(`${json.skins?.length ?? 0} skins, exactly 1 expected`);
   }
-  const joints = new Set((json.skins?.[0]?.joints ?? []).map((index) => nodes[index]?.name));
+  const jointNodes = (json.skins?.[0]?.joints ?? []).map((index) => nodes[index]);
+  const joints = new Set(jointNodes.map((node) => node?.name));
   for (const bone of contract.bones) {
     if (!joints.has(bone)) problems.push(`no bone "${bone}" in the skin`);
+  }
+  for (const joint of jointNodes) {
+    if (joint === undefined) continue;
+    if (joint.matrix !== undefined) {
+      problems.push(
+        `bone "${joint.name ?? ''}" is written as a matrix: its rest cannot be checked, write a translation only`,
+      );
+      continue;
+    }
+    if (!isRestAt(joint.rotation, IDENTITY_ROTATION)) {
+      problems.push(
+        `bone "${joint.name ?? ''}" rests with a rotation: every bone rests at the identity`,
+      );
+    }
+    if (!isRestAt(joint.scale, UNIT_SCALE)) {
+      problems.push(`bone "${joint.name ?? ''}" rests with a scale: every bone rests at scale 1`);
+    }
   }
   const names = new Set(nodes.map((node) => node.name));
   for (const name of [...contract.visibleNodes, ...contract.hiddenNodes]) {
     if (!names.has(name)) problems.push(`no node "${name}"`);
+  }
+  for (const name of contract.markerNodes) {
+    const marker = nodes.find((node) => node.name === name);
+    if (marker === undefined) {
+      problems.push(`no marker node "${name}"`);
+      continue;
+    }
+    const isDrawn =
+      marker.mesh !== undefined ||
+      (marker.children ?? []).some((child) => nodes[child]?.mesh !== undefined);
+    if (isDrawn)
+      problems.push(`marker node "${name}" has a mesh: a marker is a place, never drawn`);
   }
   const clips = new Set(animations.map((animation) => animation.name));
   for (const clip of contract.clips) {
@@ -146,7 +193,9 @@ export function characterRigProblems(document: unknown, contract: CharacterContr
       const target = nodes[channel.target?.node ?? -1]?.name;
       if (
         target !== undefined &&
-        (contract.codeDrivenBones.includes(target) || contract.codeDrivenNodes.includes(target))
+        (contract.codeDrivenBones.includes(target) ||
+          contract.codeDrivenNodes.includes(target) ||
+          contract.markerNodes.includes(target))
       ) {
         problems.push(
           `clip "${animation.name}" has a ${channel.target?.path} track on "${target}", which the code drives`,

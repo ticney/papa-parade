@@ -70,6 +70,8 @@ export interface FxState {
   readonly papaStoopDeg: number;
   /** Papa's head turn from his body, in degrees, positive toward his left (story 7.8). */
   readonly papaHeadYawDeg: number;
+  /** How far Papa's forelock turns from its rest, in degrees (story 7.9); 0 at rest or under reduced motion. */
+  readonly papaForelockDeg: number;
   /** What Papa's head follows (story 7.8): the baby on screen, a ringed threat, or ahead. */
   readonly papaGaze: PapaGazeKind;
   /** Papa's breath, in degrees of his torso (story 7.8); 0 held or under reduced motion. */

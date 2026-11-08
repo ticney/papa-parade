@@ -207,6 +207,8 @@ export interface LevelScene {
     papaStoopDeg: number;
     /** Papa's head turn from his body, in degrees, positive toward his left (story 7.8). */
     papaHeadYawDeg: number;
+    /** How far Papa's forelock turns from its rest, in degrees (story 7.9). */
+    papaForelockDeg: number;
     /** What Papa's head follows (story 7.8). */
     papaGaze: PapaGazeKind;
     /** Papa's breath, in degrees of his torso (story 7.8); 0 held or under reduced motion. */
@@ -776,6 +778,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         papaLeanDeg: papa.leanDeg,
         papaStoopDeg: papa.stoopDeg,
         papaHeadYawDeg: papa.headYawDeg,
+        papaForelockDeg: papa.forelockDeg,
         papaGaze: papa.gazeKind,
         papaBreathDeg: papa.breathDeg,
         babyBreathDeg: baby.breathDeg,

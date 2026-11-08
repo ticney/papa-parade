@@ -1887,6 +1887,36 @@
           "additionalProperties": false,
           "description": "The fatigue stoop (story 7.8): in proportion to the fatigue gauge. His eyelids never follow it."
         },
+        "forelock": {
+          "type": "object",
+          "properties": {
+            "reachMs": {
+              "type": "number",
+              "minimum": 50,
+              "maximum": 1000,
+              "description": "Time the forelock's tip takes to cover 95 % of the way to where it would be if the lock were rigid, in sim ms: its lag behind his head."
+            },
+            "dampingRatio": {
+              "type": "number",
+              "minimum": 0.3,
+              "maximum": 1,
+              "description": "Damping of the forelock: 1 = it catches up with no bounce; below, it swings past and comes back."
+            },
+            "maxDeg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 40,
+              "description": "The most the lock turns from its rest, in degrees. It hangs at least 45° below the horizontal, so at 40° it can swing but never stand up."
+            }
+          },
+          "required": [
+            "reachMs",
+            "dampingRatio",
+            "maxDeg"
+          ],
+          "additionalProperties": false,
+          "description": "Papa's forelock (story 7.9): a pendulum on his head, stepped on the sim clock, that trails whatever moves the head. At rest under « Réduire les animations »."
+        },
         "look": {
           "type": "object",
           "properties": {
@@ -1937,10 +1967,11 @@
         "breath",
         "gaze",
         "stoop",
+        "forelock",
         "look"
       ],
       "additionalProperties": false,
-      "description": "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, rim and outline. Client only."
+      "description": "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), rim and outline. Client only."
     },
     "music": {
       "type": "object",

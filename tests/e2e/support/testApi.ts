@@ -92,6 +92,7 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
         papaLeanDeg: 0,
         papaStoopDeg: 0,
         papaHeadYawDeg: 0,
+        papaForelockDeg: 0,
         papaGaze: 'ahead' as const,
         papaBreathDeg: 0,
         babyBreathDeg: 0,

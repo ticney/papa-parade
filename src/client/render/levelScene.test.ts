@@ -518,6 +518,7 @@ describe('createLevelScene', () => {
       papaLeanDeg: 0,
       papaStoopDeg: (world.gauges.fatigue * TEST_CHARACTERS_FEEL.stoop.maxDeg) / 100,
       papaHeadYawDeg: 0,
+      papaForelockDeg: 0,
       papaGaze: 'ahead',
       papaBreathDeg: 0,
       babyBreathDeg: 0,

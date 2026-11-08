@@ -670,6 +670,9 @@ describe('feel.characters (story 7.8)', () => {
         [p('gaze.behindDeg'), 0],
         [p('gaze.reachMs'), 50],
         [p('stoop.maxDeg'), 0],
+        [p('forelock.reachMs'), 50],
+        [p('forelock.dampingRatio'), 0.3],
+        [p('forelock.maxDeg'), 0],
         [p('look.outlineWidthPct'), 50],
         [p('look.rimStrengthPct'), 0],
         [p('look.rimWidthPct'), 1],
@@ -698,6 +701,9 @@ describe('feel.characters (story 7.8)', () => {
         [p('gaze.behindDeg'), 180],
         [p('gaze.reachMs'), 1000],
         [p('stoop.maxDeg'), 45],
+        [p('forelock.reachMs'), 1000],
+        [p('forelock.dampingRatio'), 1],
+        [p('forelock.maxDeg'), 40],
         [p('look.outlineWidthPct'), 300],
         [p('look.rimStrengthPct'), 100],
         [p('look.rimWidthPct'), 100],
@@ -774,6 +780,23 @@ describe('feel.characters (story 7.8)', () => {
     ['a behind angle under the head clamp', [[p('gaze.behindDeg'), 59]], [p('gaze.behindDeg')]],
     ['a gaze reach over 1000 ms', [[p('gaze.reachMs'), 1001]], [p('gaze.reachMs')]],
     ['a stoop over 45°', [[p('stoop.maxDeg'), 46]], [p('stoop.maxDeg')]],
+    // Story 7.9: the forelock's pendulum. Past 40° a hanging lock could stand up (D8).
+    ['a forelock reach under 50 ms', [[p('forelock.reachMs'), 49]], [p('forelock.reachMs')]],
+    ['a forelock reach over 1000 ms', [[p('forelock.reachMs'), 1001]], [p('forelock.reachMs')]],
+    [
+      'a forelock damping under 0.3',
+      [[p('forelock.dampingRatio'), 0.29]],
+      [p('forelock.dampingRatio')],
+    ],
+    [
+      'a forelock damping over 1',
+      [[p('forelock.dampingRatio'), 1.01]],
+      [p('forelock.dampingRatio')],
+    ],
+    ['a forelock turn over 40°', [[p('forelock.maxDeg'), 41]], [p('forelock.maxDeg')]],
+    ['a negative forelock turn', [[p('forelock.maxDeg'), -1]], [p('forelock.maxDeg')]],
+    ['a missing forelock group', [[p('forelock'), undefined]], [p('forelock')]],
+    ['an unknown forelock key', [[p('forelock.lengthM'), 0.1]], [p('forelock.lengthM')]],
     ['an outline under 50 %', [[p('look.outlineWidthPct'), 49]], [p('look.outlineWidthPct')]],
     ['an outline over 300 %', [[p('look.outlineWidthPct'), 301]], [p('look.outlineWidthPct')]],
     ['a rim over 100 %', [[p('look.rimStrengthPct'), 101]], [p('look.rimStrengthPct')]],
@@ -796,7 +819,7 @@ describe('feel.characters (story 7.8)', () => {
     expect(failedPaths(mutated(...changes))).toEqual(paths);
   });
 
-  it('starts from the D1 values (the review retuned lean.fullAccelMps2 and added gaze.behindDeg)', () => {
+  it('starts from the D1 values (the review retuned lean.fullAccelMps2 and added gaze.behindDeg; 7.9 the forelock)', () => {
     expect(real.characters).toEqual({
       fades: { startMs: 100, stopMs: 200, returnMs: 150, otherMs: 100 },
       turn: { reachMs: 250, dampingRatio: 0.6, overshootMaxDeg: 10 },
@@ -810,6 +833,7 @@ describe('feel.characters (story 7.8)', () => {
       breath: { periodMs: 3000, alertPeriodMs: 1500, papaAmplitudeDeg: 1.5, babyAmplitudeDeg: 2 },
       gaze: { maxYawDeg: 60, behindDeg: 150, reachMs: 200 },
       stoop: { maxDeg: 15 },
+      forelock: { reachMs: 100, dampingRatio: 0.6, maxDeg: 30 },
       look: {
         outlineWidthPct: 150,
         rimStrengthPct: 35,

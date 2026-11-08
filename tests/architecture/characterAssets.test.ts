@@ -1,13 +1,26 @@
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AnimationMixer, Box3, Mesh, type Object3D, SkinnedMesh, Vector3 } from 'three';
+import {
+  AnimationMixer,
+  Bone,
+  Box3,
+  Mesh,
+  type Object3D,
+  Quaternion,
+  SkinnedMesh,
+  Vector3,
+} from 'three';
 import { describe, expect, it } from 'vitest';
 import { parseCharacterGlb } from '../../src/client/assets/gltf.ts';
+import {
+  BABY_CARRIED_FORWARD_M,
+  BABY_CARRIED_HEIGHT_M,
+} from '../../src/client/render/views/babyView.ts';
 import { BABY_CONTRACT, PAPA_CONTRACT } from '../../src/client/render/views/characterClips.ts';
 import { PAPA_HEIGHT_M } from '../../src/client/render/views/papaView.ts';
 import { CHARACTER_GLB_MAX_BYTES } from '../../src/shared/constants.ts';
-import { characterRigProblems } from '../../tools/assets/characterArt.ts';
+import { characterBudgetOf, characterRigProblems } from '../../tools/assets/characterArt.ts';
 import { parseGlb } from '../../tools/assets/glb.ts';
 import { reservedHueProblems } from '../../tools/assets/roomArt.ts';
 import { expectedTokens } from './designTokens.ts';
@@ -63,6 +76,58 @@ const jsonOf = (id: string): unknown =>
 const clipNamesIn = (source: string, pattern: RegExp): string[] =>
   [...source.matchAll(pattern)].map((match) => match[1] as string);
 
+/** The one-shots the code plays: the events', the responses' and the gags'. */
+const section = (from: string, to: string): string =>
+  clips.slice(clips.indexOf(from), clips.indexOf(to));
+const papaOneShots = [
+  ...clipNamesIn(
+    section('export function papaOneShotOf', 'export function babyOneShotOf'),
+    /return '([a-z_]+)'/g,
+  ),
+  ...clipNamesIn(section('export function responseClipOf', '/** How shut'), /'(respond_[a-z_]+)'/g),
+  ...clipNamesIn(gags, /papaClip: '([a-z_]+)'/g),
+];
+const babyOneShots = [
+  ...clipNamesIn(
+    section('export function babyOneShotOf', "/** Papa's pose for a response"),
+    /return '([a-z_]+)'/g,
+  ),
+  ...clipNamesIn(gags, /babyClip: '([a-z_]+)'/g),
+];
+
+/**
+ * The loops that stand on the floor (story 7.9, AC 4): the contract's clips that no one-shot list names,
+ * so `gag_shock` (a loop and a gag) is held to the one-shot rule, minus the baby's `carried` (in the arms).
+ */
+const papaFloorLoops: readonly string[] = PAPA_CONTRACT.clips.filter(
+  (clip) => !papaOneShots.includes(clip),
+);
+const babyFloorLoops: readonly string[] = BABY_CONTRACT.clips.filter(
+  (clip) => !babyOneShots.includes(clip) && clip !== 'carried',
+);
+
+describe('the lists the floor-contact test is built from (story 7.9 review)', () => {
+  // `section()` slices the source text: a bound that went missing gives -1 and a list that is empty or cut
+  // short without a word, which would hold a one-shot to the floor rule or let a loop off it.
+  it('finds the one-shots in the source, and the loops that stand on the floor', () => {
+    expect(papaOneShots).toEqual(
+      expect.arrayContaining(['respond_parry', 'respond_firm', 'stumble', 'gag_shock']),
+    );
+    expect(babyOneShots).toEqual(expect.arrayContaining(['sat_up', 'wake', 'laugh', 'eyes_open']));
+    expect(papaFloorLoops).toEqual(expect.arrayContaining(['idle', 'walk', 'glide']));
+    expect(babyFloorLoops).toEqual(expect.arrayContaining(['crawl', 'sneak', 'babble']));
+    // (`collapse` and `victory_dance` are played by the finale, not named in `papaOneShotOf`: the floor
+    // rule holds them too, which is the safe side, and they keep to it.)
+    for (const oneShot of ['respond_perfect', 'gag_hit', 'snore', 'coffee_kick']) {
+      expect(papaFloorLoops, `${oneShot} is not a loop`).not.toContain(oneShot);
+    }
+    for (const oneShot of ['wake', 'sat_up', 'laugh', 'stir', 'gag_delight']) {
+      expect(babyFloorLoops, `${oneShot} is not a loop`).not.toContain(oneShot);
+    }
+    expect(babyFloorLoops).not.toContain('carried');
+  });
+});
+
 describe.each(CHARACTERS)('the committed file of $id', ({ id, contract }) => {
   it('keeps to its budget and to its contract', () => {
     expect(characterRigProblems(jsonOf(id), contract)).toEqual([]);
@@ -76,6 +141,126 @@ describe.each(CHARACTERS)('the committed file of $id', ({ id, contract }) => {
   it('keeps off the hues reserved for gameplay', () => {
     const reserved = ['parry', 'dodge', 'alert'].map(colourToken);
     expect(reservedHueProblems(jsonOf(id), reserved)).toEqual([]);
+  });
+});
+
+/** The counts before the v2 skeleton (story 7.9, AC 2): its joints, brows and forelock are paid in the same budget. */
+const PAPA_VISIBLE_TRIANGLES_7_8 = 2_600;
+const PAPA_ALL_TRIANGLES_7_8 = 4_416;
+const BABY_TRIANGLES_7_8 = 2_516;
+const CHARACTER_DRAW_CALLS_7_8 = 4;
+const PAPA_MATERIALS_7_8 = 6;
+const BABY_MATERIALS_7_8 = 4;
+
+/** Each bone's parent in the v2 skeleton (story 7.9, D1); `root` hangs from the armature. */
+const PAPA_PARENTS: Readonly<Record<string, string>> = {
+  pelvis: 'root',
+  spine: 'pelvis',
+  neck: 'spine',
+  head: 'neck',
+  eyes: 'head',
+  eyelids: 'head',
+  brow_l: 'head',
+  brow_r: 'head',
+  forelock: 'head',
+  arm_l: 'spine',
+  forearm_l: 'arm_l',
+  hand_l: 'forearm_l',
+  arm_r: 'spine',
+  forearm_r: 'arm_r',
+  hand_r: 'forearm_r',
+  leg_l: 'pelvis',
+  shin_l: 'leg_l',
+  foot_l: 'shin_l',
+  leg_r: 'pelvis',
+  shin_r: 'leg_r',
+  foot_r: 'shin_r',
+};
+const BABY_PARENTS: Readonly<Record<string, string>> = {
+  spine: 'root',
+  neck: 'spine',
+  head: 'neck',
+  eyelids: 'head',
+  brow_l: 'head',
+  brow_r: 'head',
+  arm_l: 'spine',
+  forearm_l: 'arm_l',
+  hand_l: 'forearm_l',
+  arm_r: 'spine',
+  forearm_r: 'arm_r',
+  hand_r: 'forearm_r',
+  leg_l: 'root',
+  shin_l: 'leg_l',
+  foot_l: 'shin_l',
+  leg_r: 'root',
+  shin_r: 'leg_r',
+  foot_r: 'shin_r',
+};
+
+/** Every node's parent's name in the committed file of `id`, by the child's name. */
+const parentsIn = (id: string): Map<string, string> => {
+  const json = jsonOf(id) as { nodes: { name?: string; children?: number[] }[] };
+  const parents = new Map<string, string>();
+  for (const node of json.nodes) {
+    for (const child of node.children ?? []) {
+      parents.set(json.nodes[child]?.name ?? '', node.name ?? '');
+    }
+  }
+  return parents;
+};
+
+describe('the v2 skeleton (story 7.9)', () => {
+  it.each([
+    ['papa', PAPA_PARENTS, PAPA_CONTRACT.bones],
+    ['baby', BABY_PARENTS, BABY_CONTRACT.bones],
+  ] as const)('every bone of %s hangs from the parent of D1', (id, expected, bones) => {
+    expect(Object.keys(expected).length).toBe(bones.length - 1);
+    const parents = parentsIn(id);
+    for (const [bone, parent] of Object.entries(expected)) {
+      expect(parents.get(bone), bone).toBe(parent);
+    }
+  });
+
+  it.each([
+    ['papa', PAPA_CONTRACT.bones, 22],
+    ['baby', BABY_CONTRACT.bones, 19],
+  ] as const)('the skin of %s has exactly the bones of D1, no more (AC 1)', (id, bones, count) => {
+    const skin = (jsonOf(id) as { skins: { joints: number[] }[]; nodes: { name?: string }[] })
+      .skins;
+    expect(bones.length).toBe(count);
+    expect(skin).toHaveLength(1);
+    expect(skin[0]?.joints).toHaveLength(count);
+    const names = (jsonOf(id) as { nodes: { name?: string }[] }).nodes;
+    expect((skin[0]?.joints ?? []).map((index) => names[index]?.name).sort()).toEqual(
+      [...bones].sort(),
+    );
+  });
+
+  it("Papa's v2 skeleton costs no triangle, draw call or material more than before it", () => {
+    const json = jsonOf('papa');
+    const visible = characterBudgetOf(json, PAPA_CONTRACT.hiddenNodes);
+    expect(visible.triangles).toBeLessThanOrEqual(PAPA_VISIBLE_TRIANGLES_7_8);
+    expect(visible.drawCalls).toBeLessThanOrEqual(CHARACTER_DRAW_CALLS_7_8);
+    expect(visible.materials).toBeLessThanOrEqual(PAPA_MATERIALS_7_8);
+    expect(characterBudgetOf(json, []).triangles).toBeLessThanOrEqual(PAPA_ALL_TRIANGLES_7_8);
+  });
+
+  it("the baby's v2 skeleton costs no triangle, draw call or material more than before it", () => {
+    const all = characterBudgetOf(jsonOf('baby'), []);
+    expect(all.triangles).toBeLessThanOrEqual(BABY_TRIANGLES_7_8);
+    expect(all.drawCalls).toBeLessThanOrEqual(CHARACTER_DRAW_CALLS_7_8);
+    expect(all.materials).toBeLessThanOrEqual(BABY_MATERIALS_7_8);
+  });
+
+  it("hangs Papa's forelock tip under the lock, 2 to 12 cm long and at least 45° below the horizontal", () => {
+    const json = jsonOf('papa') as { nodes: { name?: string; translation?: number[] }[] };
+    expect(parentsIn('papa').get('papa_forelock_tip')).toBe('forelock');
+    const tip = json.nodes.find((node) => node.name === 'papa_forelock_tip');
+    const [x = 0, y = 0, z = 0] = tip?.translation ?? [];
+    // The lock rests at the identity (AC 1): its tip's translation is the lock in the head's axes.
+    expect(Math.hypot(x, y, z)).toBeGreaterThanOrEqual(0.02);
+    expect(Math.hypot(x, y, z)).toBeLessThanOrEqual(0.12);
+    expect(-y, 'it hangs').toBeGreaterThanOrEqual(Math.hypot(x, z));
   });
 });
 
@@ -203,6 +388,149 @@ describe('the silhouettes are gameplay (story 7.2, D8)', () => {
   });
 });
 
+/** The new posed checks sample each clip this many times, ends included (story 7.9: the old ones keep 3). */
+const MOTION_SAMPLES = 9;
+/** How far from the floor a loop's lowest point may be, either way, in metres (« pieds au sol »). */
+const FLOOR_CONTACT_M = 0.03;
+/** How far a carrying hand may be from the carried baby's centre, in metres (story 7.9; 0.26 to 0.30 before it). */
+const CARRY_REACH_M = 0.35;
+/** How far a hinge may turn off its axis, in degrees (D6). */
+const HINGE_SWING_MAX_DEG = 15;
+/** An elbow turns about its X from a little open to fully bent forward: negative (D6). */
+const ELBOW_TWIST_DEG = { min: -160, max: 10 } as const;
+/** A knee turns about its X from a little open to fully bent back: positive (D6). */
+const KNEE_TWIST_DEG = { min: -10, max: 160 } as const;
+const RAD_TO_DEG = 180 / Math.PI;
+
+/**
+ * A hinge's turn split into its twist about the bone's own X and the swing left over (swing–twist), in
+ * degrees. The bone rests at the identity (AC 1), so its local quaternion is the joint's turn.
+ */
+function hingeOf(rotation: Quaternion): { twistDeg: number; swingDeg: number } {
+  const length = Math.hypot(rotation.x, rotation.w);
+  const twist =
+    length < 1e-9
+      ? new Quaternion()
+      : new Quaternion(rotation.x / length, 0, 0, rotation.w / length);
+  const swing = rotation.clone().multiply(twist.clone().invert());
+  const twistRad = 2 * Math.atan2(twist.x, twist.w);
+  const wrapped = Math.atan2(Math.sin(twistRad), Math.cos(twistRad));
+  return {
+    twistDeg: wrapped * RAD_TO_DEG,
+    swingDeg: 2 * Math.acos(Math.min(1, Math.abs(swing.w))) * RAD_TO_DEG,
+  };
+}
+
+/** Plays each of `names` alone and calls `visit` at `MOTION_SAMPLES` evenly spaced times, both ends included. */
+function eachSampledPose(
+  asset: Awaited<ReturnType<typeof load>>,
+  names: readonly string[],
+  visit: (clip: string, share: number) => void,
+): void {
+  const mixer = new AnimationMixer(asset.scene);
+  for (const name of names) {
+    const clip = asset.animations.find((candidate) => candidate.name === name);
+    if (clip === undefined) throw new Error(`no clip "${name}"`);
+    const action = mixer.clipAction(clip).play();
+    for (let i = 0; i < MOTION_SAMPLES; i++) {
+      const share = i / (MOTION_SAMPLES - 1);
+      // Just short of the end: a loop at its very end wraps to its start.
+      mixer.setTime(Math.min(clip.duration * share, clip.duration - 1e-4));
+      asset.scene.updateMatrixWorld(true);
+      visit(name, share);
+    }
+    action.stop();
+  }
+  mixer.stopAllAction();
+}
+
+describe('the v2 motion keeps the gameplay silhouettes (story 7.9, AC 4)', () => {
+  it('names the loops that stand on the floor', () => {
+    expect(papaFloorLoops).toEqual(
+      expect.arrayContaining(['idle', 'walk', 'glide', 'drink', 'carry_idle', 'carry_walk']),
+    );
+    expect(papaFloorLoops).not.toContain('gag_shock');
+    expect(babyFloorLoops).toEqual(expect.arrayContaining(['babble', 'crawl', 'sneak', 'cry']));
+    expect(babyFloorLoops).not.toContain('carried');
+  });
+
+  it.each([
+    ['papa', PAPA_CONTRACT.hiddenNodes, papaFloorLoops],
+    ['baby', BABY_CONTRACT.hiddenNodes, babyFloorLoops],
+  ] as const)('every loop of %s keeps his feet on the floor', async (id, hidden, loops) => {
+    const asset = await load(id);
+    eachSampledPose(asset, loops, (clip, share) => {
+      const lowestM = drawnBox(asset.scene, hidden).min.y;
+      expect(Math.abs(lowestM), `${clip} at ${share}`).toBeLessThanOrEqual(FLOOR_CONTACT_M);
+    });
+  });
+
+  it("keeps both of Papa's hands on the carried baby", async () => {
+    const asset = await load('papa');
+    const carried = new Vector3(0, BABY_CARRIED_HEIGHT_M, BABY_CARRIED_FORWARD_M);
+    const hand = new Vector3();
+    eachSampledPose(asset, ['carry_idle', 'carry_walk'], (clip, share) => {
+      for (const name of ['hand_l', 'hand_r']) {
+        asset.scene.getObjectByName(name)?.getWorldPosition(hand);
+        expect(hand.distanceTo(carried), `${name} in ${clip} at ${share}`).toBeLessThanOrEqual(
+          CARRY_REACH_M,
+        );
+      }
+    });
+  });
+
+  it('reads a hand-made elbow bent forward as a negative twist, a knee bent back as a positive one', () => {
+    // A forearm hanging from the elbow, its wrist 0.2 m below: glTF axes, X his left, Y up, Z forward.
+    const elbow = new Bone();
+    const wrist = new Bone();
+    wrist.position.set(0, -0.2, 0);
+    elbow.add(wrist);
+    const wristAt = new Vector3();
+    elbow.quaternion.setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2);
+    elbow.updateMatrixWorld(true);
+    expect(wrist.getWorldPosition(wristAt).z, 'the bent forearm points forward').toBeCloseTo(0.2);
+    expect(hingeOf(elbow.quaternion).twistDeg).toBeCloseTo(-90);
+    expect(hingeOf(elbow.quaternion).swingDeg).toBeCloseTo(0);
+    // The same turn about X, then a little about Z: the swing is what is off the hinge.
+    const off = elbow.quaternion
+      .clone()
+      .premultiply(new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), 0.2));
+    expect(hingeOf(off).swingDeg).toBeCloseTo(0.2 * RAD_TO_DEG, 6);
+    const knee = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2);
+    elbow.quaternion.copy(knee);
+    elbow.updateMatrixWorld(true);
+    expect(wrist.getWorldPosition(wristAt).z, 'the bent shin points back').toBeCloseTo(-0.2);
+    expect(hingeOf(knee).twistDeg).toBeCloseTo(90);
+  });
+
+  it.each([
+    ['papa', PAPA_CONTRACT.clips],
+    ['baby', BABY_CONTRACT.clips],
+  ] as const)(
+    'the elbows and knees of %s bend one way only, about their hinge',
+    async (id, names) => {
+      const asset = await load(id);
+      const hinges = [
+        ['forearm_l', ELBOW_TWIST_DEG],
+        ['forearm_r', ELBOW_TWIST_DEG],
+        ['shin_l', KNEE_TWIST_DEG],
+        ['shin_r', KNEE_TWIST_DEG],
+      ] as const;
+      eachSampledPose(asset, names, (clip, share) => {
+        for (const [name, range] of hinges) {
+          const bone = asset.scene.getObjectByName(name);
+          if (bone === undefined) throw new Error(`${id}.glb has no bone "${name}"`);
+          const { twistDeg, swingDeg } = hingeOf(bone.quaternion);
+          const where = `${name} in ${clip} at ${share}`;
+          expect(twistDeg, where).toBeGreaterThanOrEqual(range.min);
+          expect(twistDeg, where).toBeLessThanOrEqual(range.max);
+          expect(swingDeg, where).toBeLessThanOrEqual(HINGE_SWING_MAX_DEG);
+        }
+      });
+    },
+  );
+});
+
 /** How far an accessory may stand off the part it belongs to, in metres: a mug in a raised hand, spikes of hair. */
 const ACCESSORY_SLACK_M = 0.1;
 
@@ -269,6 +597,11 @@ describe("Papa's look and accessories sit where the view shows them (story 7.2, 
   it('puts the mash on his face and the inside-out shirt where the shirt is', async () => {
     const { part, body } = await posed(null);
     expect(within(body, part('papa_look_mash'), ACCESSORY_SLACK_M)).toBe(true);
+    expect(within(part('papa_shirt'), part('papa_look_shirt'), 0.03)).toBe(true);
+  });
+
+  it('keeps the inside-out shirt on the shirt while he drinks: its sleeve bends at the elbow too (story 7.9)', async () => {
+    const { part } = await posed('drink');
     expect(within(part('papa_shirt'), part('papa_look_shirt'), 0.03)).toBe(true);
   });
 });
@@ -360,12 +693,14 @@ describe("Papa's exaggerated props and poses (story 2.13)", () => {
     for (const clip of others) expect(eyesTracks(clip.name), clip.name).toEqual([]);
   });
 
-  it('keys nothing the code moves: not the steam, not the bubble, not the lids', async () => {
+  it('keys nothing the code moves: not the steam, the bubble, the lids, the brows or the forelock', async () => {
     const asset = await load('papa');
     expect(asset.animations.length).toBeGreaterThan(10);
     for (const clip of asset.animations) {
       for (const track of clip.tracks) {
-        expect(track.name, clip.name).not.toMatch(/^(papa_mug_steam|papa_blabla|eyelids)\./);
+        expect(track.name, clip.name).not.toMatch(
+          /^(papa_mug_steam|papa_blabla|eyelids|brow_l|brow_r|forelock)\./,
+        );
       }
     }
   });
@@ -393,27 +728,6 @@ describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred 
   const feel = JSON.parse(readFileSync(join(root, 'content', 'feel.json'), 'utf8')) as {
     characters: { fades: { returnMs: number } };
   };
-  /** The one-shots the code plays: the events', the responses' and the gags'. */
-  const section = (from: string, to: string): string =>
-    clips.slice(clips.indexOf(from), clips.indexOf(to));
-  const papaOneShots = [
-    ...clipNamesIn(
-      section('export function papaOneShotOf', 'export function babyOneShotOf'),
-      /return '([a-z_]+)'/g,
-    ),
-    ...clipNamesIn(
-      section('export function responseClipOf', '/** How shut'),
-      /'(respond_[a-z_]+)'/g,
-    ),
-    ...clipNamesIn(gags, /papaClip: '([a-z_]+)'/g),
-  ];
-  const babyOneShots = [
-    ...clipNamesIn(
-      section('export function babyOneShotOf', "/** Papa's pose for a response"),
-      /return '([a-z_]+)'/g,
-    ),
-    ...clipNamesIn(gags, /babyClip: '([a-z_]+)'/g),
-  ];
 
   it.each([
     ['papa', papaOneShots],
@@ -435,8 +749,8 @@ describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred 
 });
 
 describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
-  /** The life layer's modules (story 7.8): the springs, the fades, the lean and breath, the gaze. */
-  const LIFE_VIEWS = ['characterSpring', 'characterFades', 'lifeLayer', 'papaGaze'];
+  /** The life layer's modules (story 7.8): the springs, the fades, the lean and breath, the gaze; the forelock (7.9). */
+  const LIFE_VIEWS = ['characterSpring', 'characterFades', 'lifeLayer', 'papaGaze', 'forelock'];
   const VIEWS = [
     'characterClips',
     'characterRig',

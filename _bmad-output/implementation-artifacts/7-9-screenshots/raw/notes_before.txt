@@ -1,0 +1,9 @@
+papa_idle (before): sim 100 ms, papa idle (idle), baby babble (babble), forelock n/a, head -37.8°
+papa_walk (before): sim 240 ms, papa walk (walkPath), baby babble (babble), forelock n/a, head -52.9°
+baby_crawl (before): sim 1590 ms, papa idle (idle), baby crawl (wander), forelock n/a, head -60.0°
+papa_carry (before): sim 3840 ms, papa carry_idle (idle), baby carried (carried), forelock n/a, head 0.0°
+baby_babble (before): sim 400 ms, papa idle (idle), baby babble (babble), forelock n/a, head -59.9°
+papa_drink (before): sim 2770 ms, papa drink (drink), baby crawl (wander), forelock n/a, head -0.1°
+papa_phone (before): sim 2530 ms, papa on_phone (onPhone), baby crawl (wander), forelock n/a, head 0.0°
+papa_hair (before): sim 100 ms, papa idle (idle), baby babble (babble), forelock n/a, head -37.8°
+salon_667 (before): sim 100 ms, papa idle (idle), baby babble (babble), forelock n/a, head -37.8°
