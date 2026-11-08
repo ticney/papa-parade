@@ -6,6 +6,7 @@ import {
   appUrl,
   collectProblems,
   GEOMETRY_URL,
+  CHUNK_STEPS as LONG_ADVANCE_STEPS,
   liveThreat,
   liveWaves,
   waitFrames,
@@ -60,6 +61,20 @@ async function advanceUntil(
     await ppAdvance(page, CHUNK_STEPS);
   }
   throw new Error(`never reached: ${what}`);
+}
+
+/**
+ * Steps the frozen level up to `simMs` in long advances, checking nothing on the way: for a stretch
+ * where the state the test waits for cannot happen yet. Two round trips per 250 ms chunk over a
+ * whole wave took the full 30 s budget (2026-11-08).
+ */
+async function advanceToSimMs(page: Page, simMs: number): Promise<void> {
+  let remaining = Math.floor((simMs - (await ppWorld(page)).time.sim) / STEP_MS);
+  while (remaining > 0) {
+    const steps = Math.min(LONG_ADVANCE_STEPS, remaining);
+    await ppAdvance(page, steps);
+    remaining -= steps;
+  }
 }
 
 /** A marker that is shown: the path of its glyph and where it is on the screen, in px. */
@@ -172,6 +187,8 @@ test.describe('the three threats', () => {
     await expect(page.locator('html')).toHaveAttribute('data-pp-gag', 'stairs_slide');
 
     // The coffee-table object: telegraphed with the mug, then it falls (the mug hits something within a second).
+    // It joins the pool only with the second wave, so the level runs there in long advances first.
+    await advanceToSimMs(page, secondWave.fromMs - CHUNK_MS);
     const mugMarker = await markerWhenTelegraphed(
       page,
       'coffee_table_object',
