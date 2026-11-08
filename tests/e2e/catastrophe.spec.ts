@@ -217,8 +217,8 @@ test.describe('Mama comes home early', () => {
     await expect(html(page)).toHaveAttribute('data-pp-end-reason', 'mamaHome');
     // The end holds for the gag: the room is still drawn, Papa down.
     await expect(html(page)).toHaveAttribute('data-pp-end-hold', 'on');
-    expect((await ppFx(page)).papaClip).toBe('collapse');
-    expect(await html(page).getAttribute('data-pp-app')).toBe('level');
+    await expect.poll(async () => (await ppFx(page)).papaClip).toBe('collapse');
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
     await expect(html(page)).toHaveAttribute('data-pp-app', 'result', { timeout: 10_000 });
     await expect(html(page)).toHaveAttribute('data-pp-photo', 'taken');
     expect(problems).toEqual([]);

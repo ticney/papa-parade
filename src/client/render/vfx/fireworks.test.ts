@@ -170,10 +170,13 @@ describe('createFireworks (story 7.4)', () => {
 
   it('allocates nothing in update: no new, no literal, no closure in its body', () => {
     const source = readFileSync(new URL('./fireworks.ts', import.meta.url), 'utf8');
-    const update = source.slice(
-      source.indexOf('    update(nowReal) {'),
-      source.indexOf('    get aliveCount'),
-    );
+    const from = source.indexOf('    update(nowReal) {');
+    const to = source.indexOf('    get aliveCount');
+    // A moved marker would slice nothing and pass the assertion below vacuously.
+    expect(from, 'the update(nowReal) marker').toBeGreaterThan(-1);
+    expect(to, 'the aliveCount marker').toBeGreaterThan(from);
+    const update = source.slice(from, to);
+    expect(update.length).toBeGreaterThan(200);
     expect(update).not.toMatch(/\bnew\b|=>|\[\]|\{\s*\}/);
   });
 

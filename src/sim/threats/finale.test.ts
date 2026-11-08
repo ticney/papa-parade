@@ -3,6 +3,10 @@ import type { LevelWave } from '@content/schemas/level';
 import { asSimMs } from '@shared/time';
 import { describe, expect, it } from 'vitest';
 import {
+  createTestCycleGeometry,
+  createTestCycleLevel,
+} from '../../../tests/support/cycleSupport.ts';
+import {
   createTestContent,
   createTestGeometry,
   createTestLevel,
@@ -160,6 +164,45 @@ describe('FinaleReached{lastWave} (story 7.4)', () => {
     expect(microSleeps.length).toBeGreaterThan(0);
     expect(microSleeps[0]?.t).toBeGreaterThan(2000);
     expect(successes(events).length).toBeGreaterThan(0);
+    expect(only(events, 'FinaleReached')).toEqual([]);
+  });
+
+  it('a level with a bedtime cycle has none from its waves: the cycle is the win (review of 7.4)', async () => {
+    // The frozen bedroom has waves AND a cycle. The wave closes at 1 s (a 100 s level, a 99 s lull) and
+    // the first interlude is 20 s: the last wave's last success comes well before any sequence.
+    const sim = await createSim({
+      content,
+      geometry: createTestCycleGeometry(),
+      level: createTestCycleLevel({
+        durationMs: 100_000,
+        waves: [
+          testWave([OUTLET], { lullMs: 99_000, gapMinMs: 200, gapMaxMs: 300, maxSimultaneous: 1 }),
+        ],
+        sequences: ['bedtime_duel'],
+        cycle: {
+          entries: [{ sequence: 'bedtime_duel', interludeMs: 20_000 }],
+          retryInterludeMs: 2000,
+          gatherMaxMs: 6000,
+        },
+      }),
+      seed: 1,
+    });
+    const events: SimEvent[] = [];
+    const pressed = new Set<number>();
+    while (sim.world.flow.state !== 'ended' && sim.world.time.sim < 12_000) {
+      for (const threat of sim.world.threats) {
+        if (threat.state !== 'windowOpen' || pressed.has(threat.id)) continue;
+        pressed.add(threat.id);
+        const t = sim.world.time.sim;
+        sim.enqueue({ type: 'PressThreat', t: asSimMs(t), threatId: threat.id });
+        sim.enqueue({ type: 'Release', t: asSimMs(t + SUCCESS_RELEASE_AFTER_MS) });
+      }
+      sim.step();
+      events.push(...sim.drainEvents());
+    }
+    // A success was the last of its wave (a lastThreat slow-mo), and still no finale.
+    expect(successes(events).length).toBeGreaterThan(0);
+    expect(only(events, 'TimeScaleChanged').some((event) => event.to < event.from)).toBe(true);
     expect(only(events, 'FinaleReached')).toEqual([]);
   });
 

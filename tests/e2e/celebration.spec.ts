@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page, test } from '@playwright/test';
-import { REDUCED_MOTION_PARTICLE_KEEP_PCT, STEP_MS } from '../../src/shared/constants.ts';
+import { STEP_MS } from '../../src/shared/constants.ts';
 import {
   collectProblems,
   html,
@@ -39,11 +39,10 @@ const FEEDBACK = JSON.parse(readFileSync('content/feedback.json', 'utf8')) as {
 };
 const { celebration } = FEEDBACK;
 const SPARKS = celebration.fireworks.bursts.reduce((sum, burst) => sum + burst.sparks, 0);
-const REDUCED_SPARKS = celebration.fireworks.bursts.reduce(
-  (sum, burst) =>
-    sum + Math.max(1, Math.round((burst.sparks * REDUCED_MOTION_PARTICLE_KEEP_PCT) / 100)),
-  0,
-);
+// The stamp reads the strings file, a draft for Geo to change.
+const STAMP_TEXT = (
+  JSON.parse(readFileSync('content/strings.fr.json', 'utf8')) as Record<string, string>
+)['stamp.finale'] as string;
 /** Real time the page may take beyond a hold, frames and evaluates included. */
 const MARGIN_MS = 3000;
 const hasVibrate = (): boolean => test.info().project.name === 'chromium';
@@ -82,8 +81,8 @@ test.describe('the celebration', () => {
     await expect.poll(async () => (await ppFx(page)).fireworksAlive).toBe(SPARKS);
     const fx = await ppFx(page);
     expect(fx.celebrating).toBe(true);
-    expect(fx.papaClip).toBe('victory_dance');
-    await expect(page.locator('.pp-epic-stamp').last()).toHaveText('MISSION ACCOMPLIE');
+    await expect.poll(async () => (await ppFx(page)).papaClip).toBe('victory_dance');
+    await expect(page.locator('.pp-epic-stamp').last()).toHaveText(STAMP_TEXT);
     if (hasVibrate()) {
       expect(await vibrations(page)).toContainEqual(FEEDBACK.haptics.fanfare.patternMs);
     }
@@ -97,12 +96,16 @@ test.describe('the celebration', () => {
     expect(problems).toEqual([]);
   });
 
-  test('keeps the reduced-motion share of the sparks, and Papa still dances', async ({ page }) => {
+  test('keeps a share of the sparks under reduced motion, and Papa still dances', async ({
+    page,
+  }) => {
+    // The share itself is proven in `fireworks.test.ts`: here, only that the setting reaches the fireworks.
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await openFrozen(page);
     await celebrate(page);
-    await expect.poll(async () => (await ppFx(page)).fireworksAlive).toBe(REDUCED_SPARKS);
-    expect((await ppFx(page)).papaClip).toBe('victory_dance');
+    await expect.poll(async () => (await ppFx(page)).fireworksAlive).toBeGreaterThan(0);
+    expect((await ppFx(page)).fireworksAlive).toBeLessThan(SPARKS);
+    await expect.poll(async () => (await ppFx(page)).papaClip).toBe('victory_dance');
   });
 });
 
@@ -115,19 +118,25 @@ test.describe('the end waits for it', () => {
     await openFrozen(page);
     await advanceTo(page, LEVEL_DURATION_MS - 300);
     await celebrate(page);
-    const flashesBefore = Number(await html(page).getAttribute('data-pp-flash-count'));
+    const flashesBefore = Number((await html(page).getAttribute('data-pp-flash-count')) ?? 0);
     await advanceTo(page, LEVEL_DURATION_MS + 20);
     // The level is over but the room is still on screen, the end held.
     await expect(html(page)).toHaveAttribute('data-pp-end-reason', 'timer');
     await expect(html(page)).toHaveAttribute('data-pp-end-hold', 'on');
-    expect(await html(page).getAttribute('data-pp-app')).toBe('level');
-    expect(await html(page).getAttribute('data-pp-photo')).toBeNull();
+    // One read, so a slow machine cannot slip the end between them.
+    expect(
+      await page.evaluate(() => {
+        const { dataset } = document.documentElement;
+        return { hold: dataset.ppEndHold, app: dataset.ppApp, photo: dataset.ppPhoto ?? null };
+      }),
+    ).toEqual({ hold: 'on', app: 'level', photo: null });
     // Nothing pauses it: neither the pause button nor a hidden page.
     await page.locator('.pp-hud-row .pp-button').click({ force: true });
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
       document.dispatchEvent(new Event('visibilitychange'));
-      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      // Back to the prototype's getter.
+      Reflect.deleteProperty(document, 'visibilityState');
     });
     expect(await html(page).getAttribute('data-pp-state')).toBe('running');
     // Then the end runs: the photo, its flash, the Result.

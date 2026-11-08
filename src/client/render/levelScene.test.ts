@@ -1137,6 +1137,38 @@ describe('the characters on the sim clock (story 7.2)', () => {
     }
   });
 
+  it('collapses at a mamaHome even while gliding, and the waiting dance does not replace it (review of 7.4)', () => {
+    const { update, realFxState, fx } = build();
+    const world = fakeWorldAt(1000);
+    const state = world.papa.state;
+    const flowState = world.flow.state;
+    try {
+      world.papa.state = 'glide';
+      update(world, 0);
+      // The finale comes mid-glide: the dance waits for his pose.
+      fx.playCharacterEvent(
+        { type: 'FinaleReached', t: asSimMs(1000), cause: 'lastWave', threatId: 1 },
+        world,
+        false,
+      );
+      expect(realFxState().papaClip).toBe('glide');
+      // The early return: the sim freezes with him still gliding.
+      fx.playCharacterEvent(
+        { type: 'LevelEnded', t: asSimMs(1100), reason: 'mamaHome' },
+        world,
+        false,
+      );
+      expect(realFxState().papaClip).toBe('collapse');
+      world.flow.state = 'ended';
+      update(world, 100);
+      update(world, 100);
+      expect(realFxState().papaClip).toBe('collapse');
+    } finally {
+      world.papa.state = state;
+      world.flow.state = flowState;
+    }
+  });
+
   it("moves the baby's lids on what the player is told: the feint, the signal, the gag", () => {
     const { scene, update, fx } = build();
     const lids = scene.getObjectByName('baby')?.getObjectByName('eyelids') as Object3D;

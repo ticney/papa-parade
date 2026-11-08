@@ -917,6 +917,28 @@ const CelebrationSchema = z
       )
       .describe('The fireworks over the room (one pooled mesh, real time).'),
   })
+  .superRefine((celebration, ctx) => {
+    // A level that ends during the celebration waits `endHoldMs` for it (0: it does not wait). A burst or
+    // a stamp that outlasts the wait is cut short by the Result screen: a retune must not do it silently.
+    const { endHoldMs, stampMs, fireworks } = celebration;
+    if (endHoldMs === 0) return;
+    if (stampMs > endHoldMs) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['stampMs'],
+        message: `the stamp (${stampMs} ms) must fit in endHoldMs (${endHoldMs} ms)`,
+      });
+    }
+    fireworks.bursts.forEach((burst, index) => {
+      const endsAtMs = burst.atMs + fireworks.lifeMs;
+      if (endsAtMs <= endHoldMs) return;
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fireworks', 'bursts', index, 'atMs'],
+        message: `burst ${index} ends at ${endsAtMs} ms (atMs + lifeMs), past endHoldMs (${endHoldMs} ms)`,
+      });
+    });
+  })
   .describe(
     "The level's finale (story 7.4): what the celebration module adds to the cue `finale_reached`. Client only and not hashed.",
   );

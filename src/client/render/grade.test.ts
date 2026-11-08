@@ -55,7 +55,10 @@ describe('gradeLightsInto (story 7.4)', () => {
 
   it('allocates nothing: no new in its body once a grade has been parsed', () => {
     const source = readFileSync(new URL('./grade.ts', import.meta.url), 'utf8');
-    const body = source.slice(source.indexOf('export function gradeLightsInto'));
+    const from = source.indexOf('export function gradeLightsInto');
+    expect(from, 'the gradeLightsInto marker').toBeGreaterThan(-1);
+    const body = source.slice(from);
+    expect(body.length).toBeGreaterThan(200);
     expect(body).not.toMatch(/\bnew\b/);
   });
 });

@@ -1281,16 +1281,28 @@ export async function boot(): Promise<void> {
     celebration.start(feedbackTable.celebration, performance.now(), prefersReducedMotion());
     if (isMirrored) mirror('ppFinale', cause);
   };
-  /** Whether the end of the level has something to wait for (story 7.4): the celebration, or the collapse. */
-  const isEndHolding = (): boolean =>
-    celebration.isRunning(performance.now()) ||
-    (resultEndReason === 'mamaHome' && feedbackTable.celebration.collapseHoldMs > 0);
-  /** The most the end waits, in real ms: the celebration's cap, the collapse's, or the longer of both. */
-  const endHoldCapMs = (): number =>
-    Math.max(
-      celebration.isRunning(performance.now()) ? feedbackTable.celebration.endHoldMs : 0,
-      resultEndReason === 'mamaHome' ? feedbackTable.celebration.collapseHoldMs : 0,
+  /** What is left of the celebration at `performance.now()`, in real ms, at most its `endHoldMs` cap. */
+  const celebrationLeftMs = (): number => {
+    const endsAtReal = celebration.endsAtReal;
+    if (endsAtReal === null) return 0;
+    return Math.min(
+      Math.max(0, endsAtReal - performance.now()),
+      feedbackTable.celebration.endHoldMs,
     );
+  };
+  /** The collapse's wait on an early return: none when Papa is out of the picture (on the toilet). */
+  const collapseLeftMs = (): number =>
+    resultEndReason === 'mamaHome' && levelSession.active?.sim.world.papa.state !== 'onToilet'
+      ? feedbackTable.celebration.collapseHoldMs
+      : 0;
+  /**
+   * How long the end of the level waits (story 7.4, D3 and D14), in real ms: what is left of the
+   * celebration, or the collapse, whichever is longer; 0 when nothing holds it. It is counted once, at
+   * `LevelScored`, then on the frame loop's capped clock (`endHold`), so a hidden tab holds the wait
+   * instead of letting the wall clock run it out.
+   */
+  const endHoldCapMs = (): number => Math.max(celebrationLeftMs(), collapseLeftMs());
+  const isEndHolding = (): boolean => endHoldCapMs() > 0;
 
   // The action behind « Copier le journal » (story 3.3): set at boot by the debug block, in
   // playtest builds only, and read when the Result screen is built.
@@ -1558,7 +1570,7 @@ export async function boot(): Promise<void> {
     },
     onLevelFrame: (alpha, frameAtReal) => {
       // The end of the level waits for the finale or the collapse (story 7.4, D3), on this real clock.
-      if (endHold.frame(frameAtReal, isEndHolding())) {
+      if (endHold.frame(frameAtReal, true)) {
         endTheLevel();
         return;
       }
@@ -1908,7 +1920,12 @@ export async function boot(): Promise<void> {
       }
       // The level's finale (story 7.4): the cue played above; the fireworks, the stamp and the music's
       // mute are the celebration's. The end of the level waits for it (`LevelScored` below).
-      if (event.type === 'FinaleReached') startCelebration(event.cause);
+      // A perfect last response stamped « PARADE PARFAITE » in this very step: the finale's stamp takes
+      // its place instead of printing over it (review of 7.4).
+      if (event.type === 'FinaleReached') {
+        epicStamp.cancel();
+        startCelebration(event.cause);
+      }
       // Mama home early is no finished level (3.16): a finale before it is not celebrated on.
       if (event.type === 'LevelEnded' && event.reason === 'mamaHome') celebration.reset();
       // The noise crossed the alert threshold upwards (story 3.1 D10): the haptic cue and its visual
@@ -2612,6 +2629,7 @@ export async function boot(): Promise<void> {
         'ppPhoto',
         'ppReplayMoment',
         'ppPropsTidied',
+        'ppFinale',
       ] as const) {
         delete document.documentElement.dataset[name];
       }

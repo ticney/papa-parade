@@ -122,6 +122,31 @@ describe('checkContent and the film framings (story 7.4)', () => {
     }
   });
 
+  it('refuses a burst or a stamp that outlasts the end hold, and lets 0 mean no wait', async () => {
+    await mutateJson(FEEDBACK, (feedback) => {
+      const celebration = feedback.celebration as Json;
+      celebration.endHoldMs = 1000;
+      celebration.stampMs = 1200;
+    });
+    const problems = await checkContent(root);
+    expect(problems).toContainEqual(
+      expect.objectContaining({ file: FEEDBACK, jsonPath: 'celebration.stampMs' }),
+    );
+    // The live bursts go off up to 2400 ms in and live 1500 ms: past a 1000 ms wait.
+    expect(problems).toContainEqual(
+      expect.objectContaining({
+        file: FEEDBACK,
+        jsonPath: 'celebration.fireworks.bursts[4].atMs',
+        message: expect.stringContaining('endHoldMs'),
+      }),
+    );
+    await cp(join(REPO, FEEDBACK), join(root, FEEDBACK));
+    await mutateJson(FEEDBACK, (feedback) => {
+      (feedback.celebration as Json).endHoldMs = 0;
+    });
+    expect(await checkContent(root)).toEqual([]);
+  });
+
   it('refuses bursts whose sparks overflow the pool', async () => {
     await mutateJson(FEEDBACK, (feedback) => {
       for (const burst of fireworksOf(feedback).bursts as Json[]) burst.sparks = 96;

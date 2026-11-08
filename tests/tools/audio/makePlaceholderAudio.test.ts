@@ -649,3 +649,17 @@ describe('generatePlaceholderClips', () => {
     expect(await readFile(stale, 'utf8')).toBe('stale but whole');
   });
 });
+
+// The finale's choir (story 7.4) sings as long as the music stays muted: `celebration.musicMuteMs`.
+// A retune of one without the other would leave a hole or a clash (review of 7.4).
+describe('the finale choir clip', () => {
+  it('is as long as celebration.musicMuteMs', () => {
+    const feedback = JSON.parse(
+      readFileSync(new URL('../../../content/feedback.json', import.meta.url), 'utf8'),
+    ) as { celebration: { musicMuteMs: number } };
+    const choir = PLACEHOLDER_CLIPS.find((entry) => entry.clip === 'music_finale_choir')?.synth();
+    expect(choir).toBeDefined();
+    const lengthMs = ((choir?.length ?? 0) / SAMPLE_RATE_HZ) * 1000;
+    expect(lengthMs).toBeCloseTo(feedback.celebration.musicMuteMs, -1);
+  });
+});

@@ -581,7 +581,7 @@ export type SimEvent =
   /**
    * The level's finale (story 7.4), at most once per level: a `perfect` or `success` resolved the
    * last threat of the level's last wave (`lastWave`, right after its `lastThreat` slow-mo began,
-   * `threatId` that threat), or the bedtime cycle was completed (`cycleDone`, right after
+   * `threatId` that threat; a level with a bedtime cycle has none from its waves), or the bedtime cycle was completed (`cycleDone`, right after
    * `CycleCompleted`, `threatId` null). Never on a fail, never for a threat no wave planned. The
    * client celebrates it; no world field records it.
    */

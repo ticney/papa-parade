@@ -717,9 +717,13 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     playCharacterEvent(event, world, isMotionReduced) {
       const fadeMs = world.feel.characters.fades.otherMs;
       const papaClip = papaOneShotOf(event);
-      // A gag during a glide plays as his squash alone: the glide's loop goes on (P3).
-      if (papaClip !== null && world.papa.state !== 'glide') {
-        papa.playOnce(papaClip, fadeMs, PAPA_HELD_ONE_SHOTS.includes(papaClip));
+      // A gag during a glide plays as his squash alone: the glide's loop goes on (P3). A held clip (the
+      // collapse of a `mamaHome`) is the exception: the sim is frozen from then on, so his glide would
+      // run in place for the whole hold. It also cancels a victory dance still waiting for his pose.
+      const isHeld = papaClip !== null && PAPA_HELD_ONE_SHOTS.includes(papaClip);
+      if (papaClip !== null && (world.papa.state !== 'glide' || isHeld)) {
+        if (isHeld) pendingPapaOneShot = null;
+        papa.playOnce(papaClip, fadeMs, isHeld);
       } else if (papaClip !== null && PAPA_DEFERRED_ONE_SHOTS.includes(papaClip)) {
         // The finale comes with the last response, mid-glide (story 7.4): the dance waits for his pose.
         pendingPapaOneShot = papaClip;
@@ -891,11 +895,12 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       fireworks.reset();
     },
     setGrade(grade, weight, carried, carriedWeight) {
+      // A null grade ignores its weight: a sequence with no grade moves the blend without any light to write.
       if (
         grade === gradeOf &&
-        weight === gradeWeight &&
+        (grade === null || weight === gradeWeight) &&
         carried === carriedGradeOf &&
-        carriedWeight === carriedGradeWeight
+        (carried === null || carriedWeight === carriedGradeWeight)
       ) {
         return;
       }

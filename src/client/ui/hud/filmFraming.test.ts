@@ -199,7 +199,12 @@ describe('createFilmFraming (story 7.4)', () => {
     const source = readFileSync(new URL('./filmFraming.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/windowOpenAt|feintAt/);
     const css = readFileSync(new URL('../styles/ui.css', import.meta.url), 'utf8');
-    const block = css.slice(css.indexOf('.pp-film-vignette {'), css.indexOf('#pp-world {'));
+    const from = css.indexOf('.pp-film-vignette {');
+    const to = css.indexOf('#pp-world {');
+    expect(from, 'the vignette rule').toBeGreaterThan(-1);
+    expect(to, 'the #pp-world rule').toBeGreaterThan(from);
+    const block = css.slice(from, to);
+    expect(block).toMatch(/pp-film-vignette/);
     expect(block).not.toMatch(/animation|@keyframes|transition/);
   });
 });

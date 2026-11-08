@@ -254,8 +254,10 @@ export function resolveThreat(
   if (quality === 'perfect') startSlowMo(world, ctx, 'perfect', ctx.feel.timing.slowMoPerfect);
   if (isLastOfWave(world, ctx, threat)) {
     startSlowMo(world, ctx, 'lastThreat', ctx.feel.timing.slowMoLastThreat);
-    // The last of the level's last wave is the finale (story 7.4 D1): nothing of it can follow.
-    if (threat.waveIndex === ctx.level.waves.length - 1) {
+    // The last of the level's last wave is the finale (story 7.4 D1), unless the level has a bedtime cycle:
+    // there the cycle is the win (`FinaleReached{cycleDone}`), and a last wave closing before it would
+    // party for a level still to be won (review of 7.4).
+    if (ctx.level.cycle === null && threat.waveIndex === ctx.level.waves.length - 1) {
       ctx.events.push({
         type: 'FinaleReached',
         t: world.time.sim,
