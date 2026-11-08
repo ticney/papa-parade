@@ -227,6 +227,7 @@
     },
     "gaze": { "maxYawDeg": 60, "behindDeg": 150, "reachMs": 200 },
     "stoop": { "maxDeg": 15 },
+    "forelock": { "reachMs": 200, "dampingRatio": 0.4, "maxDeg": 30 },
     "look": {
       "outlineWidthPct": 150,
       "rimStrengthPct": 35,

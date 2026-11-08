@@ -123,7 +123,11 @@ export const CHARACTER_TRIANGLES_MAX = 4_000;
 /** Budget of one character's skeleton: each bone is a matrix per frame and a row of the bone texture (story 7.2, D10). */
 export const CHARACTER_BONES_MAX = 32;
 
-/** Budget of one character's `.glb`: two at this limit still fit each level in `LEVEL_PAYLOAD_MAX_BYTES` (story 7.2, D10). */
+/**
+ * Budget of one character's `.glb` (story 7.2, D10). Two at this limit no longer fit every level in
+ * `LEVEL_PAYLOAD_MAX_BYTES` since the audio grew: `npm run dist:check` is the guard of the level payload
+ * (story 7.9, D14).
+ */
 export const CHARACTER_GLB_MAX_BYTES = 300 * 1024;
 
 /** Budget: the p95 frame interval of a full level on the CI machine, in ms (`perf.spec.ts`). */

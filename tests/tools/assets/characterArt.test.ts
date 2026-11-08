@@ -18,6 +18,7 @@ const CONTRACT: CharacterContract = {
   clips: ['idle'],
   codeDrivenBones: ['eyelids'],
   codeDrivenNodes: ['mug'],
+  markerNodes: ['tip'],
 };
 
 /** A small file that conforms: a body of 2 primitives, a hidden mug, a skeleton of 2 bones and one clip. */
@@ -30,8 +31,9 @@ function conforming() {
       { name: 'body', mesh: 0, skin: 0 },
       { name: 'root', children: [4] },
       { name: 'mug', children: [5] },
-      { name: 'eyelids' },
+      { name: 'eyelids', children: [6] },
       { mesh: 1 },
+      { name: 'tip', translation: [0, -0.05, 0.03], rotation: [0.7071, 0, 0, 0.7071] },
     ],
     meshes: [
       {
@@ -89,6 +91,42 @@ describe('characterRigProblems', () => {
     expect(characterRigProblems(conforming(), { ...CONTRACT, clips: ['dance'] })).toEqual([
       'no clip "dance"',
     ]);
+  });
+
+  it('names a missing marker, and refuses a marker with a mesh (story 7.9)', () => {
+    expect(
+      characterRigProblems(conforming(), { ...CONTRACT, markerNodes: ['tip', 'nib'] }),
+    ).toEqual(['no marker node "nib"']);
+    const meshed = conforming();
+    (meshed.nodes[6] as { mesh?: number }).mesh = 0;
+    expect(characterRigProblems(meshed, CONTRACT)).toEqual([
+      'marker node "tip" has a mesh: a marker is a place, never drawn',
+    ]);
+    // As gltfpack leaves a mesh: in an unnamed child of its named node.
+    const parent = conforming();
+    (parent.nodes as { mesh?: number }[]).push({ mesh: 0 });
+    (parent.nodes[6] as { children?: number[] }).children = [7];
+    expect(characterRigProblems(parent, CONTRACT)).toEqual([
+      'marker node "tip" has a mesh: a marker is a place, never drawn',
+    ]);
+  });
+
+  it('refuses a bone whose rest is not the identity rotation and unit scale (story 7.9)', () => {
+    const turned = conforming();
+    (turned.nodes[4] as { rotation?: number[] }).rotation = [0.7071, 0, 0, 0.7071];
+    expect(characterRigProblems(turned, CONTRACT)).toEqual([
+      'bone "eyelids" rests with a rotation: every bone rests at the identity',
+    ]);
+    const scaled = conforming();
+    (scaled.nodes[2] as { scale?: number[] }).scale = [2, 1, 1];
+    expect(characterRigProblems(scaled, CONTRACT)).toEqual([
+      'bone "root" rests with a scale: every bone rests at scale 1',
+    ]);
+    // Written out at the identity, or a float away from it, is the identity.
+    const written = conforming();
+    (written.nodes[4] as { rotation?: number[]; scale?: number[] }).rotation = [0, 0, 1e-6, 1];
+    (written.nodes[4] as { rotation?: number[]; scale?: number[] }).scale = [1, 1, 1.000001];
+    expect(characterRigProblems(written, CONTRACT)).toEqual([]);
   });
 
   it('refuses a bone that is a node but not in the skin', () => {

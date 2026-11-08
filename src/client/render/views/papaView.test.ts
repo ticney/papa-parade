@@ -3,7 +3,11 @@ import { asSimMs } from '@shared/time';
 import type { BabySlice, PapaSlice } from '@sim';
 import { type Object3D, Scene, SkinnedMesh, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createTestLife, createTestPapa } from '../../../../tests/support/testCharacters.ts';
+import {
+  createTestLife,
+  createTestPapa,
+  TEST_FORELOCK_TIP_M,
+} from '../../../../tests/support/testCharacters.ts';
 import type { CharacterAsset } from '../../assets/gltf.ts';
 import { createBlobKit } from '../blobShadow.ts';
 import { createOutlineKit } from '../materials/outlineHull.ts';
@@ -739,5 +743,159 @@ describe('his life layer (story 7.8)', () => {
     expect(a.view.leanDeg).toBe(0);
     expect(a.view.breathDeg).toBe(0);
     expect(a.view.headYawDeg).toBe(0);
+  });
+});
+
+describe('his forelock (story 7.9, D7)', () => {
+  const reachMs = LIFE.characters.forelock.reachMs;
+  const maxDeg = LIFE.characters.forelock.maxDeg;
+  const at = (xM: number, zM = 1) => papa({ xM, zM, prevXM: xM, prevZM: zM });
+  /** Where the tip is drawn, in the world, and where a rigid lock would hold it. */
+  const tips = (named: (name: string) => Object3D) => {
+    named('papa_group').updateMatrixWorld(true);
+    const drawn = named('papa_forelock_tip').getWorldPosition(new Vector3());
+    const rigid = new Vector3(...TEST_FORELOCK_TIP_M).applyMatrix4(named('head').matrixWorld);
+    return { drawn, rigid };
+  };
+  /** Papa at x, his head still: frames of 10 ms for `ms`. */
+  const hold = (
+    view: ReturnType<typeof buildView>['view'],
+    xM: number,
+    ms: number,
+    life = LIFE,
+  ) => {
+    view.update(at(xM), 1);
+    for (let t = 0; t < ms; t += 10) view.animate(at(xM), FREE_BABY, 10, life);
+  };
+
+  it('rests on its first frame, with no swing', () => {
+    const { view } = buildView();
+    view.update(at(2), 1);
+    view.animate(at(2), FREE_BABY, 10, LIFE);
+    expect(view.forelockDeg).toBe(0);
+  });
+
+  it('trails a head that moves toward +x on the side of -x, then settles back to rest', () => {
+    const { view, named } = buildView();
+    hold(view, 2, 100);
+    // A step of 2 cm: the swing stays under the cap, and its ring decays to under 2 % in five reach times.
+    view.update(at(2.02), 1);
+    view.animate(at(2.02), FREE_BABY, 30, LIFE);
+    const { drawn, rigid } = tips(named);
+    expect(view.forelockDeg).toBeGreaterThan(1);
+    expect(view.forelockDeg).toBeLessThan(maxDeg);
+    expect(drawn.x, 'the tip is left behind, toward -x').toBeLessThan(rigid.x);
+    hold(view, 2.02, 5 * reachMs);
+    expect(view.forelockDeg).toBeLessThan(0.5);
+  });
+
+  it('turns at most maxDeg, however far the head jumps', () => {
+    const { view } = buildView();
+    hold(view, 2, 100);
+    let most = 0;
+    view.update(at(7), 1);
+    for (let i = 0; i < 30; i++) {
+      view.animate(at(7), FREE_BABY, 10, LIFE);
+      most = Math.max(most, view.forelockDeg);
+    }
+    expect(most).toBeGreaterThan(maxDeg - 1e-6);
+    expect(most).toBeLessThanOrEqual(maxDeg + 1e-6);
+  });
+
+  it('does not swing when the room itself moves (a screen shake moves the scene he stands in)', () => {
+    const { view, scene } = buildView();
+    hold(view, 2, 100);
+    scene.position.x += 0.3;
+    for (let i = 0; i < 10; i++) view.animate(at(2), FREE_BABY, 10, LIFE);
+    expect(view.forelockDeg).toBeLessThan(1e-6);
+  });
+
+  it('stays at rest under reduced motion', () => {
+    const { view } = buildView();
+    const reduced = createTestLife({ isMotionReduced: true });
+    hold(view, 2, 100, reduced);
+    view.update(at(3), 1);
+    for (let i = 0; i < 10; i++) view.animate(at(3), FREE_BABY, 10, reduced);
+    expect(view.forelockDeg).toBe(0);
+  });
+
+  it('holds on a dtMs of 0', () => {
+    const { view } = buildView();
+    hold(view, 2, 100);
+    view.update(at(2.1), 1);
+    view.animate(at(2.1), FREE_BABY, 40, LIFE);
+    const swung = view.forelockDeg;
+    expect(swung).toBeGreaterThan(0);
+    view.animate(at(2.1), FREE_BABY, 0, LIFE);
+    view.animate(at(2.1), FREE_BABY, 0, LIFE);
+    expect(view.forelockDeg).toBe(swung);
+  });
+
+  it('starts at rest after a restart (and a replay moment) and after a return from away, wherever he is', () => {
+    const restart = buildView();
+    hold(restart.view, 2, 100);
+    restart.view.resetAnimation();
+    restart.view.update(at(5), 1);
+    restart.view.animate(at(5), FREE_BABY, 10, LIFE);
+    expect(restart.view.forelockDeg).toBe(0);
+
+    const away = buildView();
+    hold(away.view, 2, 100);
+    away.view.setAway(true);
+    away.view.setAway(true);
+    away.view.update(at(5), 1);
+    away.view.setAway(false);
+    away.view.animate(at(5), FREE_BABY, 10, LIFE);
+    expect(away.view.forelockDeg).toBe(0);
+  });
+
+  it('settles at rest under a held turn of the head: it follows the gaze, it does not stay behind', () => {
+    const { view } = buildView();
+    view.update(at(0, 0), 1);
+    const life = createTestLife({ babyXM: 1, babyZM: 1 });
+    life.gazeSight.isBabyShown = true;
+    let most = 0;
+    for (let i = 0; i < 300; i++) {
+      view.animate(at(0, 0), FREE_BABY, 10, life);
+      most = Math.max(most, view.forelockDeg);
+    }
+    expect(view.headYawDeg).toBeCloseTo(45, 1);
+    expect(most, 'the turn swung it').toBeGreaterThan(0.5);
+    expect(view.forelockDeg).toBeLessThan(0.5);
+  });
+
+  it('gives the same lock for the same frames', () => {
+    const run = () => {
+      const { view } = buildView();
+      hold(view, 2, 50);
+      for (let i = 0; i < 23; i++) {
+        view.update(at(2 + 0.02 * i), 1);
+        view.animate(at(2 + 0.02 * i), FREE_BABY, 16, LIFE);
+      }
+      return view.forelockDeg;
+    };
+    expect(run()).toBe(run());
+  });
+
+  it('never writes a brow: both rest after frames with every life input set (AC 5)', () => {
+    const { view, named } = buildView();
+    const busy = createTestLife({
+      fatigue: 80,
+      isAlert: true,
+      isResponding: true,
+      babyXM: 1,
+      babyZM: 2,
+    });
+    busy.gazeSight.isBabyShown = true;
+    for (let i = 0; i < 60; i++) {
+      view.update(at(2 + 0.03 * i), 1);
+      view.animate(papa({ state: 'walkPath', xM: 2 + 0.03 * i }), FREE_BABY, 16, busy);
+    }
+    for (const name of ['brow_l', 'brow_r']) {
+      const brow = named(name);
+      expect(brow.quaternion.toArray(), name).toEqual([0, 0, 0, 1]);
+      expect(brow.position.toArray(), name).toEqual([0, 0, 0]);
+      expect(brow.scale.toArray(), name).toEqual([1, 1, 1]);
+    }
   });
 });

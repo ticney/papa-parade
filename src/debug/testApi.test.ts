@@ -661,6 +661,7 @@ describe('fx (story 2.5)', () => {
       papaLeanDeg: 0,
       papaStoopDeg: 0,
       papaHeadYawDeg: 0,
+      papaForelockDeg: 0,
       papaGaze: 'ahead',
       papaBreathDeg: 0,
       babyBreathDeg: 0,
@@ -690,6 +691,8 @@ describe('fx (story 2.5)', () => {
       papaLeanDeg: 6.5,
       papaStoopDeg: 15,
       papaHeadYawDeg: -32,
+      // Story 7.9: the forelock's swing goes through as it is.
+      papaForelockDeg: 12.5,
       papaGaze: 'threat',
       papaBreathDeg: -1.2,
       babyBreathDeg: 0.8,

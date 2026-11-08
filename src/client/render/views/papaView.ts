@@ -1,6 +1,16 @@
 import { ISO_YAW_DEG } from '@shared/constants';
 import type { BabySlice, PapaLook, PapaSlice } from '@sim';
-import { BoxGeometry, Color, Euler, Group, Mesh, type Object3D, Quaternion } from 'three';
+import {
+  BoxGeometry,
+  Color,
+  Euler,
+  Group,
+  Matrix4,
+  Mesh,
+  type Object3D,
+  Quaternion,
+  Vector3,
+} from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
 import { PALETTE } from '../materials/palette.ts';
@@ -17,6 +27,7 @@ import {
 } from './characterMotion.ts';
 import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
 import { createSpring, resetSpring, stepAngleSpring, stepSpring } from './characterSpring.ts';
+import { createForelockState, resetForelock, stepForelock } from './forelock.ts';
 import {
   breathPeriodMsOf,
   createBreathState,
@@ -39,6 +50,9 @@ import {
 export const PAPA_LIFE_BONES = ['spine', 'head'] as const;
 const DEG_TO_RAD = Math.PI / 180;
 const RAD_TO_DEG = 180 / Math.PI;
+/** A lock shorter than this, in metres, has no direction to turn: a file with no forelock marker. */
+const FORELOCK_LENGTH_MIN_M = 1e-4;
+const IDENTITY = new Quaternion();
 
 /**
  * Papa's height, feet on the floor to the top of his head, in metres: what the markers above him
@@ -106,8 +120,8 @@ export interface PapaView {
    * Plays the loop the world says now (fading in over its passage's fade), turns his body on its spring
    * toward the facing of the clip the player sees (the camera, away from the baby) or else his heading,
    * advances his mixer by `dtMs` of sim time, then lays the life layer over the clip (story 7.8, D3):
-   * lean, breath and stoop on `spine`, the gaze on `head`. A `dtMs` of 0 holds him. Allocates nothing
-   * once the clips have played once.
+   * lean, breath and stoop on `spine`, the gaze on `head`, then the forelock's pendulum (story 7.9).
+   * A `dtMs` of 0 holds him. Allocates nothing once the clips have played once.
    */
   animate(
     papa: Readonly<PapaSlice>,
@@ -123,7 +137,7 @@ export interface PapaView {
   readonly mixerTimeMs: number;
   /** Scales his body, feet on the floor (the squash); the shadow stays. Allocates nothing. */
   setSquash(xz: number, y: number): void;
-  /** Stops his clips and starts them over (a restart, a stopped loop). */
+  /** Stops his clips and starts them over (a restart, a stopped loop, a replay moment): the forelock rests. */
   resetAnimation(): void;
   /**
    * Lowers his eyelids: 0 is open, 1 is shut. Clamped. Allocates nothing.
@@ -159,6 +173,8 @@ export interface PapaView {
   readonly headYawDeg: number;
   /** What his head follows now. */
   readonly gazeKind: PapaGazeKind;
+  /** How far his forelock turns from its rest now, in degrees (story 7.9); 0 at rest or under reduced motion. */
+  readonly forelockDeg: number;
   /** How shut his eyelids are drawn, 0 (open) to 100: the micro-sleep's telegraph or his sleep, nothing else. */
   readonly eyelidsPct: number;
   /** How far the steam leans now, in degrees; 0 while it is hidden or held. */
@@ -167,7 +183,7 @@ export interface PapaView {
   readonly blablaTiltDeg: number;
   /**
    * Papa is out of the room (the toilet, story 4.3): the whole of him, blob shadow included, is
-   * hidden, and drawn again with the next call that says he is back. Allocates nothing.
+   * hidden, and drawn again with the next call that says he is back, his forelock at rest. Allocates nothing.
    */
   setAway(isAway: boolean): void;
   /**
@@ -284,6 +300,23 @@ export function createPapaView(
   const offset = new Quaternion();
   let stoopNowDeg = 0;
   let breathNowDeg = 0;
+  // The forelock (story 7.9, D7): its tip at rest in the head's axes, the lock's root plus the marker the
+  // file puts at its tip, read once (both rest at the identity, so they add up). The rest direction is the
+  // marker's. A file with no marker has no lock to swing.
+  const forelock = rig.node('forelock');
+  const forelockTipM = rig.node('papa_forelock_tip').position;
+  const hasForelock = forelockTipM.lengthSq() > FORELOCK_LENGTH_MIN_M * FORELOCK_LENGTH_MIN_M;
+  const forelockRestDir = forelockTipM.clone().normalize();
+  const forelockTipInHead = forelock.position.clone().add(forelockTipM);
+  const forelockState = createForelockState();
+  const forelockAt = new Vector3();
+  const forelockAim = new Vector3();
+  const forelockTurn = new Quaternion();
+  const headInRoom = new Matrix4();
+  const headInverse = new Matrix4();
+  let isForelockPlaced = false;
+  let forelockNowDeg = 0;
+  let isAwayNow = false;
   let steamSwayNowDeg = 0;
   let blablaTiltNowDeg = 0;
 
@@ -392,6 +425,46 @@ export function createPapaView(
       );
       offsetEuler.set(0, headYawRad, 0);
       head.quaternion.multiply(offset.setFromEuler(offsetEuler));
+      // The forelock last, after the gaze: where a rigid lock's tip would be now, with the head as drawn,
+      // in the room's metres (the scene he stands in), so that a screen shake never swings it.
+      if (!hasForelock) return;
+      head.updateWorldMatrix(true, false);
+      headInRoom.copy(scene.matrixWorld).invert().multiply(head.matrixWorld);
+      forelockAt.copy(forelockTipInHead).applyMatrix4(headInRoom);
+      if (isReduced || !isForelockPlaced) {
+        // Under reduced motion it is decoration: at rest, and so ready to start from rest again.
+        resetForelock(forelockState, forelockAt.x, forelockAt.y, forelockAt.z);
+        isForelockPlaced = true;
+        forelock.quaternion.identity();
+        forelockNowDeg = 0;
+        return;
+      }
+      const { forelock: lock } = characters;
+      stepForelock(
+        forelockState,
+        forelockAt.x,
+        forelockAt.y,
+        forelockAt.z,
+        dtMs,
+        lock.reachMs,
+        lock.dampingRatio,
+      );
+      // The lagged tip back in the head's axes, seen from the lock's root: the lock turns toward it.
+      forelockAim
+        .set(forelockState.x.drawn, forelockState.y.drawn, forelockState.z.drawn)
+        .applyMatrix4(headInverse.copy(headInRoom).invert())
+        .sub(forelock.position);
+      if (forelockAim.lengthSq() < FORELOCK_LENGTH_MIN_M * FORELOCK_LENGTH_MIN_M) return;
+      forelockTurn.setFromUnitVectors(forelockRestDir, forelockAim.normalize());
+      const turnRad = 2 * Math.acos(Math.min(1, Math.abs(forelockTurn.w)));
+      const maxRad = lock.maxDeg * DEG_TO_RAD;
+      if (turnRad > maxRad) {
+        forelock.quaternion.slerpQuaternions(IDENTITY, forelockTurn, maxRad / turnRad);
+        forelockNowDeg = lock.maxDeg;
+      } else {
+        forelock.quaternion.copy(forelockTurn);
+        forelockNowDeg = turnRad * RAD_TO_DEG;
+      }
     },
     playOnce(clip, fadeMs, holdsLastPose) {
       rig.playOnce(clip, fadeMs, holdsLastPose);
@@ -419,6 +492,9 @@ export function createPapaView(
       gazeAim.yawRad = 0;
       stoopNowDeg = 0;
       breathNowDeg = 0;
+      isForelockPlaced = false;
+      forelock.quaternion.identity();
+      forelockNowDeg = 0;
     },
     setEyelids(amount01) {
       const amount = Math.min(1, Math.max(0, amount01));
@@ -484,6 +560,9 @@ export function createPapaView(
     get gazeKind() {
       return gazeAim.kind;
     },
+    get forelockDeg() {
+      return forelockNowDeg;
+    },
     get eyelidsPct() {
       return Math.max(wantedEyelids, asleepAmount) * 100;
     },
@@ -495,6 +574,9 @@ export function createPapaView(
     },
     setAway(isAway) {
       group.visible = !isAway;
+      // Back in the room: the lock rests where he comes back, it does not swing from where he left.
+      if (isAwayNow && !isAway) isForelockPlaced = false;
+      isAwayNow = isAway;
     },
     setHair(amount01) {
       gagHairAmount = Math.min(1, Math.max(0, amount01));

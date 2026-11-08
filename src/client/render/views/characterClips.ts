@@ -176,18 +176,30 @@ export function babyLidsAfter(event: Readonly<SimEvent>, current: number): numbe
 
 /** Papa's contract with his `.glb` (`characterArt.ts` checks the committed file against it). */
 export const PAPA_CONTRACT = {
+  /** The v2 skeleton (story 7.9, D1): elbows, knees, ankles, a pelvis, a neck, the brows and the forelock. */
   bones: [
     'root',
+    'pelvis',
     'spine',
+    'neck',
     'head',
     'eyes',
     'eyelids',
+    'brow_l',
+    'brow_r',
+    'forelock',
     'arm_l',
+    'forearm_l',
     'hand_l',
     'arm_r',
+    'forearm_r',
     'hand_r',
     'leg_l',
+    'shin_l',
+    'foot_l',
     'leg_r',
+    'shin_r',
+    'foot_r',
   ],
   visibleNodes: ['papa_body', 'papa_shirt'],
   hiddenNodes: [
@@ -219,14 +231,40 @@ export const PAPA_CONTRACT = {
     'victory_dance',
     'collapse',
   ],
-  codeDrivenBones: ['eyelids'],
+  /** The lids, the brows (at rest until story 7.10) and the forelock's pendulum (story 7.9, D3, D7). */
+  codeDrivenBones: ['eyelids', 'brow_l', 'brow_r', 'forelock'],
   /** The steam sways and the bla-bla bubble wobbles by code on the sim clock, so reduced motion can hold them (D3). */
   codeDrivenNodes: ['papa_mug_steam', 'papa_blabla'],
+  /** Where the forelock's tip is at rest: the pendulum chases it (story 7.9, D7). */
+  markerNodes: ['papa_forelock_tip'],
 } as const;
 
-/** The baby's contract with his `.glb`: `head` turns to the gaze and `eyelids` follow the duel, both by code. */
+/**
+ * The baby's contract with his `.glb`: `head` turns to the gaze and `eyelids` follow the duel, both by
+ * code; the brows rest until story 7.10. The v2 skeleton (story 7.9, D1) adds elbows, wrists, knees, ankles.
+ */
 export const BABY_CONTRACT = {
-  bones: ['root', 'spine', 'head', 'eyelids', 'arm_l', 'arm_r', 'leg_l', 'leg_r'],
+  bones: [
+    'root',
+    'spine',
+    'neck',
+    'head',
+    'eyelids',
+    'brow_l',
+    'brow_r',
+    'arm_l',
+    'forearm_l',
+    'hand_l',
+    'arm_r',
+    'forearm_r',
+    'hand_r',
+    'leg_l',
+    'shin_l',
+    'foot_l',
+    'leg_r',
+    'shin_r',
+    'foot_r',
+  ],
   visibleNodes: ['baby_body'],
   hiddenNodes: [],
   clips: [
@@ -245,6 +283,7 @@ export const BABY_CONTRACT = {
     'wake',
     'laugh',
   ],
-  codeDrivenBones: ['head', 'eyelids'],
+  codeDrivenBones: ['head', 'eyelids', 'brow_l', 'brow_r'],
   codeDrivenNodes: [],
+  markerNodes: [],
 } as const;

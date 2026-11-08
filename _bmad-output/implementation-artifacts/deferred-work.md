@@ -927,7 +927,7 @@ Open:
 - **Untouched:** « le bébé se hisse », « Papa retire l'objet », the stairs slide's height, shards and mischief drawings. The hop and the slide keep their provisional code.
 - **The clip `eyes_open` plays on the signal, and the signal closes the baby's eyes** (4.6, 4.7: `signalIcon: eyelids`). The contract named the clip, so it stays, but it only moves his neck and spine; `babyLidsAfter` shuts the lids. Reason: a name to settle with Geo, renaming means one action in the `.blend` and one line of code.
 - **The baby's shut lids at the signal were not seen on screen:** the marker stands over him in the capture. Unit tests pin the bone. Reason: look at it in play, and it may decide where that marker goes.
-- **Rigid parts, no elbows:** one bone per limb, so `on_phone` and `drink` read as poses more than gestures, and a carried baby hides behind Papa on some headings. Reason: first-pass art (D3); Geo's call on what to rework. **Still open after story 2.13 (D8):** the huge props and the broader poses read through the mug's and the handset's size, the head, the spine, the arms' swing and the facing; elbows would reweight the shirt, the inside-out shirt and the body and move all 15 clips.
+- **Rigid parts, no elbows:** one bone per limb, so `on_phone` and `drink` read as poses more than gestures, and a carried baby hides behind Papa on some headings. Reason: first-pass art (D3); Geo's call on what to rework. **Still open after story 2.13 (D8):** the huge props and the broader poses read through the mug's and the handset's size, the head, the spine, the arms' swing and the facing; elbows would reweight the shirt, the inside-out shirt and the body and move all 15 clips. **Closed by story 7.9:** elbows, knees, ankles, a pelvis and a neck (Papa 22 bones, the baby 19), the sleeves and legs blended across each joint, and every clip (18 + 14) retaken on them.
 
 ## Deferred from: code review of 7-2-personnages-rigges-et-animes (2026-11-01)
 
@@ -937,7 +937,7 @@ Open:
 - **Feel numbers left in code**: `BABY_LIDS_PEEK = 0.5` and the clip speed clamp `CLIP_TIME_SCALE_MIN` / `MAX` = 0.3 / 2.5. Reason: move them to `feedback.json › characters` when Geo asks to tune them.
 - **`responseClipOf` takes untyped strings** (`characterClips.ts:81`): a new response kind or a renamed quality silently plays `respond_parry`. Reason: no new response kind is planned; type them from `ResponseResolved` when one is added.
 - **A one-shot no longer than `crossFadeMs` ends at its first update** (`characterRig.ts:170`): the schema has no upper bound on `crossFadeMs`; the shortest clips are three times today's 140 ms. Reason: only if Geo raises `crossFadeMs` past a third of the shortest clip; add a bound then.
-- **Code-driven bones assume an identity rest rotation** (`babyView.ts:180`): true of the committed files, checked by nothing for a re-export. Reason: add the check to `characterAssets.test.ts` with the next Blender export.
+- **Code-driven bones assume an identity rest rotation** (`babyView.ts:180`): true of the committed files, checked by nothing for a re-export. Reason: add the check to `characterAssets.test.ts` with the next Blender export. **Closed by story 7.9:** `characterRigProblems` refuses any joint of the committed files whose rest rotation or scale is not the identity.
 
 ## Deferred from: code review of 7-3-rendu-toon-final-et-effets (2026-11-02)
 
@@ -1205,7 +1205,7 @@ Still open, as they were:
 - **A squash restarted mid-run snaps back to scale 1** (7.2 review): untouched.
 - **The baby's head is not limited against his body** (7.2 review): still true with the spring, and the swing past the gaze (up to `turn.overshootMaxDeg`) adds to it for a moment; the head stays exact on the gaze. Judge it in play.
 - **Only `idle` and `walk` have carried variants** (7.2 review): untouched.
-- **The forelock** (7.9: needs the v2 skeleton) and **the shuffling walk above 70 fatigue** (7.14): not in this story.
+- **The forelock** (7.9: needs the v2 skeleton) and **the shuffling walk above 70 fatigue** (7.14): not in this story. **The forelock is done in story 7.9** (a pendulum on the head, `feel.json › characters.forelock`).
 
 New:
 
@@ -1241,3 +1241,13 @@ New:
 - **`endsAtReal` counts bursts that got no sparks (pool full)**, and `celebration.start` ignores `stamp.show`'s return value. Reason: the hold is capped.
 - **Title animation timings and CSS placement hard-coded** (`TITLE_IN_SHARE`, `TITLE_OUT_FROM`, `top: 24%`…); `FIREWORK_TOKEN_HEX` repeats DESIGN.md. Reason: a test ties the hex values; move to `framingStyles` if Geo wants to tune them.
 - **The `fanfare` vibration (≈ 1.9 s, 4 pulses for 5 bursts) is cut by any later pulse** (`navigator.vibrate` replaces a running pattern). Reason: platform behaviour.
+
+## Story 7-9-squelette-v2-et-animations-reprises (2026-11-08)
+
+Closed here: « Rigid parts, no elbows » (7.2), « Code-driven bones assume an identity rest rotation » (7.2 review), « The forelock » (7.8). Left open, untouched: the clip `eyes_open` keeps its name; only `idle` and `walk` have carried variants; the baby's head is not limited against his body; a squash restarted mid-run snaps back to scale 1.
+
+- **The life layer stays on `spine` and `head`** (D2): Papa's lean, breath and stoop could be shared between `pelvis` and `spine`, his gaze between `neck` and `head`. Reason: it would change 7.8's tuned feel (`papaLeanDeg`, `papaHeadYawDeg`) for a gain nobody has judged; Geo's option.
+- **Story 7.4 was merged before 7.9 started** (D12): its `victory_dance` and `collapse` were retaken here with the 16 others (18 Papa clips), nothing left for 7.4.
+- **The feet are planted by the pelvis, frame by frame** (the retakes' `ground` pass): every loop and most one-shots key the pelvis height at every frame so that the lowest vertex sits on the floor. It reads as weight, but it is dense: a later hand retake in Blender sees one pelvis key per frame. Reason: the test « pieds au sol » at 9 samples; Geo can thin the keys by hand.
+- **A damping of 0.4 rings for about a second** (D7): after a stop from a walk the forelock still sways a few degrees one second later (5 reach times leave 1.7 % of the swing). Reason: the story's starting values; `feel.json › characters.forelock.dampingRatio` is Geo's.
+- **The baby's arms barely show behind his head** at the game's angle, in the v2 clips as in the 7.2 ones: the elbows read on Papa first. Reason: proportions are the model's (7.2), not this story's.

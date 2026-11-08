@@ -1,6 +1,10 @@
+---
+baseline_commit: b2fc1c2dcd717f24773776a771cf5dceabc19a1d
+---
+
 # Story 7.9: Squelette v2 et animations reprises
 
-Status: ready-for-dev
+Status: review
 
 <!-- Ultimate context engine analysis completed - comprehensive developer guide created. -->
 
@@ -39,42 +43,42 @@ The epics' criteria (`epics.md › Story 7.9`), made testable. The decisions D1-
 
 ## Tasks / Subtasks
 
-- [ ] **T0. Before touching anything** (AC 3, 11, 12, D10-D12)
-  - [ ] Read « Blender access » and « What exists » below, then `characterClips.ts`, `characterArt.ts`, `characterAssets.test.ts`, `papaView.ts`, `characterSpring.ts`, `lifeLayer.ts`, `tests/support/testCharacters.ts` in full. `env | grep VITE_` (memory: the shell may export `VITE_DEBUG_ALLOWED=false`).
-  - [ ] `git log --oneline main -5` and `git worktree list`: is story 7.4 merged, under way on `story/7-4-celebration-finale-et-cadrages-parodiques`, or not started? Apply D12 before T3.
-  - [ ] **The « before » captures, on the untouched files** (D11): the in-game set and the two pose sheets. Nothing of them can be redone once the `.glb` files are replaced, except from the main checkout.
-  - [ ] Spike in the scratchpad, on a copy of `papa.blend`: an empty parented to a bone survives `export_character.py` + `CHARACTER_GLTFPACK_FLAGS` (`-cc -kn`) as a named node with its translation; a bone added in edit mode headless keeps an identity rest rotation in the `.glb`; Workbench renders headless (`-b`) on this Mac. Write what you found in the notes.
-- [ ] **T1. Guards first, red on today's files where they should be** (AC 1, 2, 4, 5, D1, D3, D4)
-  - [ ] `CharacterContract` gains `markerNodes: readonly string[]` (empty nodes the code reads a place from: no mesh, never drawn). `characterRigProblems` refuses a missing marker, a marker with a mesh, and a joint with a rest rotation or scale that is not identity. One failing fixture each in `tests/tools/assets/characterArt.test.ts` (its `CONTRACT` gains `markerNodes`).
-  - [ ] `PAPA_CONTRACT` / `BABY_CONTRACT`: the v2 bones of D1, `codeDrivenBones` of AC 5, `markerNodes: ['papa_forelock_tip']` / `[]`. Nothing else of `characterClips.ts` changes (AC 3).
-  - [ ] `characterAssets.test.ts`: the hierarchy of D1 (each bone's parent); the triangle and draw-call ceilings of AC 2 as named constants (`*_7_8`, « the counts before the v2 skeleton »), visible through `characterBudgetOf(json, hiddenNodes)` and in all through `characterBudgetOf(json, [])`; the floor contact of loops, the carry reach and the hinge test of AC 4 (D6) — the loops are the contract's clips that none of the one-shot lists names (the file already derives `papaOneShots` / `babyOneShots` from the source; `PAPA_LOOPS` is not exported and stays so), minus the baby's `carried`, so `gag_shock` is held to the one-shot rule; the inside-out shirt in `drink`; the forelock tip (parent `forelock`, length 0.02 to 0.12 m, at least 45° below the horizontal); the « keys nothing the code moves » regex with the brows and the forelock. Check that the new floor and carry tests pass on today's files before any art (they were measured on them).
-- [ ] **T2. Data** (AC 7, 9, D7, D9)
-  - [ ] `CharactersSchema.forelock` in `src/content/schemas/feel.ts`, after `stoop` (strict, `reachMs()` 50-1000, `dampingRatio` 0.3-1, `maxDeg` via `lifeDeg(40)`, `describe`s). `content/feel.json`, `tests/support/testFeel.json` and `tests/tools/vite/fixtures/feelSample.json` (a whole feel since 7.8) get the block with D7's starting values. `npm run content:schemas`. `tests/content/feelSchema.test.ts`: the bounds, and the unit-suffix rule passes with these names.
-  - [ ] `npm run ci:fast`: the goldens go red on hashes only. `npm run golden:update` once; D9's proof; `humanBotRegression` as AC 9 says.
-- [ ] **T3. Papa in Blender** (AC 1-6, 11, D1, D3-D6, D8, D10)
-  - [ ] Headless, in this worktree, never in Geo's live MCP session. Add the bones of D1 in edit mode (straight up, no roll, like the others), re-parent `hand_*` under `forearm_*`, `spine` and the legs under `pelvis`, `head` under `neck`.
-  - [ ] Weights: blend two bones across each new joint, ≤ 4 influences, normalised; `papa_body` (legs, feet, hands, head), `papa_shirt` and `papa_look_shirt` (the sleeves: same weights on both, since one replaces the other).
-  - [ ] The eyebrows and the forelock: small `art_ink` pieces joined into `papa_body` (no new primitive), weighted 100 % to `brow_l`, `brow_r`, `forelock`. The lock hangs from the front hairline at one side of the forehead, clear of the brows and eyes (D8). The empty `papa_forelock_tip` at the lock's tip, parented to the `forelock` bone. Pay for the new pieces and joint rings by thinning elsewhere until AC 2 holds (D4).
-  - [ ] Retake the 16 clips on the sheet (D5, D6). Each action keeps its name, slot and fake user; no key on `eyelids`, `brow_*`, `forelock`, `papa_mug_steam`, `papa_blabla`; `eyes` keyed by `coffee_kick` only.
-  - [ ] Purge orphans, pack no image, save. `npm run assets:character:export -- papa`, `npm run assets:character:optimize -- papa`. T1's tests on the new file.
-- [ ] **T4. The baby in Blender** (AC 1-5, 11, D1, D3-D6, D10)
-  - [ ] Same steps: bones of D1 (no pelvis), weights (`baby_body`), the brows in `art_ink` joined into `baby_body`, triangles paid, the 14 clips retaken. No key on `head` (the gaze), `eyelids`, `brow_*`; his head's gestures stay on `neck`.
-  - [ ] Export, optimise, T1's tests.
-- [ ] **T5. The forelock in the client** (AC 6, 7, 10, D7, D13)
-  - [ ] `src/client/render/views/forelock.ts` (pure, no Three): the tip's state as three `Spring`s of `characterSpring.ts` (x, y, z in world metres), `createForelockState`, `resetForelock(state, x, y, z)`, `stepForelock(state, restX, restY, restZ, dtMs, reachMs, dampingRatio)`. Tests next to it: a held target settles; 1, 3 or 7 frames over the same span with a held target give the same tip; `dtMs` 0 holds.
-  - [ ] `papaView.ts`: after the gaze, `head.updateWorldMatrix(true, false)`; the rest tip in world = head's matrix × (forelock bone position + `papa_forelock_tip` position, read once at creation); step; the tip back into head space; `forelock.quaternion` = the rotation from the rest direction to it, capped at `maxDeg` (scratch `Vector3` / `Quaternion` / `Matrix4`, made once). Reduced motion, the first frame, `resetAnimation()` and the frame after `setAway(false)` put the tip on its rest (identity). Getter `forelockDeg`.
-  - [ ] `tests/support/testCharacters.ts`: in `createTestPapa`, put `forelock` under `head` and the marker under `forelock` at about (0, −0.04, 0.03) m (as the steam goes under the mug). `papaView.test.ts`: still → rest within 0.5° after `5 × reachMs`; Papa moved along +x trails the tip toward −x (sign pinned), then settles; a big jump stops at `maxDeg`; reduced motion 0°; `dtMs` 0 with a still head holds; restart and return from away start at 0; a held gaze turn settles at 0; both characters' brows stay at rest (AC 5).
-  - [ ] `realFxState()` / `__PP__.fx()`: `papaForelockDeg`. Update `tests/e2e/support/testApi.ts`, `tests/support/fakeTestHost.ts`, `src/debug/testApi.test.ts`.
-  - [ ] `characterAssets.test.ts`: `forelock` joins `LIFE_VIEWS` (both scans).
-- [ ] **T6. Prove nothing moved** (AC 9, 10, 11)
-  - [ ] `git diff --stat main` on the paths of « Not in this story »: empty. D9's proof of the goldens. The bots on the three levels against `main`.
-  - [ ] Re-export both characters from the committed `.blend` files (AC 11).
-  - [ ] `npm run ci:fast`. Then on Chromium, in the background: `npm run e2e -- tests/e2e/characters.spec.ts tests/e2e/lifeLayer.spec.ts --project=chromium` (the clips after the pick-up and the coffee: D5).
-- [ ] **T7. Performance and delivery** (AC 8, 12), after the last art edit, under `caffeinate`
-  - [ ] `npm run build:playtest`, `npm run dist:check -- --flavor playtest` (payload numbers in the notes, D14), then `npm run e2e:dist` in the background (it queues; perf alone ≈ 5 min). Numbers in the notes.
-  - [ ] `npm run e2e -- tests/e2e/autoplay.spec.ts tests/e2e/afterEffects.spec.ts --update-snapshots=all` (both browsers; `autoplay` is in the smoke tier, so `ci:story` fails without it). Open all four images, say what changed.
-  - [ ] The « after » captures of D11, same frames as the « before ». Write what you saw by eye, and what you did not open.
-- [ ] **T8. Close and record the debts** (see « Deferred items »); `project-context.md › Rigged characters`: the v2 bones, `codeDrivenBones`, `markerNodes`, the forelock, the new guards. Check `EXPERIENCE.md`'s reduced-motion row (« breathing, lean, forelock — removed ») matches what ships.
+- [x] **T0. Before touching anything** (AC 3, 11, 12, D10-D12)
+  - [x] Read « Blender access » and « What exists » below, then `characterClips.ts`, `characterArt.ts`, `characterAssets.test.ts`, `papaView.ts`, `characterSpring.ts`, `lifeLayer.ts`, `tests/support/testCharacters.ts` in full. `env | grep VITE_` (memory: the shell may export `VITE_DEBUG_ALLOWED=false`).
+  - [x] `git log --oneline main -5` and `git worktree list`: is story 7.4 merged, under way on `story/7-4-celebration-finale-et-cadrages-parodiques`, or not started? Apply D12 before T3.
+  - [x] **The « before » captures, on the untouched files** (D11): the in-game set and the two pose sheets. Nothing of them can be redone once the `.glb` files are replaced, except from the main checkout.
+  - [x] Spike in the scratchpad, on a copy of `papa.blend`: an empty parented to a bone survives `export_character.py` + `CHARACTER_GLTFPACK_FLAGS` (`-cc -kn`) as a named node with its translation; a bone added in edit mode headless keeps an identity rest rotation in the `.glb`; Workbench renders headless (`-b`) on this Mac. Write what you found in the notes.
+- [x] **T1. Guards first, red on today's files where they should be** (AC 1, 2, 4, 5, D1, D3, D4)
+  - [x] `CharacterContract` gains `markerNodes: readonly string[]` (empty nodes the code reads a place from: no mesh, never drawn). `characterRigProblems` refuses a missing marker, a marker with a mesh, and a joint with a rest rotation or scale that is not identity. One failing fixture each in `tests/tools/assets/characterArt.test.ts` (its `CONTRACT` gains `markerNodes`).
+  - [x] `PAPA_CONTRACT` / `BABY_CONTRACT`: the v2 bones of D1, `codeDrivenBones` of AC 5, `markerNodes: ['papa_forelock_tip']` / `[]`. Nothing else of `characterClips.ts` changes (AC 3).
+  - [x] `characterAssets.test.ts`: the hierarchy of D1 (each bone's parent); the triangle and draw-call ceilings of AC 2 as named constants (`*_7_8`, « the counts before the v2 skeleton »), visible through `characterBudgetOf(json, hiddenNodes)` and in all through `characterBudgetOf(json, [])`; the floor contact of loops, the carry reach and the hinge test of AC 4 (D6) — the loops are the contract's clips that none of the one-shot lists names (the file already derives `papaOneShots` / `babyOneShots` from the source; `PAPA_LOOPS` is not exported and stays so), minus the baby's `carried`, so `gag_shock` is held to the one-shot rule; the inside-out shirt in `drink`; the forelock tip (parent `forelock`, length 0.02 to 0.12 m, at least 45° below the horizontal); the « keys nothing the code moves » regex with the brows and the forelock. Check that the new floor and carry tests pass on today's files before any art (they were measured on them).
+- [x] **T2. Data** (AC 7, 9, D7, D9)
+  - [x] `CharactersSchema.forelock` in `src/content/schemas/feel.ts`, after `stoop` (strict, `reachMs()` 50-1000, `dampingRatio` 0.3-1, `maxDeg` via `lifeDeg(40)`, `describe`s). `content/feel.json`, `tests/support/testFeel.json` and `tests/tools/vite/fixtures/feelSample.json` (a whole feel since 7.8) get the block with D7's starting values. `npm run content:schemas`. `tests/content/feelSchema.test.ts`: the bounds, and the unit-suffix rule passes with these names.
+  - [x] `npm run ci:fast`: the goldens go red on hashes only. `npm run golden:update` once; D9's proof; `humanBotRegression` as AC 9 says.
+- [x] **T3. Papa in Blender** (AC 1-6, 11, D1, D3-D6, D8, D10)
+  - [x] Headless, in this worktree, never in Geo's live MCP session. Add the bones of D1 in edit mode (straight up, no roll, like the others), re-parent `hand_*` under `forearm_*`, `spine` and the legs under `pelvis`, `head` under `neck`.
+  - [x] Weights: blend two bones across each new joint, ≤ 4 influences, normalised; `papa_body` (legs, feet, hands, head), `papa_shirt` and `papa_look_shirt` (the sleeves: same weights on both, since one replaces the other).
+  - [x] The eyebrows and the forelock: small `art_ink` pieces joined into `papa_body` (no new primitive), weighted 100 % to `brow_l`, `brow_r`, `forelock`. The lock hangs from the front hairline at one side of the forehead, clear of the brows and eyes (D8). The empty `papa_forelock_tip` at the lock's tip, parented to the `forelock` bone. Pay for the new pieces and joint rings by thinning elsewhere until AC 2 holds (D4).
+  - [x] Retake the 16 clips on the sheet (D5, D6). Each action keeps its name, slot and fake user; no key on `eyelids`, `brow_*`, `forelock`, `papa_mug_steam`, `papa_blabla`; `eyes` keyed by `coffee_kick` only.
+  - [x] Purge orphans, pack no image, save. `npm run assets:character:export -- papa`, `npm run assets:character:optimize -- papa`. T1's tests on the new file.
+- [x] **T4. The baby in Blender** (AC 1-5, 11, D1, D3-D6, D10)
+  - [x] Same steps: bones of D1 (no pelvis), weights (`baby_body`), the brows in `art_ink` joined into `baby_body`, triangles paid, the 14 clips retaken. No key on `head` (the gaze), `eyelids`, `brow_*`; his head's gestures stay on `neck`.
+  - [x] Export, optimise, T1's tests.
+- [x] **T5. The forelock in the client** (AC 6, 7, 10, D7, D13)
+  - [x] `src/client/render/views/forelock.ts` (pure, no Three): the tip's state as three `Spring`s of `characterSpring.ts` (x, y, z in world metres), `createForelockState`, `resetForelock(state, x, y, z)`, `stepForelock(state, restX, restY, restZ, dtMs, reachMs, dampingRatio)`. Tests next to it: a held target settles; 1, 3 or 7 frames over the same span with a held target give the same tip; `dtMs` 0 holds.
+  - [x] `papaView.ts`: after the gaze, `head.updateWorldMatrix(true, false)`; the rest tip in world = head's matrix × (forelock bone position + `papa_forelock_tip` position, read once at creation); step; the tip back into head space; `forelock.quaternion` = the rotation from the rest direction to it, capped at `maxDeg` (scratch `Vector3` / `Quaternion` / `Matrix4`, made once). Reduced motion, the first frame, `resetAnimation()` and the frame after `setAway(false)` put the tip on its rest (identity). Getter `forelockDeg`.
+  - [x] `tests/support/testCharacters.ts`: in `createTestPapa`, put `forelock` under `head` and the marker under `forelock` at about (0, −0.04, 0.03) m (as the steam goes under the mug). `papaView.test.ts`: still → rest within 0.5° after `5 × reachMs`; Papa moved along +x trails the tip toward −x (sign pinned), then settles; a big jump stops at `maxDeg`; reduced motion 0°; `dtMs` 0 with a still head holds; restart and return from away start at 0; a held gaze turn settles at 0; both characters' brows stay at rest (AC 5).
+  - [x] `realFxState()` / `__PP__.fx()`: `papaForelockDeg`. Update `tests/e2e/support/testApi.ts`, `tests/support/fakeTestHost.ts`, `src/debug/testApi.test.ts`.
+  - [x] `characterAssets.test.ts`: `forelock` joins `LIFE_VIEWS` (both scans).
+- [x] **T6. Prove nothing moved** (AC 9, 10, 11)
+  - [x] `git diff --stat main` on the paths of « Not in this story »: empty. D9's proof of the goldens. The bots on the three levels against `main`.
+  - [x] Re-export both characters from the committed `.blend` files (AC 11).
+  - [x] `npm run ci:fast`. Then on Chromium, in the background: `npm run e2e -- tests/e2e/characters.spec.ts tests/e2e/lifeLayer.spec.ts --project=chromium` (the clips after the pick-up and the coffee: D5).
+- [x] **T7. Performance and delivery** (AC 8, 12), after the last art edit, under `caffeinate`
+  - [x] `npm run build:playtest`, `npm run dist:check -- --flavor playtest` (payload numbers in the notes, D14), then `npm run e2e:dist` in the background (it queues; perf alone ≈ 5 min). Numbers in the notes.
+  - [x] `npm run e2e -- tests/e2e/autoplay.spec.ts tests/e2e/afterEffects.spec.ts --update-snapshots=all` (both browsers; `autoplay` is in the smoke tier, so `ci:story` fails without it). Open all four images, say what changed.
+  - [x] The « after » captures of D11, same frames as the « before ». Write what you saw by eye, and what you did not open.
+- [x] **T8. Close and record the debts** (see « Deferred items »); `project-context.md › Rigged characters`: the v2 bones, `codeDrivenBones`, `markerNodes`, the forelock, the new guards. Check `EXPERIENCE.md`'s reduced-motion row (« breathing, lean, forelock — removed ») matches what ships.
 
 ## Dev Notes
 
@@ -280,8 +284,68 @@ No new dependency: `three@0.186.1`, `gltfpack@1.3.0`, Blender 5.2.3 are pinned, 
 
 ### Agent Model Used
 
+Claude Opus 5.5 (`claude-opus-5-5`), Claude Code, 2026-11-08.
+
 ### Debug Log References
+
+- **D12:** story 7.4 was merged into `main` (337219c) before this story started: `main` was merged into the branch first (« Story 7.9 : merge de main dans la branche »), and `victory_dance` and `collapse` were retaken with the others (18 Papa clips).
+- **T0 spike** (scratchpad, a copy of `papa.blend`): a bone added in edit mode headless exports with no `rotation` / `scale` (identity rest); an empty parented to a bone (`parent_type = BONE`) survives `export_character.py` + `-cc -kn` as a named node child of the bone, its translation in the bone's axes (Blender keeps it relative to the bone's tail; the exporter converts it: tip at (0.14, -0.16, 0.80) in Blender gave `forelock` + (0.01, -0.05, 0.04) in glTF, exactly). The empty carries a 90° rotation about X (Blender's bone-parent convention): the code reads its position only. Workbench renders headless (`-b`) on this Mac.
+- **Inside-out shirt in `drink`** (new test of AC 4): it failed on the 7.8 file by 3 mm (its label stood 4 cm off his back, and the 7.8 drink leant the spine back 14°). The retake tips the head and neck instead of the spine (spine -7° at most) and the label was moved flush with the back (-3 cm, -1 cm in Blender). Passes.
+- **Grounding:** a first build planted the feet only at the keys; loops floated up to 5.6 cm between them (glide) and `respond_perfect` / `stumble` sank 5 cm. The build now keys the pelvis height at every frame (the `root` for `collapse`, where the pelvis is turned with him) so that the lowest vertex is on the floor. A second bug (the height re-read after neighbouring keys were inserted) doubled the lift; fixed by measuring every frame first.
+- **The forelock and the screen shake:** `levelScene.test.ts` caught the lock swinging to its cap while the sim clock stood still: the camera shake moves `content_root` on the real clock. The pendulum is computed in the room's metres (the scene the view was given), not the world's: a shake moves the head and the rigid tip together. Pinned by a test (« does not swing when the room itself moves »).
+- **The settle test:** with the starting damping 0.4, a 10 cm jump still rings 1.8° after 5 × reachMs (the envelope keeps 1.7 % of the swing). The test of AC 6 uses a 2 cm step, whose swing stays under the cap; the big jump has its own test (capped at `maxDeg`).
+- **The `.blend` files** were first saved uncompressed (1.2 and 1.7 MB); the 7.8 files were compressed. Rebuilt with `compress=True`: 227 KB and 170 KB.
+- **The pose sheet** first showed Papa lying down in every clip after `collapse`: Blender keeps an unkeyed bone where the last action left it (three brings it back to rest). The sheet script resets the pose before each clip; the files were never affected (every test reads the `.glb`).
+- `npm run golden:update` ran twice: the first run regenerated the journals and failed only on my throwaway D9 proof, which sat in `tests/golden/` and compared to the committed files; the second run wrote the same files. The proof was then moved out.
 
 ### Completion Notes List
 
+- **Rig (T3, T4):** Papa 22 bones, the baby 19, exactly the parents of D1, every bone straight up with no roll and an identity rest. One skin each, at most 4 influences. Built headless by a throwaway script (scratchpad) from the 7.8 `.blend` files: new bones, re-parenting, weights blended across each joint by height (sleeves of `papa_shirt` and `papa_look_shirt` identical; legs, shoes on `foot_*`), the brows (a bent `art_ink` bar each, on the head) and the forelock (a tapered `art_ink` lock from the front hairline, at the V of the hair, sweeping slightly to his right) joined into the body mesh, the marker `papa_forelock_tip` (an empty under `forelock`, 10.6 cm from the lock's root, 49° below the horizontal). Every action rebuilt under its own name, slot and fake user.
+- **Budget (AC 2):** paid with thinner ears (UV spheres 8 × 4 instead of 10 × 6, fitted to the same boxes). Papa 2,550 visible triangles (was 2,600), 4,366 in all (4,416); the baby 2,452 (2,516). 4 draw calls each, materials unchanged (6 and 4). Bones 22 and 19 (≤ 32).
+- **Retakes (AC 3, D5, D6):** every clip keyed by hand in data (Euler keys, Bezier, auto-clamped handles), from the 7.8 poses: anticipation (the parry's wind-up, the firm's hands to the chest, the perfect's crouch, the coffee kick's sink, the snore's sag, the delight's hunch, the sat-up's dip, the wake's hunch, the laugh's gather, the peek's counter-move), overshoot (the block past its end, the palms snapping, the landing in the knees, the hit past upright, the stretch past the top), follow-through (forearms and hands a frame or two behind the upper arm, the head behind the spine, the elbows folding late in the dance), arcs from the hinges, a real walk (heel strike, loading, passing with the knee up, toe-off; hips and shoulders counter-rotating), hands-and-knees crawl and sneak with stepping knees. The drink and the phone keep each hand's 7.8 turn (the mug and handset tip as before) and pull the wrist toward the shoulder so the elbow bends (a two-bone solver). Loops cycle seamlessly (a Cycles modifier, same first and last keys). Nothing in the bedtime-duel, stealth and feint loops stirs: `carried` sways slowly, legs dangling from the knees. **Durations, frames before → after:** Papa asleep 61→61, carry_idle 61→61, carry_walk 17→17, coffee_kick 22→22, collapse 34→34, drink 60→60, gag_hit 22→22, gag_shock 27→27, glide 13→13, idle 61→61, on_phone 49→49, respond_firm 22→22, respond_parry 17→17, respond_perfect 28→28, snore 32→32, stumble 15→15, victory_dance 84→84, walk 17→17; the baby act 13→13, babble 53→53, carried 51→51, crawl 17→17, cry 16→16, eyes_open 15→15, eyes_peek 16→16, gag_delight 26→26, laugh 20→20, locked 31→31, sat_up 24→24, sneak 23→23, stir 13→13, wake 22→22. `characterClips.ts` changed only in its two contracts.
+- **Guards (T1):** `CharacterContract.markerNodes`; `characterRigProblems` refuses a missing marker, a marker with a mesh (its own or an unnamed child's) and a joint resting off the identity rotation or unit scale (closes the 7.2 deferred item). `characterAssets.test.ts`: the D1 parents, the `*_7_8` ceilings, the forelock tip, floor contact of every loop (±0.03 m at 9 samples), the carry reach (≤ 0.35 m; now ≤ 0.20 m), one-way hinges with a pinned sign test (elbow -160..+10°, knee -10..+160°, swing ≤ 15°), the inside-out shirt in `drink`, the « keys nothing the code moves » regex with the brows and the lock, `forelock` in both scans. The floor and carry tests passed on the 7.8 files before any art; the shirt-in-drink test did not (see the debug log).
+- **The forelock (T5, AC 6, 7, 10):** `forelock.ts` (three springs of `characterSpring.ts`, pure), written in `papaView.animate` after the gaze; `feel.json › characters.forelock { reachMs 200, dampingRatio 0.4, maxDeg 30 }` read every frame, schema bounds 50-1000 ms, 0.3-1, 0-40°; `fx().papaForelockDeg`. At rest on the first frame, under reduced motion, after `resetAnimation` (a restart and `resetFx`) and on a return from `setAway`. Nothing writes the brows (a test on each character).
+- **Goldens (D9):** 72 files, 72 lines: 36 `feelHash` and 36 `worldHash`. Proof: every scenario (36) recorded with the branch's feel and with `main`'s (the same without `characters.forelock`): the world without its `feel` key and the events hash the same, `main`'s feel reproduces the committed `worldHash` and `eventsHash`. `humanBotRegression`: `PINNED` re-pinned (the journal's header carries the feel hash), `PINNED_COMMANDS` untouched and passing.
+- **The bots (AC 9):** `npm run sim` with `perfect`, `human`, `random`, `idle` on `salon_kitchen`, `salon_crawler`, `chambre_night`, seed 1, on `main` (extracted with `git archive`) and on the branch: 12 reports identical once the hashes are removed (`feel`, `worldHash` differ).
+- **Nothing moved (AC 9):** `git diff --stat main` on `src/sim`, `src/bots`, `public/assets/levels`, `content/levels`, `content/threats`, `content/sequences`, `public/_headers`, `tools/blender/export_level.py` and the room `.blend` files: empty.
+- **Re-export (AC 11):** `npm run assets:character:export` then `optimize` on the committed `.blend` files give the committed `.glb` byte for byte (checked twice for both).
+- **Budgets (AC 8):** `papa.glb` 111,292 B (was 65,352), `baby.glb` 60,376 B (35,488): under ~150 KiB each and `CHARACTER_GLB_MAX_BYTES`. The growth is animation data (the per-frame pelvis keys, more bones keyed). `npm run dist:check -- --flavor playtest`: OK, level payload 2,896.6 KiB of 3,072 (`salon_crawler` binds, D14), first load 4,512.9 KiB gzip. The comment on `CHARACTER_GLB_MAX_BYTES` now says `dist:check` is the guard. `npm run e2e:dist` on the built playtest: the 12 dist specs passed (Chromium and WebKit, 1.9 min), then `perf.spec.ts`: 16,729 frames, p95 16.7 ms (mean 16.69, max 133.4), at most 90 draw calls and 19,788 triangles. Nothing in the rAF path allocates (scratch vectors, quaternions and matrices made once in `papaView`).
+- **Checks run:** `npm run ci:fast` green before the heavy checks and again at the end, once the throwaway files were gone (470 files, 10,385 tests, 60 skipped); `npm run e2e -- tests/e2e/characters.spec.ts tests/e2e/lifeLayer.spec.ts --project=chromium`: 10 passed. `npm run ci:story` was not run (the review's gate).
+- **References (AC 12):** `autoplay.spec.ts` and `afterEffects.spec.ts` regenerated with `--update-snapshots=all` (22 passed). All four opened (`autoplay-frozen-{chromium,webkit}-darwin.png`, `penombre-threat-up-{chromium,webkit}-darwin.png`): same framing, same room, Papa and the baby at their game size; only Papa's pose changes, by a few pixels. Captures and the list of what was and was not opened: `7-9-screenshots/notes.txt`.
+- **For Geo:** the look of the joints, the retakes and the forelock are yours, and the merge waits for your visual OK. Two things to look at: (1) at the starting values the lock trails a turning head by several centimetres and sits at its 30° cap during a gaze turn or a sip (`papaForelockDeg` 30° at 100 ms, 25° mid-sip): try `reachMs` near 100 in the feel panel; (2) the baby's arms stay mostly hidden behind his head at the game's angle, as before.
+- **Where a test goes:** every check of the rig, the clips and the forelock is in Vitest (`characterAssets.test.ts`, `papaView.test.ts`, `babyView.test.ts`, `forelock.test.ts`); no e2e spec was added. A throwaway Playwright file took the in-game captures and was deleted, as were the D9 proof and a probe.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/7-9-squelette-v2-et-animations-reprises.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/deferred-work.md`
+- `_bmad-output/implementation-artifacts/7-9-screenshots/` (notes.txt, four pose sheets, raw/: 18 before and 18 after in-game PNG, notes_before.txt, notes_after.txt, done_*.txt)
+- `_bmad-output/project-context.md`
+- `assets-src/blender/characters/papa.blend`, `assets-src/blender/characters/baby.blend`
+- `public/assets/characters/papa.glb`, `public/assets/characters/baby.glb`
+- `content/feel.json`, `content/_schemas/feel.schema.json`
+- `src/content/schemas/feel.ts`
+- `src/shared/constants.ts`
+- `src/client/render/views/characterClips.ts`
+- `src/client/render/views/forelock.ts` (new), `src/client/render/views/forelock.test.ts` (new)
+- `src/client/render/views/papaView.ts`, `src/client/render/views/papaView.test.ts`
+- `src/client/render/views/babyView.test.ts`
+- `src/client/render/levelScene.ts`, `src/client/render/levelScene.test.ts`
+- `src/client/app/testHost.ts`, `src/client/app/levelSession.test.ts`
+- `src/client/boot.ts`
+- `src/debug/testApi.test.ts`
+- `tools/assets/characterArt.ts`
+- `tests/tools/assets/characterArt.test.ts`
+- `tests/architecture/characterAssets.test.ts`
+- `tests/content/feelSchema.test.ts`
+- `tests/support/testFeel.json`, `tests/support/testCharacters.ts`, `tests/support/fakeTestHost.ts`
+- `tests/tools/vite/fixtures/feelSample.json`
+- `tests/e2e/support/testApi.ts`
+- `tests/bots/humanBotRegression.test.ts`
+- `tests/golden/journals/*` (72 files: `feelHash` and `worldHash` lines only)
+- `tests/e2e/__screenshots__/autoplay.spec.ts/autoplay-frozen-{chromium,webkit}-darwin.png`, `tests/e2e/__screenshots__/afterEffects.spec.ts/penombre-threat-up-{chromium,webkit}-darwin.png`
+
+## Change Log
+
+- 2026-11-08: Story 7.9 implemented: the v2 skeleton (Papa 22 bones, the baby 19), new weights, brows and Papa's forelock in the same triangle and draw-call budget, all 32 clips retaken (anticipation, overshoot, arcs) at their own lengths, the forelock's pendulum in the client (`feel.json › characters.forelock`, `fx().papaForelockDeg`), the rig guards (markers, identity rest, hinges, floor contact, carry reach). Goldens regenerated once (`feelHash`, `worldHash`), `humanBotRegression`'s `PINNED` re-pinned, macOS references regenerated, captures for Geo.

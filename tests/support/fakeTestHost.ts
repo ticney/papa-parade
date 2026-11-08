@@ -39,6 +39,7 @@ const NO_FX_STATE: FxState = {
   papaLeanDeg: 0,
   papaStoopDeg: 0,
   papaHeadYawDeg: 0,
+  papaForelockDeg: 0,
   papaGaze: 'ahead',
   papaBreathDeg: 0,
   babyBreathDeg: 0,

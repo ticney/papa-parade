@@ -87,6 +87,22 @@ describe('createBabyView', () => {
     return { scene, toon, rig, view };
   }
 
+  it('never writes a brow: both rest after frames with every life input set (story 7.9, AC 5)', () => {
+    const { scene, view } = build();
+    const busy = createTestLife({ fatigue: 80, isAlert: true, isResponding: true, babyXM: 1 });
+    for (let i = 0; i < 60; i++) {
+      const crawling = baby({ gazeX: Math.sin(i / 7), gazeZ: Math.cos(i / 7), xM: 2 + 0.01 * i });
+      view.update(crawling, 1);
+      view.animate(crawling, 16, busy);
+    }
+    for (const name of ['brow_l', 'brow_r']) {
+      const brow = scene.getObjectByName(name);
+      expect(brow?.quaternion.toArray(), name).toEqual([0, 0, 0, 1]);
+      expect(brow?.position.toArray(), name).toEqual([0, 0, 0]);
+      expect(brow?.scale.toArray(), name).toEqual([1, 1, 1]);
+    }
+  });
+
   it('draws the rig and a flat shadow, never culling his skinned mesh', () => {
     const { scene } = build(0.2);
     expect(scene.getObjectByName('baby_body')?.frustumCulled).toBe(false);

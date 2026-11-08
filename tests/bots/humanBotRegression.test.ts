@@ -30,9 +30,12 @@ import {
 // life layer and look), which the sim never reads. `PINNED_COMMANDS` were not touched and still hold.
 // Its code review re-pinned them once more: `characters.gaze.behindDeg` was added and
 // `characters.lean.fullAccelMps2` retuned, so the feel hash moved again. `PINNED_COMMANDS` still hold.
+//
+// Story 7.9 re-pinned them once more, for the same reason: the feel gained `characters.forelock` (Papa's
+// forelock, client only). `PINNED_COMMANDS` were not touched and still hold.
 const PINNED: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
-  test: { 1: '02653e54171589', 2: '1d19607b108552', 3: '0e4c53e57caf1b' },
-  trio: { 1: '022a734e14081f', 2: '1a4a5b6ef197fe', 3: '0ef5a59cf90d74' },
+  test: { 1: '0651a4627c51f7', 2: '007b89173dec1a', 3: '15f515e4f5d992' },
+  trio: { 1: '07f181fa169609', 2: '0df384261ab071', 3: '003d3a1596eade' },
 };
 const PINNED_COMMANDS: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
   test: { 1: '0632f181689687', 2: '158358e075a1a2', 3: '111636e2c690a2' },

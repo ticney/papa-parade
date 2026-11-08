@@ -988,6 +988,26 @@ const CharactersSchema = z
       .describe(
         'The fatigue stoop (story 7.8): in proportion to the fatigue gauge. His eyelids never follow it.',
       ),
+    forelock: z
+      .strictObject({
+        reachMs: reachMs(
+          "Time the forelock's tip takes to cover 95 % of the way to where it would be if the lock were rigid, in sim ms: its lag behind his head.",
+        ),
+        dampingRatio: z
+          .number()
+          .min(0.3)
+          .max(1)
+          .describe(
+            'Damping of the forelock: 1 = it catches up with no bounce; below, it swings past and comes back.',
+          ),
+        maxDeg: lifeDeg(
+          40,
+          'The most the lock turns from its rest, in degrees. It hangs at least 45° below the horizontal, so at 40° it can swing but never stand up.',
+        ),
+      })
+      .describe(
+        "Papa's forelock (story 7.9): a pendulum on his head, stepped on the sim clock, that trails whatever moves the head. At rest under « Réduire les animations ».",
+      ),
     look: z
       .strictObject({
         outlineWidthPct: z
@@ -1017,7 +1037,7 @@ const CharactersSchema = z
       .describe("The characters' own look, to stand out from the room (story 7.8)."),
   })
   .describe(
-    "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, rim and outline. Client only.",
+    "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), rim and outline. Client only.",
   );
 
 const MusicSchema = z

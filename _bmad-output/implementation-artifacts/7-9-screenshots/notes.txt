@@ -1,0 +1,37 @@
+Story 7.9 — captures before / after (D11)
+
+Pose sheets (Workbench, orthographic, yaw 45°, pitch 35.264°; one row per clip in alphabetical order, five
+frames each: first, anticipation, action, overshoot, last; the eyelids drawn open, the mug shown in drink
+and coffee_kick, the handset in on_phone):
+  papa_sheet_before.png / papa_sheet_after.png  rows: asleep, carry_idle, carry_walk, coffee_kick, collapse,
+    drink, gag_hit, gag_shock, glide, idle, on_phone, respond_firm, respond_parry, respond_perfect, snore,
+    stumble, victory_dance, walk
+  baby_sheet_before.png / baby_sheet_after.png  rows: act, babble, carried, crawl, cry, eyes_open, eyes_peek,
+    gag_delight, laugh, locked, sat_up, sneak, stir, wake
+  The modelling tool's render is not the game's look: the sheets are for poses and timing.
+
+In game (raw/), salon_crawler, seed 42, frozen with __PP__.freeze / advance, 844 × 390 at 3× (the close-ups
+are 150 × 150 css px around the character), the same frames before and after. Each frame's clip and the
+forelock's turn (papaForelockDeg; n/a before, the fx had no such field):
+  papa_idle    sim 100 ms   papa idle, baby babble        forelock 30.0° (the gaze is turning his head)
+  papa_walk    sim 240 ms   papa walk, baby babble        forelock 30.0°
+  baby_crawl   sim 1590 ms  papa idle, baby crawl         forelock 1.4°
+  papa_carry   sim 3840 ms  papa carry_idle, baby carried forelock 5.3°
+  baby_babble  sim 400 ms   papa idle, baby babble        forelock 11.7°
+  papa_drink   sim 2770 ms  papa drink, baby crawl        forelock 25.4° (a sip tips his head back)
+  papa_phone   sim 2530 ms  papa on_phone, baby crawl     forelock 23.8°
+  papa_hair    sim 100 ms   setPapaLook hair on end       forelock 30.0°
+  salon_667    sim 100 ms   667 × 375                     forelock 30.0°
+  At the starting values (reachMs 200, damping 0.4) the lock trails a turning head by several centimetres
+  and spends those moments at its 30° cap: Geo's to tune in the feel panel.
+
+Opened by eye: papa_sheet_after, baby_sheet_after (and the six-clip check sheets in the scratchpad),
+raw/papa_drink_close_before, raw/papa_walk_close_before, raw/papa_carry_close_before,
+raw/papa_drink_close_after, raw/papa_carry_close_after, raw/papa_walk_close_after, raw/papa_hair_close_after.
+Not opened: papa_sheet_before, baby_sheet_before, every full-scene raw/*_before.png and raw/*_after.png, and
+raw/papa_idle_close_*, raw/papa_hair_close_before, raw/papa_phone_close_*, raw/baby_*_close_*,
+raw/salon_667_close_*.
+What was seen: in game, at 40 px, the poses keep their silhouettes (the hands on the carried baby, the mug
+at his mouth, the hair on end); the elbows and knees read on the sheets, barely in game; the brows and the
+lock are 1-3 px there and do not read as such. On the sheets, the parry's wind-up, the perfect's crouch and
+landing, the collapse onto his back with legs up, the drink with the head tipping (not the spine) read.
