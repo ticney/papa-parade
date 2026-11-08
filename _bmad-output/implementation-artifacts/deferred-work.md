@@ -1249,5 +1249,12 @@ Closed here: « Rigid parts, no elbows » (7.2), « Code-driven bones assume an 
 - **The life layer stays on `spine` and `head`** (D2): Papa's lean, breath and stoop could be shared between `pelvis` and `spine`, his gaze between `neck` and `head`. Reason: it would change 7.8's tuned feel (`papaLeanDeg`, `papaHeadYawDeg`) for a gain nobody has judged; Geo's option.
 - **Story 7.4 was merged before 7.9 started** (D12): its `victory_dance` and `collapse` were retaken here with the 16 others (18 Papa clips), nothing left for 7.4.
 - **The feet are planted by the pelvis, frame by frame** (the retakes' `ground` pass): every loop and most one-shots key the pelvis height at every frame so that the lowest vertex sits on the floor. It reads as weight, but it is dense: a later hand retake in Blender sees one pelvis key per frame. Reason: the test « pieds au sol » at 9 samples; Geo can thin the keys by hand.
-- **A damping of 0.4 rings for about a second** (D7): after a stop from a walk the forelock still sways a few degrees one second later (5 reach times leave 1.7 % of the swing). Reason: the story's starting values; `feel.json › characters.forelock.dampingRatio` is Geo's.
+- **A damping of 0.4 rang for about a second** (D7): the dev's starting values (200 ms, 0.4) pinned the lock at its cap and left it swaying after a stop. Retuned in the code review to 100 ms and 0.6 (about 120 ms to settle in a simulation of a stop from a walk); `feel.json › characters.forelock` stays Geo's, to judge by eye in the feel panel.
 - **The baby's arms barely show behind his head** at the game's angle, in the v2 clips as in the 7.2 ones: the elbows read on Papa first. Reason: proportions are the model's (7.2), not this story's.
+
+## Deferred from: code review of story-7-9-squelette-v2-et-animations-reprises (2026-11-08)
+
+- **The posed motion tests sample 9 fixed times, not the keyframes** (hinge limits, floor contact, carry reach): an extreme between two samples would be missed; sampling `track.times` would be exact. Reason: AC 4 of 7.9 asks for 9 samples.
+- **Loop seamlessness, « nothing moves before its own event » and the calm of the duel / stealth / feint loops are pinned by no test** (7.9 D5, D6, AC 10). Reason: judged by Geo's eye and the first playtest.
+- **Reduced motion switched on mid-swing, and a non-uniform squash with the forelock, have no test** (`papaView.test.ts`). Reason: the logic reads right (it rests every frame while reduced), no defect found.
+- **The forelock's determinism is proven for a held target only**: the view samples the head once per frame, so a moving head gives slightly different angles at 30 and 120 fps. Reason: client-only, no golden reads it.

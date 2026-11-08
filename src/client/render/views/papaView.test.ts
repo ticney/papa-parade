@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createTestLife,
   createTestPapa,
+  TEST_FORELOCK_ROOT_M,
   TEST_FORELOCK_TIP_M,
 } from '../../../../tests/support/testCharacters.ts';
 import type { CharacterAsset } from '../../assets/gltf.ts';
@@ -754,7 +755,10 @@ describe('his forelock (story 7.9, D7)', () => {
   const tips = (named: (name: string) => Object3D) => {
     named('papa_group').updateMatrixWorld(true);
     const drawn = named('papa_forelock_tip').getWorldPosition(new Vector3());
-    const rigid = new Vector3(...TEST_FORELOCK_TIP_M).applyMatrix4(named('head').matrixWorld);
+    // The lock's root is off the head's origin: the rigid tip is the root plus the marker, in the head's axes.
+    const rigid = new Vector3(...TEST_FORELOCK_ROOT_M)
+      .add(new Vector3(...TEST_FORELOCK_TIP_M))
+      .applyMatrix4(named('head').matrixWorld);
     return { drawn, rigid };
   };
   /** Papa at x, his head still: frames of 10 ms for `ms`. */
@@ -787,6 +791,17 @@ describe('his forelock (story 7.9, D7)', () => {
     expect(drawn.x, 'the tip is left behind, toward -x').toBeLessThan(rigid.x);
     hold(view, 2.02, 5 * reachMs);
     expect(view.forelockDeg).toBeLessThan(0.5);
+    // At rest the drawn tip is the rigid one, to the millimetre: no constant bias from a wrong frame or sign.
+    const settled = tips(named);
+    expect(settled.drawn.distanceTo(settled.rigid)).toBeLessThan(1e-3);
+  });
+
+  it('hangs on its rigid tip from the first frame, the lock root being off the head origin', () => {
+    const { view, named } = buildView();
+    hold(view, 2, 20);
+    const { drawn, rigid } = tips(named);
+    expect(drawn.distanceTo(rigid)).toBeLessThan(1e-6);
+    expect(view.forelockDeg).toBe(0);
   });
 
   it('turns at most maxDeg, however far the head jumps', () => {

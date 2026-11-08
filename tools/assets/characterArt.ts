@@ -29,6 +29,8 @@ interface CharacterNode {
   children?: number[];
   rotation?: number[];
   scale?: number[];
+  /** A node written as a matrix has no TRS to read its rest from: refused on a bone (story 7.9 review). */
+  matrix?: number[];
 }
 interface CharacterAnimation {
   name?: string;
@@ -151,6 +153,12 @@ export function characterRigProblems(document: unknown, contract: CharacterContr
   }
   for (const joint of jointNodes) {
     if (joint === undefined) continue;
+    if (joint.matrix !== undefined) {
+      problems.push(
+        `bone "${joint.name ?? ''}" is written as a matrix: its rest cannot be checked, write a translation only`,
+      );
+      continue;
+    }
     if (!isRestAt(joint.rotation, IDENTITY_ROTATION)) {
       problems.push(
         `bone "${joint.name ?? ''}" rests with a rotation: every bone rests at the identity`,
@@ -185,7 +193,9 @@ export function characterRigProblems(document: unknown, contract: CharacterContr
       const target = nodes[channel.target?.node ?? -1]?.name;
       if (
         target !== undefined &&
-        (contract.codeDrivenBones.includes(target) || contract.codeDrivenNodes.includes(target))
+        (contract.codeDrivenBones.includes(target) ||
+          contract.codeDrivenNodes.includes(target) ||
+          contract.markerNodes.includes(target))
       ) {
         problems.push(
           `clip "${animation.name}" has a ${channel.target?.path} track on "${target}", which the code drives`,

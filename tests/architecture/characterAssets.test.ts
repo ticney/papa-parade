@@ -106,6 +106,28 @@ const babyFloorLoops: readonly string[] = BABY_CONTRACT.clips.filter(
   (clip) => !babyOneShots.includes(clip) && clip !== 'carried',
 );
 
+describe('the lists the floor-contact test is built from (story 7.9 review)', () => {
+  // `section()` slices the source text: a bound that went missing gives -1 and a list that is empty or cut
+  // short without a word, which would hold a one-shot to the floor rule or let a loop off it.
+  it('finds the one-shots in the source, and the loops that stand on the floor', () => {
+    expect(papaOneShots).toEqual(
+      expect.arrayContaining(['respond_parry', 'respond_firm', 'stumble', 'gag_shock']),
+    );
+    expect(babyOneShots).toEqual(expect.arrayContaining(['sat_up', 'wake', 'laugh', 'eyes_open']));
+    expect(papaFloorLoops).toEqual(expect.arrayContaining(['idle', 'walk', 'glide']));
+    expect(babyFloorLoops).toEqual(expect.arrayContaining(['crawl', 'sneak', 'babble']));
+    // (`collapse` and `victory_dance` are played by the finale, not named in `papaOneShotOf`: the floor
+    // rule holds them too, which is the safe side, and they keep to it.)
+    for (const oneShot of ['respond_perfect', 'gag_hit', 'snore', 'coffee_kick']) {
+      expect(papaFloorLoops, `${oneShot} is not a loop`).not.toContain(oneShot);
+    }
+    for (const oneShot of ['wake', 'sat_up', 'laugh', 'stir', 'gag_delight']) {
+      expect(babyFloorLoops, `${oneShot} is not a loop`).not.toContain(oneShot);
+    }
+    expect(babyFloorLoops).not.toContain('carried');
+  });
+});
+
 describe.each(CHARACTERS)('the committed file of $id', ({ id, contract }) => {
   it('keeps to its budget and to its contract', () => {
     expect(characterRigProblems(jsonOf(id), contract)).toEqual([]);
@@ -197,6 +219,21 @@ describe('the v2 skeleton (story 7.9)', () => {
     for (const [bone, parent] of Object.entries(expected)) {
       expect(parents.get(bone), bone).toBe(parent);
     }
+  });
+
+  it.each([
+    ['papa', PAPA_CONTRACT.bones, 22],
+    ['baby', BABY_CONTRACT.bones, 19],
+  ] as const)('the skin of %s has exactly the bones of D1, no more (AC 1)', (id, bones, count) => {
+    const skin = (jsonOf(id) as { skins: { joints: number[] }[]; nodes: { name?: string }[] })
+      .skins;
+    expect(bones.length).toBe(count);
+    expect(skin).toHaveLength(1);
+    expect(skin[0]?.joints).toHaveLength(count);
+    const names = (jsonOf(id) as { nodes: { name?: string }[] }).nodes;
+    expect((skin[0]?.joints ?? []).map((index) => names[index]?.name).sort()).toEqual(
+      [...bones].sort(),
+    );
   });
 
   it("Papa's v2 skeleton costs no triangle, draw call or material more than before it", () => {
@@ -458,7 +495,7 @@ describe('the v2 motion keeps the gameplay silhouettes (story 7.9, AC 4)', () =>
     const off = elbow.quaternion
       .clone()
       .premultiply(new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), 0.2));
-    expect(hingeOf(off).swingDeg).toBeCloseTo(0.2 * RAD_TO_DEG, 0);
+    expect(hingeOf(off).swingDeg).toBeCloseTo(0.2 * RAD_TO_DEG, 6);
     const knee = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2);
     elbow.quaternion.copy(knee);
     elbow.updateMatrixWorld(true);

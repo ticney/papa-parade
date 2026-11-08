@@ -454,7 +454,12 @@ export function createPapaView(
         .set(forelockState.x.drawn, forelockState.y.drawn, forelockState.z.drawn)
         .applyMatrix4(headInverse.copy(headInRoom).invert())
         .sub(forelock.position);
-      if (forelockAim.lengthSq() < FORELOCK_LENGTH_MIN_M * FORELOCK_LENGTH_MIN_M) return;
+      if (forelockAim.lengthSq() < FORELOCK_LENGTH_MIN_M * FORELOCK_LENGTH_MIN_M) {
+        // The tip is on its root: no direction to turn toward, so the lock hangs at rest, not on last frame's pose.
+        forelock.quaternion.identity();
+        forelockNowDeg = 0;
+        return;
+      }
       forelockTurn.setFromUnitVectors(forelockRestDir, forelockAim.normalize());
       const turnRad = 2 * Math.acos(Math.min(1, Math.abs(forelockTurn.w)));
       const maxRad = lock.maxDeg * DEG_TO_RAD;

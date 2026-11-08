@@ -79,6 +79,12 @@ export function createTestCharacter(contract: {
   };
 }
 
+/**
+ * Where the lock's root sits on the head in the fixture, in metres: off the head's origin, as in `papa.glb`
+ * (about 0.012, 0.315, 0.08), so that a wrong frame or sign in the view's maths shows in a test.
+ */
+export const TEST_FORELOCK_ROOT_M = [0.012, 0.3, 0.08] as const;
+
 /** Where the forelock's tip rests in the fixture, from the lock's root, in metres: down and forward. */
 export const TEST_FORELOCK_TIP_M = [0, -0.04, 0.03] as const;
 
@@ -93,6 +99,7 @@ export const createTestPapa = (): CharacterAsset => {
   const forelock = asset.scene.getObjectByName('forelock');
   if (forelock !== undefined) {
     asset.scene.getObjectByName('head')?.add(forelock);
+    forelock.position.set(...TEST_FORELOCK_ROOT_M);
     const tip = new Group();
     tip.name = 'papa_forelock_tip';
     tip.position.set(...TEST_FORELOCK_TIP_M);

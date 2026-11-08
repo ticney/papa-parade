@@ -833,7 +833,7 @@ describe('feel.characters (story 7.8)', () => {
       breath: { periodMs: 3000, alertPeriodMs: 1500, papaAmplitudeDeg: 1.5, babyAmplitudeDeg: 2 },
       gaze: { maxYawDeg: 60, behindDeg: 150, reachMs: 200 },
       stoop: { maxDeg: 15 },
-      forelock: { reachMs: 200, dampingRatio: 0.4, maxDeg: 30 },
+      forelock: { reachMs: 100, dampingRatio: 0.6, maxDeg: 30 },
       look: {
         outlineWidthPct: 150,
         rimStrengthPct: 35,

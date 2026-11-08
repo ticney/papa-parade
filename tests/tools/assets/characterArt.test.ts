@@ -129,6 +129,24 @@ describe('characterRigProblems', () => {
     expect(characterRigProblems(written, CONTRACT)).toEqual([]);
   });
 
+  it('refuses a bone written as a matrix, whose rest cannot be read (story 7.9 review)', () => {
+    const file = conforming();
+    (file.nodes[4] as { matrix?: number[] }).matrix = [
+      1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+    ];
+    expect(characterRigProblems(file, CONTRACT)).toEqual([
+      'bone "eyelids" is written as a matrix: its rest cannot be checked, write a translation only',
+    ]);
+  });
+
+  it('refuses a clip track on a marker, which the view reads once (story 7.9 review)', () => {
+    const file = conforming();
+    file.animations[0]?.channels.push({ target: { node: 6, path: 'translation' } });
+    expect(characterRigProblems(file, CONTRACT)).toEqual([
+      'clip "idle" has a translation track on "tip", which the code drives',
+    ]);
+  });
+
   it('refuses a bone that is a node but not in the skin', () => {
     const file = conforming();
     (file.skins[0] as { joints: number[] }).joints = [2];
