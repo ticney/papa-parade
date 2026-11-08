@@ -1,7 +1,10 @@
-import { MIN_TIME_SCALE } from '@shared/constants';
+import { FRAMING_STYLE_IDS, MIN_TIME_SCALE } from '@shared/constants';
 import { z } from 'zod';
 import { SNAKE_ID_PATTERN } from '../levelNodeNames.ts';
 import { CUE_ID_PATTERN } from './feedback.ts';
+
+/** `framing.title_<name>`: the Epic title cards of the film grammars (story 7.4). */
+export const FRAMING_TITLE_KEY_PATTERN = /^framing\.title_[a-z0-9]+(_[a-z0-9]+)*$/;
 
 /** The fastest tempo a `beats` step takes, in beats per minute (a typo such as 90000 is refused). */
 const MAX_BEATS_BPM = 300;
@@ -323,6 +326,23 @@ const FramingSchema = z
     bar: BarSchema.nullable().describe(
       'The bar under the timer, or null for no bar (and no compact timer).',
     ),
+    style: z
+      .enum(FRAMING_STYLE_IDS)
+      .optional()
+      .describe(
+        'The film grammar the client draws while the sequence runs (story 7.4): letterbox, grade, vignette, roll and title, from `feedback.json › framingStyles.<style>`. Absent: none.',
+      ),
+    titleKey: z
+      .string()
+      .regex(FRAMING_TITLE_KEY_PATTERN, 'a title key is framing.title_<name> in lower_snake_case')
+      .optional()
+      .describe(
+        'Key of `strings.fr.json` for the Epic title card of the grammar. Needs `style`; `npm run content:check` refuses a key that is not in the strings.',
+      ),
+  })
+  .refine((framing) => framing.titleKey === undefined || framing.style !== undefined, {
+    error: 'a framing titleKey needs a style',
+    path: ['titleKey'],
   })
   .describe('What the client shows around the sequence. The sim ignores it.');
 

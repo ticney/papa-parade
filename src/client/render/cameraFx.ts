@@ -1,3 +1,4 @@
+import type { FramingGrade } from '@content/schemas/feedback';
 import type { Feel } from '@content/schemas/feel';
 import { ISO_CAMERA_DISTANCE_M, REDUCED_MOTION_ZOOM_CAP_PCT } from '@shared/constants';
 import {
@@ -80,35 +81,83 @@ export function createFramingChain(): FramingChain {
   let chainedOutMs = 0;
   let appliedZoomPct = 0;
   let appliedFocusPct = 0;
+  let appliedRollDeg = 0;
+  let appliedLetterboxPct = 0;
+  let appliedVignettePct = 0;
+  let appliedGrade: FramingGrade | null = null;
+  let appliedGradeBlend = 0;
   let carriedZoomPct = 0;
   let carriedFocusPct = 0;
+  let carriedRollDeg = 0;
+  let carriedLetterboxPct = 0;
+  let carriedVignettePct = 0;
+  let carriedGrade: FramingGrade | null = null;
+  let carriedGradeBlend = 0;
   let carriedOutMs = 0;
   return {
     apply(framing, startedAt, outMs, clockMs) {
       if (startedAt !== chainedStartedAt) {
         carriedZoomPct = appliedZoomPct;
         carriedFocusPct = appliedFocusPct;
+        carriedRollDeg = appliedRollDeg;
+        carriedLetterboxPct = appliedLetterboxPct;
+        carriedVignettePct = appliedVignettePct;
+        carriedGrade = appliedGrade;
+        carriedGradeBlend = appliedGradeBlend;
         carriedOutMs = chainedOutMs;
         chainedStartedAt = startedAt;
         chainedOutMs = outMs;
       }
       const u = carriedOutMs > 0 ? Math.max(0, clockMs - startedAt) / carriedOutMs : 1;
-      if ((carriedZoomPct > 0 || carriedFocusPct > 0) && u < 1) {
+      // The grade is not a number to add: its weight goes beside the carried one (`setGrade` mixes them).
+      framing.gradeBlend = framing.blend;
+      framing.carriedGrade = null;
+      framing.carriedGradeBlend = 0;
+      const isCarrying =
+        carriedZoomPct > 0 ||
+        carriedFocusPct > 0 ||
+        carriedRollDeg !== 0 ||
+        carriedLetterboxPct > 0 ||
+        carriedVignettePct > 0 ||
+        (carriedGrade !== null && carriedGradeBlend > 0);
+      if (isCarrying && u < 1) {
         const left = 1 - smoothstep(u);
         framing.zoomPct = framing.zoomPct * framing.blend + carriedZoomPct * left;
         framing.focusPct = framing.focusPct * framing.blend + carriedFocusPct * left;
+        framing.rollDeg = framing.rollDeg * framing.blend + carriedRollDeg * left;
+        framing.letterboxPct = framing.letterboxPct * framing.blend + carriedLetterboxPct * left;
+        framing.vignetteOpacityPct =
+          framing.vignetteOpacityPct * framing.blend + carriedVignettePct * left;
+        framing.carriedGrade = carriedGrade;
+        framing.carriedGradeBlend = carriedGradeBlend * left;
         framing.blend = 1;
       }
       appliedZoomPct = framing.zoomPct * framing.blend;
       appliedFocusPct = framing.focusPct * framing.blend;
+      appliedRollDeg = framing.rollDeg * framing.blend;
+      appliedLetterboxPct = framing.letterboxPct * framing.blend;
+      appliedVignettePct = framing.vignetteOpacityPct * framing.blend;
+      // What goes out at the next seam is the grade this sequence brought, at its own weight.
+      appliedGrade = framing.grade;
+      appliedGradeBlend = framing.gradeBlend;
     },
     clear() {
       chainedStartedAt = null;
       chainedOutMs = 0;
       appliedZoomPct = 0;
       appliedFocusPct = 0;
+      appliedRollDeg = 0;
+      appliedLetterboxPct = 0;
+      appliedVignettePct = 0;
+      appliedGrade = null;
+      appliedGradeBlend = 0;
       carriedZoomPct = 0;
       carriedFocusPct = 0;
+      carriedRollDeg = 0;
+      carriedLetterboxPct = 0;
+      carriedVignettePct = 0;
+      carriedGrade = null;
+      carriedGradeBlend = 0;
       carriedOutMs = 0;
     },
   };
@@ -125,6 +174,41 @@ export interface SequenceFraming {
   focusPct: number;
   xM: number;
   zM: number;
+  /**
+   * The film grammar's camera roll at full blend, in degrees (story 7.4): the camera takes `rollDeg ×
+   * blend`, 0 under reduced motion. 0 for a sequence with no style.
+   */
+  rollDeg: number;
+  /** The letterbox bars' height at full blend, in % of the screen (story 7.4): boot draws `× blend`. */
+  letterboxPct: number;
+  /** The vignette's darkness at full blend, in % (story 7.4): boot draws `× blend`. */
+  vignetteOpacityPct: number;
+  /** The grade of the running sequence's grammar, or null (story 7.4). Read by `setGrade`, never by the camera. */
+  grade: FramingGrade | null;
+  /** The weight of `grade`: the sequence's own blend (the chain sets `blend` to 1 while it carries). */
+  gradeBlend: number;
+  /** The grade still going out from the sequence before (story 4.10's seam), or null; written by the chain. */
+  carriedGrade: FramingGrade | null;
+  /** Its weight, going down to 0 along the old `outMs`. */
+  carriedGradeBlend: number;
+}
+
+/** A framing with nothing in it: no sequence, no style. */
+export function createSequenceFraming(): SequenceFraming {
+  return {
+    blend: 0,
+    zoomPct: 0,
+    focusPct: 0,
+    xM: 0,
+    zM: 0,
+    rollDeg: 0,
+    letterboxPct: 0,
+    vignetteOpacityPct: 0,
+    grade: null,
+    gradeBlend: 0,
+    carriedGrade: null,
+    carriedGradeBlend: 0,
+  };
 }
 
 export interface CameraFx {
@@ -165,6 +249,8 @@ export interface CameraFx {
   /** The zoom and the rotation now applied, for the debug `fx()`. */
   readonly zoom: number;
   readonly yawDeg: number;
+  /** The film grammar's roll now applied, in degrees (story 7.4), for the debug `fx()`. */
+  readonly rollDeg: number;
   /** The floor point the framing (before any move) looks at, for the debug `fx()`. */
   readonly baseCentreXM: number;
   readonly baseCentreZM: number;
@@ -207,8 +293,10 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
   let appliedFrameFocusPct = -1;
   let appliedFrameXM = Number.NaN;
   let appliedFrameZM = Number.NaN;
+  let appliedFrameRollDeg = Number.NaN;
   let isDirty = true;
   let yawDeg = 0;
+  let rollDeg = 0;
   // The follow camera moved the base since the camera was last written (story 9.2).
   let isBaseMoved = false;
   let clampFrame: Readonly<FollowFrame> | null = null;
@@ -225,6 +313,7 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
     appliedBlend = 0;
     appliedFrameBlend = 0;
     yawDeg = 0;
+    rollDeg = 0;
   };
 
   return {
@@ -295,7 +384,8 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
         framing.zoomPct === appliedFrameZoomPct &&
         framing.focusPct === appliedFrameFocusPct &&
         framing.xM === appliedFrameXM &&
-        framing.zM === appliedFrameZM
+        framing.zM === appliedFrameZM &&
+        framing.rollDeg === appliedFrameRollDeg
       ) {
         return;
       }
@@ -346,6 +436,9 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
         centre.z - offsetX * Math.sin(turn) + offsetZ * Math.cos(turn),
       );
       camera.lookAt(centre);
+      // The film grammar's roll (story 7.4): about the view axis, after the turn; none under reduced motion.
+      const rollNowDeg = isMotionReduced ? 0 : framing.rollDeg * frameBlend;
+      if (rollNowDeg !== 0) camera.rotateZ(rollNowDeg * DEG_TO_RAD);
       camera.zoom = zoom;
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld(true);
@@ -362,8 +455,10 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
       appliedFrameFocusPct = framing.focusPct;
       appliedFrameXM = framing.xM;
       appliedFrameZM = framing.zM;
+      appliedFrameRollDeg = framing.rollDeg;
       wasPerfectMoving = blend !== 0;
       yawDeg = turnDeg;
+      rollDeg = rollNowDeg;
     },
     reset() {
       if (isDisplaced) restore();
@@ -393,6 +488,9 @@ export function createCameraFx(camera: OrthographicCamera): CameraFx {
     },
     get yawDeg() {
       return yawDeg;
+    },
+    get rollDeg() {
+      return rollDeg;
     },
     get baseCentreXM() {
       return baseCentre.x;

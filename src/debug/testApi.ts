@@ -94,6 +94,11 @@ export interface PPTestApi {
    */
   fx(): FxState;
   /**
+   * Plays the client half of a level's finale now (story 7.4): the cue, Papa's dance, the fireworks, the
+   * stamp and the music's mute, with no sim event. Throws with no level running.
+   */
+  celebrate(): void;
+  /**
    * The lines Mama says on the current Result screen (story 3.8), one per reaction in the order they play,
    * each with its `lineId` in `content/mama-lines.json` and its `text` (`*word*` is the emphasis the bubble
    * shows in italics). `null` before the first `LevelScored` and after the next level starts loading; the
@@ -325,6 +330,10 @@ export function createTestApi(host: TestHost, options: TestApiOptions = {}): PPT
     },
     fx() {
       return host.fxState();
+    },
+
+    celebrate() {
+      host.celebrate();
     },
 
     mamaLines() {

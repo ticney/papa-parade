@@ -79,6 +79,23 @@ export const LEVEL_END_REASONS_ARE_COMPLETE: [UnlistedLevelEndReason] extends [n
   : UnlistedLevelEndReason = true;
 
 /**
+ * What made the level's finale (story 7.4): the success that closed the level's last wave
+ * (`lastWave`), or the last entry of the bedtime cycle won (`cycleDone`). Presentation only: the
+ * sim decides nothing on it (the client celebrates).
+ */
+export type FinaleCause = 'lastWave' | 'cycleDone';
+
+/** Every `FinaleCause`, as data: the report counts by it. */
+export const FINALE_CAUSES = ['lastWave', 'cycleDone'] as const satisfies readonly FinaleCause[];
+
+type UnlistedFinaleCause = Exclude<FinaleCause, (typeof FINALE_CAUSES)[number]>;
+
+/** Compile-time proof that `FINALE_CAUSES` holds every member of the union (see `LEVEL_END_REASONS_ARE_COMPLETE`). */
+export const FINALE_CAUSES_ARE_COMPLETE: [UnlistedFinaleCause] extends [never]
+  ? true
+  : UnlistedFinaleCause = true;
+
+/**
  * Why Fatherly Instinct ended (story 2.9): its `durationMs` ran out (`timer`), or the level ended
  * first (`levelEnded`), so every `InstinctTriggered` gets exactly one `InstinctEnded`.
  */
@@ -562,6 +579,14 @@ export type SimEvent =
    */
   | { type: 'CycleCompleted'; t: SimMs }
   /**
+   * The level's finale (story 7.4), at most once per level: a `perfect` or `success` resolved the
+   * last threat of the level's last wave (`lastWave`, right after its `lastThreat` slow-mo began,
+   * `threatId` that threat; a level with a bedtime cycle has none from its waves), or the bedtime cycle was completed (`cycleDone`, right after
+   * `CycleCompleted`, `threatId` null). Never on a fail, never for a threat no wave planned. The
+   * client celebrates it; no world field records it.
+   */
+  | { type: 'FinaleReached'; t: SimMs; cause: FinaleCause; threatId: number | null }
+  /**
    * The final rush began (story 3.5): the door opens `feel.endOfLevel.finalRushMs` before the end of a
    * level that opts in with `finalRush`, once. A sequence under way was closed first
    * (`SequenceEnded{levelEnded}`), and the door's spill (`PropImpact`s from the next step on) follows.
@@ -626,6 +651,7 @@ export const SIM_EVENT_TYPES = [
   'DecoyTapped',
   'FatigueThresholdCrossed',
   'FinalRushStarted',
+  'FinaleReached',
   'FloorCreaked',
   'GagTriggered',
   'InstinctEnded',

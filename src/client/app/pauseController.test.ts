@@ -211,3 +211,21 @@ describe('createPauseController › countdown', () => {
     expect(() => createPauseController({ events, countdownMs: Number.NaN })).toThrow();
   });
 });
+
+describe('a refused pause (story 7.4)', () => {
+  it('ignores every pause while refused, and takes them again once accepted', () => {
+    const events = createEmitter<ClientEvents>();
+    const requested: string[] = [];
+    events.on('PauseRequested', ({ reason }) => requested.push(reason));
+    const pause = createPauseController({ events });
+    pause.setRefused(true);
+    pause.requestPause('user');
+    pause.requestPause('visibilityHidden');
+    expect(pause.state).toBe('running');
+    expect(requested).toEqual([]);
+    pause.setRefused(false);
+    pause.requestPause('user');
+    expect(pause.state).toBe('paused');
+    expect(requested).toEqual(['user']);
+  });
+});

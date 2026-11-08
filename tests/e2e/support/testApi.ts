@@ -96,6 +96,9 @@ export const ppFx = (page: Page): Promise<ReturnType<PPTestApi['fx']>> =>
         papaBreathDeg: 0,
         babyBreathDeg: 0,
         papaEyelidsPct: 0,
+        fireworksAlive: 0,
+        celebrating: false,
+        framing: { style: null, blend: 0, letterboxPct: 0, lightsFactor: 1, rollDeg: 0 },
       },
   );
 

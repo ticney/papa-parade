@@ -29,6 +29,7 @@ export function createWebHaptics(nav: NavigatorLike, patternsMs: HapticPatternsM
     medium: [...patternsMs.medium],
     heavy: [...patternsMs.heavy],
     heartbeat: [...patternsMs.heartbeat],
+    fanfare: [...patternsMs.fanfare],
   };
   let hasWarnedThrow = false;
   let hasWarnedRefused = false;

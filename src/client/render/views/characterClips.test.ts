@@ -10,6 +10,8 @@ import {
   babyOneShotOf,
   isBabyTravelling,
   PAPA_CONTRACT,
+  PAPA_DEFERRED_ONE_SHOTS,
+  PAPA_HELD_ONE_SHOTS,
   PAPA_TRAVELLING,
   papaClipOf,
   papaOneShotOf,
@@ -109,6 +111,25 @@ describe('one-shots', () => {
     expect(babyOneShotOf(gag('outlet_hair'))).toBe('gag_delight');
     expect(papaOneShotOf(gag('papa_asleep'))).toBeNull();
     expect(babyOneShotOf(gag('arms_wail'))).toBeNull();
+  });
+
+  it('dances on the finale, and collapses on the early return alone (story 7.4, D14)', () => {
+    expect(papaOneShotOf({ type: 'FinaleReached', t, cause: 'lastWave', threatId: 3 })).toBe(
+      'victory_dance',
+    );
+    expect(papaOneShotOf({ type: 'FinaleReached', t, cause: 'cycleDone', threatId: null })).toBe(
+      'victory_dance',
+    );
+    expect(papaOneShotOf({ type: 'LevelEnded', t, reason: 'mamaHome' })).toBe('collapse');
+    for (const reason of ['timer', 'cycleDone', 'mamaWoke'] as const) {
+      expect(papaOneShotOf({ type: 'LevelEnded', t, reason }), reason).toBeNull();
+    }
+    expect(babyOneShotOf({ type: 'FinaleReached', t, cause: 'lastWave', threatId: 3 })).toBeNull();
+    expect(PAPA_HELD_ONE_SHOTS).toEqual(['collapse']);
+    expect(PAPA_DEFERRED_ONE_SHOTS).toEqual(['victory_dance']);
+    for (const clip of [...PAPA_HELD_ONE_SHOTS, ...PAPA_DEFERRED_ONE_SHOTS]) {
+      expect(PAPA_CONTRACT.clips as readonly string[]).toContain(clip);
+    }
   });
 
   it('reads the other events of D5', () => {

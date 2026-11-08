@@ -101,10 +101,25 @@ export function papaOneShotOf(event: Readonly<SimEvent>): string | null {
       return 'snore';
     case 'CoffeeDrunk':
       return 'coffee_kick';
+    // The level's finale (story 7.4, D14): his victory dance belongs to the celebration.
+    case 'FinaleReached':
+      return 'victory_dance';
+    // Mama came home early (story 3.16), the lost level only: he collapses, a gag with no injury (NFR9).
+    case 'LevelEnded':
+      return event.reason === 'mamaHome' ? 'collapse' : null;
     default:
       return null;
   }
 }
+
+/** Papa's one-shots that stay on their last frame (story 7.4): he stays down once he has collapsed. */
+export const PAPA_HELD_ONE_SHOTS: readonly string[] = ['collapse'];
+
+/**
+ * Papa's one-shots that wait for his glide and his response pose to end instead of being dropped (story
+ * 7.4): the finale comes in the very step of the last response, while he glides to it.
+ */
+export const PAPA_DEFERRED_ONE_SHOTS: readonly string[] = ['victory_dance'];
 
 /** The baby's one-shot for a sim event, or null. */
 export function babyOneShotOf(event: Readonly<SimEvent>): string | null {
@@ -201,6 +216,8 @@ export const PAPA_CONTRACT = {
     'stumble',
     'snore',
     'coffee_kick',
+    'victory_dance',
+    'collapse',
   ],
   codeDrivenBones: ['eyelids'],
   /** The steam sways and the bla-bla bubble wobbles by code on the sim clock, so reduced motion can hold them (D3). */

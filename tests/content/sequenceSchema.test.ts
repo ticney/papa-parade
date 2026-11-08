@@ -173,7 +173,11 @@ describe('content/sequences/lullaby_walk.json (story 4.5)', () => {
     expect(keysOf(frozen)).toEqual(keysOf(lullaby));
     expect(keysOf(frozen.steps[0])).toEqual(keysOf(lullabyStep[0]));
     expect(keysOf(frozen.failure)).toEqual(keysOf(lullaby.failure));
-    expect(keysOf(frozen.framing)).toEqual(keysOf(lullaby.framing));
+    // The film grammar (story 7.4) is the client's: the fixtures leave it out, so no golden moves for it.
+    const isSimFraming = (key: string): boolean => key !== 'style' && key !== 'titleKey';
+    expect(keysOf(frozen.framing).filter(isSimFraming)).toEqual(
+      keysOf(lullaby.framing).filter(isSimFraming),
+    );
     expect(keysOf(frozen.feedback)).toEqual(keysOf(lullaby.feedback));
   });
 

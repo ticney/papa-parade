@@ -1,11 +1,18 @@
 import { looksLikeGameplayNode, parseNodeName } from '@content/levelNodeNames';
-import type { FeedbackTable } from '@content/schemas/feedback';
+import type { CelebrationSettings, FeedbackTable, FramingGrade } from '@content/schemas/feedback';
 import type { LevelGeometry } from '@content/schemas/levelGeometry';
 import { PAPA_TARGET_ANCHOR_ID, STEP_MS } from '@shared/constants';
 import { roomOf } from '@shared/followCamera';
 import { log } from '@shared/log';
 import type { RealMs, SimMs } from '@shared/time';
-import type { GagId, PapaLook, PropSlice, SimEvent, World } from '@sim';
+import {
+  type GagId,
+  isFlowLive,
+  type PapaLook,
+  type PropSlice,
+  type SimEvent,
+  type World,
+} from '@sim';
 import {
   AmbientLight,
   BoxGeometry,
@@ -20,12 +27,14 @@ import type { LevelAssets } from '../assets/loadLevelAssets.ts';
 import { addBlobShadows } from './blobShadow.ts';
 import { createDimFx } from './dimFx.ts';
 import { createGagFx } from './gags.ts';
+import { type GradedLights, gradeLightsInto } from './grade.ts';
 import type { RoomSize } from './isoCamera.ts';
 import { addOutlineHulls, createOutlineKit } from './materials/outlineHull.ts';
 import { PALETTE } from './materials/palette.ts';
 import { createToonMaterialCache, swapToToon } from './materials/toonMaterial.ts';
 import { type ChoreStationSpec, createChoreShards } from './vfx/choreShards.ts';
 import { createDangerTint } from './vfx/dangerTint.ts';
+import { createFireworks, fireworkAreaOf } from './vfx/fireworks.ts';
 import { createLiftFx } from './vfx/liftHop.ts';
 import { createMischiefDecals } from './vfx/mischiefDecals.ts';
 import { createParticles, type ParticleStyle } from './vfx/particles.ts';
@@ -35,6 +44,8 @@ import { BABY_LIFE_BONES, createBabyView, layDownProgressPct } from './views/bab
 import {
   babyLidsAfter,
   babyOneShotOf,
+  PAPA_DEFERRED_ONE_SHOTS,
+  PAPA_HELD_ONE_SHOTS,
   papaOneShotOf,
   responseClipOf,
 } from './views/characterClips.ts';
@@ -160,6 +171,10 @@ export interface LevelScene {
     shakeOffsetXM: number;
     shakeOffsetZM: number;
     particlesAlive: number;
+    /** The finale's sparks drawn or waiting to burst (story 7.4). */
+    fireworksAlive: number;
+    /** The film grammar's grade factor on the lights now (story 7.4); 1 with no grade. */
+    gradeLightsFactor: number;
     /** How far the carried baby was drawn lowered onto the mattress, 0 to 100 (story 4.8). */
     babyLayDownPct: number;
     /** The clip Papa is seen playing, or null. */
@@ -221,6 +236,33 @@ export interface LevelScene {
   setPapaLook(look: Readonly<PapaLook>): void;
   /** Where Papa was last drawn (interpolated), for the markers that follow him. */
   readonly papaPose: Readonly<PapaPose>;
+  /**
+   * Sets off the finale's fireworks over the room (story 7.4), on real time from `startAtReal`, around the
+   * floor point the camera looks at (`centreXM`, `centreZM`). They keep the reduced-motion share of their
+   * sparks when `isMotionReduced`. `resetFx` hides them.
+   */
+  startFireworks(
+    settings: CelebrationSettings['fireworks'],
+    startAtReal: RealMs,
+    isMotionReduced: boolean,
+    centreXM: number,
+    centreZM: number,
+  ): void;
+  /** When the last firework spark dies, in real ms, or null with none scheduled. */
+  readonly fireworksEndAtReal: number | null;
+  /** Hides every firework spark at once (story 7.4: Mama home early ends the celebration). */
+  stopFireworks(): void;
+  /**
+   * The film grammar's grade (story 7.4): the room's lights graded by `grade` at `weight` and by the one
+   * still going out, `carried`, at `carriedWeight`, multiplied by the gags' own factor on top. Writes
+   * nothing when nothing changed; allocates nothing. `resetFx` puts the level's lights back.
+   */
+  setGrade(
+    grade: FramingGrade | null,
+    weight: number,
+    carried: FramingGrade | null,
+    carriedWeight: number,
+  ): void;
   /**
    * Ends the effects under way (rings and glows hidden, shake offset back to zero, lights back, hair down,
    * baby on the floor). Effects advance only
@@ -400,6 +442,10 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const centerX = room.centerXM ?? 0;
   const centerZ = room.centerZM ?? 0;
   const lights = render.lights.byLevel[assets.id] ?? render.lights.default;
+  // The level's own colours, kept apart: the film grammar's grade lerps from them (story 7.4).
+  const levelAmbientColor = new Color(lights.ambientColor);
+  const levelSunColor = new Color(lights.sunColor);
+  const graded: GradedLights = { factor: 1, ambient: new Color(), sun: new Color() };
   const ambient = new AmbientLight(new Color(lights.ambientColor), lights.ambientIntensity);
   scene.add(ambient);
   const sun = new DirectionalLight(new Color(lights.sunColor), lights.sunIntensity);
@@ -518,6 +564,14 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const waves = createSoundWaves(content, PALETTE.ink);
   const shake = createShake(content);
   const particles = createParticles(content);
+  // The finale's fireworks (story 7.4): a pool of their own, over the room's floor bounds.
+  const fireworks = createFireworks(content);
+  const fireworkRoom = {
+    minXM: geometry.boundsMinM[0],
+    minZM: geometry.boundsMinM[2],
+    maxXM: geometry.boundsMaxM[0],
+    maxZM: geometry.boundsMaxM[2],
+  };
   // Under the root: a shake moves the glows with the room.
   const dangerTint = createDangerTint(
     content,
@@ -534,11 +588,41 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   const dim = createDimFx();
   let flashLightsFactor = 1;
   let dimLightsFactor = 1;
+  // The grade's inputs as last applied (story 7.4): nothing is written again while they are the same.
+  let gradeOf: FramingGrade | null = null;
+  let gradeWeight = 0;
+  let carriedGradeOf: FramingGrade | null = null;
+  let carriedGradeWeight = 0;
   const applyLights = (): void => {
-    const factor = Math.min(flashLightsFactor, dimLightsFactor);
+    // The grade multiplies the level's lights; the gags' factor multiplies on top (never replaces it).
+    const factor = Math.min(flashLightsFactor, dimLightsFactor) * graded.factor;
     ambient.intensity = lights.ambientIntensity * factor;
     sun.intensity = lights.sunIntensity * factor;
   };
+  const writeGrade = (
+    grade: FramingGrade | null,
+    weight: number,
+    carried: FramingGrade | null,
+    carriedWeight: number,
+  ): void => {
+    gradeOf = grade;
+    gradeWeight = weight;
+    carriedGradeOf = carried;
+    carriedGradeWeight = carriedWeight;
+    gradeLightsInto(
+      graded,
+      levelAmbientColor,
+      levelSunColor,
+      grade,
+      weight,
+      carried,
+      carriedWeight,
+    );
+    ambient.color.copy(graded.ambient);
+    sun.color.copy(graded.sun);
+    applyLights();
+  };
+  writeGrade(null, 0, null, 0);
   // Papa's hair: the gag's snap, or on end for as long as he is electrified.
   let gagHairAmount = 0;
   let isHairHeld = false;
@@ -596,6 +680,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   let drawnLayDownPct = 0;
   /** The clock of the last frame: the mixers advance by its difference alone (D6). */
   let lastClockMs: number | null = null;
+  /** A one-shot that waits for Papa's glide and response pose to end (the victory dance, story 7.4). */
+  let pendingPapaOneShot: string | null = null;
   let babyLids = 0;
   const papaSquash: SquashRun = { startAt: null, amountPct: 0, durationMs: 0 };
   const babySquash: SquashRun = { startAt: null, amountPct: 0, durationMs: 0 };
@@ -631,8 +717,17 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     playCharacterEvent(event, world, isMotionReduced) {
       const fadeMs = world.feel.characters.fades.otherMs;
       const papaClip = papaOneShotOf(event);
-      // A gag during a glide plays as his squash alone: the glide's loop goes on (P3).
-      if (papaClip !== null && world.papa.state !== 'glide') papa.playOnce(papaClip, fadeMs);
+      // A gag during a glide plays as his squash alone: the glide's loop goes on (P3). A held clip (the
+      // collapse of a `mamaHome`) is the exception: the sim is frozen from then on, so his glide would
+      // run in place for the whole hold. It also cancels a victory dance still waiting for his pose.
+      const isHeld = papaClip !== null && PAPA_HELD_ONE_SHOTS.includes(papaClip);
+      if (papaClip !== null && (world.papa.state !== 'glide' || isHeld)) {
+        if (isHeld) pendingPapaOneShot = null;
+        papa.playOnce(papaClip, fadeMs, isHeld);
+      } else if (papaClip !== null && PAPA_DEFERRED_ONE_SHOTS.includes(papaClip)) {
+        // The finale comes with the last response, mid-glide (story 7.4): the dance waits for his pose.
+        pendingPapaOneShot = papaClip;
+      }
       const babyClip = babyOneShotOf(event);
       if (babyClip !== null) baby.playOnce(babyClip, fadeMs);
       babyLids = babyLidsAfter(event, babyLids);
@@ -663,6 +758,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         shakeOffsetXM: shake.offsetM.x,
         shakeOffsetZM: shake.offsetM.z,
         particlesAlive: particles.aliveCount,
+        fireworksAlive: fireworks.aliveCount,
+        gradeLightsFactor: graded.factor,
         babyLayDownPct: drawnLayDownPct,
         papaClip: papa.clipName,
         babyClip: baby.clipName,
@@ -729,6 +826,17 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       life.gazeSight.hasThreat = pendingSight.hasThreat;
       life.gazeSight.threatXM = pendingSight.threatXM;
       life.gazeSight.threatZM = pendingSight.threatZM;
+      if (
+        pendingPapaOneShot !== null &&
+        ((world.papa.state !== 'glide' && !isResponseClip(papa.clipName)) || !isFlowLive(world))
+      ) {
+        papa.playOnce(
+          pendingPapaOneShot,
+          characters.fades.otherMs,
+          PAPA_HELD_ONE_SHOTS.includes(pendingPapaOneShot),
+        );
+        pendingPapaOneShot = null;
+      }
       papa.animate(world.papa, world.baby, dtMs, life);
       baby.animate(world.baby, dtMs, life);
       applySquash(papaSquash, clockMs, setPapaSquash);
@@ -754,6 +862,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       waves.update(clockMs);
       shake.update(nowReal);
       particles.update(nowReal);
+      fireworks.update(nowReal);
       const dimFeel = world.feel.fx.dim;
       const nextDimFactor = dim.update(
         world.afterEffects.dimUntil > 0,
@@ -775,11 +884,35 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       gags.update(clockMs, world.baby.state === 'downstairs', -world.baby.gazeX, -world.baby.gazeZ);
       lift.update(clockMs);
     },
+    startFireworks(settings, startAtReal, isMotionReduced, centreXM, centreZM) {
+      const area = fireworkAreaOf(fireworkRoom, centreXM, centreZM, settings.areaHalfM);
+      fireworks.start(settings, area, startAtReal, isMotionReduced);
+    },
+    get fireworksEndAtReal() {
+      return fireworks.endsAtReal;
+    },
+    stopFireworks() {
+      fireworks.reset();
+    },
+    setGrade(grade, weight, carried, carriedWeight) {
+      // A null grade ignores its weight: a sequence with no grade moves the blend without any light to write.
+      if (
+        grade === gradeOf &&
+        (grade === null || weight === gradeWeight) &&
+        carried === carriedGradeOf &&
+        (carried === null || carriedWeight === carriedGradeWeight)
+      ) {
+        return;
+      }
+      writeGrade(grade, weight, carried, carriedWeight);
+    },
     resetFx() {
       dangerTint.reset();
       waves.reset();
       shake.reset();
       particles.reset();
+      fireworks.reset();
+      if (gradeOf !== null || carriedGradeOf !== null) writeGrade(null, 0, null, 0);
       gags.reset();
       decals.clear();
       choreShards.clear();
@@ -797,6 +930,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       lastClockMs = null;
       papaSquash.startAt = null;
       babySquash.startAt = null;
+      pendingPapaOneShot = null;
       babyLids = 0;
       papa.resetAnimation();
       baby.resetAnimation();
@@ -812,6 +946,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       choreShards.dispose();
       waves.dispose();
       particles.dispose();
+      fireworks.dispose();
       dangerTint.dispose();
       disposeObject(scene);
       // The templates are not in the scene any more: free their geometry too (the materials are the toon cache's).

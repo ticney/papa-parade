@@ -8,7 +8,7 @@ import { type AppError, err, ok, type Result } from '@shared/result';
 import { createRng, nextFloat, type RngState } from '@shared/rng';
 import { ROOT } from '../assets/paths.ts';
 import { synthBabyLaugh, synthFirm, synthParry } from './cultSounds.ts';
-import { normalize, PEAK_LOUD, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
+import { normalize, PEAK_LOUD, resonate, SAMPLE_RATE_HZ, SEED, samplesOf } from './synthKit.ts';
 
 // The provisional sounds of stories 1.9, 1.11, 1.16, 1.19, 1.20, 1.21, 2.3, 2.9, 2.12, 2.13, 3.2, 4.1, 4.3 and 4.6 (the outlet's cues,
 // then the stairs' and the coffee table's telegraph and gag clips, then the micro-sleep's muffled
@@ -2800,7 +2800,92 @@ export const PLACEHOLDER_CLIPS: readonly { clip: string; synth: () => Float32Arr
   { clip: 'mama_laugh', synth: synthMamaLaugh },
   { clip: 'mama_sigh', synth: synthMamaSigh },
   { clip: 'mama_scream', synth: synthMamaScream },
+  { clip: 'music_finale_choir', synth: synthFinaleChoir },
 ];
+
+// The level's finale (story 7.4, D6): an original choir « aah » that swells over three chords, ours
+// and nothing borrowed. Each voice is a few detuned harmonics through two « ah » formants, with a slow
+// vibrato. About `celebration.musicMuteMs` long; a generated take may replace it with Geo's OK.
+const FINALE_CHOIR_LENGTH_MS = 3600;
+/** C major, F over C, C major: one chord per third of the clip, crossfaded. */
+const FINALE_CHOIR_CHORDS_HZ = [
+  [130.81, 261.63, 329.63, 392.0, 523.25],
+  [130.81, 261.63, 349.23, 440.0, 523.25],
+  [130.81, 261.63, 329.63, 392.0, 659.25],
+] as const;
+const FINALE_CHOIR_CROSSFADE_MS = 300;
+const FINALE_CHOIR_ATTACK_MS = 900;
+const FINALE_CHOIR_RELEASE_MS = 700;
+const FINALE_CHOIR_VIBRATO_HZ = 5.2;
+const FINALE_CHOIR_VIBRATO_DEPTH = 0.006;
+/** Each note is sung by two voices this far apart, in cents: the chorus. */
+const FINALE_CHOIR_DETUNE_CENTS = 9;
+const FINALE_CHOIR_HARMONIC_GAINS = [1, 0.55, 0.35, 0.2, 0.12];
+/** The « ah » formants, in Hz, and their quality. */
+const FINALE_CHOIR_FORMANTS_HZ = [730, 1090] as const;
+const FINALE_CHOIR_FORMANT_Q = 4;
+const FINALE_CHOIR_DRY_GAIN = 0.35;
+const FINALE_CHOIR_BREATH_GAIN = 0.04;
+
+/** The finale's choir (cue `finale_reached`, clip `music_finale_choir`): a swelling « aah » over C, F/C, C. */
+export function synthFinaleChoir(): Float32Array {
+  const rng = createRng(SEED + 61);
+  const length = samplesOf(FINALE_CHOIR_LENGTH_MS);
+  const voiced = new Float32Array(length);
+  const segment = length / FINALE_CHOIR_CHORDS_HZ.length;
+  const crossfade = samplesOf(FINALE_CHOIR_CROSSFADE_MS);
+  const detune = 2 ** (FINALE_CHOIR_DETUNE_CENTS / 1200);
+  for (const [chordIndex, chord] of FINALE_CHOIR_CHORDS_HZ.entries()) {
+    const from = Math.max(0, Math.round(chordIndex * segment - crossfade / 2));
+    const to = Math.min(length, Math.round((chordIndex + 1) * segment + crossfade / 2));
+    for (const [noteIndex, noteHz] of chord.entries()) {
+      for (const spread of [1, detune]) {
+        let phase = noteIndex * 0.7 + (spread === 1 ? 0 : 1.3);
+        for (let i = from; i < to; i++) {
+          const seconds = i / SAMPLE_RATE_HZ;
+          const vibrato =
+            1 +
+            FINALE_CHOIR_VIBRATO_DEPTH *
+              Math.sin(2 * Math.PI * FINALE_CHOIR_VIBRATO_HZ * seconds + noteIndex);
+          phase += (2 * Math.PI * noteHz * spread * vibrato) / SAMPLE_RATE_HZ;
+          let tone = 0;
+          for (const [h, gain] of FINALE_CHOIR_HARMONIC_GAINS.entries()) {
+            tone += gain * Math.sin((h + 1) * phase);
+          }
+          const fadeIn = chordIndex === 0 ? 1 : Math.min(1, (i - from) / crossfade);
+          const fadeOut =
+            chordIndex === FINALE_CHOIR_CHORDS_HZ.length - 1
+              ? 1
+              : Math.min(1, (to - i) / crossfade);
+          voiced[i] = (voiced[i] as number) + tone * fadeIn * fadeOut;
+        }
+      }
+    }
+  }
+  for (let i = 0; i < length; i++) {
+    voiced[i] = (voiced[i] as number) + (nextFloat(rng) * 2 - 1) * FINALE_CHOIR_BREATH_GAIN;
+  }
+  const out = new Float32Array(length);
+  for (const formantHz of FINALE_CHOIR_FORMANTS_HZ) {
+    const shaped = resonate(voiced, formantHz, FINALE_CHOIR_FORMANT_Q);
+    for (let i = 0; i < length; i++) out[i] = (out[i] as number) + (shaped[i] as number);
+  }
+  normalize(out, 1);
+  const attack = samplesOf(FINALE_CHOIR_ATTACK_MS);
+  const release = samplesOf(FINALE_CHOIR_RELEASE_MS);
+  let loudest = 0;
+  for (const value of voiced) loudest = Math.max(loudest, Math.abs(value));
+  for (let i = 0; i < length; i++) {
+    const swell = Math.min(1, i / attack) ** 2;
+    const tail = Math.min(1, (length - 1 - i) / release);
+    const dry = loudest === 0 ? 0 : ((voiced[i] as number) / loudest) * FINALE_CHOIR_DRY_GAIN;
+    out[i] = ((out[i] as number) + dry) * swell * tail;
+  }
+  out[0] = 0;
+  out[length - 1] = 0;
+  normalize(out, PEAK_MUSIC);
+  return out;
+}
 
 /**
  * The real sounds of stories 7.6 and 7.7 (`docs/audio-sources.md`), cut by `cutMusicLoop.ts`. Their synths

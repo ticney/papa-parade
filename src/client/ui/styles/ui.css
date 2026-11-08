@@ -243,7 +243,7 @@ body {
 }
 
 /* ---------------------------------------------------------------------------------------------
-   Layers: canvas < .pp-instinct-vignette (4) < #pp-world (5) < #pp-hud (10) < #pp-ui (start, pause veil and panel, countdown, portrait)
+   Layers: canvas < .pp-instinct-vignette, .pp-film-* (4) < #pp-world (5) < #pp-hud (10) < #pp-ui (start, pause veil and panel, countdown, portrait)
    --------------------------------------------------------------------------------------------- */
 
 /* Fatherly Instinct's vignette (story 2.9, UX `instinct-vignette`): the edge of the screen darkens
@@ -263,6 +263,69 @@ body {
 
 .pp-instinct-vignette-on {
   opacity: 1;
+}
+
+/* The film grammar of a special sequence (story 7.4, D8): a vignette, the letterbox bars and an Epic
+   title card, in this order right before #pp-world, under it (z-index 4 against 5) like the instinct
+   vignette, so every marker, verb, ring and the HUD stay on top. Ink, never a reserved hue. They take no
+   tap and no focus. `filmFraming.ts` writes the vignette's opacity, the bars' height
+   (`--pp-letterbox-pct`, at most 12 % each) and opacity, and animates the title from the sim clock; no
+   CSS animation, so nothing here can flash. */
+.pp-film-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, var(--pp-color-ink) 110%);
+}
+
+.pp-film-letterbox {
+  --pp-letterbox-pct: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.pp-film-letterbox::before,
+.pp-film-letterbox::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(var(--pp-letterbox-pct) * 1%);
+  background: var(--pp-color-ink);
+}
+
+/* A soft inner edge on each bar: the scene's own background is ink too, so without it a bar would not read. */
+.pp-film-letterbox::before {
+  top: 0;
+  box-shadow: 0 2px 0 var(--pp-color-ink-soft);
+}
+
+.pp-film-letterbox::after {
+  bottom: 0;
+  box-shadow: 0 -2px 0 var(--pp-color-ink-soft);
+}
+
+/* The title card: Epic register, paper fill and ink stroke (`pp-type-epic pp-stroked`), in the upper
+   half below the top bar; invisible when idle. */
+.pp-film-title {
+  position: fixed;
+  top: 24%;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  box-sizing: border-box;
+  max-width: 90%;
+  margin: 0 auto;
+  text-align: center;
+  white-space: nowrap;
+  font-size: min(var(--pp-font-epic-size), 8vw);
+  opacity: 0;
+  pointer-events: none;
 }
 
 #pp-world {

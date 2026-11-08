@@ -465,6 +465,23 @@
             }
           ],
           "description": "The bar under the timer, or null for no bar (and no compact timer)."
+        },
+        "style": {
+          "description": "The film grammar the client draws while the sequence runs (story 7.4): letterbox, grade, vignette, roll and title, from `feedback.json › framingStyles.<style>`. Absent: none.",
+          "type": "string",
+          "enum": [
+            "action",
+            "rhythm",
+            "duel",
+            "defusal",
+            "infiltration",
+            "hostage"
+          ]
+        },
+        "titleKey": {
+          "description": "Key of `strings.fr.json` for the Epic title card of the grammar. Needs `style`; `npm run content:check` refuses a key that is not in the strings.",
+          "type": "string",
+          "pattern": "^framing\\.title_[a-z0-9]+(_[a-z0-9]+)*$"
         }
       },
       "required": [

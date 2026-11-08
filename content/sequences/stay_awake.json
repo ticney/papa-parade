@@ -12,7 +12,9 @@
   "framing": {
     "camera": { "zoomPct": 18, "focusPct": 60, "inMs": 900, "outMs": 700 },
     "musicLoop": "stay_awake",
-    "bar": { "labelKey": "hud.sequence_stay_awake", "fill": "opponent", "value": "timeLeft" }
+    "bar": { "labelKey": "hud.sequence_stay_awake", "fill": "opponent", "value": "timeLeft" },
+    "style": "action",
+    "titleKey": "framing.title_action"
   },
   "feedback": {
     "started": "sequence_started",

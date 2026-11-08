@@ -296,6 +296,15 @@ describe('advance(steps) and freeze(on)', () => {
   });
 });
 
+describe('celebrate() (story 7.4)', () => {
+  it('hands the finale to the host, which plays its client half', async () => {
+    const { api, host } = await createRig();
+    const celebrate = vi.spyOn(host, 'celebrate');
+    api.celebrate();
+    expect(celebrate).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('setPapaLook(look)', () => {
   const look = { hasMashOnCheek: true, hasHairOnEnd: false, isShirtInsideOut: true };
 
@@ -608,6 +617,7 @@ describe('installTestApi', () => {
       [
         'advance',
         'beatLog',
+        'celebrate',
         'cueLog',
         'events',
         'freeze',

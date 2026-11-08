@@ -29,6 +29,15 @@ import type { Sim } from '@sim';
 const FEEL_FIXTURE = 'tests/support/testFeel.json';
 const GEOMETRY_FIXTURE = 'tests/support/testLevel.geometry.json';
 
+/** One film grammar of the test feedback (story 7.4): every style but `hostage` uses it (that one has no grade). */
+export const TEST_FRAMING_STYLE = {
+  letterboxPct: 10,
+  rollDeg: 2,
+  vignetteOpacityPct: 40,
+  titleHoldMs: 800,
+  grade: { lightsFactor: 0.8, ambientColor: '#C0C8F0', sunColor: '#E0E4FF' },
+} as const;
+
 /**
  * A minimal valid feedback table, inline: the sim ignores it (it is client-only), so it does not
  * move `feelHash` or any golden. Client tests that need a real table build their own.
@@ -46,6 +55,7 @@ export function createTestFeedback(): FeedbackTable {
       medium: { patternMs: [30] },
       heavy: { patternMs: [60] },
       heartbeat: { patternMs: [30, 90, 30] },
+      fanfare: { patternMs: [60, 80, 60, 80, 120, 60] },
     },
     sequenceBar: { slideMs: 250 },
     comboBadge: { cashInHoldMs: 900 },
@@ -102,6 +112,31 @@ export function createTestFeedback(): FeedbackTable {
       dangerTint: { radiusM: 0.5, minOpacityPct: 40, peakOpacityPct: 80, pulseHz: 2 },
       decalWallHeightM: 2,
       blobSkipColliderIds: [],
+    },
+    celebration: {
+      endHoldMs: 3000,
+      collapseHoldMs: 1200,
+      musicMuteMs: 2500,
+      stampMs: 900,
+      fireworks: {
+        bursts: [
+          { atMs: 0, xPct: 50, zPct: 50, heightM: 2, sparks: 16 },
+          { atMs: 400, xPct: 30, zPct: 40, heightM: 2.5, sparks: 16 },
+        ],
+        areaHalfM: 3,
+        speedMps: 2,
+        lifeMs: 1000,
+        sizeM: 0.06,
+        colorTokens: ['primary', 'paper'],
+      },
+    },
+    framingStyles: {
+      action: TEST_FRAMING_STYLE,
+      rhythm: TEST_FRAMING_STYLE,
+      duel: TEST_FRAMING_STYLE,
+      defusal: TEST_FRAMING_STYLE,
+      infiltration: TEST_FRAMING_STYLE,
+      hostage: { ...TEST_FRAMING_STYLE, grade: null },
     },
     resultScreen: {
       rowCountUpMs: 600,

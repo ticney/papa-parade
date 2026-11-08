@@ -16,7 +16,9 @@
   "framing": {
     "camera": { "zoomPct": 40, "focusPct": 80, "inMs": 1000, "outMs": 700 },
     "musicLoop": "bomb_drop",
-    "bar": null
+    "bar": null,
+    "style": "defusal",
+    "titleKey": "framing.title_defusal"
   },
   "feedback": {
     "started": "sequence_started",

@@ -10,7 +10,8 @@
     "light": { "patternMs": [15] },
     "medium": { "patternMs": [30] },
     "heavy": { "patternMs": [60] },
-    "heartbeat": { "patternMs": [30, 90, 30] }
+    "heartbeat": { "patternMs": [30, 90, 30] },
+    "fanfare": { "patternMs": [80, 420, 80, 520, 80, 620, 120] }
   },
   "loops": {
     "babble": { "clip": "baby_babble_loop", "bus": "voice", "gainPct": 100, "fadeMs": 80 },
@@ -178,7 +179,84 @@
     "decalWallHeightM": 2,
     "blobSkipColliderIds": ["stairs"]
   },
+  "celebration": {
+    "endHoldMs": 4000,
+    "collapseHoldMs": 1600,
+    "musicMuteMs": 3600,
+    "stampMs": 900,
+    "fireworks": {
+      "bursts": [
+        { "atMs": 0, "xPct": 30, "zPct": 40, "heightM": 2.4, "sparks": 48 },
+        { "atMs": 500, "xPct": 70, "zPct": 35, "heightM": 2.8, "sparks": 48 },
+        { "atMs": 1100, "xPct": 50, "zPct": 60, "heightM": 3.2, "sparks": 64 },
+        { "atMs": 1800, "xPct": 25, "zPct": 65, "heightM": 2.6, "sparks": 40 },
+        { "atMs": 2400, "xPct": 75, "zPct": 60, "heightM": 3, "sparks": 48 }
+      ],
+      "areaHalfM": 3,
+      "speedMps": 3.2,
+      "lifeMs": 1500,
+      "sizeM": 0.12,
+      "colorTokens": ["primary", "gauge-calm", "mama-calm", "smell", "paper"]
+    }
+  },
+  "framingStyles": {
+    "action": {
+      "letterboxPct": 8,
+      "rollDeg": 2,
+      "vignetteOpacityPct": 30,
+      "titleHoldMs": 900,
+      "grade": { "lightsFactor": 0.92, "ambientColor": "#FFE4C8", "sunColor": "#FFD6A8" }
+    },
+    "rhythm": {
+      "letterboxPct": 0,
+      "rollDeg": 0,
+      "vignetteOpacityPct": 50,
+      "titleHoldMs": 900,
+      "grade": { "lightsFactor": 0.9, "ambientColor": "#DCD2FF", "sunColor": "#FFF2DC" }
+    },
+    "duel": {
+      "letterboxPct": 12,
+      "rollDeg": -3,
+      "vignetteOpacityPct": 35,
+      "titleHoldMs": 900,
+      "grade": { "lightsFactor": 0.9, "ambientColor": "#D6DCE4", "sunColor": "#EAEEF2" }
+    },
+    "defusal": {
+      "letterboxPct": 10,
+      "rollDeg": 1.5,
+      "vignetteOpacityPct": 40,
+      "titleHoldMs": 900,
+      "grade": { "lightsFactor": 0.88, "ambientColor": "#D4EADF", "sunColor": "#ECF6F0" }
+    },
+    "infiltration": {
+      "letterboxPct": 10,
+      "rollDeg": 0,
+      "vignetteOpacityPct": 55,
+      "titleHoldMs": 900,
+      "grade": { "lightsFactor": 0.85, "ambientColor": "#C2CCF0", "sunColor": "#D2DAF4" }
+    },
+    "hostage": {
+      "letterboxPct": 10,
+      "rollDeg": 2.5,
+      "vignetteOpacityPct": 45,
+      "titleHoldMs": 900,
+      "grade": { "lightsFactor": 0.9, "ambientColor": "#F2E2D2", "sunColor": "#FFEAD4" }
+    }
+  },
   "cues": {
+    "finale_reached": {
+      "audio": { "clip": "music_finale_choir", "bus": "music", "gainPct": 100 },
+      "visual": {
+        "kind": "soundWave",
+        "anchor": "papa",
+        "maxRadiusM": 2.4,
+        "durationMs": 900,
+        "pulses": 3,
+        "pulseIntervalMs": 300
+      },
+      "haptic": "fanfare",
+      "flash": { "peakOpacityPct": 40, "durationMs": 300 }
+    },
     "papa_bump": {
       "audio": { "clip": "papa_bump", "bus": "sfx", "gainPct": 100 },
       "visual": { "kind": "soundWave", "anchor": "papa", "maxRadiusM": 0.6, "durationMs": 350 },
@@ -766,6 +844,7 @@
   },
   "events": {
     "PapaBlocked": "papa_bump",
+    "FinaleReached": "finale_reached",
     "CountdownTicked": "countdown_tick",
     "SilenceStarted": "silence_started",
     "BabyPickedUp": "baby_picked_up",

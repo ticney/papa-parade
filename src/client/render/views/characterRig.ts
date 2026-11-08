@@ -50,8 +50,12 @@ export interface CharacterRig {
    * (story 7.8: the view says which passage it is), or waits for a one-shot to end. The same loop goes on.
    */
   play(clip: string, timeScale: number, fadeMs: number): void;
-  /** Plays a clip once, over the loop, fading in over `fadeMs`. The same clip running goes on. */
-  playOnce(clip: string, fadeMs: number): void;
+  /**
+   * Plays a clip once, over the loop, fading in over `fadeMs`. The same clip running goes on. With
+   * `holdsLastPose` it never hands back to the loop: it stays on its last frame until the next one-shot
+   * or `reset` (Papa's collapse, story 7.4).
+   */
+  playOnce(clip: string, fadeMs: number, holdsLastPose?: boolean): void;
   /**
    * Takes the life layer's offsets back off its bones, then advances the mixer by `dtMs` of sim time (0 holds the
    * pose: a pause, a hitstop). A one-shot hands back to the loop `returnFadeMs` before its end, and fades
@@ -115,6 +119,8 @@ export function createCharacterRig(
   let incomingFadeMs = 0;
   let loop: ClipTrack | null = null;
   let oneShot: ClipTrack | null = null;
+  // The one-shot under way stays on its last frame (story 7.4): no hand-back to the loop.
+  let isOneShotHeld = false;
   const warned = new Set<string>();
 
   const warnOnce = (message: string, name: string): void => {
@@ -236,11 +242,12 @@ export function createCharacterRig(
       }
       loop.action.timeScale = timeScale;
     },
-    playOnce(clip, fadeMs) {
+    playOnce(clip, fadeMs, holdsLastPose = false) {
       if (oneShot?.name === clip) return;
       const track = trackOf(clip);
       if (track === null) return;
       oneShot = track;
+      isOneShotHeld = holdsLastPose;
       track.action.setLoop(LoopOnce, 1);
       track.action.clampWhenFinished = true;
       track.action.timeScale = 1;
@@ -253,7 +260,7 @@ export function createCharacterRig(
       stepWeights(dtMs);
       mixer.update(dtMs / 1000);
       captureLifeBones();
-      if (oneShot !== null) {
+      if (oneShot !== null && !isOneShotHeld) {
         const durationS = oneShot.action.getClip().duration;
         const leftS = durationS - oneShot.action.time;
         // Never more than half the clip: a hot `returnMs` must not hand a short one-shot back at its
@@ -292,6 +299,7 @@ export function createCharacterRig(
       incomingFadeMs = 0;
       loop = null;
       oneShot = null;
+      isOneShotHeld = false;
       mixer.setTime(0);
       captureLifeBones();
     },

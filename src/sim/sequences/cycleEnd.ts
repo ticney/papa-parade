@@ -11,7 +11,7 @@ import type { World } from '../world.ts';
  * entry's, so a debug `StartSequence` of another one moves nothing; of the current entry's id it counts
  * as that entry (the slice does not say who started it). Won: the next entry is due after its
  * `interludeMs`; after the last one the cycle is done (`CycleCompleted`, and `runFlow` ends the level
- * in this very step). Lost: the same entry again, after `retryInterludeMs` (D4).
+ * in this very step, after `FinaleReached{cycleDone}`). Lost: the same entry again, after `retryInterludeMs` (D4).
  */
 export function advanceCycle(
   world: World,
@@ -37,4 +37,6 @@ export function advanceCycle(
   cycle.nextAt = null;
   cycle.completedAt = now;
   ctx.events.push({ type: 'CycleCompleted', t: now });
+  // The cycle is the level's win: its finale (story 7.4 D1).
+  ctx.events.push({ type: 'FinaleReached', t: now, cause: 'cycleDone', threatId: null });
 }

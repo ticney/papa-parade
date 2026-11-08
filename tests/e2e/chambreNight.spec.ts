@@ -118,6 +118,12 @@ test.describe('Chambre de nuit', () => {
     });
     const started = (await typesOf(page, 'SequenceStarted')) as unknown as { id: string }[];
     expect(started.map((event) => event.id)).toEqual(SEQUENCES);
+    // The finale (story 7.4): the cycle done is the level's last success, celebrated once.
+    expect(await typesOf(page, 'FinaleReached')).toMatchObject([
+      { cause: 'cycleDone', threatId: null },
+    ]);
+    await expect(html(page)).toHaveAttribute('data-pp-finale', 'cycleDone');
+    expect(await cueIds(page)).toContain('finale_reached');
     await expect(html(page)).toHaveAttribute('data-pp-cycle-index', String(SEQUENCES.length));
     await expect(page.locator(`${PANEL} .pp-result-reason`)).toHaveText(
       STRINGS['result.cycle_done'] as string,

@@ -1,6 +1,6 @@
 import { type OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { createCameraFx } from '../render/cameraFx.ts';
+import { createCameraFx, createSequenceFraming } from '../render/cameraFx.ts';
 import { createIsoCamera, fitFollowCamera, fitIsoCamera } from '../render/isoCamera.ts';
 import { createHitTester, type FloorPoint } from './hitTest.ts';
 
@@ -317,7 +317,7 @@ describe('on a camera the follow has moved (story 9.2, AC 7)', () => {
       0,
       { zoomPct: 0, yawDeg: 0, focusPct: 0, zoomInMs: 0, refocusMs: 0 },
       false,
-      { blend: 0, zoomPct: 0, focusPct: 0, xM: 0, zM: 0 },
+      createSequenceFraming(),
     );
     return { camera, before };
   }
