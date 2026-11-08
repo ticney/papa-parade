@@ -10,6 +10,7 @@ import {
   liveFeedback,
   mamaCueOf,
   mirrorWrites,
+  passReplayToActions,
   recordMirrorWrites,
   settleAnimations,
   THREATS_OFF,
@@ -155,9 +156,7 @@ const waitForInputGrace = (page: Page): Promise<void> =>
   page.waitForTimeout(resultScreen.inputGraceMs + GRACE_MARGIN_MS);
 
 async function waitForActions(page: Page): Promise<void> {
-  await expect(html(page)).toHaveAttribute('data-pp-result', 'actions', {
-    timeout: SEQUENCE_TIMEOUT_MS,
-  });
+  await passReplayToActions(page, SEQUENCE_TIMEOUT_MS);
   await waitForInputGrace(page);
 }
 
@@ -195,6 +194,7 @@ test.describe('Mama’s reactions', () => {
     expect(shots[0]).toMatchObject({ text: spokenOf(only?.text ?? ''), chip: null });
     expect(shots[0]?.bubbleClass).toContain('pp-mum-bubble--laugh');
     expect(shots[0]?.phase).toBe('mama');
+    // `timer` is opened with `THREATS_OFF`: no moment to replay, so no `replay` phase (story 3.9).
     expect((await mirrorWrites(page)).map(({ value }) => value)).toEqual([
       'photo',
       'mama',

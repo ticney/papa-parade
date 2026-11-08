@@ -7,6 +7,7 @@ import type {
   TestHost,
 } from '../../src/client/app/testHost.ts';
 import type { SoundedNote } from '../../src/client/audio/beatScheduler.ts';
+import type { Highlight } from '../../src/client/endOfLevel/highlights.ts';
 import type { InputDevice } from '../../src/client/input/inputMapper.ts';
 import type { RenderStats } from '../../src/client/render/renderer.ts';
 import type { ContentBundle } from '../../src/content/contentBundle.ts';
@@ -51,6 +52,8 @@ export interface FakeTestHost extends TestHost {
   setLastInputDevice(device: InputDevice | null): void;
   /** What `mamaLines()` answers from now on (default `null`: no level scored yet; story 3.8). */
   setMamaLines(lines: readonly MamaReactionLine[] | null): void;
+  /** What `highlights()` answers from now on (default `null`: no level scored yet; story 3.9). */
+  setHighlights(moments: readonly Highlight[] | null): void;
   fireCuePlayed(record: CuePlayedRecord): void;
   /** A note of a rhythm step that sounded (story 4.5). */
   fireBeatSounded(note: SoundedNote): void;
@@ -84,6 +87,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
   let isBlocked = false;
   let lastInput: InputDevice | null = null;
   let mamaLines: readonly MamaReactionLine[] | null = null;
+  let highlights: readonly Highlight[] | null = null;
   let pause: PauseState = 'running';
 
   const subscribe = <T>(listeners: Set<T>, listener: T): (() => void) => {
@@ -125,6 +129,7 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     pagePoint: (xM, _yM, zM) => ({ xPx: xM * 100, yPx: zM * 100 }),
     lastInputDevice: () => lastInput,
     mamaLines: () => mamaLines,
+    highlights: () => highlights,
     auditionCue(cueId) {
       calls.push(`audition:${cueId}`);
       return options.isAudioRunning ?? true;
@@ -174,6 +179,9 @@ export function createFakeTestHost(options: FakeTestHostOptions = {}): FakeTestH
     },
     setMamaLines: (lines) => {
       mamaLines = lines;
+    },
+    setHighlights: (moments) => {
+      highlights = moments;
     },
     setPause: (state) => {
       pause = state;
