@@ -17,7 +17,12 @@ import {
   BABY_CARRIED_FORWARD_M,
   BABY_CARRIED_HEIGHT_M,
 } from '../../src/client/render/views/babyView.ts';
-import { BABY_CONTRACT, PAPA_CONTRACT } from '../../src/client/render/views/characterClips.ts';
+import {
+  BABY_CONTRACT,
+  PAPA_ACTING_CLIPS,
+  PAPA_CONTRACT,
+  PAPA_IDLE_CLIPS,
+} from '../../src/client/render/views/characterClips.ts';
 import { PAPA_HEIGHT_M } from '../../src/client/render/views/papaView.ts';
 import { CHARACTER_GLB_MAX_BYTES } from '../../src/shared/constants.ts';
 import { characterBudgetOf, characterRigProblems } from '../../tools/assets/characterArt.ts';
@@ -96,8 +101,9 @@ const babyOneShots = [
 ];
 
 /**
- * The loops that stand on the floor (story 7.9, AC 4): the contract's clips that no one-shot list names,
- * so `gag_shock` (a loop and a gag) is held to the one-shot rule, minus the baby's `carried` (in the arms).
+ * The clips that stand on the floor (story 7.9, AC 4): the contract's clips that no event one-shot list
+ * names, so `gag_shock` (a loop and a gag) is held to the one-shot rule, minus the baby's `carried` (in the
+ * arms). Papa's acting one-shots (story 7.11: the start, the brake, the idles) and the tiptoe stand on it too.
  */
 const papaFloorLoops: readonly string[] = PAPA_CONTRACT.clips.filter(
   (clip) => !papaOneShots.includes(clip),
@@ -449,6 +455,8 @@ describe('the v2 motion keeps the gameplay silhouettes (story 7.9, AC 4)', () =>
     expect(papaFloorLoops).toEqual(
       expect.arrayContaining(['idle', 'walk', 'glide', 'drink', 'carry_idle', 'carry_walk']),
     );
+    // Story 7.11: the tiptoe and every acting one-shot keep his feet on the floor, like the loops.
+    expect(papaFloorLoops).toEqual(expect.arrayContaining(['tiptoe', ...PAPA_ACTING_CLIPS]));
     expect(papaFloorLoops).not.toContain('gag_shock');
     expect(babyFloorLoops).toEqual(expect.arrayContaining(['babble', 'crawl', 'sneak', 'cry']));
     expect(babyFloorLoops).not.toContain('carried');
@@ -730,7 +738,8 @@ describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred 
   };
 
   it.each([
-    ['papa', papaOneShots],
+    // Papa's acting one-shots (story 7.11) hand back like any other.
+    ['papa', [...papaOneShots, ...PAPA_ACTING_CLIPS]],
     ['baby', babyOneShots],
   ] as const)(
     'every one-shot of %s lasts at least twice the return fade of the committed feel',
@@ -751,7 +760,7 @@ describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred 
 describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
   /**
    * The life layer's modules (story 7.8): the springs, the fades, the lean and breath, the gaze; the forelock
-   * (7.9); the faces' expressions, brows and world inputs (7.10).
+   * (7.9); the faces' expressions, brows and world inputs (7.10); the acting's slots and passages (7.11).
    */
   const LIFE_VIEWS = [
     'characterSpring',
@@ -762,6 +771,7 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     'expressions',
     'brows',
     'faceInputs',
+    'papaActing',
   ];
   const VIEWS = [
     'characterClips',
@@ -837,5 +847,91 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     expect(outside).not.toMatch(/windowOpenAt|feintAt|realWakePct/);
     expect(source).toMatch(/threat\.defId !== microSleepDefId/);
     expect(source).toMatch(/layDownDefIds\.includes\(threat\.defId\)/);
+  });
+});
+
+/** How far the head's up axis may lean from vertical in an idle, in degrees (story 7.11, AC 10): no doze. */
+const IDLE_HEAD_LEAN_MAX_DEG = 25;
+
+describe("Papa's first wave looks like nothing that telegraphs (story 7.11, AC 10, D2)", () => {
+  /** The largest lean of the head's up axis from vertical over `clip`'s samples, in degrees. */
+  const headLeanMaxDeg = async (clip: string): Promise<number> => {
+    const asset = await load('papa');
+    const head = asset.scene.getObjectByName('head');
+    if (head === undefined) throw new Error('papa.glb has no head');
+    const up = new Vector3();
+    const turn = new Quaternion();
+    let maxDeg = 0;
+    eachSampledPose(asset, [clip], () => {
+      head.getWorldQuaternion(turn);
+      up.set(0, 1, 0).applyQuaternion(turn);
+      maxDeg = Math.max(maxDeg, Math.acos(Math.min(1, up.y)) * RAD_TO_DEG);
+    });
+    return maxDeg;
+  };
+
+  it.each([...PAPA_IDLE_CLIPS])(
+    '%s keeps his head within 25° of vertical, and less than his sleep does',
+    async (clip) => {
+      const asleepDeg = await headLeanMaxDeg('asleep');
+      const idleDeg = await headLeanMaxDeg(clip);
+      expect(idleDeg).toBeLessThanOrEqual(IDLE_HEAD_LEAN_MAX_DEG);
+      expect(idleDeg).toBeLessThan(asleepDeg);
+    },
+  );
+
+  /** Every vertex of his skinned meshes whose heaviest joint is `boneName`, posed, in the room's metres. */
+  const boxOfBone = (root: Object3D, boneName: string): Box3 => {
+    root.updateMatrixWorld(true);
+    const box = new Box3();
+    const vertex = new Vector3();
+    root.traverse((node) => {
+      if (!(node instanceof SkinnedMesh)) return;
+      node.skeleton.update();
+      const indices = node.geometry.getAttribute('skinIndex');
+      const weights = node.geometry.getAttribute('skinWeight');
+      const position = node.geometry.getAttribute('position');
+      for (let i = 0; i < position.count; i++) {
+        let heaviest = 0;
+        for (let k = 1; k < 4; k++) {
+          if (weights.getComponent(i, k) > weights.getComponent(i, heaviest)) heaviest = k;
+        }
+        const bone = node.skeleton.bones[indices.getComponent(i, heaviest)];
+        if (bone?.name !== boneName) continue;
+        vertex.fromBufferAttribute(position, i);
+        node.applyBoneTransform(i, vertex);
+        box.expandByPoint(vertex.applyMatrix4(node.matrixWorld));
+      }
+    });
+    return box;
+  };
+
+  it('puts the puffed cheeks on his head, and moves them with it', async () => {
+    const asset = await load('papa');
+    const cheeks = asset.scene.getObjectByName('papa_cheeks');
+    const head = asset.scene.getObjectByName('head');
+    if (cheeks === undefined || head === undefined)
+      throw new Error('papa.glb has no cheeks or head');
+    const restBox = drawnBox(cheeks, []);
+    expect(restBox.isEmpty()).toBe(false);
+    expect(restBox.intersectsBox(boxOfBone(asset.scene, 'head'))).toBe(true);
+    const restCentre = restBox.getCenter(new Vector3());
+    const headRest = head.matrixWorld.clone();
+    const found = asset.animations.find((candidate) => candidate.name === 'respond_perfect');
+    if (found === undefined) throw new Error('papa.glb has no respond_perfect');
+    const mixer = new AnimationMixer(asset.scene);
+    mixer.clipAction(found).play();
+    mixer.setTime(found.duration / 2);
+    asset.scene.updateMatrixWorld(true);
+    // Where a point riding on the head would be now: the head's move applied to the rest centre.
+    const expected = restCentre
+      .clone()
+      .applyMatrix4(headRest.clone().invert())
+      .applyMatrix4(head.matrixWorld);
+    const posedCentre = drawnBox(cheeks, []).getCenter(new Vector3());
+    expect(expected.distanceTo(restCentre), 'the head moves in respond_perfect').toBeGreaterThan(
+      0.01,
+    );
+    expect(posedCentre.distanceTo(expected)).toBeLessThan(0.01);
   });
 });

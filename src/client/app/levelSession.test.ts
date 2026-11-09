@@ -86,6 +86,7 @@ const NO_REAL_FX = () => ({
   babyExpression: 'neutral' as const,
   papaBrowTiltDeg: 0,
   babyBrowTiltDeg: 0,
+  papaCheeksShown: false,
 });
 
 interface Deferred<T> {
@@ -328,6 +329,7 @@ describe('createLevelSession', () => {
         babyRadiusM: content.feel.baby.bodyRadiusM,
         microSleepDefId: null,
         hasBedtimeCycle: false,
+        levelSeed: expect.any(Number),
         layDownDefIds: [],
         anchorThreatDefIds: [],
         choreStations: [],
@@ -1312,6 +1314,7 @@ describe('createLevelSession › start options and outcomes', () => {
         babyRadiusM: content.feel.baby.bodyRadiusM,
         microSleepDefId: null,
         hasBedtimeCycle: false,
+        levelSeed: 7,
         layDownDefIds: [],
         anchorThreatDefIds: [],
         choreStations: [],

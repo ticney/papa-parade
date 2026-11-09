@@ -57,6 +57,13 @@ export interface CharacterRig {
    */
   playOnce(clip: string, fadeMs: number, holdsLastPose?: boolean): void;
   /**
+   * Drops the one-shot under way, held or not, and fades the loop in from this call over `fadeMs` (story
+   * 7.11, D11): `clipName` is the loop at once. With no one-shot under way, nothing changes.
+   */
+  cutOnce(fadeMs: number): void;
+  /** The one-shot under way, or null (story 7.11): what an acting one-shot checks it still is. */
+  readonly oneShotName: string | null;
+  /**
    * Takes the life layer's offsets back off its bones, then advances the mixer by `dtMs` of sim time (0 holds the
    * pose: a pause, a hitstop). A one-shot hands back to the loop `returnFadeMs` before its end, and fades
    * out over that long. The view multiplies its life offsets onto the bones after this (D3).
@@ -254,6 +261,16 @@ export function createCharacterRig(
       // A clip still fading out from before starts over, not where it stood.
       if (track.isLive) track.action.reset();
       fadeTo(track, fadeMs);
+    },
+    cutOnce(fadeMs) {
+      if (oneShot === null) return;
+      oneShot = null;
+      isOneShotHeld = false;
+      // The one-shot gives way as any track does: the loop is the one clip fading in from now.
+      if (loop !== null) fadeTo(loop, fadeMs);
+    },
+    get oneShotName() {
+      return oneShot?.name ?? null;
     },
     update(dtMs, returnFadeMs) {
       restoreLifeBones();

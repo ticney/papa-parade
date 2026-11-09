@@ -518,6 +518,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
             babyRadiusM: effective.baby.bodyRadiusM,
             microSleepDefId: levelPlan.level.gauges.fatigue?.microSleepDef ?? null,
             hasBedtimeCycle: levelPlan.level.cycle !== undefined,
+            levelSeed: seed,
             layDownDefIds: Object.values(levelPlan.threats)
               .filter((def) => def.release !== undefined)
               .map((def) => def.id),

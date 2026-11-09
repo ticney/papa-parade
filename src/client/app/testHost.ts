@@ -89,6 +89,8 @@ export interface FxState {
   readonly papaBrowTiltDeg: number;
   /** The baby's brows' drawn tilt, in degrees, positive inner ends up (story 7.10). */
   readonly babyBrowTiltDeg: number;
+  /** Whether Papa's puffed cheeks are shown: while he holds his breath in the stealth exit (story 7.11). */
+  readonly papaCheeksShown: boolean;
   /** The finale's sparks drawn or waiting to burst (story 7.4). */
   readonly fireworksAlive: number;
   /** Whether the finale's celebration plays now (story 7.4). */

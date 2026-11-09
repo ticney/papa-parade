@@ -1,5 +1,5 @@
 # generated: 2026-10-26
-# last_updated: 2026-11-08
+# last_updated: 2026-11-09
 # project: papa-parade
 # project_key: NOKEY
 # tracking_system: file-system
@@ -45,7 +45,7 @@
 #   puis 7.13 à 7.15, se livrent après 3.8 et avant 3.9. Les clés 7-x restent rattachées à epic-7.
 
 generated: 2026-10-26
-last_updated: 2026-11-08
+last_updated: 2026-11-09
 project: papa-parade
 project_key: NOKEY
 tracking_system: file-system
@@ -149,7 +149,7 @@ development_status:
   7-8-couche-de-vie-et-personnages-detaches-du-decor: done
   7-9-squelette-v2-et-animations-reprises: done
   7-10-visages-sourcils-et-expressions: done
-  7-11-premiere-vague-deplacement-et-attentes-de-papa: backlog
+  7-11-premiere-vague-deplacement-et-attentes-de-papa: done
   7-12-premiere-vague-taches-reponses-reactions-et-bebe: backlog
   # Playtest de l'animation (indicateur « Papa se lit sans sa bulle ») : npm run ci, puis le lien.
   7-13-variantes-de-reponses-et-pose-de-combo: backlog

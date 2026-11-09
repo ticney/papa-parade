@@ -8,6 +8,7 @@ import type { RealMs, SimMs } from '@shared/time';
 import {
   type GagId,
   isFlowLive,
+  isStealthStepRunning,
   type PapaLook,
   type PropSlice,
   type SimEvent,
@@ -44,6 +45,7 @@ import { BABY_LIFE_BONES, createBabyView, layDownProgressPct } from './views/bab
 import {
   babyLidsAfter,
   babyOneShotOf,
+  PAPA_ACTING_CUT_EVENTS,
   PAPA_DEFERRED_ONE_SHOTS,
   PAPA_HELD_ONE_SHOTS,
   papaOneShotOf,
@@ -86,6 +88,8 @@ export interface SceneBodies {
   layDownDefIds: readonly string[];
   /** The level has a bedtime `cycle` (story 7.10, D8): the baby looks sleepy, outside the signals' moments. */
   hasBedtimeCycle: boolean;
+  /** The seed the level's sim was made with: Papa's idles are drawn from it (story 7.11, D8), never from `world.rng`. */
+  levelSeed: number;
   /** The ids of the level's threats aimed at an anchor: only they show the alert tint (story 7.3, D6). */
   anchorThreatDefIds: readonly string[];
   /**
@@ -154,7 +158,8 @@ export interface LevelFx {
   /**
    * What a sim event plays on the characters: one-shots, the baby's lids, the moments of their faces (story
    * 7.10: none while only the signals count) and, unless `isMotionReduced`, the squash. The clips and the
-   * faces stay under reduced motion: a pose carries state (story 7.2, D7).
+   * faces stay under reduced motion: a pose carries state (story 7.2, D7). A state change of Papa's or the
+   * event of an accepted command (`PAPA_ACTING_CUT_EVENTS`) first cuts his idle, start or brake (story 7.11).
    */
   playCharacterEvent(
     event: Readonly<SimEvent>,
@@ -240,6 +245,8 @@ export interface LevelScene {
     babyExpression: BabyFace;
     /** Papa's brows' drawn tilt, in degrees, positive inner ends up (story 7.10). */
     papaBrowTiltDeg: number;
+    /** Whether Papa's puffed cheeks are shown: while he holds his breath (story 7.11). */
+    papaCheeksShown: boolean;
     /** The baby's brows' drawn tilt, in degrees, positive inner ends up (story 7.10). */
     babyBrowTiltDeg: number;
   };
@@ -752,6 +759,9 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       if (clip !== null) papa.playOnce(clip, oneShotFadeMs());
     },
     playCharacterEvent(event, world, isMotionReduced) {
+      // Story 7.11, D11, D12: the step that applies a command, or changes his state, cuts his acting in
+      // this frame, before any one-shot of the event (which then plays on a clean slot).
+      if (PAPA_ACTING_CUT_EVENTS.includes(event.type)) papa.cutActing(world.feel.characters.fades);
       const fadeMs = world.feel.characters.fades.otherMs;
       const papaClip = papaOneShotOf(event);
       // A gag during a glide plays as his squash alone: the glide's loop goes on (P3). A held clip (the
@@ -831,6 +841,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         babyExpression: life.babyExpression,
         papaBrowTiltDeg: papa.browTiltDeg,
         babyBrowTiltDeg: baby.browTiltDeg,
+        papaCheeksShown: papa.isCheeksShown,
       };
     },
     setPapaGazeSight(isBabyShown, hasThreat, threatXM, threatZM) {
@@ -885,6 +896,11 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       // signals every frame, and the debug overlay over all of it (D11). A lasting state that begins is dated
       // with the world's sim time, the clock of the events, never with the interpolated frame clock.
       const isGuarded = isSignalOnly(world);
+      // Papa's acting (story 7.11): the same guard, the tiptoe, the seed and the step clock of his idles.
+      life.isSignalOnly = isGuarded;
+      life.isStealth = isStealthStepRunning(world as World);
+      life.levelSeed = bodies.levelSeed;
+      life.simMs = world.time.sim;
       const papaFace = papaExpressionAt(
         papaFaceTrack,
         clockMs,

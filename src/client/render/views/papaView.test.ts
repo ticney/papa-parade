@@ -16,8 +16,11 @@ import { createBlobKit } from '../blobShadow.ts';
 import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
 import type { BrowPose } from './brows.ts';
+import { PAPA_IDLE_CLIPS } from './characterClips.ts';
 import { createCharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
 import { PAPA_EXPRESSIONS, type PapaFace } from './expressions.ts';
+import type { LifeInputs } from './lifeLayer.ts';
+import { createIdleSlot, idleSlotAt, PAPA_IDLE_SALT } from './papaActing.ts';
 import { createPapaView, PAPA_LIFE_BONES, type PapaPose, papaPoseAt } from './papaView.ts';
 
 const TOON_TONES = [96, 178, 255];
@@ -1036,5 +1039,310 @@ describe('his brows (story 7.10)', () => {
       const many = run(frames);
       for (const [i, value] of many.entries()) expect(value).toBeCloseTo(one[i] as number, 9);
     }
+  });
+});
+
+describe('his first wave: start, brake, tiptoe, cheeks, idles (story 7.11)', () => {
+  /** One view and one life, driven frame by frame on the sim's step clock. */
+  function stage(patch: Partial<LifeInputs> = {}) {
+    const built = buildView();
+    const life = createTestLife({ levelSeed: 1, ...patch });
+    let simMs = 0;
+    /** Frames of `dtMs` until `untilMs`, Papa as `p` (his `enteredAt` included), recording each new acting clip. */
+    const run = (
+      p: PapaSlice,
+      untilMs: number,
+      dtMs = 10,
+      baby: BabySlice = FREE_BABY,
+    ): { atMs: number; clip: string }[] => {
+      const started: { atMs: number; clip: string }[] = [];
+      let last = built.view.actingClip;
+      while (simMs < untilMs) {
+        simMs = Math.min(untilMs, simMs + dtMs);
+        life.simMs = simMs;
+        built.view.update(p, 1);
+        built.view.animate(p, baby, dtMs, life);
+        const now = built.view.actingClip;
+        if (now !== null && now !== last) started.push({ atMs: simMs, clip: now });
+        last = now;
+      }
+      return started;
+    };
+    const frame = (p: PapaSlice, dtMs = 10, baby: BabySlice = FREE_BABY): void => {
+      simMs += dtMs;
+      life.simMs = simMs;
+      built.view.animate(p, baby, dtMs, life);
+    };
+    return { ...built, life, run, frame, now: () => simMs };
+  }
+  const at = (state: PapaSlice['state'], enteredAt: number) =>
+    papa({ state, enteredAt: asSimMs(enteredAt) });
+
+  /** The slots a still spell begun at `stillSinceAt` has up to `untilMs`, for the stage's seed. */
+  const slotsUntil = (stillSinceAt: number, untilMs: number, life: LifeInputs) => {
+    const slots: { startAt: number; clip: string }[] = [];
+    const slot = createIdleSlot();
+    for (let t = stillSinceAt; t <= untilMs; t += 10) {
+      idleSlotAt(
+        life.levelSeed,
+        PAPA_IDLE_SALT,
+        stillSinceAt,
+        t,
+        life.characters.idles,
+        PAPA_IDLE_CLIPS.length,
+        slot,
+      );
+      if (slot.index >= 0 && slots.length === slot.index) {
+        slots.push({ startAt: slot.startAt, clip: PAPA_IDLE_CLIPS[slot.variant] as string });
+      }
+    }
+    return slots;
+  };
+
+  describe('the start and the brake (D3, D4)', () => {
+    it('starts a walk with walk_start after he stood still long enough, fading in over startMs', () => {
+      const { run, frame, view, rig, life } = stage();
+      run(at('idle', 0), 1000);
+      frame(at('walkPath', 1000), 0);
+      expect(view.clipName).toBe('walk_start');
+      expect(view.actingClip).toBe('walk_start');
+      frame(at('walkPath', 1000), life.characters.fades.startMs / 2);
+      expect(rig.weightOf('walk_start')).toBeGreaterThan(0);
+      expect(rig.weightOf('walk_start')).toBeLessThan(1);
+    });
+
+    it('starts none after a stop shorter than startMinStillMs', () => {
+      const { run, frame, view, life } = stage();
+      run(at('walkPath', 0), 1000);
+      const shortMs = life.characters.startStop.startMinStillMs - 10;
+      run(at('idle', 1000), 1000 + shortMs);
+      frame(at('walkPath', 1000 + shortMs), 10);
+      expect(view.clipName).toBe('walk');
+    });
+
+    it('brakes a walk into idle with walk_stop, and none after a walk shorter than brakeMinTravelMs', () => {
+      const long = stage();
+      long.run(at('idle', 0), 1000);
+      long.run(at('walkPath', 1000), 2000);
+      long.frame(at('idle', 2000));
+      expect(long.view.clipName).toBe('walk_stop');
+      const short = stage();
+      short.run(at('idle', 0), 1000);
+      const walkMs = short.life.characters.startStop.brakeMinTravelMs - 10;
+      short.run(at('walkPath', 1000), 1000 + walkMs);
+      short.frame(at('idle', 1000 + walkMs));
+      expect(short.view.clipName).toBe('idle');
+    });
+
+    it('plays none into a pick-up, out of a glide, carrying the baby, in the guard or under reduced motion', () => {
+      const cases: [string, Partial<LifeInputs>, PapaSlice['state'], BabySlice][] = [
+        ['a pick-up', {}, 'pickingUp', FREE_BABY],
+        ['carrying', {}, 'idle', CARRIED_BABY],
+        ['the guard', { isSignalOnly: true }, 'idle', FREE_BABY],
+        ['reduced motion', { isMotionReduced: true }, 'idle', FREE_BABY],
+      ];
+      for (const [name, patch, arrival, baby] of cases) {
+        const { run, frame, view } = stage(patch);
+        run(at('idle', 0), 1000, 10, baby);
+        run(at('walkPath', 1000), 2000, 10, baby);
+        expect(view.actingClip, `${name}: start`).toBeNull();
+        frame(at(arrival, 2000), 10, baby);
+        expect(view.actingClip, `${name}: brake`).toBeNull();
+      }
+      const glide = stage();
+      glide.run(at('idle', 0), 1000);
+      glide.run(at('glide', 1000), 1500);
+      expect(glide.view.actingClip).toBeNull();
+      glide.frame(at('idle', 1500));
+      expect(glide.view.actingClip).toBeNull();
+    });
+
+    it('moves him nowhere: his drawn position is the sim’s, start or not', () => {
+      const { view, frame, run } = stage();
+      run(at('idle', 0), 1000);
+      const walking = papa({ state: 'walkPath', enteredAt: asSimMs(1000), xM: 3, prevXM: 2.97 });
+      view.update(walking, 0.5);
+      frame(walking);
+      expect(view.clipName).toBe('walk_start');
+      expect(view.pose.xM).toBeCloseTo(2.985, 9);
+    });
+  });
+
+  describe('the tiptoe and the cheeks (D5, D6)', () => {
+    it('walks on tiptoe in a stealth step, with no start, and nothing tiptoes outside one', () => {
+      const stealth = stage({ isStealth: true, isSignalOnly: true });
+      stealth.run(at('idle', 0), 1000);
+      stealth.frame(at('walkPath', 1000));
+      expect(stealth.view.clipName).toBe('tiptoe');
+      const plain = stage();
+      plain.run(at('walkPath', 0), 3000);
+      expect(plain.view.clipName).toBe('walk');
+    });
+
+    it('puffs his cheeks while he holds his breath, under reduced motion too, and only then', () => {
+      const { view, frame, life, named } = stage({ isStealth: true, isSignalOnly: true });
+      frame(at('walkPath', 0));
+      expect(view.isCheeksShown).toBe(false);
+      expect(isShown(named('papa_cheeks'))).toBe(false);
+      life.isBreathHeld = true;
+      frame(at('walkPath', 0));
+      expect(view.isCheeksShown).toBe(true);
+      expect(isShown(named('papa_cheeks'))).toBe(true);
+      life.isMotionReduced = true;
+      frame(at('walkPath', 0));
+      expect(view.isCheeksShown).toBe(true);
+      life.isBreathHeld = false;
+      frame(at('walkPath', 0));
+      expect(isShown(named('papa_cheeks'))).toBe(false);
+    });
+
+    it('hangs the cheeks on his head', () => {
+      const { named } = stage();
+      expect(named('papa_cheeks').parent?.name).toBe('head');
+    });
+  });
+
+  describe('the idles (D8, D9)', () => {
+    it('plays each slot of the seed in the frame that reaches it, the variant it draws', () => {
+      const { run, life } = stage();
+      const played = run(at('idle', 0), 40_000);
+      const slots = slotsUntil(0, 40_000, life);
+      expect(slots.length).toBeGreaterThanOrEqual(5);
+      expect(played.map((p) => p.clip)).toEqual(slots.map((s) => s.clip));
+      for (const [i, p] of played.entries()) {
+        const slotAt = (slots[i] as { startAt: number }).startAt;
+        expect(p.atMs).toBeGreaterThanOrEqual(slotAt);
+        expect(p.atMs - slotAt).toBeLessThan(10);
+      }
+      expect((played[0] as { atMs: number }).atMs).toBeGreaterThanOrEqual(
+        life.characters.idles.firstAfterMs,
+      );
+    });
+
+    it('plays the same idles at the same slots for 1, 3 or 7 frames over the same span', () => {
+      const runOf = (dtMs: number) => {
+        const { run } = stage();
+        return run(at('idle', 0), 42_000, dtMs).map((p) => p.clip);
+      };
+      const one = runOf(10);
+      expect(runOf(30)).toEqual(one);
+      expect(runOf(70)).toEqual(one);
+    });
+
+    it('starts nothing on a dtMs of 0, and the slot is seen by the next frame that moves', () => {
+      const { run, frame, view, life } = stage();
+      run(at('idle', 0), 3990);
+      life.simMs = 4500;
+      view.animate(at('idle', 0), FREE_BABY, 0, life);
+      expect(view.actingClip).toBeNull();
+      frame(at('idle', 0), 10);
+      expect(view.actingClip).not.toBeNull();
+    });
+
+    it('starts none in the first frame after a restart, and resetAnimation cuts the one under way', () => {
+      const { run, view, life } = stage();
+      run(at('idle', 0), 4100);
+      expect(view.actingClip).not.toBeNull();
+      view.resetAnimation();
+      expect(view.actingClip).toBeNull();
+      expect(view.clipName).toBeNull();
+      // A replay of the same moment: the slot of 4000 ms is behind the first frame, so it shows nothing.
+      life.simMs = 4110;
+      view.animate(at('idle', 0), FREE_BABY, 16, life);
+      expect(view.actingClip).toBeNull();
+    });
+
+    it.each([
+      ['in the guard (a duel or stealth step)', { isSignalOnly: true }, 'idle', FREE_BABY],
+      ['under reduced motion', { isMotionReduced: true }, 'idle', FREE_BABY],
+      ['with the baby in his arms', {}, 'idle', CARRIED_BABY],
+      ['at a chore station', {}, 'chore', FREE_BABY],
+    ] as const)('plays none %s', (_name, patch, state, baby) => {
+      const { run, view } = stage(patch);
+      expect(run(at(state, 0), 30_000, 10, baby)).toEqual([]);
+      expect(view.actingClip).toBeNull();
+    });
+
+    it.each([
+      ['the guard begins', (life: LifeInputs) => Object.assign(life, { isSignalOnly: true })],
+      ['motion is reduced', (life: LifeInputs) => Object.assign(life, { isMotionReduced: true })],
+    ])('cuts the idle under way when %s', (_name, change) => {
+      const { run, frame, view, life } = stage();
+      run(at('idle', 0), 4100);
+      expect(view.actingClip).not.toBeNull();
+      change(life);
+      frame(at('idle', 0));
+      expect(view.actingClip).toBeNull();
+      expect(view.clipName).toBe('idle');
+    });
+
+    it('cuts the idle under way when the baby is picked up, and when Papa leaves `idle` on the same loop', () => {
+      const carried = stage();
+      carried.run(at('idle', 0), 4100);
+      carried.frame(at('idle', 0), 10, CARRIED_BABY);
+      expect(carried.view.actingClip).toBeNull();
+      expect(carried.view.clipName).toBe('carry_idle');
+      const picking = stage();
+      picking.run(at('idle', 0), 4100);
+      picking.frame(at('pickingUp', 4100));
+      expect(picking.view.actingClip).toBeNull();
+      expect(picking.view.clipName).toBe('idle');
+    });
+
+    it('skips a slot that comes while another one-shot plays, and the next comes on time', () => {
+      const { run, view, life } = stage();
+      const slots = slotsUntil(0, 30_000, life);
+      const first = slots[0] as { startAt: number };
+      run(at('idle', 0), first.startAt - 50);
+      view.playOnce('coffee_kick', 100);
+      const played = run(at('idle', 0), 30_000);
+      expect(played.map((p) => p.clip)).toEqual(slots.slice(1).map((s) => s.clip));
+    });
+
+    it('cuts an idle at once on cutActing, the idle loop fading in over otherMs', () => {
+      const { run, view, rig, frame, life } = stage();
+      life.characters.fades.otherMs = 200;
+      life.characters.fades.startMs = 40;
+      run(at('idle', 0), 4100);
+      const idle = view.actingClip as string;
+      view.cutActing(life.characters.fades);
+      expect(view.clipName).toBe('idle');
+      expect(view.actingClip).toBeNull();
+      frame(at('idle', 0), 100);
+      expect(rig.weightOf('idle')).toBeGreaterThan(0);
+      expect(rig.weightOf('idle')).toBeLessThan(1);
+      expect(rig.weightOf(idle)).toBeGreaterThan(0);
+    });
+
+    it('cuts a start at once on cutActing, the walk fading in over startMs', () => {
+      const { run, view, rig, frame, life } = stage();
+      life.characters.fades.otherMs = 200;
+      life.characters.fades.startMs = 40;
+      run(at('idle', 0), 1000);
+      frame(at('walkPath', 1000));
+      expect(view.actingClip).toBe('walk_start');
+      view.cutActing(life.characters.fades);
+      expect(view.clipName).toBe('walk');
+      frame(at('walkPath', 1000), 50);
+      expect(rig.weightOf('walk')).toBe(1);
+    });
+
+    it('cuts an idle on a change of loop, which may then start a walk', () => {
+      const { run, frame, view } = stage();
+      run(at('idle', 0), 4100);
+      const idle = view.actingClip;
+      expect(idle).not.toBeNull();
+      frame(at('walkPath', 4110));
+      expect(view.clipName).not.toBe(idle);
+      expect(view.clipName).toBe('walk_start');
+    });
+
+    it('leaves an event one-shot alone: cutActing cuts only an acting one', () => {
+      const { view, frame, life } = stage();
+      frame(at('idle', 0));
+      view.playOnce('coffee_kick', 100);
+      view.cutActing(life.characters.fades);
+      expect(view.clipName).toBe('coffee_kick');
+    });
   });
 });

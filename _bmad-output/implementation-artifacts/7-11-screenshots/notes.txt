@@ -1,0 +1,47 @@
+Story 7.11 — Papa's first wave, captures (D13)
+
+How: a throwaway Playwright file (deleted), Chromium, 844 × 390 CSS px, deviceScaleFactor 2, frozen with
+`__PP__.freeze` and stepped with `advance`. `salon_kitchen` with `?threats=off` for the idles, the start and the
+brake; `chambre_night` (loaded with `loadLevel`, seed 1) in `stealth_exit` (`StartSequence`) for the tiptoe, with
+a floor tap and `HoldAnywhere` for the held breath, once more with `setPapaLook({ hasMashOnCheek: true })`.
+Each `<name>.png` is the full frame; each `<name>_crop4x.png` is a 90 × 90 CSS px crop around Papa cut from a
+screenshot of that same frame, ×4 nearest neighbour. « dpr » is the drawn pixel ratio (canvas.width /
+clientWidth): the game stepped down to 1.5 on the longer runs (headless GPU, `adaptivePixelRatio.ts`).
+
+File                              sim ms  dpr  papaClip       mixer ms  state     cheeks
+before_idle_10s                   10300   2    idle           10303     idle      (no field)
+before_walk_mid                   10400   2    walk           10403     walkPath  (no field)
+before_stealth_walk                1520   2    walk            1520     walkPath  (no field)
+after_walk_start_mid               1070   2    walk_start      1073     walkPath  false
+after_walk_stop_mid                1590   1.5  walk_stop       1593     idle      false
+after_idle_stretch_peak            5110   1.5  idle_stretch    5113     idle      false
+after_idle_neck_peak              12220   1.5  idle_neck      12223     idle      false
+after_idle_scratch_peak           19670   1.5  idle_scratch   19673     idle      false
+after_tiptoe_cheeks                1520   2    tiptoe          1520     walkPath  true
+after_tiptoe_cheeks_mash           1600   2    tiptoe          1600     walkPath  true
+
+« before » = the untouched `papa.glb` and code (taken at T0); « after » = this story. The before set has no
+stealth walk of its own clip: it is today's `walk` at the sneak pace.
+
+What I saw (crops opened: every `_crop4x.png` of the « after » set, and before_idle_10s, before_walk_mid,
+before_stealth_walk; full frames opened: before_walk_mid.png, before_stealth_walk.png):
+- after_idle_scratch_peak: his right hand up at the side of his head, the left on his hip. Reads as scratching.
+- after_idle_neck_peak: his right forearm across the side of his head, the hand behind it, head tilted. The
+  hand is behind the head at ear height, not on the nape (his arms cannot reach under his head).
+- after_idle_stretch_peak: both hands behind his back, chest out; at this angle it reads as « hands behind the
+  back », the arch is slight.
+- after_walk_start_mid: leaning into the first stride, one arm back. after_walk_stop_mid: weight forward, an
+  arm swinging forward, a short catching step.
+- after_tiptoe_cheeks: hunched, both hands up in front of his chest like a burglar, the breath ring around him.
+  The puffed cheeks are hard to see here: he faces away from the camera three-quarters. `fx().papaCheeksShown`
+  is true. after_tiptoe_cheeks_mash: the green mash shows on his cheek, over the puff.
+Not opened: the full frames of the « after » set and before_idle_10s.png (the crops are cut from them).
+
+Pose sheets (Workbench headless, orthographic, five frames per clip: first, anticipation, action, overshoot,
+last; the pose reset before each clip; the hidden props and the cheeks hidden): papa_sheet_after.png at the game
+camera's angle (yaw 45°, pitch 35.264°), papa_sheet_after_back.png from behind (yaw 225°) to show the hands on his
+back and behind his head. Rows, top to bottom: walk_start (frames 1, 3, 6, 8, 11), walk_stop (1, 4, 6, 8, 13),
+tiptoe (1, 4, 7, 13, 20), idle_scratch (1, 6, 14, 18, 40), idle_neck (1, 8, 20, 28, 50), idle_stretch (1, 10, 28,
+44, 60). Both opened. There is no « before » sheet: the six clips did not exist.
+
+The look of the clips is Geo's call; the merge waits for his visual OK.

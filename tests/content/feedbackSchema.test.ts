@@ -747,3 +747,22 @@ describe('feedback.json › render (story 7.3)', () => {
     ).toBeLessThanOrEqual(3);
   });
 });
+
+describe('feedback.json › characters.clipSpeeds › tiptoe (story 7.11)', () => {
+  it("plays the tiptoe at the pace of the stealth exit's walk, so his feet do not slide", () => {
+    const feel = JSON.parse(
+      readFileSync(new URL('../../content/feel.json', import.meta.url), 'utf8'),
+    ) as {
+      movement: { walkSpeedMps: number };
+      stealth: { sneakSpeedPct: number };
+    };
+    const rows = (real as { characters: { clipSpeeds: { clip: string; speedMps: number }[] } })
+      .characters.clipSpeeds;
+    const tiptoe = rows.find((row) => row.clip === 'tiptoe');
+    expect(tiptoe, 'a clipSpeeds row for tiptoe').toBeDefined();
+    expect(tiptoe?.speedMps).toBeCloseTo(
+      (feel.movement.walkSpeedMps * feel.stealth.sneakSpeedPct) / 100,
+      6,
+    );
+  });
+});

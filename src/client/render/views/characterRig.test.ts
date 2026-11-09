@@ -463,3 +463,97 @@ describe('createCharacterRig: fades per passage and the life bones (story 7.8)',
     expect(head.quaternion.angleTo(new Quaternion())).toBeLessThan(1e-6);
   });
 });
+
+describe('createCharacterRig: the cut of an acting one-shot (story 7.11, D11)', () => {
+  const held = (name: string, yM: number) =>
+    new AnimationClip(name, 1, [
+      new VectorKeyframeTrack('spine.position', [0, 1], [0, yM, 0, 0, yM, 0]),
+    ]);
+
+  function buildFlat() {
+    const { scene } = createTestPapa();
+    const rig = createCharacterRig(
+      { scene, animations: ['idle', 'walk', 'idle_scratch'].map((name) => held(name, 0.5)) },
+      createToonMaterialCache(TOON_TONES),
+      createOutlineKit(OUTLINES),
+    );
+    return { rig, spineY: () => rig.node('spine').position.y };
+  }
+
+  it('hands back to the loop at once: the loop is what is seen in that very call', () => {
+    const { rig } = build();
+    rig.play('idle', 1, FADE_MS);
+    rig.update(10, RETURN_MS);
+    rig.playOnce('idle_scratch', FADE_MS);
+    rig.update(200, RETURN_MS);
+    expect(rig.clipName).toBe('idle_scratch');
+    expect(rig.oneShotName).toBe('idle_scratch');
+    rig.cutOnce(FADE_MS);
+    expect(rig.clipName).toBe('idle');
+    expect(rig.oneShotName).toBeNull();
+    rig.update(FADE_MS / 2, RETURN_MS);
+    expect(rig.weightOf('idle')).toBeGreaterThan(0);
+    expect(rig.weightOf('idle')).toBeLessThan(1);
+    rig.update(FADE_MS, RETURN_MS);
+    expect(rig.isClipRunning('idle_scratch')).toBe(false);
+    expect(rig.weightOf('idle')).toBe(1);
+  });
+
+  it('fades in the loop the state says now, which waited for the one-shot', () => {
+    const { rig } = build();
+    rig.play('idle', 1, FADE_MS);
+    rig.update(10, RETURN_MS);
+    rig.playOnce('idle_scratch', FADE_MS);
+    rig.update(200, RETURN_MS);
+    rig.play('walk', 1, FADE_MS);
+    rig.update(10, RETURN_MS);
+    expect(rig.clipName).toBe('idle_scratch');
+    rig.cutOnce(FADE_MS);
+    expect(rig.clipName).toBe('walk');
+    rig.update(FADE_MS, RETURN_MS);
+    expect(rig.weightOf('walk')).toBe(1);
+  });
+
+  it('does nothing with no one-shot under way: a fade between loops goes on as it was', () => {
+    const { rig } = build();
+    rig.play('idle', 1, FADE_MS);
+    rig.update(10, RETURN_MS);
+    rig.play('walk', 1, FADE_MS);
+    rig.update(FADE_MS / 2, RETURN_MS);
+    const walkWeight = rig.weightOf('walk');
+    rig.cutOnce(1000);
+    expect(rig.clipName).toBe('walk');
+    rig.update(FADE_MS / 2, RETURN_MS);
+    expect(walkWeight).toBeLessThan(1);
+    expect(rig.weightOf('walk')).toBe(1);
+  });
+
+  it('cuts a held one-shot too', () => {
+    const { rig } = build();
+    rig.play('idle', 1, FADE_MS);
+    rig.playOnce('collapse', FADE_MS, true);
+    rig.update(5000, RETURN_MS);
+    rig.cutOnce(FADE_MS);
+    expect(rig.clipName).toBe('idle');
+    rig.update(FADE_MS, RETURN_MS);
+    expect(rig.isClipRunning('collapse')).toBe(false);
+  });
+
+  it('keeps the weights adding up to 1 through a cut in the middle of the one-shot’s fade', () => {
+    const { rig, spineY } = buildFlat();
+    rig.play('idle', 1, FADE_MS);
+    rig.update(10, RETURN_MS);
+    rig.play('walk', 1, FADE_MS);
+    rig.update(FADE_MS / 3, RETURN_MS);
+    rig.playOnce('idle_scratch', FADE_MS);
+    rig.update(FADE_MS / 3, RETURN_MS);
+    expect(spineY()).toBeCloseTo(0.5, 5);
+    rig.cutOnce(FADE_MS);
+    for (let i = 0; i < 12; i++) {
+      rig.update(FADE_MS / 10, RETURN_MS);
+      expect(spineY(), `step ${i}`).toBeCloseTo(0.5, 5);
+    }
+    expect(rig.clipName).toBe('walk');
+    expect(rig.isClipRunning('idle_scratch')).toBe(false);
+  });
+});

@@ -36,6 +36,7 @@ import {
 } from './gags.ts';
 import { createLevelScene, eyelidsAmountAt, type SceneBodies } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
+import { PAPA_ACTING_CUT_EVENTS, PAPA_IDLE_CLIPS } from './views/characterClips.ts';
 
 /** The test feel's life layer and look (story 7.8): what `world.feel.characters` says in the test worlds. */
 const TEST_CHARACTERS_FEEL = createTestContent().feel.characters;
@@ -45,6 +46,7 @@ const BODIES = {
   babyRadiusM: 0.2,
   microSleepDefId: null,
   hasBedtimeCycle: false,
+  levelSeed: 1,
   layDownDefIds: [] as string[],
   anchorThreatDefIds: [] as string[],
   choreStations: [] as { xM: number; zM: number; missBrokenObjects: number }[],
@@ -528,6 +530,7 @@ describe('createLevelScene', () => {
       babyExpression: 'neutral',
       papaBrowTiltDeg: 0,
       babyBrowTiltDeg: 0,
+      papaCheeksShown: false,
     });
   });
 
@@ -1802,5 +1805,164 @@ describe('the faces (story 7.10)', () => {
     expect(realFxState().papaBrowTiltDeg).toBe(0);
     update(fakeWorldAt(1300), 0);
     expect(realFxState().papaExpression).toBe('neutral');
+  });
+});
+
+describe("Papa's first wave in the scene (story 7.11)", () => {
+  const saved = {
+    state: effectsWorld.papa.state,
+    enteredAt: effectsWorld.papa.enteredAt,
+    babyState: effectsWorld.baby.state,
+  };
+  afterEach(() => {
+    effectsWorld.papa.state = saved.state;
+    effectsWorld.papa.enteredAt = saved.enteredAt;
+    effectsWorld.baby.state = saved.babyState;
+    effectsWorld.sequence.stealth.isRunning = false;
+    effectsWorld.sequence.duel.isRunning = false;
+    effectsWorld.sequence.stealth.breathHeldAt = null;
+  });
+  const idles: readonly string[] = PAPA_IDLE_CLIPS;
+  const firstAfterMs = effectsWorld.feel.characters.idles.firstAfterMs;
+
+  /** A still Papa from 0 ms, frames every 10 ms up to `untilMs`: his idle under way at the end. */
+  function standUntil(level: ReturnType<typeof build>, untilMs: number): void {
+    effectsWorld.papa.state = 'idle';
+    effectsWorld.papa.enteredAt = asSimMs(0);
+    effectsWorld.baby.state = 'babble';
+    for (let t = 0; t <= untilMs; t += 10) level.update(fakeWorldAt(t), 0);
+  }
+
+  /** The idles a still Papa plays up to `untilMs`, in order. */
+  function idlesOf(level: ReturnType<typeof build>, untilMs: number): string[] {
+    effectsWorld.papa.state = 'idle';
+    effectsWorld.papa.enteredAt = asSimMs(0);
+    effectsWorld.baby.state = 'babble';
+    const played: string[] = [];
+    let last: string | null = null;
+    for (let t = 0; t <= untilMs; t += 10) {
+      level.update(fakeWorldAt(t), 0);
+      const clip = level.realFxState().papaClip;
+      if (clip !== null && clip !== last && idles.includes(clip)) played.push(clip);
+      last = clip;
+    }
+    return played;
+  }
+
+  it('plays an idle after firstAfterMs of standing still, drawn from the level’s seed', () => {
+    const level = build();
+    standUntil(level, firstAfterMs + 50);
+    expect(idles).toContain(level.realFxState().papaClip);
+    const seeds = [1, 2, 3, 4, 5].map((levelSeed) => idlesOf(build({ levelSeed }), 60_000).join());
+    expect(new Set(seeds).size).toBeGreaterThan(1);
+    expect(idlesOf(build({ levelSeed: 3 }), 60_000)).toEqual(
+      idlesOf(build({ levelSeed: 3 }), 60_000),
+    );
+  });
+
+  it.each(PAPA_ACTING_CUT_EVENTS.map((type, i) => [type, i % 2 === 0] as const))(
+    'cuts the idle in the frame of a %s (the event reduced: %s)',
+    (type, isReduced) => {
+      const level = build();
+      standUntil(level, firstAfterMs + 50);
+      const idle = level.realFxState().papaClip;
+      expect(idles).toContain(idle);
+      const event = { type, t: asSimMs(firstAfterMs + 60) } as unknown as SimEvent;
+      level.fx.playCharacterEvent(event, fakeWorldAt(firstAfterMs + 60), isReduced);
+      level.update(fakeWorldAt(firstAfterMs + 60), 0);
+      expect(level.realFxState().papaClip).not.toBe(idle);
+    },
+  );
+
+  it('leaves the idle to an event that is not an accepted command', () => {
+    const level = build();
+    standUntil(level, firstAfterMs + 50);
+    const idle = level.realFxState().papaClip;
+    const event = {
+      type: 'ThreatTelegraphed',
+      t: asSimMs(firstAfterMs + 60),
+      threatId: 1,
+      kind: 'outlet',
+      anchorId: 'outlet_1',
+      waveIndex: 0,
+    } as SimEvent;
+    level.fx.playCharacterEvent(event, fakeWorldAt(firstAfterMs + 60), false);
+    level.update(fakeWorldAt(firstAfterMs + 60), 0);
+    expect(level.realFxState().papaClip).toBe(idle);
+  });
+
+  it('cuts the idle on resetFx', () => {
+    const level = build();
+    standUntil(level, firstAfterMs + 50);
+    expect(idles).toContain(level.realFxState().papaClip);
+    level.resetFx();
+    expect(level.realFxState().papaClip).toBeNull();
+  });
+
+  it('plays no idle with the baby in his arms', () => {
+    const level = build();
+    effectsWorld.papa.state = 'idle';
+    effectsWorld.papa.enteredAt = asSimMs(0);
+    effectsWorld.baby.state = 'carried';
+    for (let t = 0; t <= 20_000; t += 10) {
+      level.update(fakeWorldAt(t), 0);
+      expect(idles).not.toContain(level.realFxState().papaClip);
+    }
+  });
+
+  it('plays no idle in a duel or stealth step, or under reduced motion', () => {
+    for (const setUp of [
+      () => {
+        effectsWorld.sequence.duel.isRunning = true;
+      },
+      () => {
+        effectsWorld.sequence.stealth.isRunning = true;
+      },
+    ]) {
+      const level = build();
+      setUp();
+      expect(idlesOf(level, 20_000)).toEqual([]);
+      effectsWorld.sequence.duel.isRunning = false;
+      effectsWorld.sequence.stealth.isRunning = false;
+    }
+    expect(idlesOf(build({ isMotionReduced: () => true }), 20_000)).toEqual([]);
+  });
+
+  it('walks on tiptoe in a stealth step and puffs his cheeks while he holds his breath, under reduced motion too', () => {
+    for (const isReduced of [false, true]) {
+      const level = build({ isMotionReduced: () => isReduced });
+      effectsWorld.sequence.stealth.isRunning = true;
+      effectsWorld.papa.state = 'walkPath';
+      effectsWorld.papa.enteredAt = asSimMs(0);
+      level.update(fakeWorldAt(0), 0);
+      level.update(fakeWorldAt(10), 0);
+      expect(level.realFxState().papaClip).toBe('tiptoe');
+      expect(level.realFxState().papaCheeksShown).toBe(false);
+      effectsWorld.sequence.stealth.breathHeldAt = asSimMs(10);
+      level.update(fakeWorldAt(20), 0);
+      expect(level.realFxState().papaCheeksShown, `reduced ${isReduced}`).toBe(true);
+      effectsWorld.sequence.stealth.breathHeldAt = null;
+      level.update(fakeWorldAt(30), 0);
+      expect(level.realFxState().papaCheeksShown).toBe(false);
+      effectsWorld.sequence.stealth.isRunning = false;
+      level.update(fakeWorldAt(40), 0);
+      expect(level.realFxState().papaClip).toBe('walk');
+    }
+  });
+
+  it('starts a walk with walk_start after he stood still, never in a stealth step', () => {
+    const level = build();
+    standUntil(level, 1000);
+    effectsWorld.papa.state = 'walkPath';
+    effectsWorld.papa.enteredAt = asSimMs(1010);
+    level.update(fakeWorldAt(1010), 0);
+    expect(level.realFxState().papaClip).toBe('walk_start');
+    const stealth = build();
+    standUntil(stealth, 1000);
+    effectsWorld.sequence.stealth.isRunning = true;
+    effectsWorld.papa.state = 'walkPath';
+    effectsWorld.papa.enteredAt = asSimMs(1010);
+    stealth.update(fakeWorldAt(1010), 0);
+    expect(stealth.realFxState().papaClip).toBe('tiptoe');
   });
 });
