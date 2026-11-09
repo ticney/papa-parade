@@ -1899,7 +1899,18 @@ describe("Papa's first wave in the scene (story 7.11)", () => {
     expect(level.realFxState().papaClip).toBeNull();
   });
 
-  it('plays no idle in a duel or stealth step, with the baby in his arms, or under reduced motion', () => {
+  it('plays no idle with the baby in his arms', () => {
+    const level = build();
+    effectsWorld.papa.state = 'idle';
+    effectsWorld.papa.enteredAt = asSimMs(0);
+    effectsWorld.baby.state = 'carried';
+    for (let t = 0; t <= 20_000; t += 10) {
+      level.update(fakeWorldAt(t), 0);
+      expect(idles).not.toContain(level.realFxState().papaClip);
+    }
+  });
+
+  it('plays no idle in a duel or stealth step, or under reduced motion', () => {
     for (const setUp of [
       () => {
         effectsWorld.sequence.duel.isRunning = true;

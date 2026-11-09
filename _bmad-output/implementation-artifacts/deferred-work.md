@@ -1288,3 +1288,8 @@ All three idles play in the live headless runs (`tests/bots/papaActingLive.test.
 - **The look of the six clips** is Geo's on `7-11-screenshots/`; the merge waits for his OK.
 - **Carried variants of the start, the brake and the idles** stay deferred (« only `idle` and `walk` have carried variants »).
 - **`papaActingLive.test.ts` re-implements the view's slot rules** (as `expressionsLive.test.ts` does the faces) and models no other one-shot (a gag or a coffee kick under a slot): `papaView.test.ts` proves that skip on the real view. Reason: the shape the story asks for.
+
+## Deferred from: code review of story-7-11-premiere-vague-deplacement-et-attentes-de-papa (2026-11-08)
+
+- **A hot-reload retune of `characters.idles` re-times every later slot of the running spell:** the view recomputes the chain from slot 0 each frame and keeps only `lastSlotSimMs`, so changing `gapMinMs` / `gapMaxMs` mid-spell can fire an idle sooner than the new gap (5-8 s to 9 s at 20 s gave idles at 17.9 s and 22 s). Reason: a consequence of D8's « pure function of the inputs » (a replay from a snapshot needs it); only Geo's feel panel reaches it, and the slots settle at the next still spell.
+- **« Never the same idle twice » holds along the slot chain, not along what the player sees:** a slot skipped by a duel or stealth step or by reduced motion still advances the chain, and a new still spell restarts with an independent variant. Reason: D8 and D9 say so; fix it (a chain over the played slots) only if Geo sees the same idle twice in a row.

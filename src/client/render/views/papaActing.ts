@@ -79,6 +79,14 @@ export function idleSlotAt(
   out.startAt = startAt;
   out.variant = 0;
   if (nowMs < startAt) return out;
+  // A non-finite clock or cadence would never end the walk below, and this runs in the rAF path.
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(cadence.gapMinMs) ||
+    !Number.isFinite(cadence.gapMaxMs)
+  ) {
+    return out;
+  }
   const spanMs = Math.max(0, cadence.gapMaxMs - cadence.gapMinMs);
   let draw = actingMix32(seed, salt, stillSinceAt, 0);
   let variant = variantsCount > 0 ? draw % variantsCount : 0;

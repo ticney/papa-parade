@@ -105,7 +105,7 @@ export const PAPA_ACTING_CLIPS: readonly string[] = [...PAPA_IDLE_CLIPS, 'walk_s
  * The events by which the view sees, in the frame of the step that applies it, that a command of the
  * player was accepted (story 7.11, D12): each cuts an acting one-shot at once. `PapaStateChanged` is one
  * too (read here and from the loop change). Each command a player can send to an idle Papa emits one of
- * these in its applying step (`tests/bots/papaActingCuts.test.ts`).
+ * these in its applying step (`tests/bots/papaActingLive.test.ts`).
  */
 export const PAPA_ACTING_CUT_EVENTS: readonly SimEvent['type'][] = [
   'PapaStateChanged',

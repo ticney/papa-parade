@@ -138,6 +138,19 @@ describe('idleSlotAt (story 7.11, D8)', () => {
     ]);
   });
 
+  it('returns at once, with no slot, on a clock or a cadence that is not a finite number', () => {
+    const slot = createIdleSlot();
+    for (const [nowMs, cadence] of [
+      [Number.NaN, CADENCE],
+      [Number.POSITIVE_INFINITY, CADENCE],
+      [60_000, { ...CADENCE, gapMinMs: Number.NaN }],
+      [60_000, { ...CADENCE, gapMaxMs: Number.POSITIVE_INFINITY }],
+    ] as const) {
+      idleSlotAt(1, PAPA_IDLE_SALT, 0, nowMs, cadence, VARIANTS, slot);
+      expect(slot.index).toBe(-1);
+    }
+  });
+
   it('reads a 10-minute still spell in bounded work, with nothing allocated', () => {
     const slot = createIdleSlot();
     const before = idleSlotAt(1, PAPA_IDLE_SALT, 0, 600_000, CADENCE, VARIANTS, slot);
