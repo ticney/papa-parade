@@ -109,6 +109,20 @@ export function idleSlotAt(
   return out;
 }
 
+/** The salt of the Parries' first variant (story 7.12, D4): any fixed integer, distinct from the others. */
+export const PAPA_PARRY_SALT = 0x9a22;
+
+/**
+ * Which of Papa's two Parries a judged Parry success plays (story 7.12, D4): `(successes + seedBit) mod 2`,
+ * where `successes` is `world.score.successes` in the step of the `ResponseResolved` and `seedBit` is drawn
+ * once from the level's seed. `successes` grows by one on every success, so two Parry successes with no other
+ * success between them always differ. A function of the world's counter and the seed: nothing remembered.
+ */
+export function parryVariantOf(seed: number, successes: number): number {
+  const seedBit = actingMix32(seed, PAPA_PARRY_SALT, 0, 0) & 1;
+  return (((successes + seedBit) % 2) + 2) % 2;
+}
+
 /**
  * Whether Papa may idle now (D9): standing (`idle`, never a chore station's `chore`), his hands free (the
  * baby not carried), outside a duel or stealth step (`isSignalOnly`), motion not reduced, and no other

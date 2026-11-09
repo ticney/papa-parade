@@ -1,7 +1,14 @@
 import { ISO_YAW_DEG } from '@shared/constants';
 import { asSimMs } from '@shared/time';
 import type { BabySlice, PapaSlice } from '@sim';
-import { type Object3D, Scene, SkinnedMesh, Vector3 } from 'three';
+import {
+  AnimationClip,
+  type Object3D,
+  Scene,
+  SkinnedMesh,
+  Vector3,
+  VectorKeyframeTrack,
+} from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   browEndsInHead,
@@ -1286,7 +1293,8 @@ describe('his first wave: start, brake, tiptoe, cheeks, idles (story 7.11)', () 
       picking.run(at('idle', 0), 4100);
       picking.frame(at('pickingUp', 4100));
       expect(picking.view.actingClip).toBeNull();
-      expect(picking.view.clipName).toBe('idle');
+      // A pick-up has its own gesture since story 7.12 (D3): the idle gives way to it.
+      expect(picking.view.clipName).toBe('pick_up');
     });
 
     it('skips a slot that comes while another one-shot plays, and the next comes on time', () => {
@@ -1344,5 +1352,87 @@ describe('his first wave: start, brake, tiptoe, cheeks, idles (story 7.11)', () 
       view.cutActing(life.characters.fades);
       expect(view.clipName).toBe('coffee_kick');
     });
+  });
+});
+
+describe('the second half of his first wave: stir, pick-up, sigh (story 7.12)', () => {
+  /** Papa standing still at (1, 1): no travel, so the loops play at their own pace. */
+  const still = (patch: Partial<PapaSlice> = {}) =>
+    papa({ xM: 1, zM: 1, prevXM: 1, prevZM: 1, ...patch });
+
+  it("plays the station's loop at a chore, and idle at a station that has none (D2)", () => {
+    const { view } = buildView();
+    const life = createTestLife({ papaChoreClip: 'stir_pot' });
+    view.update(still({ state: 'chore' }), 1);
+    view.animate(still({ state: 'chore' }), FREE_BABY, 10, life);
+    expect(view.clipName).toBe('stir_pot');
+    const dishwasher = buildView();
+    const none = createTestLife({ papaChoreClip: null });
+    dishwasher.view.update(still({ state: 'chore' }), 1);
+    dishwasher.view.animate(still({ state: 'chore' }), FREE_BABY, 10, none);
+    expect(dishwasher.view.clipName).toBe('idle');
+  });
+
+  /**
+   * The pick-up's own progress after `elapsedMs` of a `spanMs` busy span: a fixture whose `pick_up` (1 s) moves
+   * the pelvis from x 0 to 1, which no other clip keys, so its value is the clip's played share.
+   */
+  const pickUpShareAfter = (spanMs: number, elapsedMs: number): number => {
+    const { view, rig } = buildView(0.25, (asset) => {
+      const index = asset.animations.findIndex((clip) => clip.name === 'pick_up');
+      asset.animations[index] = new AnimationClip('pick_up', 1, [
+        new VectorKeyframeTrack('pelvis.position', [0, 1], [0, 0, 0, 1, 0, 0]),
+      ]);
+    });
+    const life = createTestLife();
+    const p = still({ state: 'pickingUp', enteredAt: asSimMs(0), busyUntil: asSimMs(spanMs) });
+    view.update(p, 1);
+    for (let t = 0; t < elapsedMs; t += 10) view.animate(p, FREE_BABY, 10, life);
+    expect(view.clipName).toBe('pick_up');
+    expect(rig.durationMsOf('pick_up')).toBe(1000);
+    return rig.node('pelvis').position.x;
+  };
+
+  it('plays one cycle of the pick-up over the sim busy span (D3)', () => {
+    // A 1,000 ms clip over a 1,000 ms span: halfway at 500 ms; over 2,000 ms, a quarter.
+    expect(pickUpShareAfter(1000, 500)).toBeCloseTo(0.5, 1);
+    expect(pickUpShareAfter(2000, 500)).toBeCloseTo(0.25, 1);
+    expect(pickUpShareAfter(2000, 1500)).toBeCloseTo(0.75, 1);
+  });
+
+  it('plays the sigh as an acting one-shot, and a tap, a state change or the baby in his arms cuts it', () => {
+    const fades = createTestLife().characters.fades;
+    const cases: [string, (b: ReturnType<typeof buildView>) => void][] = [
+      ['a tap', (b) => b.view.cutActing(fades)],
+      ['a state change', (b) => b.view.animate(still({ state: 'walkPath' }), FREE_BABY, 10, LIFE)],
+      ['the baby in his arms', (b) => b.view.animate(still(), CARRIED_BABY, 10, LIFE)],
+      [
+        'the guard',
+        (b) => b.view.animate(still(), FREE_BABY, 10, createTestLife({ isSignalOnly: true })),
+      ],
+    ];
+    for (const [name, cut] of cases) {
+      const b = buildView();
+      b.view.update(still(), 1);
+      b.view.animate(still(), FREE_BABY, 10, LIFE);
+      b.view.playActing('sigh_relief', fades.otherMs);
+      b.view.animate(still(), FREE_BABY, 10, LIFE);
+      expect(b.view.actingClip, name).toBe('sigh_relief');
+      expect(b.view.clipName, name).toBe('sigh_relief');
+      cut(b);
+      expect(b.view.actingClip, name).toBeNull();
+      expect(b.view.clipName, name).not.toBe('sigh_relief');
+    }
+  });
+
+  it('keeps the sigh under reduced motion: a reaction carries a clip, as a response pose does', () => {
+    const { view } = buildView();
+    const reduced = createTestLife({ isMotionReduced: true });
+    view.update(still(), 1);
+    view.animate(still(), FREE_BABY, 10, reduced);
+    view.playActing('sigh_relief', reduced.characters.fades.otherMs);
+    view.animate(still(), FREE_BABY, 10, reduced);
+    expect(view.actingClip).toBe('sigh_relief');
+    expect(view.oneShotName).toBe('sigh_relief');
   });
 });

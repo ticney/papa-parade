@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { PAPA_CONTRACT } from '../../src/client/render/views/characterClips.ts';
 import { toContentJsonSchema } from '../../src/content/jsonSchema.ts';
 import { parseContentFile } from '../../src/content/parseContentFile.ts';
 import { FeedbackTableSchema, SQUASH_EVENTS } from '../../src/content/schemas/feedback.ts';
@@ -764,5 +765,37 @@ describe('feedback.json › characters.clipSpeeds › tiptoe (story 7.11)', () =
       (feel.movement.walkSpeedMps * feel.stealth.sneakSpeedPct) / 100,
       6,
     );
+  });
+});
+
+describe("the chores' loops of Papa (story 7.12, D2)", () => {
+  const choreClips = (real.characters as { choreClips: { chore: string; clip: string }[] })
+    .choreClips;
+
+  it('refuses a second clip for the same chore', () => {
+    const first = choreClips[0] as Json;
+    const result = mutated(['characters.choreClips', [...choreClips, { ...first, clip: 'idle' }]]);
+    expect(failedPaths(result).some((path) => path.startsWith('characters.choreClips'))).toBe(true);
+  });
+
+  it('accepts a table with no row: every station then keeps idle', () => {
+    expect(mutated(['characters.choreClips', []])).toMatchObject({ ok: true });
+  });
+
+  it('names an existing chore def and a clip of Papa in every row', () => {
+    expect(choreClips.length).toBeGreaterThan(0);
+    const papaClips: readonly string[] = PAPA_CONTRACT.clips;
+    for (const { chore, clip } of choreClips) {
+      expect(
+        existsSync(new URL(`../../content/chores/${chore}.json`, import.meta.url)),
+        chore,
+      ).toBe(true);
+      expect(papaClips, clip).toContain(clip);
+    }
+  });
+
+  it('stirs the pot at the cooking station, and leaves the dishwasher idle until story 7.14', () => {
+    expect(choreClips).toContainEqual({ chore: 'cooking', clip: 'stir_pot' });
+    expect(choreClips.map((row) => row.chore)).not.toContain('unload_dishwasher');
   });
 });

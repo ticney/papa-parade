@@ -1162,6 +1162,65 @@ const CharactersSchema = z
       .describe(
         "Papa's start and brake (story 7.11): a push-off into a walk and a catching step out of it, over the loops, his position the sim's. None while he carries the baby, into or out of a glide, in a duel or stealth step, or under « Réduire les animations ».",
       ),
+    babySit: z
+      .strictObject({
+        afterMs: z
+          .number()
+          .int()
+          .min(0)
+          .max(5000)
+          .describe(
+            'How long the baby stays on all fours after he stops (`babble`) before he sits down, in sim ms. 0 sits him at once.',
+          ),
+      })
+      .describe(
+        "The baby's pause and sit-down (story 7.12): stopped, he waits on all fours, then sits; he sets off again on all fours the moment the sim moves him. None in a duel or stealth step, while he cries, or under « Réduire les animations » (he sits at once).",
+      ),
+    babyIdles: z
+      .strictObject({
+        firstAfterMs: z
+          .number()
+          .int()
+          .min(500)
+          .max(20_000)
+          .describe("From the baby's stop (`babble`) to his first clap, in sim ms."),
+        gapMinMs: z
+          .number()
+          .int()
+          .min(1500)
+          .max(30_000)
+          .describe(
+            "The shortest time from one clap's start to the next's, in sim ms. Its floor (1.5 s) stays above the clap (1.2 s), so two never overlap.",
+          ),
+        gapMaxMs: z
+          .number()
+          .int()
+          .min(1500)
+          .max(30_000)
+          .describe(
+            "The longest time from one clap's start to the next's, in sim ms. Not under `gapMinMs`.",
+          ),
+      })
+      .refine((idles) => idles.gapMinMs <= idles.gapMaxMs, {
+        path: ['gapMaxMs'],
+        error: 'gapMaxMs must not be under gapMinMs',
+      })
+      .describe(
+        "The baby's claps while he sits (story 7.12), on the cadence of Papa's idles: each at a slot drawn from the level's seed and the sim clock. None in a duel or stealth step, while he cries, during another of his clips, or under « Réduire les animations ».",
+      ),
+    relief: z
+      .strictObject({
+        lastSharePct: z
+          .number()
+          .min(5)
+          .max(50)
+          .describe(
+            'The late share of a response window, its hidden tolerance included, in which a success (not a perfect) makes Papa sigh with relief once his response pose is over, in %.',
+          ),
+      })
+      .describe(
+        "Papa's sigh of relief (story 7.12): after a success late in its window. A reaction: a tap or any change of his state cuts it. None in a duel or stealth step.",
+      ),
     look: z
       .strictObject({
         outlineWidthPct: z
@@ -1191,7 +1250,7 @@ const CharactersSchema = z
       .describe("The characters' own look, to stand out from the room (story 7.8)."),
   })
   .describe(
-    "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), expressions (story 7.10), idles and start / stop (story 7.11), rim and outline. Client only.",
+    "The characters' life layer and look (story 7.8): fades, turn, lean, breath, gaze, stoop, forelock (story 7.9), expressions (story 7.10), idles and start / stop (story 7.11), the baby's sit and clap and Papa's relief (story 7.12), rim and outline. Client only.",
   );
 
 const MusicSchema = z

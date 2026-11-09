@@ -39,6 +39,8 @@ const SPLINTER_REACH_M = 0.17;
 
 /** What the client needs of a planned chore to draw its shards: where its station stands, and what a miss breaks. */
 export interface ChoreStationSpec {
+  /** The chore's def id (`content/chores/<id>.json`): which loop Papa plays at it (story 7.12, D2). */
+  readonly defId: string;
   readonly xM: number;
   readonly zM: number;
   /** The def's `missBrokenObjects`, 0 for a chore that breaks nothing (the cooking). */

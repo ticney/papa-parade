@@ -459,7 +459,7 @@ World feel (hitstop 80ms, perfect slow-mo at ×0.3, shake, zoom, particles, adap
 | Characters' clips | Kept: a pose carries state (asleep, on the phone), the same call as hitstop and slow-mo `[ASSUMPTION]` |
 | Characters' squash and stretch | Removed `[ASSUMPTION]` |
 | Characters' life layer (v2.4): breathing, lean, forelock | Removed, and the damped turn no longer overshoots `[ASSUMPTION]`. The fades, the gaze, the fatigue stoop, the expressions and any pose that carries a state stay |
-| Characters' idle variants (v2.4) | Removed: Papa and the baby hold their loop; starts and brakes: removed; the tiptoe and the puffed cheeks stay (story 7.11) |
+| Characters' idle variants (v2.4) | Removed: Papa and the baby hold their loop; starts and brakes: removed; the tiptoe and the puffed cheeks stay (story 7.11); the baby's pause on all fours, sit-down and clap: removed, he sits at once when he stops; the stir, the pick-up, the two Parries, the two laughs and Papa's sigh of relief stay (story 7.12) |
 | silence-bubble blink | Slow pulse, 1Hz or slower |
 | Follow camera (large room, v2.3) | Slower catch-up, no overshoot (story 9.2) |
 | catastrophe-face alert pulse (v2.3) | Slow pulse, 1Hz or slower; the alarmed face stays |

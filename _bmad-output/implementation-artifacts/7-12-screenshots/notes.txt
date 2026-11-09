@@ -1,0 +1,74 @@
+Story 7.12 — the second half of the first wave, captures (D17)
+
+How: a throwaway Playwright file (deleted), Chromium, 844 × 390 CSS px, deviceScaleFactor 2, frozen with
+`__PP__.freeze` and stepped with `advance`. The stir in `salon_kitchen` with `?threats=off` (`TapObject` on the
+stove, seed 42); the pick-up in `salon_crawler` (a forced coffee-table gag, then `TapObject` on the mug, seed 42);
+the Parries and the sigh in `salon_crawler` seed 1 (the outlet forced three times, pressed at −60 % of its half
+window twice, then at +85 %, late in its last quarter); the baby in `salon_kitchen` with `?threats=off` (a stop
+after a crawl, then two pick-ups). Each `<name>.png` is the full frame with the HUD hidden; each `<name>_crop.png`
+a 120 × 120 CSS px crop around Papa (80 × 80 around the baby) from the same frame. « dpr » is the drawn pixel
+ratio (canvas.width / clientWidth): the game stepped down to 1.5 on the longer runs (headless GPU).
+
+« before » = the untouched code and `.glb` (taken at T0); « after » = this story, the same steps.
+
+File               sim ms  dpr   papaClip              babyClip     papa state  baby state
+before_stir         1400   2     idle                  babble       chore       babble
+before_stir_b       1570   2     idle                  crawl        chore       wander
+before_pick_up_low  3970   1.5   idle                  babble       pickingUp   babble
+before_parry_1      2090   1.5   respond_parry         babble       idle        babble
+before_parry_2      9330   1.5   respond_parry         babble       idle        downstairs
+before_sigh_pose   17420   1.5   respond_parry         babble       idle        downstairs
+before_sigh        18800   1.5   idle                  babble       idle        downstairs
+before_baby_paused  6830   1.5   idle                  babble       idle        babble
+before_baby_sit_mid 7280   1.5   idle                  babble       idle        babble
+before_baby_clap   10590   1.5   idle_neck             crawl        idle        wander
+before_baby_laugh_1 10710  1.5   carry_idle            laugh        idle        carried
+before_baby_laugh_2 12450  1.5   carry_idle            laugh        idle        carried
+after_stir          1400   2     stir_pot              babble       chore       babble
+after_stir_b        1570   2     stir_pot              crawl        chore       wander
+after_pick_up_low   3970   1.5   pick_up               crawl_pause  pickingUp   babble
+after_parry_1       2090   1.5   respond_parry_sweep   sit_down     idle        babble
+after_parry_2       9330   1.5   respond_parry         babble       idle        downstairs
+after_sigh_pose    17420   1.5   respond_parry_sweep   babble       idle        downstairs
+after_sigh         17760   1.5   sigh_relief           babble       idle        downstairs
+after_baby_paused   6830   1.5   idle                  crawl_pause  idle        babble
+after_baby_sit_mid  7280   1.5   idle                  sit_down     idle        babble
+after_baby_clap     8480   1.5   idle                  clap         idle        babble
+after_baby_laugh_1  8600   1.5   carry_idle            laugh        idle        carried
+after_baby_laugh_2 10340   1.5   carry_idle            laugh_belly  idle        carried
+
+The before set has no clap, no pause, no sit-down and no second laugh: those clips did not exist (before_baby_clap
+is the baby setting off again, today's babble having no clap). The two Parries alternate on the successes (the
+second success of the game plays `respond_parry`, the first and the third `respond_parry_sweep` for seed 1).
+
+What I saw (crops opened: before_stir, before_parry_1, after_stir, after_pick_up_low, after_parry_1,
+after_parry_2, after_sigh, after_baby_paused, after_baby_sit_mid, after_baby_clap, after_baby_laugh_2):
+- after_stir: Papa at the counter, seen from behind three-quarters; his right forearm is up in front of him and
+  reads from behind more like a hand by his head than a stir: the circling hand is at his chest, hidden by his back
+  from this camera. before_stir: the same spot, standing idle.
+- after_pick_up_low: Papa crouched low beside the coffee table, one hand down at the mug on the floor. Reads as
+  picking it up.
+- after_parry_1 (respond_parry_sweep): his left arm up and forward, the hand raised in front of his face, a block.
+  before_parry_1 / after_parry_2 (respond_parry): the right hand up beside his head.
+- after_sigh: Papa standing a little hunched, arms down: this frame is the start of the sigh (the breath), the hand
+  to the brow comes later and is not in this capture; the pose sheet shows it.
+- after_baby_paused: the baby on all fours, his big head low. after_baby_sit_mid: his head higher, rocking back
+  onto his bottom. after_baby_clap: seated; his hands in front of his chest are tiny at this distance and hard to
+  read. after_baby_laugh_2: in Papa's arms (the belly laugh), only the head shows from behind Papa.
+Not opened: every full frame (the crops are cut from them), and the crops before_stir_b, before_pick_up_low,
+before_parry_2, before_sigh_pose, before_sigh, before_baby_paused, before_baby_sit_mid, before_baby_clap,
+before_baby_laugh_1, before_baby_laugh_2, after_stir_b, after_sigh_pose, after_baby_laugh_1.
+
+Pose sheets (Workbench headless, orthographic, five frames per clip: first, ~25 %, middle, ~70 %, last; the pose
+reset before each clip; the hidden props hidden): papa_sheet_after.png at the game camera's angle (yaw 45°, pitch
+35.264°) and papa_sheet_after_side.png from his other front three-quarter (yaw −60°), rows stir_pot (frames 1, 11,
+21, 29, 41), pick_up (1, 9, 16, 22, 31), respond_parry (1, 5, 9, 12, 17) for reference, respond_parry_sweep (1, 5,
+9, 13, 18), sigh_relief (1, 10, 19, 26, 37); baby_sheet_after.png (yaw 45°) and baby_sheet_after_side.png (yaw
+90°), rows crawl_pause (1, 12, 23, 33, 46), sit_down (1, 5, 9, 11, 16), clap (1, 10, 19, 26, 37), laugh_belly (1,
+6, 11, 15, 21). All four opened. Seen: the stir's hands in front of his chest; the deep squat with the hands down
+by his feet; the sweep's left arm forward, mirrored from the Parry (at 45° it hides behind his body, the side
+sheet shows it); the sigh's forearm to the side of his head then flicked out low; the baby on all fours rocking,
+rocking back to sit, hands together in front, the feet kicking in the laugh. The baby's hands are small against
+his head at every angle.
+
+The look of the eight clips is Geo's call; the merge waits for his visual OK.

@@ -4,7 +4,8 @@ import type { ObservationRow } from './observations.ts';
 import { compareNames } from './testerId.ts';
 
 export const PLAYTEST_REPORT_KIND = 'papa-parade.playtest-metrics';
-export const PLAYTEST_REPORT_VERSION = 2;
+/** 3 since story 7.12: indicator 6, `bodyRead`, and each tester's activities and repetitive pose. */
+export const PLAYTEST_REPORT_VERSION = 3;
 
 export type Status = 'OK' | 'KO' | 'n/a';
 export type DeviceName = 'touch' | 'mouse' | 'keyboard' | 'gamepad' | 'none';
@@ -28,6 +29,25 @@ export interface ThreatMeasure {
   byThreat: Record<string, Measure>;
   /** `OK` only when every threat is `OK`, `n/a` when no threat appears, `KO` otherwise. */
   status: Status;
+}
+
+/**
+ * Indicator 6, « Papa se lit sans sa bulle » (story 7.12, D14): per activity, the testers with a note who named
+ * what Papa does without his bubble; and the testers who spontaneously found one of his poses repetitive.
+ */
+export interface BodyReadMeasure {
+  /** One entry per activity of `bodyRead.activities` that has a note, in that order. */
+  byActivity: Record<string, Measure>;
+  /** `OK` when every activity with data is `OK`, `KO` when one is not, `n/a` with none. */
+  named: Status;
+  repetitivePose: {
+    /** Testers who cited a repetitive pose, of those with a note on it. */
+    cited: number;
+    count: number;
+    maxTesters: number;
+    /** `OK` when `cited <= maxTesters`, `n/a` with no note. */
+    status: Status;
+  };
 }
 
 export interface Rate {
@@ -96,6 +116,8 @@ export interface TesterComment {
   line: number;
   sessionId: string | null;
   threatId: string | null;
+  /** The activity of Papa's the row is about (story 7.12), or null. */
+  activityId: string | null;
   text: string;
 }
 
@@ -119,6 +141,10 @@ export interface TesterReport {
   perfectCited: boolean | null;
   laughs: number | null;
   laughed: boolean | null;
+  /** Indicator 6: per activity, whether the tester named it without the bubble (the first session's note). */
+  activitiesNamed: Record<string, boolean>;
+  /** Indicator 6: whether the tester found a pose repetitive (an O anywhere wins), `null` = not noted. */
+  repetitivePoseCited: boolean | null;
   comments: TesterComment[];
 }
 
@@ -149,6 +175,8 @@ export interface PlaytestReport {
   touchVsKeyboard: TouchVsKeyboard;
   /** Indicator 5, observed. */
   laughed: Measure;
+  /** Indicator 6, observed (story 7.12). */
+  bodyRead: BodyReadMeasure;
   /** The panel's success rate per sequence and per step (story 4.10): no threshold, no status. */
   sequences: SequenceMetrics;
   testers: TesterReport[];
@@ -410,6 +438,27 @@ function analyseTester(
     );
   }
 
+  // Indicator 6 (story 7.12, D14): as indicator 3, the row with no session first, else the earliest session's.
+  const named = new Map<string, { value: boolean; rank: number; line: number }>();
+  const namedConflicting = new Set<string>();
+  for (const row of rows) {
+    if (row.activityId === null || row.activityNamed === null) continue;
+    const rowRank = row.sessionId === null ? -1 : rank(row.sessionId);
+    const current = named.get(row.activityId);
+    if (current !== undefined && current.value !== row.activityNamed) {
+      namedConflicting.add(row.activityId);
+    }
+    if (current === undefined || rowRank < current.rank) {
+      named.set(row.activityId, { value: row.activityNamed, rank: rowRank, line: row.line });
+    }
+  }
+  for (const activityId of [...namedConflicting].sort(compareNames)) {
+    warnings.push(
+      `tester ${testerId}: the notes say differently whether ${activityId} was named, on several rows: the earliest session's note (line ${named.get(activityId)?.line}) counts`,
+    );
+  }
+  const repetitive = rows.map((row) => row.repetitivePoseCited).filter((v) => v !== null);
+
   const cited = rows.map((row) => row.perfectCitedSpontaneously).filter((v) => v !== null);
   const laughValues = rows.map((row) => row.laughs).filter((v) => v !== null);
   const laughs = laughValues.length === 0 ? null : laughValues.reduce((sum, v) => sum + v, 0);
@@ -440,19 +489,24 @@ function analyseTester(
     perfectCited: cited.length === 0 ? null : cited.includes(true),
     laughs,
     laughed: laughs === null ? null : laughs >= 1,
+    activitiesNamed: Object.fromEntries(
+      [...named].map(([activityId, note]) => [activityId, note.value]),
+    ),
+    repetitivePoseCited: repetitive.length === 0 ? null : repetitive.includes(true),
     comments: rows
       .filter((row) => row.comment.trim() !== '')
       .map((row) => ({
         line: row.line,
         sessionId: row.sessionId,
         threatId: row.threatId,
+        activityId: row.activityId,
         text: row.comment.trim(),
       })),
   };
 }
 
 /**
- * The five indicators of NFR11 for a panel, per tester and overall. Pure: it reads no file and no
+ * The six indicators of NFR11 for a panel (the sixth since story 7.12), per tester and overall. Pure: it reads no file and no
  * clock, and the same input gives the same report. See story 3.4 for the rules; the status always
  * comes from integer comparisons.
  */
@@ -542,6 +596,55 @@ export function computeMetrics(input: ComputeMetricsInput): PlaytestReport {
     thresholds.laughedMinPct,
   );
 
+  // Indicator 6 (story 7.12, D14): per activity of the list, the testers with a note; and the repetitive pose.
+  const { bodyRead: bodyThresholds } = thresholds;
+  const byActivity: Record<string, Measure> = {};
+  for (const activity of bodyThresholds.activities) {
+    let hits = 0;
+    let count = 0;
+    for (const tester of testers) {
+      const value = ownValue(tester.activitiesNamed, activity);
+      if (value === undefined) continue;
+      count++;
+      if (value) hits++;
+    }
+    if (count > 0) byActivity[activity] = measureOf(hits, count, bodyThresholds.namedMinPct);
+  }
+  const unlisted = new Set<string>();
+  for (const tester of testers) {
+    for (const activity of Object.keys(tester.activitiesNamed)) {
+      if (!bodyThresholds.activities.includes(activity)) unlisted.add(activity);
+    }
+  }
+  if (unlisted.size > 0) {
+    warnings.push(
+      `indicator 6: ${[...unlisted].sort(compareNames).join(', ')} not in content/playtest.json › bodyRead.activities: left out`,
+    );
+  }
+  const activityMeasures = Object.values(byActivity);
+  const repetitiveKnown = testers.filter((t) => t.repetitivePoseCited !== null);
+  const repetitiveCited = repetitiveKnown.filter((t) => t.repetitivePoseCited).length;
+  const bodyRead: BodyReadMeasure = {
+    byActivity,
+    named:
+      activityMeasures.length === 0
+        ? 'n/a'
+        : activityMeasures.every((m) => m.status === 'OK')
+          ? 'OK'
+          : 'KO',
+    repetitivePose: {
+      cited: repetitiveCited,
+      count: repetitiveKnown.length,
+      maxTesters: bodyThresholds.repetitivePoseMaxTesters,
+      status:
+        repetitiveKnown.length === 0
+          ? 'n/a'
+          : repetitiveCited <= bodyThresholds.repetitivePoseMaxTesters
+            ? 'OK'
+            : 'KO',
+    },
+  };
+
   // The observed indicators count the testers whose cell is filled in: say when that is fewer than the panel.
   if (input.observations.length > 0) {
     const short: string[] = [];
@@ -554,6 +657,12 @@ export function computeMetrics(input: ComputeMetricsInput): PlaytestReport {
     if (threatsShort.length > 0) short.push(`3 (identification): ${threatsShort.join(', ')}`);
     if (laughKnown.length < testers.length) {
       short.push(`5 (laughs): ${laughKnown.length}/${testers.length} testers`);
+    }
+    const activitiesShort = Object.entries(byActivity)
+      .filter(([, measure]) => measure.count < testers.length)
+      .map(([activity, measure]) => `${activity} ${measure.count}/${testers.length}`);
+    if (activitiesShort.length > 0) {
+      short.push(`6 (Papa without his bubble): ${activitiesShort.join(', ')}`);
     }
     if (short.length > 0) {
       warnings.push(
@@ -594,6 +703,7 @@ export function computeMetrics(input: ComputeMetricsInput): PlaytestReport {
     firstEncounter,
     touchVsKeyboard,
     laughed,
+    bodyRead,
     sequences: sequenceMetricsOf(input.testers.flatMap((tester) => tester.games)),
     testers,
     inputs: input.inputs,

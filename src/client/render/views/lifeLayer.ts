@@ -37,6 +37,11 @@ export interface LifeInputs {
   levelSeed: number;
   /** The sim's step clock, `world.time.sim`, in sim ms: the idles' slots are read on it (story 7.11, D8). */
   simMs: number;
+  /**
+   * The loop of the chore Papa works at (`feedback.json › characters.choreClips`, story 7.12, D2), or null:
+   * no chore under way, or a station with no row.
+   */
+  papaChoreClip: string | null;
   characters: CharactersFeel;
 }
 
@@ -56,6 +61,7 @@ export function createLifeInputs(characters: CharactersFeel): LifeInputs {
     isStealth: false,
     levelSeed: 0,
     simMs: 0,
+    papaChoreClip: null,
     characters,
   };
 }

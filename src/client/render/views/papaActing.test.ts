@@ -8,6 +8,8 @@ import {
   idleSlotAt,
   isPapaIdleEligible,
   PAPA_IDLE_SALT,
+  PAPA_PARRY_SALT,
+  parryVariantOf,
   passageOneShotOf,
   type StartStopConfig,
 } from './papaActing.ts';
@@ -36,6 +38,33 @@ function slotsOf(
   }
   return out;
 }
+
+describe('parryVariantOf (story 7.12, D4)', () => {
+  it('alternates over consecutive successes: two Parries in a row never match', () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      for (let successes = 0; successes < 40; successes++) {
+        expect(parryVariantOf(seed, successes + 1)).not.toBe(parryVariantOf(seed, successes));
+      }
+    }
+  });
+
+  it("lets the level's seed pick the first: both variants open a level over the seeds", () => {
+    const firsts = new Set<number>();
+    for (let seed = 1; seed <= 50; seed++) firsts.add(parryVariantOf(seed, 0));
+    expect([...firsts].sort()).toEqual([0, 1]);
+    // The seed's bit is actingMix32's, under the Parries' own salt.
+    expect(parryVariantOf(7, 0)).toBe(actingMix32(7, PAPA_PARRY_SALT, 0, 0) & 1);
+  });
+
+  it('gives the same variant for the same inputs, always 0 or 1', () => {
+    for (let successes = 0; successes < 20; successes++) {
+      const variant = parryVariantOf(3, successes);
+      expect(parryVariantOf(3, successes)).toBe(variant);
+      expect([0, 1]).toContain(variant);
+    }
+    expect(PAPA_PARRY_SALT).not.toBe(PAPA_IDLE_SALT);
+  });
+});
 
 describe('actingMix32 (story 7.11, D8)', () => {
   it('gives the same value for the same inputs, an unsigned 32-bit integer', () => {

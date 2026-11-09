@@ -25,6 +25,7 @@ import {
   stepN,
 } from '../../../tests/support/testContent.ts';
 import { createTestLevelGeometry } from '../../../tests/support/testLevelGeometry.ts';
+import type { ResponseCue } from '../feedback/responseChoreography.ts';
 import {
   GAG_DOWNSTAIRS_DROP_M,
   GAG_LIGHTS_DARK_MS,
@@ -36,7 +37,13 @@ import {
 } from './gags.ts';
 import { createLevelScene, eyelidsAmountAt, type SceneBodies } from './levelScene.ts';
 import { LIFT_HEIGHT_M, LIFT_MS } from './vfx/liftHop.ts';
-import { PAPA_ACTING_CUT_EVENTS, PAPA_IDLE_CLIPS } from './views/characterClips.ts';
+import { nextLaughVariantOf } from './views/babyActing.ts';
+import {
+  BABY_LAUGH_CLIPS,
+  PAPA_ACTING_CUT_EVENTS,
+  PAPA_IDLE_CLIPS,
+  PAPA_PARRY_CLIPS,
+} from './views/characterClips.ts';
 
 /** The test feel's life layer and look (story 7.8): what `world.feel.characters` says in the test worlds. */
 const TEST_CHARACTERS_FEEL = createTestContent().feel.characters;
@@ -49,7 +56,7 @@ const BODIES = {
   levelSeed: 1,
   layDownDefIds: [] as string[],
   anchorThreatDefIds: [] as string[],
-  choreStations: [] as { xM: number; zM: number; missBrokenObjects: number }[],
+  choreStations: [] as { defId: string; xM: number; zM: number; missBrokenObjects: number }[],
   laidHeightM: 0.3,
   characters: {
     ...createTestFeedback().characters,
@@ -128,6 +135,21 @@ function fakeWorldAt(simMs: number): World {
   effectsWorld.time.sim = asSimMs(simMs);
   return effectsWorld;
 }
+
+/** A response cue as the choreography fills it (story 7.12, D6): none of the extras unless asked. */
+const cueOf = (
+  response: string,
+  quality: string,
+  patch: Partial<ResponseCue> = {},
+): ResponseCue => ({
+  response,
+  quality,
+  successes: 0,
+  isRelief: false,
+  isSignalOnly: false,
+  atMs: 0,
+  ...patch,
+});
 
 function names(scene: { children: Object3D[] }): string[] {
   const found: string[] = [];
@@ -506,7 +528,8 @@ describe('createLevelScene', () => {
       gradeLightsFactor: 1,
       babyLayDownPct: 0,
       papaClip: 'idle',
-      babyClip: 'babble',
+      // 300 ms into his first stop the baby still pauses on all fours (story 7.12, D7).
+      babyClip: 'crawl_pause',
       papaMixerMs: 0,
       papaBodyYawRad: 0,
       papaSteamSwayDeg: 0,
@@ -1093,9 +1116,9 @@ describe('the characters on the sim clock (story 7.2)', () => {
   it('plays the response clip it is told, and none for a Do Nothing', () => {
     const { update, realFxState, fx } = build();
     update(fakeWorldAt(1000), 0);
-    fx.playResponseClip('nothing', 'success');
+    fx.playResponseClip(cueOf('nothing', 'success'));
     expect(realFxState().papaClip).toBe('idle');
-    fx.playResponseClip('parry', 'perfect');
+    fx.playResponseClip(cueOf('parry', 'perfect'));
     expect(realFxState().papaClip).toBe('respond_perfect');
   });
 
@@ -1964,5 +1987,277 @@ describe("Papa's first wave in the scene (story 7.11)", () => {
     effectsWorld.papa.enteredAt = asSimMs(1010);
     stealth.update(fakeWorldAt(1010), 0);
     expect(stealth.realFxState().papaClip).toBe('tiptoe');
+  });
+});
+
+describe('the second half of the first wave in the scene (story 7.12)', () => {
+  const saved = {
+    state: effectsWorld.papa.state,
+    enteredAt: effectsWorld.papa.enteredAt,
+    babyState: effectsWorld.baby.state,
+    flowState: effectsWorld.flow.state,
+  };
+  afterEach(() => {
+    effectsWorld.papa.state = saved.state;
+    effectsWorld.papa.enteredAt = saved.enteredAt;
+    effectsWorld.baby.state = saved.babyState;
+    effectsWorld.flow.state = saved.flowState;
+    effectsWorld.sequence.stealth.isRunning = false;
+    effectsWorld.sequence.duel.isRunning = false;
+  });
+
+  describe('the two Parries (D4)', () => {
+    const parryOf = (levelSeed: number, successes: number, isSignalOnly = false): string | null => {
+      const level = build({ levelSeed });
+      level.update(fakeWorldAt(1000), 0);
+      level.fx.playResponseClip(cueOf('parry', 'success', { successes, isSignalOnly }));
+      return level.realFxState().papaClip;
+    };
+
+    it('never plays the same Parry for two successes in a row, the seed picking the first', () => {
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        for (let successes = 0; successes < 6; successes++) {
+          const now = parryOf(seed, successes);
+          expect(PAPA_PARRY_CLIPS).toContain(now);
+          expect(parryOf(seed, successes + 1)).not.toBe(now);
+        }
+      }
+      const firsts = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((seed) => parryOf(seed, 0)));
+      expect(firsts.size).toBe(2);
+    });
+
+    it('plays respond_parry alone in a duel or stealth step', () => {
+      for (let successes = 0; successes < 4; successes++) {
+        expect(parryOf(1, successes, true)).toBe('respond_parry');
+      }
+    });
+
+    it('keeps the perfect and the Firmness poses', () => {
+      const level = build();
+      level.update(fakeWorldAt(1000), 0);
+      level.fx.playResponseClip(cueOf('parry', 'perfect', { successes: 1 }));
+      expect(level.realFxState().papaClip).toBe('respond_perfect');
+      level.fx.playResponseClip(cueOf('firm', 'success', { successes: 1 }));
+      expect(level.realFxState().papaClip).toBe('respond_firm');
+    });
+  });
+
+  describe('the sigh (D5)', () => {
+    const ARMED_AT = 100;
+    /** Papa idle from 0 ms, the pose of a success played at `ARMED_AT` with the cue's patch. */
+    function arm(patch: Partial<ResponseCue> = {}, bodies: Partial<SceneBodies> = {}) {
+      const level = build(bodies);
+      effectsWorld.papa.state = 'idle';
+      effectsWorld.papa.enteredAt = asSimMs(0);
+      effectsWorld.baby.state = 'babble';
+      for (let t = 0; t <= ARMED_AT; t += 10) level.update(fakeWorldAt(t), 0);
+      level.fx.playResponseClip(
+        cueOf('parry', 'success', { isRelief: true, atMs: ARMED_AT, ...patch }),
+      );
+      return level;
+    }
+    /** The clips Papa shows from `fromMs` to `untilMs`, each new one once, in order. */
+    function clipsUntil(level: ReturnType<typeof build>, fromMs: number, untilMs: number) {
+      const seen: string[] = [];
+      for (let t = fromMs; t <= untilMs; t += 10) {
+        level.update(fakeWorldAt(t), 0);
+        const clip = level.realFxState().papaClip;
+        if (clip !== null && clip !== seen[seen.length - 1]) seen.push(clip);
+      }
+      return seen;
+    }
+
+    it('plays once the response pose has handed back, him idle, as an acting one-shot', () => {
+      const level = arm();
+      const seen = clipsUntil(level, ARMED_AT + 10, 2500);
+      expect(seen[0]).toMatch(/^respond_parry/);
+      expect(seen).toContain('sigh_relief');
+      expect(seen.indexOf('sigh_relief')).toBeGreaterThan(0);
+    });
+
+    it('is cut in the frame of a tap once it plays', () => {
+      const level = arm();
+      let t = ARMED_AT + 10;
+      for (; t < 2500 && level.realFxState().papaClip !== 'sigh_relief'; t += 10) {
+        level.update(fakeWorldAt(t), 0);
+      }
+      expect(level.realFxState().papaClip).toBe('sigh_relief');
+      const tap = { type: 'ObjectTapped', t: asSimMs(t), objectId: 'phone' } as unknown as SimEvent;
+      level.fx.playCharacterEvent(tap, fakeWorldAt(t), false);
+      level.update(fakeWorldAt(t), 0);
+      expect(level.realFxState().papaClip).not.toBe('sigh_relief');
+    });
+
+    it('plays under reduced motion too: a reaction carries a clip', () => {
+      const level = arm({}, { isMotionReduced: () => true });
+      expect(clipsUntil(level, ARMED_AT + 10, 2500)).toContain('sigh_relief');
+    });
+
+    it('keeps an event of its own step: the judgement, the arrival', () => {
+      const level = arm();
+      const world = fakeWorldAt(ARMED_AT);
+      level.fx.playCharacterEvent(
+        { type: 'PapaStateChanged', t: asSimMs(ARMED_AT), from: 'glide', to: 'idle' },
+        world,
+        false,
+      );
+      level.fx.playCharacterEvent(
+        {
+          type: 'ResponseResolved',
+          t: asSimMs(ARMED_AT),
+          threatId: 1,
+          response: 'parry',
+          quality: 'success',
+          offsetMs: 0,
+          responseWindow: { windowMs: 400, perfectMs: 60, toleranceMs: 50, bufferMs: 100 },
+        },
+        world,
+        false,
+      );
+      expect(clipsUntil(level, ARMED_AT + 10, 2500)).toContain('sigh_relief');
+    });
+
+    it.each([
+      ['a perfect (no relief)', { isRelief: false }],
+      ['a duel or stealth step at the judgement', { isSignalOnly: true }],
+    ] as const)('never plays for %s', (_name, patch) => {
+      expect(clipsUntil(arm(patch), ARMED_AT + 10, 2500)).not.toContain('sigh_relief');
+    });
+
+    const later = (type: string): SimEvent =>
+      ({
+        type,
+        t: asSimMs(ARMED_AT + 50),
+        threatId: 1,
+        gag: 'papa_asleep',
+        reason: 'late',
+      }) as unknown as SimEvent;
+    it.each([
+      [
+        'a command later than it (a tap)',
+        (level: ReturnType<typeof build>) =>
+          level.fx.playCharacterEvent(later('TapRefused'), fakeWorldAt(ARMED_AT + 50), false),
+      ],
+      [
+        'a gag later than it',
+        (level: ReturnType<typeof build>) =>
+          level.fx.playCharacterEvent(later('GagTriggered'), fakeWorldAt(ARMED_AT + 50), false),
+      ],
+      [
+        'a change of his state since',
+        () => {
+          effectsWorld.papa.enteredAt = asSimMs(ARMED_AT + 50);
+        },
+      ],
+      [
+        'the baby in his arms',
+        () => {
+          effectsWorld.baby.state = 'carried';
+        },
+      ],
+      [
+        'the guard beginning',
+        () => {
+          effectsWorld.sequence.duel.isRunning = true;
+        },
+      ],
+      [
+        'the end of the level',
+        () => {
+          effectsWorld.flow.state = 'ended';
+        },
+      ],
+      [
+        'the finale taking the pose over',
+        (level: ReturnType<typeof build>) =>
+          level.fx.playCharacterEvent(
+            { type: 'FinaleReached', t: asSimMs(ARMED_AT + 50), cause: 'lastWave', threatId: 1 },
+            fakeWorldAt(ARMED_AT + 50),
+            false,
+          ),
+      ],
+      ['resetFx', (level: ReturnType<typeof build>) => level.resetFx()],
+    ] as const)('is dropped, never played late, on %s', (_name, drop) => {
+      const level = arm();
+      level.update(fakeWorldAt(ARMED_AT + 40), 0);
+      drop(level);
+      // Back to a free Papa: what dropped it stays dropped.
+      const seen = clipsUntil(level, ARMED_AT + 50, 2500);
+      effectsWorld.papa.enteredAt = asSimMs(0);
+      effectsWorld.baby.state = 'babble';
+      effectsWorld.sequence.duel.isRunning = false;
+      effectsWorld.flow.state = saved.flowState;
+      const after = clipsUntil(level, 2510, 3500);
+      expect([...seen, ...after]).not.toContain('sigh_relief');
+    });
+  });
+
+  describe('the two laughs (D10)', () => {
+    const pickUp = (level: ReturnType<typeof build>, t: number): string | null => {
+      level.fx.playCharacterEvent({ type: 'BabyPickedUp', t: asSimMs(t) }, fakeWorldAt(t), false);
+      return level.realFxState().babyClip;
+    };
+
+    it("alternates, the first drawn from the level's seed, and starts over after resetFx", () => {
+      for (const levelSeed of [1, 2, 3, 4]) {
+        const level = build({ levelSeed });
+        level.update(fakeWorldAt(1000), 0);
+        const first = BABY_LAUGH_CLIPS[nextLaughVariantOf(levelSeed, null)];
+        const laughs = [pickUp(level, 1000), pickUp(level, 1100), pickUp(level, 1200)];
+        expect(laughs[0]).toBe(first);
+        expect(laughs[1]).not.toBe(laughs[0]);
+        expect(laughs[2]).toBe(laughs[0]);
+        level.resetFx();
+        level.update(fakeWorldAt(1300), 0);
+        expect(pickUp(level, 1300)).toBe(first);
+      }
+    });
+
+    it('laughs the first laugh alone in a duel or stealth step, and the alternation stays where it was', () => {
+      const level = build({ levelSeed: 2 });
+      level.update(fakeWorldAt(1000), 0);
+      const before = pickUp(level, 1000);
+      effectsWorld.sequence.stealth.isRunning = true;
+      expect(pickUp(level, 1100)).toBe('laugh');
+      effectsWorld.sequence.stealth.isRunning = false;
+      const after = pickUp(level, 1200);
+      expect(after).not.toBe(before);
+    });
+  });
+
+  it('stirs the pot while Papa works at the cooking, and stays idle at a station with no loop (D2)', () => {
+    const stations = [
+      { defId: 'cooking', xM: 0, zM: 0, missBrokenObjects: 0 },
+      { defId: 'unload_dishwasher', xM: 1, zM: 0, missBrokenObjects: 1 },
+    ];
+    const level = build({
+      choreStations: stations,
+      characters: {
+        ...BODIES.characters,
+        choreClips: [{ chore: 'cooking', clip: 'stir_pot' }],
+      } as SceneBodies['characters'],
+    });
+    const at = (working: number, t: number): World =>
+      ({
+        ...fakeWorldAt(t),
+        papa: { ...effectsWorld.papa, state: 'chore', enteredAt: asSimMs(0) },
+        chores: stations.map((_, i) => ({
+          state: i === working ? 'working' : 'idle',
+          beatsMissed: 0,
+        })),
+      }) as unknown as World;
+    level.update(at(0, 0), 0);
+    level.update(at(0, 10), 0);
+    expect(level.realFxState().papaClip).toBe('stir_pot');
+    const dishwasher = build({
+      choreStations: stations,
+      characters: {
+        ...BODIES.characters,
+        choreClips: [{ chore: 'cooking', clip: 'stir_pot' }],
+      } as SceneBodies['characters'],
+    });
+    dishwasher.update(at(1, 0), 0);
+    dishwasher.update(at(1, 10), 0);
+    expect(dishwasher.realFxState().papaClip).toBe('idle');
   });
 });

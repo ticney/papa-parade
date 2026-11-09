@@ -1,4 +1,9 @@
-import { ISO_YAW_DEG, STEP_MS } from '@shared/constants';
+import {
+  ISO_YAW_DEG,
+  PICK_UP_TIME_SCALE_MAX,
+  PICK_UP_TIME_SCALE_MIN,
+  STEP_MS,
+} from '@shared/constants';
 
 /** How far a travelling clip may be slowed or sped up: past this its feet read as a glitch, not a pace. */
 const CLIP_TIME_SCALE_MIN = 0.3;
@@ -38,6 +43,16 @@ export function clipTimeScaleOf(clip: string, speedMps: number, clips: TravelCli
     return Math.min(CLIP_TIME_SCALE_MAX, Math.max(CLIP_TIME_SCALE_MIN, scale));
   }
   return 1;
+}
+
+/**
+ * The time scale that plays one cycle of a `clipMs` clip over `spanMs` (story 7.12, D3: the pick-up fits
+ * the sim's busy span, which does not change): `clipMs / spanMs`, clamped to `[PICK_UP_TIME_SCALE_MIN,
+ * PICK_UP_TIME_SCALE_MAX]`; 1 for a span or a clip that is not positive.
+ */
+export function busyFitTimeScaleOf(clipMs: number, spanMs: number): number {
+  if (!(spanMs > 0) || !(clipMs > 0)) return 1;
+  return Math.min(PICK_UP_TIME_SCALE_MAX, Math.max(PICK_UP_TIME_SCALE_MIN, clipMs / spanMs));
 }
 
 /** `angleRad` wrapped to the half turn around 0: the shortest arc. */

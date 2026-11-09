@@ -129,7 +129,7 @@ describe('npm run playtest:metrics', () => {
 
       const report = JSON.parse(readFileSync(json, 'utf8')) as PlaytestReport;
       expect(report.kind).toBe('papa-parade.playtest-metrics');
-      expect(report.version).toBe(2);
+      expect(report.version).toBe(3);
       expect(report.testers.map((t) => t.testerId)).toEqual(['T1', 'T2']);
 
       // The CLI and the pure function agree on the same files.
@@ -184,7 +184,7 @@ describe('npm run playtest:metrics', () => {
         rows: [],
         path: null,
         warnings: [
-          'no observations file at docs/playtest/observations.csv: the observed indicators (2, 3, 5) are n/a',
+          'no observations file at docs/playtest/observations.csv: the observed indicators (2, 3, 5, 6) are n/a',
         ],
       },
     });
@@ -207,7 +207,9 @@ describe('npm run playtest:metrics', () => {
     const loadedNotes = await loadObservations(ansi);
     if (!loadedNotes.ok) throw new Error(loadedNotes.error.join('\n'));
     expect(loadedNotes.value.path).toBe('ansi.csv');
+    // Notes of before story 7.12: indicator 6 is n/a, said once.
     expect(loadedNotes.value.warnings).toEqual([
+      expect.stringContaining('indicator 6 (Papa without his bubble) is n/a'),
       expect.stringContaining('ansi.csv is not valid UTF-8'),
     ]);
   });

@@ -1,7 +1,8 @@
-import { ISO_YAW_DEG } from '@shared/constants';
+import { ISO_YAW_DEG, PICK_UP_TIME_SCALE_MAX, PICK_UP_TIME_SCALE_MIN } from '@shared/constants';
 import { describe, expect, it } from 'vitest';
 import {
   busyCycleAt,
+  busyFitTimeScaleOf,
   clipTimeScaleOf,
   papaFacingYawRad,
   stepSpeedMpsOf,
@@ -28,6 +29,26 @@ describe('clipTimeScaleOf', () => {
     expect(clipTimeScaleOf('walk', 1.5, CLIPS)).toBe(0.5);
     expect(clipTimeScaleOf('walk', 0.01, CLIPS)).toBe(0.3);
     expect(clipTimeScaleOf('walk', 90, CLIPS)).toBe(2.5);
+  });
+});
+
+describe('busyFitTimeScaleOf (story 7.12, D3)', () => {
+  it('plays one cycle of the clip over the span', () => {
+    expect(busyFitTimeScaleOf(1000, 1000)).toBe(1);
+    expect(busyFitTimeScaleOf(1000, 2000)).toBe(0.5);
+    expect(busyFitTimeScaleOf(1000, 500)).toBe(2);
+  });
+
+  it('is 1 for a span or a clip that is not positive', () => {
+    expect(busyFitTimeScaleOf(1000, 0)).toBe(1);
+    expect(busyFitTimeScaleOf(1000, -20)).toBe(1);
+    expect(busyFitTimeScaleOf(0, 1000)).toBe(1);
+    expect(busyFitTimeScaleOf(1000, Number.NaN)).toBe(1);
+  });
+
+  it('stays within its bounds: past them the gesture reads as a glitch', () => {
+    expect(busyFitTimeScaleOf(1000, 100_000)).toBe(PICK_UP_TIME_SCALE_MIN);
+    expect(busyFitTimeScaleOf(1000, 10)).toBe(PICK_UP_TIME_SCALE_MAX);
   });
 });
 

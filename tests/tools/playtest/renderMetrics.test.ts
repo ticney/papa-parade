@@ -12,6 +12,11 @@ const THRESHOLDS: PlaytestThresholds = {
   firstEncounterSuccessMinPct: 80,
   touchVsKeyboardMinPct: 80,
   laughedMinPct: 80,
+  bodyRead: {
+    activities: ['chore', 'coffee', 'phone', 'stealth', 'fatigue', 'carrying'],
+    namedMinPct: 80,
+    repetitivePoseMaxTesters: 0,
+  },
 };
 
 function report() {
@@ -60,6 +65,9 @@ function report() {
         identifiedWithoutHelp: true,
         perfectCitedSpontaneously: null,
         laughs: null,
+        activityId: null,
+        activityNamed: null,
+        repetitivePoseCited: null,
         comment: '',
       },
       {
@@ -70,7 +78,50 @@ function report() {
         identifiedWithoutHelp: null,
         perfectCitedSpontaneously: true,
         laughs: 2,
+        activityId: null,
+        activityNamed: null,
+        repetitivePoseCited: false,
         comment: 'A ri | fort',
+      },
+      // Indicator 6 (story 7.12): T1 names the coffee and not the phone; T2 the coffee and finds a pose repetitive.
+      {
+        line: 4,
+        testerId: 'T1',
+        sessionId: null,
+        threatId: null,
+        identifiedWithoutHelp: null,
+        perfectCitedSpontaneously: null,
+        laughs: null,
+        activityId: 'coffee',
+        activityNamed: true,
+        repetitivePoseCited: null,
+        comment: '',
+      },
+      {
+        line: 5,
+        testerId: 'T1',
+        sessionId: null,
+        threatId: null,
+        identifiedWithoutHelp: null,
+        perfectCitedSpontaneously: null,
+        laughs: null,
+        activityId: 'phone',
+        activityNamed: false,
+        repetitivePoseCited: null,
+        comment: 'sans bulle',
+      },
+      {
+        line: 6,
+        testerId: 'T2',
+        sessionId: null,
+        threatId: null,
+        identifiedWithoutHelp: null,
+        perfectCitedSpontaneously: null,
+        laughs: null,
+        activityId: 'coffee',
+        activityNamed: true,
+        repetitivePoseCited: true,
+        comment: '',
       },
     ],
     inputs: {
@@ -99,13 +150,33 @@ describe('renderMetrics', () => {
       '3 (proxy). First-encounter success, each threat (computed)',
       '4. Touch success rate vs keyboard (computed)',
       '5. Laughed at least once (observed)',
+      '6. Papa reads without his bubble, each activity (observed)',
+      '6. No repetitive pose cited (observed)',
     ]);
+    expect(markdown).toContain(
+      '| 6. Papa reads without his bubble, each activity (observed) | lowest: phone 0 % (0/1) | ≥ 80 % | 1–2 | KO |',
+    );
+    expect(markdown).toContain(
+      '| 6. No repetitive pose cited (observed) | 1 tester cited one | ≤ 0 testers | 2 | KO |',
+    );
     expect(markdown).toContain(
       '| 1. Relaunch, without being asked (computed) | 50 % (1/2) | ≥ 70 % | 2 | KO |',
     );
     expect(markdown).toContain(
       '| 5. Laughed at least once (observed) | 100 % (1/1) | ≥ 80 % | 1 | OK |',
     );
+  });
+
+  it("renders indicator 6 per activity, and each tester's activities and repetitive pose (story 7.12)", () => {
+    const markdown = renderMetrics(report());
+    expect(markdown).toContain('## Indicator 6 per activity');
+    expect(markdown).toContain('| Activity | T1 | T2 | Share |');
+    expect(markdown).toContain('| coffee | ✓ | ✓ | 100 % (2/2) |');
+    expect(markdown).toContain('| phone | ✗ | — | 0 % (0/1) |');
+    expect(markdown).toContain('- Activities named: coffee O, phone N');
+    expect(markdown).toContain('- Repetitive pose cited: N');
+    expect(markdown).toContain('- Repetitive pose cited: O');
+    expect(markdown).toContain('- (line 5, phone) sans bulle');
   });
 
   it('renders the per-threat tables with ✓ ✗ and — per tester', () => {
@@ -139,7 +210,13 @@ describe('renderMetrics: text from files', () => {
     const tester = value.testers[0];
     if (tester === undefined) throw new Error('no tester');
     tester.comments = [
-      { line: 9, sessionId: null, threatId: null, text: 'a ri\r\n# fort\rpuis | non' },
+      {
+        line: 9,
+        sessionId: null,
+        threatId: null,
+        activityId: null,
+        text: 'a ri\r\n# fort\rpuis | non',
+      },
     ];
     value.warnings = ['first line\nsecond line\r\nthird'];
     value.inputs.skipped = [{ file: 'T1/c.json', reason: 'one\r\ntwo' }];
@@ -156,7 +233,7 @@ describe('renderJson', () => {
     const value = report();
     const text = renderJson(value);
     expect(text.endsWith('}\n')).toBe(true);
-    expect(text.startsWith('{\n  "kind": "papa-parade.playtest-metrics",\n  "version": 2,')).toBe(
+    expect(text.startsWith('{\n  "kind": "papa-parade.playtest-metrics",\n  "version": 3,')).toBe(
       true,
     );
     expect(JSON.parse(text)).toEqual(JSON.parse(JSON.stringify(value)));

@@ -10,6 +10,11 @@ function validFile(): PlaytestFile {
     firstEncounterSuccessMinPct: 80,
     touchVsKeyboardMinPct: 80,
     laughedMinPct: 80,
+    bodyRead: {
+      activities: ['chore', 'coffee', 'phone', 'stealth', 'fatigue', 'carrying'],
+      namedMinPct: 80,
+      repetitivePoseMaxTesters: 0,
+    },
     humanBot: { maxStarGap: 1, maxPerfectExcessPct: 10 },
     simulated: {
       runs: 200,
@@ -94,6 +99,47 @@ describe('PlaytestSchema › simulated (story 9.8)', () => {
     ).toBe(false);
     expect(
       PlaytestSchema.safeParse(withSimulated({ humanLossPct: { min: 20, max: 20 } })).success,
+    ).toBe(true);
+  });
+});
+
+describe('PlaytestSchema › bodyRead (story 7.12, D14)', () => {
+  const withBodyRead = (patch: Partial<PlaytestFile['bodyRead']>) => ({
+    ...validFile(),
+    bodyRead: { ...validFile().bodyRead, ...patch },
+  });
+
+  it('refuses a missing block and an unknown key', () => {
+    const { bodyRead: _omitted, ...rest } = validFile();
+    expect(PlaytestSchema.safeParse(rest).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withBodyRead({ extra: 1 } as never)).success).toBe(false);
+  });
+
+  it('refuses no activity, an activity twice, and an id that is not lower_snake_case', () => {
+    expect(PlaytestSchema.safeParse(withBodyRead({ activities: [] })).success).toBe(false);
+    expect(
+      PlaytestSchema.safeParse(withBodyRead({ activities: ['coffee', 'coffee'] })).success,
+    ).toBe(false);
+    expect(PlaytestSchema.safeParse(withBodyRead({ activities: ['Coffee'] })).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withBodyRead({ activities: ['on_phone'] })).success).toBe(true);
+  });
+
+  it('bounds the share named and the testers citing a repetitive pose', () => {
+    expect(PlaytestSchema.safeParse(withBodyRead({ namedMinPct: 101 })).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withBodyRead({ namedMinPct: -1 })).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withBodyRead({ namedMinPct: 79.5 })).success).toBe(false);
+    expect(PlaytestSchema.safeParse(withBodyRead({ repetitivePoseMaxTesters: -1 })).success).toBe(
+      false,
+    );
+    expect(PlaytestSchema.safeParse(withBodyRead({ repetitivePoseMaxTesters: 0.5 })).success).toBe(
+      false,
+    );
+    expect(PlaytestSchema.safeParse(withBodyRead({ repetitivePoseMaxTesters: 101 })).success).toBe(
+      false,
+    );
+    expect(
+      PlaytestSchema.safeParse(withBodyRead({ namedMinPct: 0, repetitivePoseMaxTesters: 100 }))
+        .success,
     ).toBe(true);
   });
 });

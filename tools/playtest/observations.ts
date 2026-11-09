@@ -14,7 +14,13 @@ export const OBSERVATION_COLUMNS = [
   'comment',
 ] as const;
 
-type ObservationColumn = (typeof OBSERVATION_COLUMNS)[number];
+/**
+ * The optional columns of indicator 6, « Papa se lit sans sa bulle » (story 7.12, D14): together or not at all.
+ * A file without them (Geo's notes of an earlier playtest) still loads: the indicator is then `n/a`.
+ */
+export const BODY_READ_COLUMNS = ['activityId', 'activityNamed', 'repetitivePoseCited'] as const;
+
+type ObservationColumn = (typeof OBSERVATION_COLUMNS)[number] | (typeof BODY_READ_COLUMNS)[number];
 
 /** One line of Geo's notes. `null` means the cell was left empty. */
 export interface ObservationRow {
@@ -28,6 +34,12 @@ export interface ObservationRow {
   identifiedWithoutHelp: boolean | null;
   perfectCitedSpontaneously: boolean | null;
   laughs: number | null;
+  /** `null` = a row about no activity of Papa's (story 7.12). Never with a `threatId`. */
+  activityId: string | null;
+  /** Whether the tester named what Papa does, without his bubble; set exactly when `activityId` is. */
+  activityNamed: boolean | null;
+  /** Whether the tester spontaneously found one of his poses repetitive; `null` = not noted. */
+  repetitivePoseCited: boolean | null;
   comment: string;
 }
 
@@ -46,8 +58,8 @@ function yesNo(value: string): boolean | undefined {
 }
 
 /**
- * Parses the notes Geo takes during a playtest. Pure: the threat ids that exist are passed in (an
- * empty set means the list could not be read, and the check is skipped).
+ * Parses the notes Geo takes during a playtest. Pure: the threat ids that exist and the activities of
+ * indicator 6 are passed in (an empty set means the list could not be read, and the check is skipped).
  * Every error names the file, the line and the column; all the errors of the file are returned
  * together, among them a threat id that is not a known def (a typo would count as a threat of its
  * own). An extra column is a warning for the caller (`warnings`), not an error.
@@ -56,6 +68,7 @@ export function parseObservations(
   text: string,
   file: string,
   knownThreatIds: ReadonlySet<string>,
+  knownActivityIds: ReadonlySet<string> = new Set(),
 ): Result<ParsedObservations, string[]> {
   const csv = parseCsv(text);
   if (!csv.ok) return err([`${file}: ${csv.error}`]);
@@ -81,7 +94,19 @@ export function parseObservations(
     ]);
   }
   const warnings: string[] = [];
-  const known = new Set<string>(OBSERVATION_COLUMNS);
+  const bodyReadPresent = BODY_READ_COLUMNS.filter((column) => header.includes(column));
+  const hasBodyRead = bodyReadPresent.length === BODY_READ_COLUMNS.length;
+  if (bodyReadPresent.length === 0) {
+    warnings.push(
+      `${file}: no ${BODY_READ_COLUMNS.join(', ')} column: indicator 6 (Papa without his bubble) is n/a`,
+    );
+  } else if (!hasBodyRead) {
+    const absent = BODY_READ_COLUMNS.filter((column) => !header.includes(column));
+    return err([
+      `${file}: the columns of indicator 6 go together: missing ${absent.join(', ')} (expected: ${BODY_READ_COLUMNS.join(', ')})`,
+    ]);
+  }
+  const known = new Set<string>([...OBSERVATION_COLUMNS, ...BODY_READ_COLUMNS]);
   for (const column of header) {
     if (!known.has(column)) {
       warnings.push(`${file}: extra column "${column}" is ignored`);
@@ -91,11 +116,12 @@ export function parseObservations(
   const errors: string[] = [];
   const parsed: ObservationRow[] = [];
   const seen = new Map<string, number>();
+  const seenActivities = new Map<string, number>();
 
   for (const row of rows) {
     const cell = (column: ObservationColumn): string => {
       const index = header.indexOf(column);
-      return (row.fields[index] ?? '').trim();
+      return index < 0 ? '' : (row.fields[index] ?? '').trim();
     };
     const fail = (column: ObservationColumn, message: string): void => {
       errors.push(`${file}:${row.line} column ${column}: ${message}`);
@@ -169,6 +195,58 @@ export function parseObservations(
       }
     }
 
+    // Indicator 6 (story 7.12, D14): a row about one of Papa's activities, and the repetitive pose on any row.
+    const activityText = cell('activityId');
+    if (activityText !== '' && !SNAKE_ID_PATTERN.test(activityText)) {
+      fail('activityId', `"${activityText}" must be empty or a lower_snake_case id`);
+    } else if (
+      activityText !== '' &&
+      knownActivityIds.size > 0 &&
+      !knownActivityIds.has(activityText)
+    ) {
+      fail(
+        'activityId',
+        `"${activityText}" is not an activity of content/playtest.json › bodyRead.activities (known: ${[...knownActivityIds].join(', ')})`,
+      );
+    } else if (activityText !== '' && threatText !== '') {
+      fail(
+        'activityId',
+        'must be empty on a row about a threat: one row per threat, one per activity',
+      );
+    }
+    const namedText = cell('activityNamed');
+    let named: boolean | null = null;
+    if (activityText === '') {
+      if (namedText !== '') fail('activityNamed', 'must be empty on a row with no activityId');
+    } else if (namedText === '') {
+      fail('activityNamed', `is required on a row about "${activityText}" (O or N)`);
+    } else {
+      const value = yesNo(namedText);
+      if (value === undefined) fail('activityNamed', `"${namedText}" must be O or N`);
+      else named = value;
+    }
+    const repetitiveText = cell('repetitivePoseCited');
+    let repetitive: boolean | null = null;
+    if (repetitiveText !== '') {
+      const value = yesNo(repetitiveText);
+      if (value === undefined) {
+        fail('repetitivePoseCited', `"${repetitiveText}" must be O, N or empty`);
+      } else {
+        repetitive = value;
+      }
+    }
+    if (activityText !== '') {
+      const key = `${testerId}\u0000${sessionText}\u0000${activityText}`;
+      const first = seenActivities.get(key);
+      if (first !== undefined) {
+        errors.push(
+          `${file}:${row.line}: a second note of "${activityText}" for tester ${testerId}${sessionText === '' ? '' : ` session ${sessionText}`} (first on line ${first}): one row per activity and session`,
+        );
+      } else {
+        seenActivities.set(key, row.line);
+      }
+    }
+
     const comment = row.fields[header.indexOf('comment')] ?? '';
     parsed.push({
       line: row.line,
@@ -178,6 +256,9 @@ export function parseObservations(
       identifiedWithoutHelp: identified,
       perfectCitedSpontaneously: perfect,
       laughs,
+      activityId: activityText === '' ? null : activityText,
+      activityNamed: named,
+      repetitivePoseCited: repetitive,
       comment,
     });
   }

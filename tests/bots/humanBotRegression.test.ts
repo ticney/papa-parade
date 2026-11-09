@@ -41,9 +41,13 @@ import {
 //
 // Story 7.11 re-pinned them once more, for the same reason: the feel gained `characters.idles` and
 // `characters.startStop` (Papa's acting, client only). `PINNED_COMMANDS` were not touched and still hold.
+//
+// Story 7.12 re-pinned them once more, for the same reason: the feel gained `characters.babySit`,
+// `characters.babyIdles` and `characters.relief` (the baby's pause and claps, Papa's sigh, client only).
+// `PINNED_COMMANDS` were not touched and still hold.
 const PINNED: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
-  test: { 1: '1d7c8ec0c5a106', 2: '01491c1c14a329', 3: '1aa404248c3c51' },
-  trio: { 1: '1dbf3c450ca9ee', 2: '0b3e4c85c6b946', 3: '0c0dc88a4b56c6' },
+  test: { 1: '08d2c4d673398a', 2: '0942bf500e1085', 3: '00b360e378466a' },
+  trio: { 1: '1925f972c227e8', 2: '027860c694ea29', 3: '1acb5fa760c537' },
 };
 const PINNED_COMMANDS: Readonly<Record<'test' | 'trio', Readonly<Record<number, string>>>> = {
   test: { 1: '0632f181689687', 2: '158358e075a1a2', 3: '111636e2c690a2' },

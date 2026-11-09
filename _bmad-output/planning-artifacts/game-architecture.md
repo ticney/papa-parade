@@ -1125,7 +1125,7 @@ interface Platform {
 **CLI :**
 - `npm run sim -- --level <id> --seed <n> --bot <perfect|human|random|idle> --runs <n> [--out report.json]` : simulation headless avec bots.
 - `npm run sim:replay -- <journal.json>` : rejoue un journal de partie.
-- `npm run playtest:metrics -- <dossier de journaux>` : calcule les 5 indicateurs de E1.
+- `npm run playtest:metrics -- <dossier de journaux>` : calcule les 6 indicateurs (le sixième, « Papa se lit sans sa bulle », depuis la story 7.12).
 
 ## Architecture de sécurité
 

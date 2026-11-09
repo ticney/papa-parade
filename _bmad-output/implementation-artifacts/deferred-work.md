@@ -1293,3 +1293,18 @@ All three idles play in the live headless runs (`tests/bots/papaActingLive.test.
 
 - **A hot-reload retune of `characters.idles` re-times every later slot of the running spell:** the view recomputes the chain from slot 0 each frame and keeps only `lastSlotSimMs`, so changing `gapMinMs` / `gapMaxMs` mid-spell can fire an idle sooner than the new gap (5-8 s to 9 s at 20 s gave idles at 17.9 s and 22 s). Reason: a consequence of D8's « pure function of the inputs » (a replay from a snapshot needs it); only Geo's feel panel reaches it, and the slots settle at the next still spell.
 - **« Never the same idle twice » holds along the slot chain, not along what the player sees:** a slot skipped by a duel or stealth step or by reduced motion still advances the chain, and a new still spell restarts with an independent variant. Reason: D8 and D9 say so; fix it (a chain over the played slots) only if Geo sees the same idle twice in a row.
+
+
+## Story 7-12-premiere-vague-taches-reponses-reactions-et-bebe (2026-11-09)
+
+The live headless runs (`tests/bots/firstWaveLive.test.ts`, 27 games) play both Parries and alternate them on every pair of Parry successes in a row, clap 181 times, and never move the baby on a step after his stop. Left open for Geo (story « Open for Geo »), none settled here:
+
+- **The laughs remember the last one (D10):** a highlight moment, restored from a snapshot, restarts the alternation at its first laugh. Reason: the world counts no laughs; a counter in the sim would move every golden's `worldHash` (a sim story).
+- **The Parries alternate on all the successes (D4):** a Firmness or a perfect between two Parry successes may bring the same Parry back (3 such pairs in the 27 live games). Reason: the world has no Parry-only counter, and one would move every golden.
+- **The baby stays on all fours `babySit.afterMs` (600 ms) before he sits (D7):** whether that pause can read as the lock (`locked`) is Geo's call on the captures; 0 in the panel makes him sit at once (with a sit-down straight from his crawl).
+- **The stir has no spoon, and stirs at his chest (D2):** the stove top (0.92 m) is above Papa's head (0.9 m), out of his reach, so his near hand circles at chest height in front of him and the other steadies an unseen handle. A spoon needs triangles the ceiling no longer has (10 left). Reason: Geo's call (a spoon paid from the bla-bla bubble's 500).
+- **The sigh's brow wipe is out of reach (D5, D11):** like 7.11's nape, his arm cannot bring the hand onto his forehead (the authoring solver misses the brow by about 10 cm, the temple by about 7 cm): the forearm rises to the side of his head, passes toward his brow and flicks out to the side. Reason: the model's proportions; the look is Geo's call.
+- **The sigh plays after the response pose, under reduced motion too, and any new command drops it (D5)**; the share (25 %) is in the feel panel. Any other one-shot that takes the pose's place before it (a stumble, a gag, the finale's dance) drops it too.
+- **Indicator 6 is per activity, and its three columns are optional (D14)**, so the notes of earlier playtests still load (`n/a` with one warning); a file with one or two of the three is refused.
+- **The look of the eight clips** is Geo's on `7-12-screenshots/`; the merge waits for his OK.
+- **`firstWaveLive.test.ts` re-implements the view's rules** (the claps' slots with no other one-shot of the baby, the Parry variant from the step's world) as `papaActingLive.test.ts` does: `babyView.test.ts` and `levelScene.test.ts` prove them on the real views. No bot picks a debris up, so the pick-up span is proven by one forced coffee-table gag (1,000 ms, a time scale of 1).

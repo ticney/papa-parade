@@ -19,6 +19,7 @@ import {
   ppCueLog,
   ppEvents,
   ppFreeze,
+  ppFx,
   ppLoadLevel,
   ppSend,
   ppSetFeel,
@@ -400,4 +401,30 @@ test.describe('the layout above a busy Papa', () => {
       expect(problems).toEqual([]);
     });
   }
+});
+
+// Story 7.12, D13: `?bubble=off` keeps the bubble undrawn for the whole session (the extracts of the indicator
+// « Papa se lit sans sa bulle »), and nothing else changes: Papa still drinks his coffee, its clip on him.
+test.describe('?bubble=off (story 7.12)', () => {
+  test('a coffee in the big room: Papa drinks, and the bubble is never shown', async ({ page }) => {
+    const problems = collectProblems(page);
+    await page.goto('/?threats=off&bubble=off&level=salon_kitchen');
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'start');
+    await page.locator('.pp-start-screen').click();
+    await expect(html(page)).toHaveAttribute('data-pp-app', 'level');
+    await ppFreeze(page, true);
+    await ppLoadLevel(page, 'salon_kitchen', SEED);
+    const papa = await startCoffee(page);
+    const steps = Math.ceil((papa.busyUntil - papa.enteredAt) / STEP_MS);
+    let drinkSeen = false;
+    for (let done = 0; done < steps; done += 20) {
+      await ppAdvance(page, 20);
+      await waitFrames(page, 2);
+      if ((await ppWorld(page)).papa.state !== 'drink') break;
+      drinkSeen ||= (await ppFx(page)).papaClip === 'drink';
+      await expect(page.locator(BUBBLE)).toBeHidden();
+    }
+    expect(drinkSeen).toBe(true);
+    expect(problems).toEqual([]);
+  });
 });

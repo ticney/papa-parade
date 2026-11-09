@@ -557,3 +557,26 @@ describe('createCharacterRig: the cut of an acting one-shot (story 7.11, D11)', 
     expect(rig.isClipRunning('idle_scratch')).toBe(false);
   });
 });
+
+describe('createCharacterRig: a clip length (story 7.12, D3)', () => {
+  it('reads a clip of the file at a time scale of 1, in ms, and 0 for a clip it lacks', () => {
+    const { scene } = createTestPapa();
+    const rig = createCharacterRig(
+      {
+        scene,
+        animations: [
+          new AnimationClip('pick_up', 1.25, [
+            new VectorKeyframeTrack('spine.position', [0, 1.25], [0, 0, 0, 0, 0, 0]),
+          ]),
+        ],
+      },
+      createToonMaterialCache(TOON_TONES),
+      createOutlineKit(OUTLINES),
+    );
+    expect(rig.durationMsOf('pick_up')).toBeCloseTo(1250, 6);
+    expect(rig.durationMsOf('no_such_clip')).toBe(0);
+    // Playing it faster changes nothing: the length is the clip's own.
+    rig.play('pick_up', 2, FADE_MS);
+    expect(rig.durationMsOf('pick_up')).toBeCloseTo(1250, 6);
+  });
+});

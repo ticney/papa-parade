@@ -25,6 +25,7 @@ import {
   Scene,
 } from 'three';
 import type { LevelAssets } from '../assets/loadLevelAssets.ts';
+import type { ResponseCue } from '../feedback/responseChoreography.ts';
 import { addBlobShadows } from './blobShadow.ts';
 import { createDimFx } from './dimFx.ts';
 import { createGagFx } from './gags.ts';
@@ -41,8 +42,10 @@ import { createMischiefDecals } from './vfx/mischiefDecals.ts';
 import { createParticles, type ParticleStyle } from './vfx/particles.ts';
 import { createShake } from './vfx/shake.ts';
 import { createSoundWaves } from './vfx/soundWaves.ts';
+import { nextLaughVariantOf } from './views/babyActing.ts';
 import { BABY_LIFE_BONES, createBabyView, layDownProgressPct } from './views/babyView.ts';
 import {
+  BABY_LAUGH_CLIPS,
   babyLidsAfter,
   babyOneShotOf,
   PAPA_ACTING_CUT_EVENTS,
@@ -68,6 +71,7 @@ import {
 } from './views/expressions.ts';
 import { babyFocusOf, isPapaTired, isSignalOnly } from './views/faceInputs.ts';
 import { type CharactersFeel, createLifeInputs } from './views/lifeLayer.ts';
+import { parryVariantOf } from './views/papaActing.ts';
 import type { PapaGazeKind } from './views/papaGaze.ts';
 import { createPapaView, PAPA_LIFE_BONES, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
@@ -153,8 +157,12 @@ export interface LevelFx {
   ): void;
   /** The provisional « lift the baby » pose: a short hop of the baby. */
   liftBaby(startAt: SimMs): void;
-  /** Papa's pose for a response he has arrived at (P3: the sound fired at the judgement). */
-  playResponseClip(response: string, quality: string): void;
+  /**
+   * Papa's pose for a response he has arrived at (P3: the sound fired at the judgement), from the world of its
+   * judgement (story 7.12, D6): a Parry success plays one of his two Parries (D4), and a success late in its
+   * window arms his sigh of relief, played once the pose has handed back (D5).
+   */
+  playResponseClip(cue: Readonly<ResponseCue>): void;
   /**
    * What a sim event plays on the characters: one-shots, the baby's lids, the moments of their faces (story
    * 7.10: none while only the signals count) and, unless `isMotionReduced`, the squash. The clips and the
@@ -721,6 +729,15 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   let lastClockMs: number | null = null;
   /** A one-shot that waits for Papa's glide and response pose to end (the victory dance, story 7.4). */
   let pendingPapaOneShot: string | null = null;
+  /** The sim instant Papa's sigh was armed at (story 7.12, D5), or null: it plays once his pose hands back. */
+  let reliefArmedAt: number | null = null;
+  /** The baby's last laugh, an index into `BABY_LAUGH_CLIPS` (story 7.12, D10), or null at a level's start. */
+  let lastLaughVariant: number | null = null;
+  // The loop of each chore station (story 7.12, D2), index-aligned with `world.chores`, resolved once.
+  const choreClips = bodies.choreStations.map(
+    (station) =>
+      bodies.characters.choreClips.find((row) => row.chore === station.defId)?.clip ?? null,
+  );
   let babyLids = 0;
   // The faces (story 7.10): one track per character, fed by the events, read each frame with the world.
   const papaFaceTrack = createFaceTrack<PapaExpression>();
@@ -754,14 +771,27 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
     gag: (gag, startAt, isMotionReduced, slideDirX, slideDirZ) =>
       gags.start(gag, startAt, isMotionReduced, slideDirX, slideDirZ),
     liftBaby: (startAt) => lift.start(startAt),
-    playResponseClip(response, quality) {
-      const clip = responseClipOf(response, quality);
-      if (clip !== null) papa.playOnce(clip, oneShotFadeMs());
+    playResponseClip(cue) {
+      // In a duel or stealth step, no variant and no sigh (principle 5): the first Parry, as always.
+      const variant = cue.isSignalOnly ? 0 : parryVariantOf(bodies.levelSeed, cue.successes);
+      const clip = responseClipOf(cue.response, cue.quality, variant);
+      if (clip === null) return;
+      papa.playOnce(clip, oneShotFadeMs());
+      if (cue.isRelief && !cue.isSignalOnly) reliefArmedAt = cue.atMs;
     },
     playCharacterEvent(event, world, isMotionReduced) {
       // Story 7.11, D11, D12: the step that applies a command, or changes his state, cuts his acting in
       // this frame, before any one-shot of the event (which then plays on a clean slot).
       if (PAPA_ACTING_CUT_EVENTS.includes(event.type)) papa.cutActing(world.feel.characters.fades);
+      // A sigh armed earlier is dropped, never played late (story 7.12, D5), by a command, a state change or a gag
+      // that comes after it; the events of its own step (the judgement, the arrival) leave it.
+      if (
+        reliefArmedAt !== null &&
+        event.t > reliefArmedAt &&
+        (PAPA_ACTING_CUT_EVENTS.includes(event.type) || event.type === 'GagTriggered')
+      ) {
+        reliefArmedAt = null;
+      }
       const fadeMs = world.feel.characters.fades.otherMs;
       const papaClip = papaOneShotOf(event);
       // A gag during a glide plays as his squash alone: the glide's loop goes on (P3). A held clip (the
@@ -775,7 +805,12 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
         // The finale comes with the last response, mid-glide (story 7.4): the dance waits for his pose.
         pendingPapaOneShot = papaClip;
       }
-      const babyClip = babyOneShotOf(event);
+      let babyClip = babyOneShotOf(event);
+      // His two laughs alternate (story 7.12, D10); in a duel or stealth step, the first alone, the memory still.
+      if (babyClip === 'laugh' && !isSignalOnly(world)) {
+        lastLaughVariant = nextLaughVariantOf(bodies.levelSeed, lastLaughVariant);
+        babyClip = BABY_LAUGH_CLIPS[lastLaughVariant] ?? 'laugh';
+      }
       if (babyClip !== null) baby.playOnce(babyClip, fadeMs);
       babyLids = babyLidsAfter(event, babyLids);
       baby.setEyelids(babyLids);
@@ -901,6 +936,13 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       life.isStealth = isStealthStepRunning(world as World);
       life.levelSeed = bodies.levelSeed;
       life.simMs = world.time.sim;
+      // The loop of the chore he works at (story 7.12, D2): `working` while he is at it, nothing allocated.
+      life.papaChoreClip = null;
+      for (let i = 0; i < world.chores.length; i++) {
+        if ((world.chores[i] as World['chores'][number]).state === 'working') {
+          life.papaChoreClip = choreClips[i] ?? null;
+        }
+      }
       const papaFace = papaExpressionAt(
         papaFaceTrack,
         clockMs,
@@ -928,6 +970,25 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
           PAPA_HELD_ONE_SHOTS.includes(pendingPapaOneShot),
         );
         pendingPapaOneShot = null;
+      }
+      // His sigh (story 7.12, D5): dropped when he went off since, the baby is in his arms, the guard begins, the
+      // level ends, the finale waits, or another one-shot took the pose's place (a dance, a stumble); played once
+      // his response pose has handed back, him idle.
+      if (reliefArmedAt !== null) {
+        const oneShot = papa.oneShotName;
+        if (
+          world.papa.enteredAt > reliefArmedAt ||
+          world.baby.state === 'carried' ||
+          isGuarded ||
+          !isFlowLive(world) ||
+          pendingPapaOneShot !== null ||
+          (oneShot !== null && !isResponseClip(oneShot))
+        ) {
+          reliefArmedAt = null;
+        } else if (world.papa.state === 'idle' && oneShot === null) {
+          papa.playActing('sigh_relief', characters.fades.otherMs);
+          reliefArmedAt = null;
+        }
       }
       papa.animate(world.papa, world.baby, dtMs, life);
       baby.animate(world.baby, dtMs, life);
@@ -1023,6 +1084,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       papaSquash.startAt = null;
       babySquash.startAt = null;
       pendingPapaOneShot = null;
+      reliefArmedAt = null;
+      lastLaughVariant = null;
       babyLids = 0;
       clearExpressions(papaFaceTrack);
       clearExpressions(babyFaceTrack);

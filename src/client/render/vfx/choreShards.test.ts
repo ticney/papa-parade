@@ -24,8 +24,8 @@ const cover: DecalCover = {
 const TONES = [96, 178, 255];
 // A cooking that breaks nothing, then a dishwasher that breaks one plate per missed beat, in a floor spot of the room.
 const STATIONS: readonly ChoreStationSpec[] = [
-  { xM: 2, zM: 1, missBrokenObjects: 0 },
-  { xM: -2, zM: 2, missBrokenObjects: 1 },
+  { defId: 'cooking', xM: 2, zM: 1, missBrokenObjects: 0 },
+  { defId: 'unload_dishwasher', xM: -2, zM: 2, missBrokenObjects: 1 },
 ];
 const missed = (cooking: number, dishwasher: number) => [
   { beatsMissed: cooking },
@@ -183,8 +183,8 @@ describe('createChoreShards', () => {
   it('shares one material between the clusters of every station', () => {
     const parent = new Group();
     const stations: ChoreStationSpec[] = [
-      { xM: -2, zM: 2, missBrokenObjects: 1 },
-      { xM: 1, zM: 2, missBrokenObjects: 1 },
+      { defId: 'unload_dishwasher', xM: -2, zM: 2, missBrokenObjects: 1 },
+      { defId: 'unload_dishwasher', xM: 1, zM: 2, missBrokenObjects: 1 },
     ];
     const shards = createChoreShards(parent, cover, createToonMaterialCache(TONES), stations);
     shards.sync([{ beatsMissed: 1 }, { beatsMissed: 2 }], GAME_VIEW);

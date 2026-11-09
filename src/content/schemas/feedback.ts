@@ -582,6 +582,19 @@ const ClipFacingSchema = z
   })
   .describe('Where Papa faces while one clip plays.');
 
+const ChoreClipSchema = z
+  .strictObject({
+    chore: z
+      .string()
+      .regex(CUE_ID_PATTERN, 'a chore id is lower_snake_case')
+      .describe('A chore def (`content/chores/<id>.json`).'),
+    clip: z
+      .string()
+      .regex(CUE_ID_PATTERN, 'a clip name is lower_snake_case')
+      .describe("The loop of Papa's, as named in the `.glb`, he plays while he works at it."),
+  })
+  .describe("The loop Papa plays at one chore's station (story 7.12, D2).");
+
 const BlablaPlaceSchema = z
   .strictObject({
     screenOffsetM: z
@@ -647,6 +660,11 @@ const CharactersSchema = z
       .array(ClipFacingSchema)
       .describe('Which clips turn Papa toward the camera or away from the baby (story 2.13).'),
     busyProps: BusyPropsSchema,
+    choreClips: z
+      .array(ChoreClipSchema)
+      .describe(
+        "The loop Papa plays at each chore's station instead of `idle` (story 7.12, D2): the cooking stirs the pot. A chore with no row keeps `idle`.",
+      ),
   })
   .superRefine((characters, ctx) => {
     // One row each: a second row for the same thing would silently win or lose, and an edit of Geo's
@@ -685,9 +703,20 @@ const CharactersSchema = z
       }
       facing.add(row.clip);
     }
+    const chores = new Set<string>();
+    for (const [index, row] of characters.choreClips.entries()) {
+      if (chores.has(row.chore)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['choreClips', index],
+          message: `a second clip for the chore "${row.chore}": one row each`,
+        });
+      }
+      chores.add(row.chore);
+    }
   })
   .describe(
-    'The animated characters (story 7.2): squash, clip speeds, facings, busy props. Read by the views on the sim clock; the sim never reads it. Their fades and turn are `feel.json › characters` (story 7.8).',
+    "The animated characters (story 7.2): squash, clip speeds, facings, busy props, the chores' loops (story 7.12). Read by the views on the sim clock; the sim never reads it. Their fades and turn are `feel.json › characters` (story 7.8).",
   );
 
 /** `#RRGGBB`, the form of the colours of DESIGN.md. */

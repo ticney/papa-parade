@@ -802,16 +802,42 @@
           ],
           "additionalProperties": false,
           "description": "The side effects of Papa's busy props (story 2.13): the steam of his mug and the bla-bla of his phone. Sim clock; held still under reduced motion."
+        },
+        "choreClips": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "chore": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+                "description": "A chore def (`content/chores/<id>.json`)."
+              },
+              "clip": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+                "description": "The loop of Papa's, as named in the `.glb`, he plays while he works at it."
+              }
+            },
+            "required": [
+              "chore",
+              "clip"
+            ],
+            "additionalProperties": false,
+            "description": "The loop Papa plays at one chore's station (story 7.12, D2)."
+          },
+          "description": "The loop Papa plays at each chore's station instead of `idle` (story 7.12, D2): the cooking stirs the pot. A chore with no row keeps `idle`."
         }
       },
       "required": [
         "squash",
         "clipSpeeds",
         "papaClipFacing",
-        "busyProps"
+        "busyProps",
+        "choreClips"
       ],
       "additionalProperties": false,
-      "description": "The animated characters (story 7.2): squash, clip speeds, facings, busy props. Read by the views on the sim clock; the sim never reads it. Their fades and turn are `feel.json › characters` (story 7.8)."
+      "description": "The animated characters (story 7.2): squash, clip speeds, facings, busy props, the chores' loops (story 7.12). Read by the views on the sim clock; the sim never reads it. Their fades and turn are `feel.json › characters` (story 7.8)."
     },
     "door": {
       "type": "object",
