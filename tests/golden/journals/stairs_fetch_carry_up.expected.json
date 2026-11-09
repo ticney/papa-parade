@@ -1,6 +1,6 @@
 {
   "untilSimMs": 14000,
-  "worldHash": "04b7cb771a368f",
+  "worldHash": "017e988679b01b",
   "eventTypes": [
     "ThreatTelegraphed",
     "BabyStateChanged",

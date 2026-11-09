@@ -526,6 +526,7 @@ export function createLevelSession(deps: LevelSessionDeps): LevelSession {
               .filter((def) => def.target === 'anchor' || def.target === 'station')
               .map((def) => def.id),
             choreStations: sim.chores.map((chore) => ({
+              defId: chore.def.id,
               xM: chore.xM,
               zM: chore.zM,
               missBrokenObjects: chore.def.missBrokenObjects ?? 0,

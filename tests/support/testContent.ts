@@ -74,6 +74,7 @@ export function createTestFeedback(): FeedbackTable {
         blablaPeriodMs: 700,
         blablaPlace: { screenOffsetM: 0.35, heightM: 0.8 },
       },
+      choreClips: [],
     },
     door: { openMs: 700, openAngleDeg: 100, widthM: 0.9, heightM: 2, thicknessM: 0.05 },
     photo: {

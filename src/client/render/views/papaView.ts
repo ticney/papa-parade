@@ -22,10 +22,16 @@ import {
   stepBrows,
   unplaceBrows,
 } from './brows.ts';
-import { PAPA_IDLE_CLIPS, PAPA_TRAVELLING, papaClipOf } from './characterClips.ts';
+import {
+  PAPA_IDLE_CLIPS,
+  PAPA_REACTION_CLIPS,
+  PAPA_TRAVELLING,
+  papaClipOf,
+} from './characterClips.ts';
 import { type FadesConfig, fadeMsOf } from './characterFades.ts';
 import {
   busyCycleAt,
+  busyFitTimeScaleOf,
   type ClipFacings,
   clipTimeScaleOf,
   papaFacingYawRad,
@@ -70,6 +76,8 @@ const IDENTITY = new Quaternion();
 /** The brows turn about the head's forward axis (story 7.10, D2): +θ lifts the end toward his left. */
 const BROW_TILT_AXIS = new Vector3(0, 0, 1);
 const IDLE_CLIPS: readonly string[] = PAPA_IDLE_CLIPS;
+/** The gesture that fits the sim's busy span (story 7.12, D3). */
+const PICK_UP_CLIP = 'pick_up';
 
 /** One character's two brows and their rest positions, read once (story 7.10, D2). */
 export interface BrowBones {
@@ -196,8 +204,15 @@ export interface PapaView {
    * it in the frame of a state change or of an accepted command (D12). Allocates nothing.
    */
   cutActing(fades: Readonly<FadesConfig>): void;
-  /** His acting one-shot under way (story 7.11): an idle, a start or a brake, else null. */
+  /**
+   * Plays `clip` once as an acting one-shot (story 7.12, D5: the sigh), fading in over `fadeMs`: every cut of
+   * his acting then applies to it (a tap, a state change, the guard, the baby in his arms). Allocates nothing.
+   */
+  playActing(clip: string, fadeMs: number): void;
+  /** His acting one-shot under way (story 7.11): an idle, a start, a brake or the sigh, else null. */
   readonly actingClip: string | null;
+  /** Any one-shot under way (an acting one, a response pose, a gag), else null (story 7.12). */
+  readonly oneShotName: string | null;
   /** Whether his puffed cheeks are shown (story 7.11, D6): while he holds his breath. */
   readonly isCheeksShown: boolean;
   /** The clip the player sees. */
@@ -454,7 +469,7 @@ export function createPapaView(
       const isGuarded = life.isSignalOnly;
       const isCarried = baby.state === 'carried';
       // The loop, and the passage it is (D4): a start, a stop, or any other. On tiptoe in a stealth step (7.11).
-      const clip = papaClipOf(papa, baby, life.isStealth);
+      const clip = papaClipOf(papa, baby, life.isStealth, life.papaChoreClip);
       const isTravelling = PAPA_TRAVELLING[papa.state];
       // The spells a start or a brake reads (story 7.11, D3, D4), dated with the world's sim instants.
       if (isSpellTravelling === null) {
@@ -466,7 +481,11 @@ export function createPapaView(
         isSpellTravelling = isTravelling;
       }
       const speedMps = stepSpeedMpsOf(papa);
-      const timeScale = clipTimeScaleOf(clip, speedMps, motion.clips);
+      // The pick-up plays one cycle over the sim's busy span (story 7.12, D3); the sim's span never changes.
+      const timeScale =
+        clip === PICK_UP_CLIP
+          ? busyFitTimeScaleOf(rig.durationMsOf(PICK_UP_CLIP), papa.busyUntil - papa.enteredAt)
+          : clipTimeScaleOf(clip, speedMps, motion.clips);
       if (clip !== loopClip) {
         const fromClip = loopClip;
         loopClip = clip;
@@ -499,7 +518,7 @@ export function createPapaView(
         actingClip !== null &&
         (isCarried ||
           isGuarded ||
-          isReduced ||
+          (isReduced && !PAPA_REACTION_CLIPS.includes(actingClip)) ||
           (papa.state !== 'idle' && IDLE_CLIPS.includes(actingClip)))
       ) {
         cutActingNow(fades);
@@ -654,8 +673,15 @@ export function createPapaView(
     cutActing(fades) {
       cutActingNow(fades);
     },
+    playActing(clip, fadeMs) {
+      rig.playOnce(clip, fadeMs);
+      actingClip = clip;
+    },
     get actingClip() {
       return actingClip;
+    },
+    get oneShotName() {
+      return rig.oneShotName;
     },
     get isCheeksShown() {
       return isCheeksShownNow;

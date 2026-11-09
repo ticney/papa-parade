@@ -130,6 +130,13 @@ export const CHARACTER_BONES_MAX = 32;
  */
 export const CHARACTER_GLB_MAX_BYTES = 300 * 1024;
 
+/**
+ * How far Papa's pick-up gesture may be slowed or sped up to fit the sim's busy span (story 7.12, D3):
+ * past these it reads as a glitch, not a pace. The sim's `pickUpMs` is 1,000 to 2,000 today.
+ */
+export const PICK_UP_TIME_SCALE_MIN = 0.25;
+export const PICK_UP_TIME_SCALE_MAX = 4;
+
 /** Budget: the p95 frame interval of a full level on the CI machine, in ms (`perf.spec.ts`). */
 export const FRAME_P95_MAX_MS = 20;
 

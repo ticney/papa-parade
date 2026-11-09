@@ -43,6 +43,7 @@ import {
 import { Color, Group, Scene, Vector3 } from 'three';
 import { createAccessibilitySettings } from './app/accessibilitySettings.ts';
 import { createAppFsm, isSettingsDetour } from './app/appFsm.ts';
+import { readBubbleOff } from './app/bubbleSwitch.ts';
 import { createCalibrationFlow } from './app/calibrationFlow.ts';
 import type { ClientEvents } from './app/clientEvents.ts';
 import { isTestApiEnabled, readDebugParams, resolveLevelParam } from './app/debugParams.ts';
@@ -756,11 +757,14 @@ export async function boot(): Promise<void> {
   // Reduced motion drops the hop, never the clip: a pose carries state (story 7.2, D7).
   const noLiftFx: Pick<LevelFx, 'liftBaby' | 'playResponseClip'> = {
     liftBaby: () => {},
-    playResponseClip: (response, quality) => currentLevel?.fx.playResponseClip(response, quality),
+    playResponseClip: (cue) => currentLevel?.fx.playResponseClip(cue),
   };
   /** The direction of the last gag's slide, written once per `GagTriggered`. */
   const slideDir = { x: 0, z: 0 };
   const stripThreats = isMirrored && readThreatsOff(window.location.search);
+  // `?bubble=off` (story 7.12, D13): Papa's activity bubble stays hidden for the session, in a dev or playtest
+  // build only. Hidden, it never shakes and the combo badge stays centred; nothing else reads it.
+  const hideBubble = isMirrored && readBubbleOff(window.location.search);
 
   // The render stats are mirrored once per level, on its first rendered frame.
   let isStatsMirrored = false;
@@ -1723,7 +1727,7 @@ export async function boot(): Promise<void> {
         // The bubble above a busy Papa, from the world's Papa (he has no pose on the toilet), its ring in the
         // sim time as drawn. Before the badge, which sits to its right while it shows. A frozen level (the
         // end, the photo) has none: it goes with no pop.
-        if (isFlowLive(world)) {
+        if (isFlowLive(world) && !hideBubble) {
           worldUi.updateActivity(
             world.papa,
             world.time.sim - STEP_MS * (1 - alpha),

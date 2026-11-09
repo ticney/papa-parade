@@ -18,6 +18,11 @@ const THRESHOLDS: PlaytestThresholds = {
   firstEncounterSuccessMinPct: 80,
   touchVsKeyboardMinPct: 80,
   laughedMinPct: 80,
+  bodyRead: {
+    activities: ['chore', 'coffee', 'phone', 'stealth', 'fatigue', 'carrying'],
+    namedMinPct: 80,
+    repetitivePoseMaxTesters: 0,
+  },
 };
 
 const INPUTS = {
@@ -50,6 +55,9 @@ function note(row: Partial<ObservationRow> & { testerId: string }): ObservationR
     identifiedWithoutHelp: null,
     perfectCitedSpontaneously: null,
     laughs: null,
+    activityId: null,
+    activityNamed: null,
+    repetitivePoseCited: null,
     comment: '',
     ...row,
   };
@@ -533,7 +541,7 @@ describe('computeMetrics: observed indicators', () => {
       note({ testerId: 'T1', line: 5, laughs: 1, comment: '   ' }),
     ]);
     expect(report.testers[0]?.comments).toEqual([
-      { line: 4, sessionId: null, threatId: 'stairs', text: 'tapé trop tôt' },
+      { line: 4, sessionId: null, threatId: 'stairs', activityId: null, text: 'tapé trop tôt' },
     ]);
   });
 });
@@ -591,7 +599,7 @@ describe('computeMetrics: panel and empty data', () => {
     expect(first.warnings[0]).toBe('from the reader');
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
     expect(first.kind).toBe(PLAYTEST_REPORT_KIND);
-    expect(first.version).toBe(2);
+    expect(first.version).toBe(3);
   });
 
   it('lists the games of a tester in play order, with level, end reason and stars', () => {
@@ -731,5 +739,112 @@ describe('computeMetrics: review fixes', () => {
     expect(Object.hasOwn(report.firstEncounter.byThreat, 'constructor')).toBe(true);
     expect(report.firstEncounter.byThreat.constructor).toMatchObject({ hits: 1, count: 1 });
     expect(report.identification.byThreat.constructor).toMatchObject({ hits: 1, count: 1 });
+  });
+});
+
+describe('computeMetrics: indicator 6, Papa reads without his bubble (story 7.12, D14)', () => {
+  const panel = () => ['T1', 'T2', 'T3', 'T4', 'T5'].map((id) => tester(id, {}));
+  const named = (testerId: string, activityId: string, value: boolean, extra = {}) =>
+    note({ testerId, activityId, activityNamed: value, ...extra });
+
+  it('is OK per activity at namedMinPct of the testers with a note: 4 of 5 at 80 %', () => {
+    const report = run(panel(), [
+      named('T1', 'coffee', true),
+      named('T2', 'coffee', true),
+      named('T3', 'coffee', true),
+      named('T4', 'coffee', true),
+      named('T5', 'coffee', false),
+    ]);
+    expect(report.bodyRead.byActivity.coffee).toMatchObject({
+      hits: 4,
+      count: 5,
+      thresholdPct: 80,
+      status: 'OK',
+    });
+    expect(report.bodyRead.named).toBe('OK');
+  });
+
+  it('is KO when one activity with data is under the threshold, and leaves out the activities with none', () => {
+    const report = run(panel(), [
+      named('T1', 'coffee', true),
+      named('T1', 'phone', false),
+      named('T2', 'phone', true),
+    ]);
+    expect(Object.keys(report.bodyRead.byActivity)).toEqual(['coffee', 'phone']);
+    expect(report.bodyRead.byActivity.phone).toMatchObject({ hits: 1, count: 2, status: 'KO' });
+    expect(report.bodyRead.named).toBe('KO');
+  });
+
+  it('lists the activities in the order of bodyRead.activities, whatever the notes', () => {
+    const report = run(panel(), [named('T1', 'carrying', true), named('T1', 'chore', true)]);
+    expect(Object.keys(report.bodyRead.byActivity)).toEqual(['chore', 'carrying']);
+  });
+
+  it('is n/a with no note, and so is the repetitive pose', () => {
+    const report = run(panel(), []);
+    expect(report.bodyRead.named).toBe('n/a');
+    expect(report.bodyRead.byActivity).toEqual({});
+    expect(report.bodyRead.repetitivePose).toEqual({
+      cited: 0,
+      count: 0,
+      maxTesters: 0,
+      status: 'n/a',
+    });
+  });
+
+  it('counts a tester as citing a repetitive pose when one of his rows says O', () => {
+    const report = run(panel(), [
+      note({ testerId: 'T1', repetitivePoseCited: false }),
+      note({ testerId: 'T1', line: 3, repetitivePoseCited: true }),
+      note({ testerId: 'T2', repetitivePoseCited: false }),
+    ]);
+    expect(report.testers.find((t) => t.testerId === 'T1')?.repetitivePoseCited).toBe(true);
+    expect(report.bodyRead.repetitivePose).toMatchObject({ cited: 1, count: 2, status: 'KO' });
+    const none = run(panel(), [note({ testerId: 'T2', repetitivePoseCited: false })]);
+    expect(none.bodyRead.repetitivePose).toMatchObject({ cited: 0, count: 1, status: 'OK' });
+  });
+
+  it("keeps a tester's first session note, warns on a disagreement, and ignores an activity off the list", () => {
+    const sessions = [
+      tester(
+        'T1',
+        { sessionId: '00000001', gameIndex: 1 },
+        { sessionId: '00000002', gameIndex: 1 },
+      ),
+    ];
+    const report = run(sessions, [
+      named('T1', 'coffee', true, { sessionId: '00000001', line: 2 }),
+      named('T1', 'coffee', false, { sessionId: '00000002', line: 3 }),
+      named('T1', 'juggling', true, { line: 4 }),
+    ]);
+    expect(report.testers[0]?.activitiesNamed).toMatchObject({ coffee: true });
+    expect(report.warnings).toContainEqual(expect.stringContaining('whether coffee was named'));
+    expect(report.warnings).toContainEqual(
+      expect.stringContaining('indicator 6: juggling not in content/playtest.json'),
+    );
+    expect(Object.keys(report.bodyRead.byActivity)).toEqual(['coffee']);
+  });
+
+  it('says when an activity is judged on fewer testers than the panel', () => {
+    const report = run(panel(), [named('T1', 'coffee', true)]);
+    expect(report.warnings).toContainEqual(
+      expect.stringContaining('6 (Papa without his bubble): coffee 1/5'),
+    );
+  });
+
+  it('names the activities nobody noted, and the testers with no repetitive-pose note, once others have data (review)', () => {
+    const report = run(panel(), [
+      named('T1', 'coffee', true),
+      note({ testerId: 'T1', repetitivePoseCited: false }),
+    ]);
+    expect(report.bodyRead.named).toBe('OK');
+    const warning = report.warnings.find((w) => w.includes('6 (Papa without his bubble)')) ?? '';
+    for (const activity of ['chore', 'phone', 'stealth', 'fatigue', 'carrying']) {
+      expect(warning, activity).toContain(`${activity} 0/5`);
+    }
+    expect(warning).toContain('6 (repetitive pose): 1/5 testers');
+    // Without any body-read note, indicator 6 is n/a and nothing is listed as missing.
+    const none = run(panel(), [note({ testerId: 'T1' })]);
+    expect(none.warnings.some((w) => w.includes('6 (Papa without his bubble)'))).toBe(false);
   });
 });

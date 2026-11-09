@@ -109,6 +109,20 @@ export function idleSlotAt(
   return out;
 }
 
+/** The salt of the Parries' first variant (story 7.12, D4): any fixed integer, distinct from the others. */
+export const PAPA_PARRY_SALT = 0x9a22;
+
+/**
+ * Which of Papa's two Parries the next judged Parry success plays (story 7.12, D4, review): the level's seed picks
+ * the first (`lastVariant` null, as after a restart), then the other one, so that two Parries in a row never
+ * match, whatever other success (a chore beat, a « nothing ») came between them. The caller remembers the last
+ * variant it played, as for the laughs (`nextLaughVariantOf`).
+ */
+export function nextParryVariantOf(seed: number, lastVariant: number | null): number {
+  if (lastVariant === null) return actingMix32(seed, PAPA_PARRY_SALT, 0, 0) & 1;
+  return (lastVariant + 1) % 2;
+}
+
 /**
  * Whether Papa may idle now (D9): standing (`idle`, never a chore station's `chore`), his hands free (the
  * baby not carried), outside a duel or stealth step (`isSignalOnly`), motion not reduced, and no other

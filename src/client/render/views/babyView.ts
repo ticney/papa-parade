@@ -2,9 +2,10 @@ import type { BabySlice, PapaSlice } from '@sim';
 import { Euler, Group, type Object3D, Quaternion } from 'three';
 import { type BlobKit, blobSizeM } from '../blobShadow.ts';
 import { interpolateXZ, type PointXZ } from '../interpolate.ts';
+import { BABY_IDLE_SALT, isBabyClapEligible, isBabyPaused, isBabyRestShown } from './babyActing.ts';
 import { createBrowState, REST_BROW_POSE, stepBrows, unplaceBrows } from './brows.ts';
-import { babyClipOf, isBabyTravelling } from './characterClips.ts';
-import { fadeMsOf } from './characterFades.ts';
+import { BABY_IDLE_CLIPS, babyClipOf, isBabyTravelling } from './characterClips.ts';
+import { type FadesConfig, fadeMsOf } from './characterFades.ts';
 import { clipTimeScaleOf, stepSpeedMpsOf, wrapAngleRad } from './characterMotion.ts';
 import { type CharacterRig, EYELIDS_OPEN_SCALE } from './characterRig.ts';
 import { createSpring, resetSpring, stepAngleSpring } from './characterSpring.ts';
@@ -15,10 +16,18 @@ import {
   resetBreath,
   stepBreath,
 } from './lifeLayer.ts';
+import { createIdleSlot, idleSlotAt } from './papaActing.ts';
 import { browBonesOf, type CharacterMotionConfig, writeBrowBones } from './papaView.ts';
 
 /** The bone the baby's life layer writes over his clips (story 7.8, D3): the torso. His head is the gaze. */
 export const BABY_LIFE_BONES = ['spine'] as const;
+const IDLE_CLIPS: readonly string[] = BABY_IDLE_CLIPS;
+/** His sit-down (story 7.12, D7): the passage from his pause on all fours into his sitting loop. */
+const SIT_DOWN_CLIP = 'sit_down';
+const PAUSE_CLIP = 'crawl_pause';
+const SIT_CLIP = 'babble';
+/** Whether a loop of his travels: a crawl into his stop plays the sit-down when he never pauses (`afterMs` 0). */
+const TRAVELLING_LOOPS: readonly string[] = ['crawl', 'sneak'];
 const DEG_TO_RAD = Math.PI / 180;
 
 /** Smallest body radius read, in metres: a feel with no radius still has a (tiny) shadow. */
@@ -100,6 +109,8 @@ export interface BabyView {
   readonly browTiltDeg: number;
   /** The clip the player sees. */
   readonly clipName: string | null;
+  /** His acting one-shot under way (story 7.12): the sit-down or a clap, else null. */
+  readonly actingClip: string | null;
   /** Scales his body, from the point his feet are at (the squash); the shadow stays. Allocates nothing. */
   setSquash(xz: number, y: number): void;
   /** Lowers his eyelids: 0 is open, 1 is shut. Clamped. Allocates nothing. */
@@ -158,6 +169,20 @@ export function createBabyView(
   const spine = rig.node('spine');
   let loopClip: string | null = null;
   let isLoopTravelling = false;
+  // His acting (story 7.12): the one-shot it plays, the stop he has sat in, the claps' window.
+  let actingClip: string | null = null;
+  /** The `enteredAt` of the stop he has been seated in (D7): a guard, a cry or reduced motion seats him for good. */
+  let seatedStopAt: number | null = null;
+  /** The step clock of the last frame that read the claps' slots, or null after a restart (D8). */
+  let lastSlotSimMs: number | null = null;
+  const clapSlot = createIdleSlot();
+  /** Cuts his acting one-shot (D9): the loop fades in over `startMs` into a travelling loop, `otherMs` otherwise. */
+  const cutActingNow = (fades: Readonly<FadesConfig>, isIntoTravelling: boolean): void => {
+    if (actingClip !== null && rig.oneShotName === actingClip) {
+      rig.cutOnce(isIntoTravelling ? fades.startMs : fades.otherMs);
+    }
+    actingClip = null;
+  };
   const breath = createBreathState();
   let breathNowDeg = 0;
   const offsetEuler = new Euler(0, 0, 0, 'XYZ');
@@ -210,17 +235,82 @@ export function createBabyView(
     },
     animate(baby, dtMs, life) {
       const { characters } = life;
+      const { fades } = characters;
       const isReduced = life.isMotionReduced;
+      const isGuarded = life.isSignalOnly;
+      // His rest (story 7.12, D7): stopped, he pauses on all fours, then sits; a guard, a cry or reduced motion
+      // seats him at once and for the rest of that stop.
+      const isRest = isBabyRestShown(baby, isGuarded, isReduced);
+      if (baby.state === 'babble' && !isRest) seatedStopAt = baby.enteredAt;
+      const isPaused =
+        isRest &&
+        seatedStopAt !== baby.enteredAt &&
+        isBabyPaused(baby, life.simMs, characters.babySit);
       // The loop, and the passage it is (D4).
-      const clip = babyClipOf(baby);
+      const clip = babyClipOf(baby, isPaused);
       const isTravelling = isBabyTravelling(baby);
-      let fadeMs = characters.fades.otherMs;
+      const timeScale = clipTimeScaleOf(clip, stepSpeedMpsOf(baby), motion.clips);
       if (clip !== loopClip) {
-        fadeMs = fadeMsOf(isLoopTravelling, isTravelling, 'loop', characters.fades);
+        const fromClip = loopClip;
+        const fadeMs = fadeMsOf(isLoopTravelling, isTravelling, 'loop', fades);
+        // The sim set him off, or he cries, or he is picked up: his acting is cut in this frame, before
+        // `rig.play` could wait for it (D7, D9), so his drawn position never trails the sim's.
+        cutActingNow(fades, isTravelling);
         loopClip = clip;
         isLoopTravelling = isTravelling;
+        rig.play(clip, timeScale, fadeMs);
+        // The sit-down: from his pause into his sitting loop (or straight from a crawl with no pause), his rest
+        // shown; never the passage a guard, a cry's end or reduced motion makes.
+        if (
+          isRest &&
+          clip === SIT_CLIP &&
+          (fromClip === PAUSE_CLIP || (fromClip !== null && TRAVELLING_LOOPS.includes(fromClip))) &&
+          rig.oneShotName === null
+        ) {
+          rig.playOnce(SIT_DOWN_CLIP, fades.otherMs);
+          actingClip = SIT_DOWN_CLIP;
+        }
+        if (isRest && clip === SIT_CLIP) seatedStopAt = baby.enteredAt;
+      } else {
+        rig.play(clip, timeScale, fades.otherMs);
       }
-      rig.play(clip, clipTimeScaleOf(clip, stepSpeedMpsOf(baby), motion.clips), fadeMs);
+      // An acting one-shot handed back, or replaced by an event's (a laugh, a stir), is forgotten; the guard and
+      // reduced motion cut one in the frame they begin (D9).
+      if (actingClip !== null && rig.oneShotName !== actingClip) actingClip = null;
+      if (actingClip !== null && (isGuarded || isReduced)) cutActingNow(fades, isTravelling);
+      // His claps (D8), on Papa's model: each slot is seen by the one frame whose step clock first reaches it; a
+      // slot he is not free for shows nothing, and the next comes on time. The first frame after a restart starts none.
+      if (lastSlotSimMs === null || life.simMs < lastSlotSimMs) {
+        lastSlotSimMs = life.simMs;
+      } else if (dtMs > 0 && life.simMs > lastSlotSimMs) {
+        idleSlotAt(
+          life.levelSeed,
+          BABY_IDLE_SALT,
+          baby.enteredAt,
+          life.simMs,
+          characters.babyIdles,
+          IDLE_CLIPS.length,
+          clapSlot,
+        );
+        if (
+          clapSlot.index >= 0 &&
+          clapSlot.startAt > lastSlotSimMs &&
+          clip === SIT_CLIP &&
+          isBabyClapEligible(
+            baby,
+            life.simMs,
+            characters.babySit,
+            isGuarded,
+            isReduced,
+            rig.oneShotName !== null,
+          )
+        ) {
+          const clap = IDLE_CLIPS[clapSlot.variant] as string;
+          rig.playOnce(clap, fades.otherMs);
+          actingClip = clap;
+        }
+        lastSlotSimMs = life.simMs;
+      }
       if (!isBodyPlaced) {
         isBodyPlaced = true;
         resetSpring(bodySpring, pose.yawRad);
@@ -278,6 +368,9 @@ export function createBabyView(
     get clipName() {
       return rig.clipName;
     },
+    get actingClip() {
+      return actingClip;
+    },
     setSquash(xz, y) {
       body.scale.set(xz, y, xz);
     },
@@ -292,6 +385,10 @@ export function createBabyView(
       isBodyPlaced = false;
       loopClip = null;
       isLoopTravelling = false;
+      // His acting starts over (story 7.12): no one-shot, no stop seated, no slot seen.
+      actingClip = null;
+      seatedStopAt = null;
+      lastSlotSimMs = null;
       resetBreath(breath);
       breathNowDeg = 0;
       // The brows at rest now; the next frame snaps them on his expression (D9).

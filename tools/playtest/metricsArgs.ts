@@ -17,7 +17,9 @@ export const DEFAULT_OBSERVATIONS_FILE = 'docs/playtest/observations.csv';
 
 export const METRICS_HELP = `Usage: npm run playtest:metrics -- <dir> [options]
 
-Computes the playtest indicators (NFR11) from the journals the testers exported and from your notes.
+Computes the six playtest indicators (NFR11) from the journals the testers exported and from your notes.
+Indicator 6 (Papa reads without his bubble) reads the optional columns activityId, activityNamed and
+repetitivePoseCited of the notes: a file without them gives n/a.
 
   <dir>                    a folder with one sub-folder per tester, named after the pseudonym you gave
                            them (T1, T2…), each holding that tester's exported .json journals

@@ -127,7 +127,8 @@
       "blablaBobAmplitudeM": 0.03,
       "blablaPeriodMs": 700,
       "blablaPlace": { "screenOffsetM": 0.85, "heightM": 0.35 }
-    }
+    },
+    "choreClips": [{ "chore": "cooking", "clip": "stir_pot" }]
   },
   "door": {
     "openMs": 700,

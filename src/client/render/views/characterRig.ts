@@ -63,6 +63,8 @@ export interface CharacterRig {
   cutOnce(fadeMs: number): void;
   /** The one-shot under way, or null (story 7.11): what an acting one-shot checks it still is. */
   readonly oneShotName: string | null;
+  /** How long `clip` lasts at a time scale of 1, in ms; 0 for a clip the file lacks (story 7.12, D3). */
+  durationMsOf(clip: string): number;
   /**
    * Takes the life layer's offsets back off its bones, then advances the mixer by `dtMs` of sim time (0 holds the
    * pose: a pause, a hitstop). A one-shot hands back to the loop `returnFadeMs` before its end, and fades
@@ -271,6 +273,10 @@ export function createCharacterRig(
     },
     get oneShotName() {
       return oneShot?.name ?? null;
+    },
+    durationMsOf(clip) {
+      const track = tracks.get(clip);
+      return track === undefined ? 0 : track.action.getClip().duration * 1000;
     },
     update(dtMs, returnFadeMs) {
       restoreLifeBones();

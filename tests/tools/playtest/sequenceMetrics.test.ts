@@ -14,6 +14,11 @@ const THRESHOLDS: PlaytestThresholds = {
   firstEncounterSuccessMinPct: 80,
   touchVsKeyboardMinPct: 80,
   laughedMinPct: 80,
+  bodyRead: {
+    activities: ['chore', 'coffee', 'phone', 'stealth', 'fatigue', 'carrying'],
+    namedMinPct: 80,
+    repetitivePoseMaxTesters: 0,
+  },
 };
 
 type Attempts = NonNullable<JournalFile['summary']['sequences']>;

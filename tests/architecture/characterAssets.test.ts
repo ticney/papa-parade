@@ -18,10 +18,13 @@ import {
   BABY_CARRIED_HEIGHT_M,
 } from '../../src/client/render/views/babyView.ts';
 import {
+  BABY_ACTING_CLIPS,
   BABY_CONTRACT,
+  BABY_LAUGH_CLIPS,
   PAPA_ACTING_CLIPS,
   PAPA_CONTRACT,
   PAPA_IDLE_CLIPS,
+  PAPA_PARRY_CLIPS,
 } from '../../src/client/render/views/characterClips.ts';
 import { PAPA_HEIGHT_M } from '../../src/client/render/views/papaView.ts';
 import { CHARACTER_GLB_MAX_BYTES } from '../../src/shared/constants.ts';
@@ -81,7 +84,10 @@ const jsonOf = (id: string): unknown =>
 const clipNamesIn = (source: string, pattern: RegExp): string[] =>
   [...source.matchAll(pattern)].map((match) => match[1] as string);
 
-/** The one-shots the code plays: the events', the responses' and the gags'. */
+/**
+ * The one-shots the code plays: the events', the responses' and the gags'. The lists the source regexes
+ * cannot read (story 7.12: the Parries and the laughs are picked from a list) are imported.
+ */
 const section = (from: string, to: string): string =>
   clips.slice(clips.indexOf(from), clips.indexOf(to));
 const papaOneShots = [
@@ -91,6 +97,7 @@ const papaOneShots = [
   ),
   ...clipNamesIn(section('export function responseClipOf', '/** How shut'), /'(respond_[a-z_]+)'/g),
   ...clipNamesIn(gags, /papaClip: '([a-z_]+)'/g),
+  ...PAPA_PARRY_CLIPS,
 ];
 const babyOneShots = [
   ...clipNamesIn(
@@ -98,6 +105,7 @@ const babyOneShots = [
     /return '([a-z_]+)'/g,
   ),
   ...clipNamesIn(gags, /babyClip: '([a-z_]+)'/g),
+  ...BABY_LAUGH_CLIPS,
 ];
 
 /**
@@ -127,7 +135,13 @@ describe('the lists the floor-contact test is built from (story 7.9 review)', ()
     for (const oneShot of ['respond_perfect', 'gag_hit', 'snore', 'coffee_kick']) {
       expect(papaFloorLoops, `${oneShot} is not a loop`).not.toContain(oneShot);
     }
-    for (const oneShot of ['wake', 'sat_up', 'laugh', 'stir', 'gag_delight']) {
+    // Story 7.12: the second Parry and the belly laugh are one-shots; the stir, the pick-up, the pause on all
+    // fours, the sit-down and the clap stand on the floor.
+    expect(papaOneShots).toEqual(expect.arrayContaining([...PAPA_PARRY_CLIPS]));
+    expect(babyOneShots).toEqual(expect.arrayContaining([...BABY_LAUGH_CLIPS]));
+    expect(papaFloorLoops).toEqual(expect.arrayContaining(['stir_pot', 'pick_up', 'sigh_relief']));
+    expect(babyFloorLoops).toEqual(expect.arrayContaining(['crawl_pause', ...BABY_ACTING_CLIPS]));
+    for (const oneShot of ['wake', 'sat_up', 'laugh', 'laugh_belly', 'stir', 'gag_delight']) {
       expect(babyFloorLoops, `${oneShot} is not a loop`).not.toContain(oneShot);
     }
     expect(babyFloorLoops).not.toContain('carried');
@@ -740,7 +754,8 @@ describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred 
   it.each([
     // Papa's acting one-shots (story 7.11) hand back like any other.
     ['papa', [...papaOneShots, ...PAPA_ACTING_CLIPS]],
-    ['baby', babyOneShots],
+    // The baby's acting one-shots (story 7.12): the sit-down and the clap.
+    ['baby', [...babyOneShots, ...BABY_ACTING_CLIPS]],
   ] as const)(
     'every one-shot of %s lasts at least twice the return fade of the committed feel',
     async (id, names) => {
@@ -760,7 +775,8 @@ describe('every one-shot outlasts its fades (story 7.8, closes the 7.2 deferred 
 describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
   /**
    * The life layer's modules (story 7.8): the springs, the fades, the lean and breath, the gaze; the forelock
-   * (7.9); the faces' expressions, brows and world inputs (7.10); the acting's slots and passages (7.11).
+   * (7.9); the faces' expressions, brows and world inputs (7.10); the acting's slots and passages (7.11); the
+   * baby's pause, claps and laughs (7.12).
    */
   const LIFE_VIEWS = [
     'characterSpring',
@@ -772,6 +788,7 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     'brows',
     'faceInputs',
     'papaActing',
+    'babyActing',
   ];
   const VIEWS = [
     'characterClips',
@@ -836,6 +853,28 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     expect(clips).not.toMatch(/ThreatInstance|\.threats\b/);
   });
 
+  // Story 7.12, D5: the sigh reads a judged response's window, its hidden tolerance included, after the press.
+  // It is the one client reader of `toleranceMs`, outside `views/`, and reads it from the event alone.
+  it('reliefSigh.ts reads toleranceMs only from a ResponseResolved, and takes no threat, no clock, no PRNG', () => {
+    const source = readFileSync(join(root, 'src', 'client', 'feedback', 'reliefSigh.ts'), 'utf8');
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(code).toMatch(/Extract<SimEvent, \{ type: 'ResponseResolved' \}>/);
+    const readers = code.match(/[\w.]*toleranceMs/g) ?? [];
+    expect(readers.length).toBeGreaterThan(0);
+    for (const reader of readers) expect(reader).toBe('event.responseWindow.toleranceMs');
+    expect(code).not.toMatch(
+      /ThreatInstance|\.threats\b|windowOpenAt|feintAt|realWakePct|Math\.random|\bperformance\b|\bDate\b|\.rng\b|nowReal/,
+    );
+  });
+
+  it('responseChoreography.ts reads no toleranceMs itself: the sigh does', () => {
+    const source = readFileSync(
+      join(root, 'src', 'client', 'feedback', 'responseChoreography.ts'),
+      'utf8',
+    );
+    expect(source).not.toMatch(/toleranceMs/);
+  });
+
   // Story 7.10, D6: the faces choose from events and booleans; only `faceInputs.ts` reads a threat's state.
   it('expressions.ts takes no threat', () => {
     expect(viewSource('expressions')).not.toMatch(/ThreatInstance|\.threats\b/);
@@ -849,6 +888,32 @@ describe('no animation gives away a hidden answer (story 7.2, D9)', () => {
     expect(source).toMatch(/layDownDefIds\.includes\(threat\.defId\)/);
   });
 });
+
+/** Every vertex of a character's skinned meshes whose heaviest joint is `boneName`, posed, in the room's metres. */
+function boxOfBone(root: Object3D, boneName: string): Box3 {
+  root.updateMatrixWorld(true);
+  const box = new Box3();
+  const vertex = new Vector3();
+  root.traverse((node) => {
+    if (!(node instanceof SkinnedMesh)) return;
+    node.skeleton.update();
+    const indices = node.geometry.getAttribute('skinIndex');
+    const weights = node.geometry.getAttribute('skinWeight');
+    const position = node.geometry.getAttribute('position');
+    for (let i = 0; i < position.count; i++) {
+      let heaviest = 0;
+      for (let k = 1; k < 4; k++) {
+        if (weights.getComponent(i, k) > weights.getComponent(i, heaviest)) heaviest = k;
+      }
+      const bone = node.skeleton.bones[indices.getComponent(i, heaviest)];
+      if (bone?.name !== boneName) continue;
+      vertex.fromBufferAttribute(position, i);
+      node.applyBoneTransform(i, vertex);
+      box.expandByPoint(vertex.applyMatrix4(node.matrixWorld));
+    }
+  });
+  return box;
+}
 
 /** How far the head's up axis may lean from vertical in an idle, in degrees (story 7.11, AC 10): no doze. */
 const IDLE_HEAD_LEAN_MAX_DEG = 25;
@@ -880,32 +945,6 @@ describe("Papa's first wave looks like nothing that telegraphs (story 7.11, AC 1
     },
   );
 
-  /** Every vertex of his skinned meshes whose heaviest joint is `boneName`, posed, in the room's metres. */
-  const boxOfBone = (root: Object3D, boneName: string): Box3 => {
-    root.updateMatrixWorld(true);
-    const box = new Box3();
-    const vertex = new Vector3();
-    root.traverse((node) => {
-      if (!(node instanceof SkinnedMesh)) return;
-      node.skeleton.update();
-      const indices = node.geometry.getAttribute('skinIndex');
-      const weights = node.geometry.getAttribute('skinWeight');
-      const position = node.geometry.getAttribute('position');
-      for (let i = 0; i < position.count; i++) {
-        let heaviest = 0;
-        for (let k = 1; k < 4; k++) {
-          if (weights.getComponent(i, k) > weights.getComponent(i, heaviest)) heaviest = k;
-        }
-        const bone = node.skeleton.bones[indices.getComponent(i, heaviest)];
-        if (bone?.name !== boneName) continue;
-        vertex.fromBufferAttribute(position, i);
-        node.applyBoneTransform(i, vertex);
-        box.expandByPoint(vertex.applyMatrix4(node.matrixWorld));
-      }
-    });
-    return box;
-  };
-
   it('puts the puffed cheeks on his head, and moves them with it', async () => {
     const asset = await load('papa');
     const cheeks = asset.scene.getObjectByName('papa_cheeks');
@@ -933,5 +972,201 @@ describe("Papa's first wave looks like nothing that telegraphs (story 7.11, AC 1
       0.01,
     );
     expect(posedCentre.distanceTo(expected)).toBeLessThan(0.01);
+  });
+});
+
+/** Each clip of story 7.12's sheet and its length in frames at 30 fps (AC 1, D1). */
+const FIRST_WAVE_2_FRAMES = [
+  ['papa', 'stir_pot', 40],
+  ['papa', 'pick_up', 30],
+  ['papa', 'respond_parry_sweep', 17],
+  ['papa', 'sigh_relief', 36],
+  ['baby', 'crawl_pause', 45],
+  ['baby', 'sit_down', 15],
+  ['baby', 'clap', 36],
+  ['baby', 'laugh_belly', 20],
+] as const;
+const CLIP_FPS = 30;
+/** `characters.spec.ts` sees the carried loop 1 s after a pick-up: a laugh lasts at most this many frames (D16). */
+const LAUGH_FRAMES_MAX = 24;
+/** The floor of `feel.json › characters.babyIdles.gapMinMs` (D12): two claps never overlap. */
+const BABY_IDLES_GAP_FLOOR_MS = 1500;
+/** Each Parry reaches forward at its peak at least this share of `respond_parry`'s reach (AC 13, D11). */
+const PARRY_REACH_MIN_SHARE = 0.8;
+/** How far above his own `babble` (or `laugh`) maximum the baby's head may rise, in metres (AC 13). */
+const BABY_HEAD_RISE_MAX_M = 0.03;
+/** How far `crawl_pause` turns his neck at least, over its loop, in degrees: a still head reads as a stare. */
+const CRAWL_PAUSE_NECK_TRAVEL_MIN_DEG = 8;
+/** How far a new clip of the baby may move his `root` on the floor, in metres: he never darts. */
+const BABY_ROOT_DRIFT_MAX_M = 0.05;
+/** How close to the floor a hand comes at `pick_up`'s low point, in metres. */
+const PICK_UP_HAND_FLOOR_MAX_M = 0.15;
+/** How far `pick_up`'s first and last poses may turn any bone from `idle`'s first pose, in degrees. */
+const PICK_UP_ENDS_NEAR_IDLE_DEG = 10;
+
+describe('the second half of the first wave (story 7.12, AC 1, AC 13)', () => {
+  it.each(FIRST_WAVE_2_FRAMES)('%s holds %s at %i frames', async (id, name, frames) => {
+    const asset = await load(id);
+    const clip = asset.animations.find((candidate) => candidate.name === name);
+    expect(clip, name).toBeDefined();
+    expect((clip?.duration ?? 0) * CLIP_FPS).toBeCloseTo(frames, 1);
+  });
+
+  it('keeps the belly laugh under the carried check and the clap under the gap floor', async () => {
+    const baby = await load('baby');
+    const durationS = (name: string) =>
+      baby.animations.find((candidate) => candidate.name === name)?.duration ?? Infinity;
+    for (const laugh of BABY_LAUGH_CLIPS) {
+      expect(durationS(laugh) * CLIP_FPS, laugh).toBeLessThanOrEqual(LAUGH_FRAMES_MAX);
+    }
+    expect(durationS('clap') * 1000).toBeLessThan(BABY_IDLES_GAP_FLOOR_MS);
+  });
+
+  it('keys no lid, no eyes of Papa and no head of the baby in a new clip', async () => {
+    const papa = await load('papa');
+    const baby = await load('baby');
+    const tracksOf = (asset: typeof papa, name: string) =>
+      (asset.animations.find((candidate) => candidate.name === name)?.tracks ?? []).map(
+        (track) => track.name,
+      );
+    for (const [id, name] of FIRST_WAVE_2_FRAMES) {
+      const names = tracksOf(id === 'papa' ? papa : baby, name);
+      expect(names.length, name).toBeGreaterThan(0);
+      const forbidden = id === 'papa' ? /^(eyelids|eyes)\./ : /^(eyelids|head)\./;
+      for (const track of names) expect(track, name).not.toMatch(forbidden);
+    }
+  });
+
+  /** The largest lean of Papa's head's up axis from vertical over `clip`'s samples, in degrees. */
+  const headLeanMaxDeg = async (clip: string): Promise<number> => {
+    const asset = await load('papa');
+    const head = asset.scene.getObjectByName('head');
+    if (head === undefined) throw new Error('papa.glb has no head');
+    const up = new Vector3();
+    const turn = new Quaternion();
+    let maxDeg = 0;
+    eachSampledPose(asset, [clip], () => {
+      head.getWorldQuaternion(turn);
+      up.set(0, 1, 0).applyQuaternion(turn);
+      maxDeg = Math.max(maxDeg, Math.acos(Math.min(1, up.y)) * RAD_TO_DEG);
+    });
+    return maxDeg;
+  };
+
+  it.each(['sigh_relief', 'stir_pot'])(
+    '%s keeps his head within 25° of vertical, and less than his sleep does',
+    async (clip) => {
+      const asleepDeg = await headLeanMaxDeg('asleep');
+      const leanDeg = await headLeanMaxDeg(clip);
+      expect(leanDeg).toBeLessThanOrEqual(IDLE_HEAD_LEAN_MAX_DEG);
+      expect(leanDeg).toBeLessThan(asleepDeg);
+    },
+  );
+
+  /** How far in front of his `spine` his farther-forward hand gets over `clip`, in metres (he faces +z). */
+  const forwardReachM = async (clip: string): Promise<number> => {
+    const asset = await load('papa');
+    const spine = asset.scene.getObjectByName('spine');
+    if (spine === undefined) throw new Error('papa.glb has no spine');
+    const at = new Vector3();
+    let reachM = Number.NEGATIVE_INFINITY;
+    eachSampledPose(asset, [clip], () => {
+      const spineZ = spine.getWorldPosition(at).z;
+      for (const hand of ['hand_l', 'hand_r']) {
+        reachM = Math.max(reachM, boxOfBone(asset.scene, hand).max.z - spineZ);
+      }
+    });
+    return reachM;
+  };
+
+  it('both Parries reach forward at their peak, at least 80 % of respond_parry', async () => {
+    const referenceM = await forwardReachM('respond_parry');
+    expect(referenceM).toBeGreaterThan(0.1);
+    for (const clip of PAPA_PARRY_CLIPS) {
+      expect(await forwardReachM(clip), clip).toBeGreaterThanOrEqual(
+        PARRY_REACH_MIN_SHARE * referenceM,
+      );
+    }
+  });
+
+  /** The top of the baby's head (the vertices of `head`) over `clip`'s samples, in metres. */
+  const babyHeadTopM = async (clip: string): Promise<number> => {
+    const asset = await load('baby');
+    let topM = Number.NEGATIVE_INFINITY;
+    eachSampledPose(asset, [clip], () => {
+      topM = Math.max(topM, boxOfBone(asset.scene, 'head').max.y);
+    });
+    return topM;
+  };
+
+  it.each([
+    ['crawl_pause', 'babble'],
+    ['sit_down', 'babble'],
+    ['clap', 'babble'],
+    ['laugh_belly', 'laugh'],
+  ])('the baby never pulls himself up in %s: his head stays under %s + 3 cm', async (clip, ref) => {
+    expect(await babyHeadTopM(clip)).toBeLessThanOrEqual(
+      (await babyHeadTopM(ref)) + BABY_HEAD_RISE_MAX_M,
+    );
+  });
+
+  it('crawl_pause moves his neck through at least 8° over its loop', async () => {
+    const asset = await load('baby');
+    const neck = asset.scene.getObjectByName('neck');
+    if (neck === undefined) throw new Error('baby.glb has no neck');
+    const turns: Quaternion[] = [];
+    eachSampledPose(asset, ['crawl_pause'], () => turns.push(neck.quaternion.clone()));
+    let travelDeg = 0;
+    for (const a of turns) {
+      for (const b of turns) travelDeg = Math.max(travelDeg, a.angleTo(b) * RAD_TO_DEG);
+    }
+    expect(travelDeg).toBeGreaterThanOrEqual(CRAWL_PAUSE_NECK_TRAVEL_MIN_DEG);
+  });
+
+  it.each(['crawl_pause', 'sit_down', 'clap', 'laugh_belly'])(
+    '%s never moves his root more than 5 cm on the floor',
+    async (clip) => {
+      const asset = await load('baby');
+      const root = asset.scene.getObjectByName('root');
+      if (root === undefined) throw new Error('baby.glb has no root');
+      const at = new Vector3();
+      eachSampledPose(asset, [clip], (_, share) => {
+        root.getWorldPosition(at);
+        expect(Math.hypot(at.x, at.z), `${clip} at ${share}`).toBeLessThanOrEqual(
+          BABY_ROOT_DRIFT_MAX_M,
+        );
+      });
+    },
+  );
+
+  it('pick_up brings a hand down to the floor, and starts and ends on idle', async () => {
+    const asset = await load('papa');
+    let lowestM = Number.POSITIVE_INFINITY;
+    eachSampledPose(asset, ['pick_up'], () => {
+      for (const hand of ['hand_l', 'hand_r']) {
+        lowestM = Math.min(lowestM, boxOfBone(asset.scene, hand).min.y);
+      }
+    });
+    expect(lowestM).toBeLessThanOrEqual(PICK_UP_HAND_FLOOR_MAX_M);
+    const idle = new Map<string, Quaternion>();
+    eachSampledPose(asset, ['idle'], (_, share) => {
+      if (share !== 0) return;
+      for (const bone of PAPA_CONTRACT.bones) {
+        idle.set(bone, asset.scene.getObjectByName(bone)?.quaternion.clone() ?? new Quaternion());
+      }
+    });
+    expect(idle.size).toBe(PAPA_CONTRACT.bones.length);
+    let endsChecked = 0;
+    eachSampledPose(asset, ['pick_up'], (_, share) => {
+      if (share !== 0 && share !== 1) return;
+      endsChecked += 1;
+      for (const bone of PAPA_CONTRACT.bones) {
+        const turn = asset.scene.getObjectByName(bone)?.quaternion ?? new Quaternion();
+        const fromIdleDeg = turn.angleTo(idle.get(bone) ?? new Quaternion()) * RAD_TO_DEG;
+        expect(fromIdleDeg, `${bone} at ${share}`).toBeLessThanOrEqual(PICK_UP_ENDS_NEAR_IDLE_DEG);
+      }
+    });
+    // Both ends were visited: a sampler that stopped emitting 0 or 1 would otherwise pass without a check.
+    expect(endsChecked).toBe(2);
   });
 });

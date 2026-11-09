@@ -11,6 +11,7 @@ import {
 import { createBlobKit } from '../blobShadow.ts';
 import { createOutlineKit } from '../materials/outlineHull.ts';
 import { createToonMaterialCache } from '../materials/toonMaterial.ts';
+import { BABY_IDLE_SALT } from './babyActing.ts';
 import {
   BABY_CARRIED_HEIGHT_M,
   BABY_LIFE_BONES,
@@ -20,6 +21,8 @@ import {
 } from './babyView.ts';
 import { createCharacterRig } from './characterRig.ts';
 import { BABY_EXPRESSIONS, type BabyFace } from './expressions.ts';
+import type { LifeInputs } from './lifeLayer.ts';
+import { createIdleSlot, idleSlotAt } from './papaActing.ts';
 
 const TOON_TONES = [96, 178, 255];
 
@@ -442,5 +445,205 @@ describe('createBabyView', () => {
         12,
       );
     });
+  });
+});
+
+describe('his pause, sit-down and claps (story 7.12)', () => {
+  const MOTION = { clips: [{ clip: 'crawl', speedMps: 0.6 }] };
+
+  /** One view and one life, driven frame by frame on the sim's step clock; records each new acting clip. */
+  function stage(patch: Partial<LifeInputs> = {}) {
+    const rig = createCharacterRig(
+      createTestBaby(),
+      createToonMaterialCache(TOON_TONES),
+      createOutlineKit({ widthM: 0.025, skipMaterials: ['art_ink'] }),
+      BABY_LIFE_BONES,
+    );
+    const view = createBabyView(new Scene(), createBlobKit(), 0.2, rig, MOTION);
+    const life = createTestLife({ levelSeed: 1, ...patch });
+    let simMs = 0;
+    const run = (b: BabySlice, untilMs: number, dtMs = 10): { atMs: number; clip: string }[] => {
+      const started: { atMs: number; clip: string }[] = [];
+      let last = view.actingClip;
+      while (simMs < untilMs) {
+        simMs = Math.min(untilMs, simMs + dtMs);
+        life.simMs = simMs;
+        view.update(b, 1);
+        view.animate(b, dtMs, life);
+        const now = view.actingClip;
+        if (now !== null && now !== last) started.push({ atMs: simMs, clip: now });
+        last = now;
+      }
+      return started;
+    };
+    const frame = (b: BabySlice, dtMs = 10): void => {
+      simMs += dtMs;
+      life.simMs = simMs;
+      view.animate(b, dtMs, life);
+    };
+    return { rig, view, life, run, frame };
+  }
+  /** Stopped (`babble`) at `enteredAt`, standing still. */
+  const stopped = (enteredAt = 0, patch: Partial<BabySlice> = {}) =>
+    baby({ state: 'babble', enteredAt: asSimMs(enteredAt), prevXM: 2, prevZM: 1, ...patch });
+  const crawling = (enteredAt: number) => baby({ state: 'wander', enteredAt: asSimMs(enteredAt) });
+
+  it('pauses on all fours after he stops, then sits at exactly afterMs, playing the sit-down (D7)', () => {
+    const { run, frame, view, life } = stage();
+    const afterMs = life.characters.babySit.afterMs;
+    run(stopped(0), afterMs - 10);
+    expect(view.clipName).toBe('crawl_pause');
+    expect(view.actingClip).toBeNull();
+    frame(stopped(0));
+    expect(view.actingClip).toBe('sit_down');
+    expect(view.clipName).toBe('sit_down');
+  });
+
+  it('sits at once, with no sit-down, with afterMs 0 after a stop he did not crawl into', () => {
+    const { run, view, life } = stage();
+    life.characters.babySit.afterMs = 0;
+    run(stopped(0), 50);
+    expect(view.clipName).toBe('babble');
+    expect(view.actingClip).toBeNull();
+  });
+
+  it('sits down straight from his crawl with afterMs 0', () => {
+    const { run, frame, view, life } = stage();
+    life.characters.babySit.afterMs = 0;
+    run(crawling(0), 500);
+    expect(view.clipName).toBe('crawl');
+    frame(stopped(500));
+    expect(view.actingClip).toBe('sit_down');
+  });
+
+  it.each([
+    ['in the guard', { isSignalOnly: true }, {}, 'babble'],
+    ['under reduced motion', { isMotionReduced: true }, {}, 'babble'],
+    ['while he cries', {}, { cryEndsAt: asSimMs(90_000) }, 'cry'],
+  ] as const)(
+    'keeps his loop from the first frame %s: no pause, no sit-down, no clap',
+    (_n, patch, babyPatch, loop) => {
+      const { run, view } = stage(patch);
+      const played = run(stopped(0, babyPatch), 12_000);
+      expect(view.clipName).toBe(loop);
+      expect(played).toEqual([]);
+    },
+  );
+
+  it('never goes back on all fours when the guard ends within his pause: the stop seats him for good', () => {
+    const { run, frame, view, life } = stage();
+    run(stopped(0), 100);
+    expect(view.clipName).toBe('crawl_pause');
+    life.isSignalOnly = true;
+    frame(stopped(0));
+    expect(view.clipName).toBe('babble');
+    life.isSignalOnly = false;
+    frame(stopped(0));
+    expect(view.clipName).toBe('babble');
+    expect(view.actingClip).toBeNull();
+  });
+
+  it.each([
+    ['downstairs', baby({ state: 'downstairs', enteredAt: asSimMs(0) })],
+    ['carried', baby({ state: 'carried', enteredAt: asSimMs(0) })],
+    ['locked on a target', baby({ state: 'targetLocked', enteredAt: asSimMs(0) })],
+  ])('plays no pause, sit-down or clap %s', (_n, b) => {
+    const { run, view } = stage();
+    expect(run(b, 12_000)).toEqual([]);
+    expect(view.clipName).not.toBe('crawl_pause');
+  });
+
+  it.each([
+    ['mid sit-down', 650],
+    ['mid clap', 0],
+  ])(
+    'cuts his acting in the frame the sim sets him off %s, the crawl fading in over startMs',
+    (_n, atMs) => {
+      const { run, frame, view, rig, life } = stage();
+      const target =
+        atMs > 0 ? atMs : (slotsOf(life, 0, 12_000)[0] as { startAt: number }).startAt + 100;
+      run(stopped(0), target);
+      expect(view.actingClip).toBe(atMs > 0 ? 'sit_down' : 'clap');
+      frame(crawling(target), 0);
+      expect(view.actingClip).toBeNull();
+      expect(view.clipName).toBe('crawl');
+      frame(crawling(target), life.characters.fades.startMs / 2);
+      expect(rig.weightOf('crawl')).toBeGreaterThan(0);
+      expect(rig.weightOf('crawl')).toBeLessThan(1);
+    },
+  );
+
+  /** The clap slots of a stop begun at `stillSinceAt`, for the stage's seed. */
+  const slotsOf = (life: LifeInputs, stillSinceAt: number, untilMs: number) => {
+    const slots: { startAt: number }[] = [];
+    const slot = createIdleSlot();
+    for (let t = stillSinceAt; t <= untilMs; t += 10) {
+      idleSlotAt(
+        life.levelSeed,
+        BABY_IDLE_SALT,
+        stillSinceAt,
+        t,
+        life.characters.babyIdles,
+        1,
+        slot,
+      );
+      if (slot.index >= 0 && slots.length === slot.index) slots.push({ startAt: slot.startAt });
+    }
+    return slots;
+  };
+
+  it('claps at the slots of his cadence, from firstAfterMs after he stopped (D8)', () => {
+    const { run, life } = stage();
+    const slots = slotsOf(life, 0, 12_000);
+    expect(slots.length).toBeGreaterThan(2);
+    expect((slots[0] as { startAt: number }).startAt).toBe(life.characters.babyIdles.firstAfterMs);
+    const played = run(stopped(0), 12_000).filter((p) => p.clip === 'clap');
+    // Each slot is seen by the first 10 ms frame whose step clock reaches it.
+    expect(played.map((p) => Math.ceil(p.atMs / 10))).toEqual(
+      slots.map((s) => Math.ceil(s.startAt / 10)),
+    );
+  });
+
+  it('claps at the same slots for 1, 3 or 7 frames over the same span', () => {
+    const claps = (dtMs: number) => {
+      const { run, life } = stage();
+      const slots = slotsOf(life, 0, 12_000);
+      const played = run(stopped(0), 12_000, dtMs).filter((p) => p.clip === 'clap');
+      // Each clap is seen by the first frame whose step clock reaches its slot.
+      return played.map((p, i) => {
+        const slot = slots[i];
+        expect(slot, `clap ${i} has a slot`).toBeDefined();
+        const { startAt } = slot as { startAt: number };
+        expect(p.atMs).toBeGreaterThanOrEqual(startAt);
+        expect(p.atMs).toBeLessThan(startAt + dtMs);
+        return startAt;
+      });
+    };
+    const one = claps(10);
+    expect(one.length).toBeGreaterThan(0);
+    expect(claps(30)).toEqual(one);
+    expect(claps(70)).toEqual(one);
+  });
+
+  it('starts nothing on a frame of dtMs 0, and leaves the slot to the next frame', () => {
+    const { run, frame, view, life } = stage();
+    const first = (slotsOf(life, 0, 12_000)[0] as { startAt: number }).startAt;
+    run(stopped(0), first - 10);
+    life.simMs = first + 10;
+    view.animate(stopped(0), 0, life);
+    expect(view.actingClip).toBeNull();
+    frame(stopped(0), 20);
+    expect(view.actingClip).toBe('clap');
+  });
+
+  it('starts over on resetAnimation: no clip of his under way, the pause again', () => {
+    const { run, view, life } = stage();
+    run(stopped(0), 700);
+    expect(view.actingClip).toBe('sit_down');
+    view.resetAnimation();
+    expect(view.actingClip).toBeNull();
+    life.simMs = 0;
+    view.animate(stopped(0), 0, life);
+    expect(view.clipName).toBe('crawl_pause');
   });
 });

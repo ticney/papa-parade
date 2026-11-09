@@ -46,7 +46,10 @@ test('the clips follow the sim: Papa walks, the baby crawls, and carrying change
   await startLevel(page);
   await ppFreeze(page, true);
   await ppAdvance(page, 10);
-  expect(await clipsOf(page)).toEqual(['idle', 'babble']);
+  const [papaAtStart, babyAtStart] = await clipsOf(page);
+  expect(papaAtStart).toBe('idle');
+  // The baby rests: on all fours, sitting down, sitting or clapping (story 7.12, D16), never crawling.
+  expect(['crawl_pause', 'sit_down', 'babble', 'clap']).toContain(babyAtStart);
 
   const { papa } = await ppWorld(page);
   await ppSend(page, { type: 'TapFloor', xM: papa.xM - 1, zM: papa.zM });

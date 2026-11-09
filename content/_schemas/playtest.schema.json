@@ -48,6 +48,40 @@
       "maximum": 100,
       "description": "Indicator 5: share of testers (in %) who laugh at least once during a level."
     },
+    "bodyRead": {
+      "type": "object",
+      "properties": {
+        "activities": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+            "description": "One activity of Papa a tester is asked to name."
+          },
+          "description": "Indicator 6 (observed): Papa's activities the testers are asked to name, the `activityId` of Geo's notes."
+        },
+        "namedMinPct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Indicator 6 (observed): share of the testers with a note (in %) who name what Papa does, without his bubble. Applies to each activity."
+        },
+        "repetitivePoseMaxTesters": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Indicator 6 (observed): most testers who may spontaneously find one of his poses repetitive."
+        }
+      },
+      "required": [
+        "activities",
+        "namedMinPct",
+        "repetitivePoseMaxTesters"
+      ],
+      "additionalProperties": false,
+      "description": "Indicator 6, « Papa se lit sans sa bulle » (story 7.12)."
+    },
     "humanBot": {
       "type": "object",
       "properties": {
@@ -160,6 +194,7 @@
     "firstEncounterSuccessMinPct",
     "touchVsKeyboardMinPct",
     "laughedMinPct",
+    "bodyRead",
     "humanBot",
     "simulated"
   ],

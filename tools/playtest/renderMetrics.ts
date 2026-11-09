@@ -58,6 +58,11 @@ function lowest(measure: ThreatMeasure): string {
   return `lowest: ${threat} ${share(worst)}`;
 }
 
+/** Indicator 6's activities as a per-threat measure, so that the tables and the lowest share read them alike. */
+function activityMeasureOf(report: PlaytestReport): ThreatMeasure {
+  return { byThreat: report.bodyRead.byActivity, status: report.bodyRead.named };
+}
+
 function summaryTable(report: PlaytestReport): string[] {
   const t = report.thresholds;
   const kb = report.touchVsKeyboard;
@@ -113,6 +118,22 @@ function summaryTable(report: PlaytestReport): string[] {
       String(report.laughed.count),
       report.laughed.status,
     ],
+    [
+      '6. Papa reads without his bubble, each activity (observed)',
+      lowest(activityMeasureOf(report)),
+      `≥ ${t.bodyRead.namedMinPct} %`,
+      range(Object.values(report.bodyRead.byActivity).map((m) => m.count)),
+      report.bodyRead.named,
+    ],
+    [
+      '6. No repetitive pose cited (observed)',
+      report.bodyRead.repetitivePose.count === 0
+        ? '—'
+        : `${report.bodyRead.repetitivePose.cited} tester${report.bodyRead.repetitivePose.cited === 1 ? '' : 's'} cited one`,
+      `≤ ${report.bodyRead.repetitivePose.maxTesters} testers`,
+      String(report.bodyRead.repetitivePose.count),
+      report.bodyRead.repetitivePose.status,
+    ],
   ];
   return table(['Indicator', 'Value', 'Threshold', 'Counted on', 'Status'], rows);
 }
@@ -125,11 +146,12 @@ function threatTable(
   measure: ThreatMeasure,
   testers: readonly TesterReport[],
   cellOf: (tester: TesterReport, threat: string) => boolean | undefined,
+  rowName = 'Threat',
 ): string[] {
   const threats = Object.keys(measure.byThreat);
   if (threats.length === 0) return ['No data.'];
   return table(
-    ['Threat', ...testers.map((t) => t.testerId), 'Share'],
+    [rowName, ...testers.map((t) => t.testerId), 'Share'],
     threats.map((threat) => [
       threat,
       ...testers.map((t) => mark(cellOf(t, threat))),
@@ -159,6 +181,13 @@ function testerSection(tester: TesterReport): string[] {
     `- Perfect parry cited: ${tester.perfectCited === null ? '—' : tester.perfectCited ? 'O' : 'N'}`,
   );
   lines.push(`- Laughs: ${tester.laughs === null ? '—' : tester.laughs}`);
+  const activities = Object.entries(tester.activitiesNamed);
+  lines.push(
+    `- Activities named: ${activities.length === 0 ? '—' : activities.map(([activity, v]) => `${activity} ${v ? 'O' : 'N'}`).join(', ')}`,
+  );
+  lines.push(
+    `- Repetitive pose cited: ${tester.repetitivePoseCited === null ? '—' : tester.repetitivePoseCited ? 'O' : 'N'}`,
+  );
   if (tester.games.length > 0) {
     lines.push(
       '',
@@ -180,6 +209,7 @@ function testerSection(tester: TesterReport): string[] {
     for (const comment of tester.comments) {
       const where = [
         comment.threatId,
+        comment.activityId,
         comment.sessionId === null ? null : `session ${comment.sessionId}`,
       ]
         .filter((part) => part !== null)
@@ -256,6 +286,17 @@ export function renderMetrics(report: PlaytestReport): string {
       const first = ownValue(t.firstEncounter, threat);
       return first === undefined ? undefined : first === 'success';
     }),
+    '',
+    '## Indicator 6 per activity',
+    '',
+    '### Named without the bubble (observed)',
+    '',
+    ...threatTable(
+      activityMeasureOf(report),
+      report.testers,
+      (t, activity) => ownValue(t.activitiesNamed, activity),
+      'Activity',
+    ),
     '',
     ...sequencesSection(report),
     '## Testers',

@@ -1,6 +1,6 @@
 # Fiche d'observation du playtest
 
-> Story 3.4. **Cette fiche est remplie par Geo pendant la séance, jamais par l'agent de dev.** Elle donne les trois indicateurs qu'un journal ne peut pas mesurer (la parade parfaite citée, la lisibilité, le rire). Les deux autres (relance, tactile contre clavier) sortent des journaux. Les seuils vivent dans `content/playtest.json` : on les change là, pas ici.
+> Story 3.4. **Cette fiche est remplie par Geo pendant la séance, jamais par l'agent de dev.** Elle donne les quatre indicateurs qu'un journal ne peut pas mesurer (la parade parfaite citée, la lisibilité, le rire et, depuis la story 7.12, « Papa se lit sans sa bulle »). Les deux autres (relance, tactile contre clavier) sortent des journaux. Les seuils vivent dans `content/playtest.json` : on les change là, pas ici.
 
 Une fiche par testeur. Un testeur est un **pseudonyme** que tu choisis (`T1`, `T2`…) : 1 à 32 caractères parmi `A-Z a-z 0-9 _ -`. Aucun nom, aucune donnée personnelle (NFR14).
 
@@ -37,6 +37,23 @@ Laisser vide la ligne d'une menace que le testeur n'a pas rencontrée : elle n'e
 | Nombre de rires | |
 | Commentaires libres | |
 
+### Papa sans sa bulle (story 7.12)
+
+L'indicateur 6 demande si le corps de Papa dit à lui seul ce qu'il fait, et si une de ses poses lasse.
+
+**Le protocole.** Ouvre le build de playtest avec `?bubble=off` (par exemple `…/?bubble=off`, ou `…/?bubble=off&level=chambre_night` pour l'infiltration) : la bulle d'activité au-dessus de Papa n'est plus dessinée, rien d'autre ne change. Montre au testeur un extrait de quelques secondes par activité (joue-le toi-même, ou laisse-le jouer et attends le moment), puis demande seulement « que fait le papa ? », sans proposer de réponse. Note O s'il nomme l'activité (même avec ses mots : « il touille », « il boit son café »), N sinon. Les activités (`activityId`, la liste est `content/playtest.json › bodyRead.activities`) :
+
+| Activité (`activityId`) | Ce que tu montres | A nommé ce que fait Papa (O/N) |
+|---|---|---|
+| `chore` | Papa à une tâche de la maison (la cuisine au fourneau, ou le lave-vaisselle) | |
+| `coffee` | Papa qui boit son café | |
+| `phone` | Papa au téléphone | |
+| `stealth` | Papa qui sort de la chambre sur la pointe des pieds (chambre de nuit) | |
+| `fatigue` | Papa fatigué, voûté, ou qui pique du nez (micro-sieste) | |
+| `carrying` | Papa qui porte le bébé dans ses bras | |
+
+**La pose répétitive.** Pendant toute la séance, note si le testeur dit **spontanément** qu'une pose de Papa ou du bébé se répète ou lasse (« il fait toujours le même geste »). O s'il le dit, N s'il ne dit rien de tel ; ne pose pas la question. Une seule note suffit (sur la ligne de la partie) : un O n'importe où l'emporte.
+
 ### Chambre de nuit : une séquence sans parade, c'est amusant ?
 
 Dans le niveau « Chambre de nuit », un taux de réussite ne dit pas si une séquence plaît. Pour chacune, note si le testeur s'est amusé, dans la colonne `comment` de la ligne de la partie (aucune colonne de plus) : `rester éveillé`, `100 pas`, `duel du coucher`, `dépose-bombe`, `sortie en infiltration`. Par exemple : `dépose-bombe : a retenu son souffle, a ri ; 100 pas : ennui`.
@@ -49,13 +66,15 @@ Dans le niveau « Chambre de nuit », un taux de réussite ne dit pas si une sé
 
 ## Le report : de la fiche au CSV
 
-Les notes vont dans `docs/playtest/observations.csv`, une ligne par ligne de la fiche. Les colonnes sont exactement celles de `docs/playtest/observations.example.csv` : `testerId, sessionId, threatId, identifiedWithoutHelp, perfectCitedSpontaneously, laughs, comment`.
+Les notes vont dans `docs/playtest/observations.csv`, une ligne par ligne de la fiche. Les colonnes sont exactement celles de `docs/playtest/observations.example.csv` : `testerId, sessionId, threatId, identifiedWithoutHelp, perfectCitedSpontaneously, laughs, comment`, puis les trois de l'indicateur 6, `activityId, activityNamed, repetitivePoseCited` (story 7.12). Ces trois-là sont **facultatives, mais ensemble** : un CSV d'un playtest plus ancien, sans elles, se lit toujours (l'indicateur 6 est alors `n/a`, avec un avertissement) ; un CSV qui n'en a qu'une ou deux est refusé.
 
 - **Une ligne par menace** : `testerId`, `threatId`, `identifiedWithoutHelp` (`O` ou `N`), éventuellement `comment`. Les autres colonnes restent vides.
 - **Une ligne pour la partie** : `testerId`, `threatId` **vide**, `identifiedWithoutHelp` **vide**, `perfectCitedSpontaneously` (`O`, `N` ou vide), `laughs` (un nombre, ou vide), `comment`.
+- **Une ligne par activité de « Papa sans sa bulle »** : `testerId`, `activityId` (une des six), `activityNamed` (`O` ou `N`), éventuellement `comment`. `threatId` et les colonnes de la partie restent vides : une ligne parle d'une menace **ou** d'une activité, jamais des deux.
+- **La pose répétitive** : `repetitivePoseCited` (`O`, `N` ou vide), sur la ligne de la partie de préférence ; elle est acceptée sur n'importe quelle ligne.
 - `sessionId` : le plus souvent **vide** (« ce testeur, quelle que soit la session »). Tu ne le vois pas pendant la séance ; tu peux l'ajouter après coup, il est dans le journal (8 caractères hexadécimaux, aussi dans le nom du fichier téléchargé). C'est utile surtout si un testeur a rechargé la page : l'ordre dans lequel tu écris ses sessions dit laquelle était la première.
 - Un commentaire qui contient une virgule ou un guillemet se met entre guillemets doubles (`"a dit ""waouh"", puis a ri"`). Un tableur français qui exporte avec des points-virgules convient aussi.
-- Une seule ligne par menace et par session et par testeur.
+- Une seule ligne par menace et par session et par testeur ; de même une seule par activité et par session et par testeur.
 
 Les **journaux** vont dans un dossier avec **un sous-dossier par testeur, nommé comme son pseudonyme** : `<dossier>/T1/*.json`, `<dossier>/T2/*.json`. Un `.json` posé directement dans `<dossier>` est refusé.
 
@@ -69,7 +88,7 @@ npm run playtest:metrics -- <dossier>
 
 Le rapport (Markdown) sort sur stdout ; `--out rapport.md` l'écrit dans un fichier, `--json rapport.json` ajoute la version JSON, `--observations <fichier>` indique un autre CSV.
 
-## Les cinq indicateurs et leurs seuils
+## Les six indicateurs et leurs seuils
 
 Les valeurs de départ sont dans `content/playtest.json` (hypothèse 7 du GDD). Le rapport les relit à chaque fois :
 
@@ -80,6 +99,7 @@ Les valeurs de départ sont dans `content/playtest.json` (hypothèse 7 du GDD). 
 | 3 | Lisibilité : la bonne réponse à **chaque** menace dès la première rencontre | `identifiedMinPct` (observé), `firstEncounterSuccessMinPct` (calculé, en appoint) | observé et calculé |
 | 4 | Le taux de réponses réussies au tactile, en pourcentage de celui au clavier | `touchVsKeyboardMinPct` | calculé (journaux) |
 | 5 | Le chaos est drôle : le testeur rit au moins une fois pendant un niveau | `laughedMinPct` | observé (cette fiche) |
+| 6 | Papa se lit sans sa bulle : pour **chaque** activité, les testeurs nomment ce que fait Papa ; et aucun ne trouve spontanément une pose répétitive | `bodyRead.namedMinPct` (par activité), `bodyRead.repetitivePoseMaxTesters` | observé (cette fiche, extraits avec `?bubble=off`) |
 
 Le panel minimum est `panelMinTesters` (FR68) : en dessous, le rapport le dit et le statut du panel est KO, mais les autres indicateurs sont quand même calculés.
 

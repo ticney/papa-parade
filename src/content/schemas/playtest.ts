@@ -89,6 +89,37 @@ const SimulatedTargetsSchema = z
     'The simulated-games targets of the first level (`npm run sim:balance`, part of `npm run ci`).',
   );
 
+/**
+ * The indicator « Papa se lit sans sa bulle » (GDD gameplay indicators, story 7.12, D14): Geo shows each
+ * tester an extract with Papa's activity bubble off (`?bubble=off`) and notes whether they name what he does.
+ */
+const BodyReadSchema = z
+  .strictObject({
+    activities: z
+      .array(
+        z
+          .string()
+          .regex(/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/, 'an activity id is lower_snake_case')
+          .describe('One activity of Papa a tester is asked to name.'),
+      )
+      .min(1)
+      .refine((ids) => new Set(ids).size === ids.length, { message: 'an activity is listed twice' })
+      .describe(
+        "Indicator 6 (observed): Papa's activities the testers are asked to name, the `activityId` of Geo's notes.",
+      ),
+    namedMinPct: minPct(
+      'Indicator 6 (observed): share of the testers with a note (in %) who name what Papa does, without his bubble. Applies to each activity.',
+    ),
+    repetitivePoseMaxTesters: z
+      .int()
+      .min(0)
+      .max(100)
+      .describe(
+        'Indicator 6 (observed): most testers who may spontaneously find one of his poses repetitive.',
+      ),
+  })
+  .describe('Indicator 6, « Papa se lit sans sa bulle » (story 7.12).');
+
 export const PlaytestSchema = z.strictObject({
   panelMinTesters: z
     .int()
@@ -112,6 +143,7 @@ export const PlaytestSchema = z.strictObject({
   laughedMinPct: minPct(
     'Indicator 5: share of testers (in %) who laugh at least once during a level.',
   ),
+  bodyRead: BodyReadSchema,
   humanBot: HumanBotThresholdsSchema,
   simulated: SimulatedTargetsSchema,
 });

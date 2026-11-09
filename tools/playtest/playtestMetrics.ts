@@ -65,6 +65,7 @@ export interface LoadedObservations {
 export async function loadObservations(
   explicitPath: string | null,
   defaultPath: string = join(REPO_DIR, DEFAULT_OBSERVATIONS_FILE),
+  activities: readonly string[] = [],
 ): Promise<Result<LoadedObservations, string[]>> {
   const path = explicitPath ?? defaultPath;
   // The report is meant to be shared: it names the file, not the folders of this machine.
@@ -79,13 +80,13 @@ export async function loadObservations(
         rows: [],
         path: null,
         warnings: [
-          `no observations file at ${DEFAULT_OBSERVATIONS_FILE}: the observed indicators (2, 3, 5) are n/a`,
+          `no observations file at ${DEFAULT_OBSERVATIONS_FILE}: the observed indicators (2, 3, 5, 6) are n/a`,
         ],
       });
     }
     return err([`cannot read the observations ${explicitPath ?? defaultPath}: ${reasonOf(cause)}`]);
   }
-  const parsed = parseObservations(text, shown, await listThreatIds());
+  const parsed = parseObservations(text, shown, await listThreatIds(), new Set(activities));
   if (!parsed.ok) return err(parsed.error);
   const warnings = [...parsed.value.warnings];
   if (text.includes('\uFFFD')) {
@@ -129,7 +130,11 @@ async function main(): Promise<void> {
   if (!thresholds.ok) return failAll(thresholds.error);
   const journals = await loadJournals(args.dir);
   if (!journals.ok) return failAll(journals.error);
-  const observations = await loadObservations(args.observationsPath);
+  const observations = await loadObservations(
+    args.observationsPath,
+    undefined,
+    thresholds.value.bodyRead.activities,
+  );
   if (!observations.ok) return failAll(observations.error);
   for (const warning of observations.value.warnings) log.warn('playtest', warning);
 
