@@ -119,8 +119,8 @@ export const PAPA_ACTING_CLIPS: readonly string[] = [
 export const PAPA_REACTION_CLIPS: readonly string[] = ['sigh_relief'];
 
 /**
- * Papa's two Parries (story 7.12, D4), in the order `parryVariantOf` reads them: a judged Parry success
- * plays one, alternating on `world.score.successes`. Both keep the Parry silhouette (a hand forward).
+ * Papa's two Parries (story 7.12, D4), in the order `nextParryVariantOf` reads them: a judged Parry success
+ * plays one, alternating on the last Parry played. Both keep the Parry silhouette (a hand forward).
  */
 export const PAPA_PARRY_CLIPS = ['respond_parry', 'respond_parry_sweep'] as const;
 

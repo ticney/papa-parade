@@ -13,8 +13,6 @@ import { isReliefSuccess } from './reliefSigh.ts';
 export interface ResponseCue {
   response: string;
   quality: string;
-  /** `world.score.successes` in the step of the `ResponseResolved`. */
-  successes: number;
   /** A success late in its window, its hidden tolerance included (`isReliefSuccess`). */
   isRelief: boolean;
   /** A duel or stealth step ran at the judgement (`isSignalOnly`). */
@@ -54,7 +52,6 @@ function isOnPapa(world: Readonly<World>, threatId: number): boolean {
 const createCue = (): ResponseCue => ({
   response: '',
   quality: '',
-  successes: 0,
   isRelief: false,
   isSignalOnly: false,
   cueAt: 0,
@@ -76,7 +73,6 @@ export function createResponseChoreography(): ResponseChoreography {
           // The world of the judgement's step (D6): the arrival's would count later successes.
           cue.response = event.response;
           cue.quality = event.quality;
-          cue.successes = world.score.successes;
           cue.isRelief = isReliefSuccess(event, world.feel.characters.relief.lastSharePct);
           cue.isSignalOnly = isSignalOnly(world);
           cue.cueAt = event.t;

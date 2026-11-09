@@ -7,9 +7,9 @@ import {
   type IdlesConfig,
   idleSlotAt,
   isPapaIdleEligible,
+  nextParryVariantOf,
   PAPA_IDLE_SALT,
   PAPA_PARRY_SALT,
-  parryVariantOf,
   passageOneShotOf,
   type StartStopConfig,
 } from './papaActing.ts';
@@ -39,27 +39,30 @@ function slotsOf(
   return out;
 }
 
-describe('parryVariantOf (story 7.12, D4)', () => {
-  it('alternates over consecutive successes: two Parries in a row never match', () => {
+describe('nextParryVariantOf (story 7.12, D4)', () => {
+  it('alternates: two Parries in a row never match', () => {
     for (let seed = 1; seed <= 50; seed++) {
-      for (let successes = 0; successes < 40; successes++) {
-        expect(parryVariantOf(seed, successes + 1)).not.toBe(parryVariantOf(seed, successes));
+      let last: number | null = null;
+      for (let parry = 0; parry < 40; parry++) {
+        const next = nextParryVariantOf(seed, last);
+        if (last !== null) expect(next).not.toBe(last);
+        last = next;
       }
     }
   });
 
   it("lets the level's seed pick the first: both variants open a level over the seeds", () => {
     const firsts = new Set<number>();
-    for (let seed = 1; seed <= 50; seed++) firsts.add(parryVariantOf(seed, 0));
+    for (let seed = 1; seed <= 50; seed++) firsts.add(nextParryVariantOf(seed, null));
     expect([...firsts].sort()).toEqual([0, 1]);
     // The seed's bit is actingMix32's, under the Parries' own salt.
-    expect(parryVariantOf(7, 0)).toBe(actingMix32(7, PAPA_PARRY_SALT, 0, 0) & 1);
+    expect(nextParryVariantOf(7, null)).toBe(actingMix32(7, PAPA_PARRY_SALT, 0, 0) & 1);
   });
 
   it('gives the same variant for the same inputs, always 0 or 1', () => {
-    for (let successes = 0; successes < 20; successes++) {
-      const variant = parryVariantOf(3, successes);
-      expect(parryVariantOf(3, successes)).toBe(variant);
+    for (const last of [null, 0, 1]) {
+      const variant = nextParryVariantOf(3, last);
+      expect(nextParryVariantOf(3, last)).toBe(variant);
       expect([0, 1]).toContain(variant);
     }
     expect(PAPA_PARRY_SALT).not.toBe(PAPA_IDLE_SALT);

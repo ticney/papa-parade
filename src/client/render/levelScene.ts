@@ -71,7 +71,7 @@ import {
 } from './views/expressions.ts';
 import { babyFocusOf, isPapaTired, isSignalOnly } from './views/faceInputs.ts';
 import { type CharactersFeel, createLifeInputs } from './views/lifeLayer.ts';
-import { parryVariantOf } from './views/papaActing.ts';
+import { nextParryVariantOf } from './views/papaActing.ts';
 import type { PapaGazeKind } from './views/papaGaze.ts';
 import { createPapaView, PAPA_LIFE_BONES, type PapaPose } from './views/papaView.ts';
 import { createPropView, type PropView } from './views/propView.ts';
@@ -733,6 +733,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
   let reliefArmedAt: number | null = null;
   /** The baby's last laugh, an index into `BABY_LAUGH_CLIPS` (story 7.12, D10), or null at a level's start. */
   let lastLaughVariant: number | null = null;
+  /** Papa's last Parry, an index into `PAPA_PARRY_CLIPS` (story 7.12, D4), or null at a level's start. */
+  let lastParryVariant: number | null = null;
   // The loop of each chore station (story 7.12, D2), index-aligned with `world.chores`, resolved once.
   const choreClips = bodies.choreStations.map(
     (station) =>
@@ -772,8 +774,13 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       gags.start(gag, startAt, isMotionReduced, slideDirX, slideDirZ),
     liftBaby: (startAt) => lift.start(startAt),
     playResponseClip(cue) {
-      // In a duel or stealth step, no variant and no sigh (principle 5): the first Parry, as always.
-      const variant = cue.isSignalOnly ? 0 : parryVariantOf(bodies.levelSeed, cue.successes);
+      // In a duel or stealth step, no variant and no sigh (principle 5): the first Parry, as always, and the
+      // alternation does not move. Otherwise a Parry success is the other Parry than the last one played.
+      let variant = 0;
+      if (!cue.isSignalOnly && cue.response === 'parry' && cue.quality === 'success') {
+        lastParryVariant = nextParryVariantOf(bodies.levelSeed, lastParryVariant);
+        variant = lastParryVariant;
+      }
       const clip = responseClipOf(cue.response, cue.quality, variant);
       if (clip === null) return;
       papa.playOnce(clip, oneShotFadeMs());
@@ -973,7 +980,8 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       }
       // His sigh (story 7.12, D5): dropped when he went off since, the baby is in his arms, the guard begins, the
       // level ends, the finale waits, or another one-shot took the pose's place (a dance, a stumble); played once
-      // his response pose has handed back, him idle.
+      // his response pose has handed back, him idle or back at his chore's station (the answer to the pot sends
+      // him there, not to idle).
       if (reliefArmedAt !== null) {
         const oneShot = papa.oneShotName;
         if (
@@ -985,7 +993,10 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
           (oneShot !== null && !isResponseClip(oneShot))
         ) {
           reliefArmedAt = null;
-        } else if (world.papa.state === 'idle' && oneShot === null) {
+        } else if (
+          (world.papa.state === 'idle' || world.papa.state === 'chore') &&
+          oneShot === null
+        ) {
           papa.playActing('sigh_relief', characters.fades.otherMs);
           reliefArmedAt = null;
         }
@@ -1086,6 +1097,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       pendingPapaOneShot = null;
       reliefArmedAt = null;
       lastLaughVariant = null;
+      lastParryVariant = null;
       babyLids = 0;
       clearExpressions(papaFaceTrack);
       clearExpressions(babyFaceTrack);

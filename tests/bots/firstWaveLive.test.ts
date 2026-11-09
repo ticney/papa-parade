@@ -20,15 +20,15 @@ import { isSignalOnly } from '../../src/client/render/views/faceInputs.ts';
 import {
   createIdleSlot,
   idleSlotAt,
-  parryVariantOf,
+  nextParryVariantOf,
 } from '../../src/client/render/views/papaActing.ts';
 import { loadSimLevel, type SimLevel } from '../../tools/sim/loadSimLevel.ts';
 
 // Story 7.12, the headless proof of the second half of the first wave (AC 4, 6, 7, 12): whole games of the real
 // `createSim` on the live content, played by bots, read as the views read them: the baby's pause and sit on his
 // stop (`babble`), his claps on the step clock (a frame every two steps, each slot seen by the one frame that first
-// reaches it), the Parry of each judged Parry success from `world.score.successes` in its own step (the events are
-// read after each step, as the loop delivers them), and the pick-up's span. No Three: the pure modules alone.
+// reaches it), the Parry of each judged Parry success, the other one than the last played (the events are read after each
+// step, as the loop delivers them), and the pick-up's span. No Three: the pure modules alone.
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
 const CONTENT_DIR = `${REPO}content`;
@@ -64,7 +64,6 @@ interface Clap {
 
 interface Parry {
   readonly atMs: number;
-  readonly successes: number;
   readonly clip: string;
 }
 
@@ -86,7 +85,7 @@ interface WaveRun {
   readonly restMoves: RestMove[];
   reliefs: number;
   readonly violations: string[];
-  /** Two Parry successes in a row that another success (a Firmness, a perfect) separated. */
+  /** Two Parry successes in a row that another success (a chore beat, a Firmness, a perfect) separated. */
   parryPairsSeparated: number;
 }
 
@@ -125,7 +124,9 @@ async function play(levelId: string, botId: BotId, seed: number): Promise<WaveRu
   };
   let lastFrameMs: number | null = null;
   let previousBabyState: string = sim.world.baby.state;
-  let lastSuccessWasParry: { successes: number; clip: string } | null = null;
+  let lastParryVariant: number | null = null;
+  let previousParry: { clip: string } | null = null;
+  let isOtherSuccessSince = false;
   const out: SimCommand[] = [];
   while (sim.world.time.sim < level.level.durationMs && isFlowLive(sim.world)) {
     out.length = 0;
@@ -159,25 +160,22 @@ async function play(levelId: string, botId: BotId, seed: number): Promise<WaveRu
           run.pickUpSpansMs.push(world.papa.busyUntil - world.papa.enteredAt);
         }
         if (event.type !== 'ResponseResolved' || event.quality === 'fail') continue;
-        // The Parry of a success: from the world of its own step (D4), as the choreography reads it.
+        // The Parry of a success: the other one than the last played, as the scene reads it (D4, review).
         const isParry = event.response === 'parry' && event.quality === 'success';
         if (isParry && !isSignalOnly(world)) {
-          const { successes } = world.score;
-          const clip = PAPA_PARRY_CLIPS[parryVariantOf(seed, successes)] as string;
-          run.parries.push({ atMs: event.t, successes, clip });
-          if (lastSuccessWasParry !== null) {
-            if (lastSuccessWasParry.successes === successes - 1) {
-              if (lastSuccessWasParry.clip === clip) {
-                run.violations.push(`${at}: the same Parry twice in a row (${clip})`);
-              }
-            } else {
-              run.parryPairsSeparated += 1;
-            }
+          lastParryVariant = nextParryVariantOf(seed, lastParryVariant);
+          const clip = PAPA_PARRY_CLIPS[lastParryVariant] as string;
+          if (previousParry !== null && previousParry.clip === clip) {
+            run.violations.push(`${at}: the same Parry twice in a row (${clip})`);
           }
-          lastSuccessWasParry = { successes, clip };
+          // Count the pairs another success (a chore beat, a Firmness, a perfect) separated: the case a counter on
+          // the world's successes got wrong.
+          if (previousParry !== null && isOtherSuccessSince) run.parryPairsSeparated += 1;
+          run.parries.push({ atMs: event.t, clip });
+          previousParry = { clip };
+          isOtherSuccessSince = false;
         } else if (event.quality === 'success' || event.quality === 'perfect') {
-          // Another success between two Parries: the next one may repeat (« Open for Geo », D4).
-          if (lastSuccessWasParry !== null && !isParry) lastSuccessWasParry = null;
+          isOtherSuccessSince = true;
         }
         if (event.quality === 'success' && event.offsetMs !== null && !isSignalOnly(world)) {
           const half = event.responseWindow.windowMs / 2 + event.responseWindow.toleranceMs;
@@ -301,6 +299,9 @@ describe('the second half of the first wave in live games (story 7.12, AC 4, 6, 
       for (const parry of run.parries) clips.add(parry.clip);
     }
     expect([...clips].sort()).toEqual([...PAPA_PARRY_CLIPS].sort());
+    // The games do put another success between two Parries, and the alternation held through them.
+    const separated = [...runs.values()].reduce((sum, run) => sum + run.parryPairsSeparated, 0);
+    expect(separated).toBeGreaterThan(0);
   });
 
   it('fits the pick-up to spans the clamp never touches (D3)', async () => {

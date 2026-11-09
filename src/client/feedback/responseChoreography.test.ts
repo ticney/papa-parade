@@ -35,7 +35,6 @@ const worldWith = (
   glideThreatId: number | null,
   simMs = 1000,
   threats: readonly { id: number; anchorId: string }[] = [],
-  successes = 0,
   isDuel = false,
 ): Readonly<World> =>
   ({
@@ -45,7 +44,6 @@ const worldWith = (
       state: papaState,
       glide: glideThreatId === null ? null : { threatId: glideThreatId },
     },
-    score: { successes },
     feel: { characters: { relief: { lastSharePct: 25 } } },
     sequence: { duel: { isRunning: isDuel }, stealth: { isRunning: false } },
   }) as unknown as Readonly<World>;
@@ -221,14 +219,13 @@ describe('createResponseChoreography', () => {
     expect(lifts).toEqual([]);
   });
 
-  it('tells the pose the world of the judgement: its successes, its guard and its instant (story 7.12, D6)', () => {
+  it('tells the pose the world of the judgement: its guard and its instant (story 7.12, D6)', () => {
     const { choreography, fx, cues } = setup();
-    choreography.onEvent(resolved('success', 1, 0, 1000), worldWith('idle', null, 1000, [], 4), fx);
+    choreography.onEvent(resolved('success', 1, 0, 1000), worldWith('idle', null, 1000), fx);
     expect(cues).toEqual([
       {
         response: 'parry',
         quality: 'success',
-        successes: 4,
         isRelief: false,
         isSignalOnly: false,
         cueAt: 1000,
@@ -236,12 +233,11 @@ describe('createResponseChoreography', () => {
     ]);
     choreography.onEvent(
       resolved('perfect', 1, 0, 1200),
-      worldWith('idle', null, 1200, [], 5, true),
+      worldWith('idle', null, 1200, [], true),
       fx,
     );
     expect(cues[1]).toMatchObject({
       quality: 'perfect',
-      successes: 5,
       isSignalOnly: true,
       cueAt: 1200,
     });
@@ -273,25 +269,20 @@ describe('createResponseChoreography', () => {
     const window = createTestResponseWindow();
     const late = Math.ceil((window.windowMs / 2 + window.toleranceMs) * 0.5);
     const { choreography, fx, cues } = setup();
-    choreography.onEvent(
-      resolved('success', 1, late, 1000),
-      worldWith('glide', 1, 1000, [], 2),
-      fx,
-    );
+    choreography.onEvent(resolved('success', 1, late, 1000), worldWith('glide', 1, 1000), fx);
     expect(cues).toEqual([]);
     // The micro-sleep, judged while he glides: its pose plays at once and leaves the queued one be.
-    const onPapa = worldWith('glide', 1, 1100, [{ id: 2, anchorId: PAPA_TARGET_ANCHOR_ID }], 3);
+    const onPapa = worldWith('glide', 1, 1100, [{ id: 2, anchorId: PAPA_TARGET_ANCHOR_ID }]);
     choreography.onEvent(resolved('perfect', 2, 0, 1100), onPapa, fx);
     choreography.onEvent(
       { type: 'PapaArrived', t: t(1400), xM: 0, zM: 0 },
-      worldWith('idle', null, 1400, [], 9),
+      worldWith('idle', null, 1400),
       fx,
     );
     expect(cues).toHaveLength(2);
     expect(cues[1]).toEqual({
       response: 'parry',
       quality: 'success',
-      successes: 2,
       isRelief: true,
       isSignalOnly: false,
       cueAt: 1400,

@@ -144,7 +144,6 @@ const cueOf = (
 ): ResponseCue => ({
   response,
   quality,
-  successes: 0,
   isRelief: false,
   isSignalOnly: false,
   cueAt: 0,
@@ -2007,37 +2006,55 @@ describe('the second half of the first wave in the scene (story 7.12)', () => {
   });
 
   describe('the two Parries (D4)', () => {
-    const parryOf = (levelSeed: number, successes: number, isSignalOnly = false): string | null => {
+    /** The clips of `count` Parry successes in a row on one level, `between` played after each (other poses). */
+    const parries = (
+      levelSeed: number,
+      count: number,
+      between: (level: ReturnType<typeof build>) => void = () => {},
+      isSignalOnly = false,
+    ): (string | null)[] => {
       const level = build({ levelSeed });
       level.update(fakeWorldAt(1000), 0);
-      level.fx.playResponseClip(cueOf('parry', 'success', { successes, isSignalOnly }));
-      return level.realFxState().papaClip;
+      const clips: (string | null)[] = [];
+      for (let i = 0; i < count; i++) {
+        level.fx.playResponseClip(cueOf('parry', 'success', { isSignalOnly }));
+        clips.push(level.realFxState().papaClip);
+        between(level);
+      }
+      return clips;
     };
 
     it('never plays the same Parry for two successes in a row, the seed picking the first', () => {
       for (const seed of [1, 2, 3, 4, 5, 6]) {
-        for (let successes = 0; successes < 6; successes++) {
-          const now = parryOf(seed, successes);
-          expect(PAPA_PARRY_CLIPS).toContain(now);
-          expect(parryOf(seed, successes + 1)).not.toBe(now);
-        }
+        const clips = parries(seed, 6);
+        for (const clip of clips) expect(PAPA_PARRY_CLIPS).toContain(clip);
+        for (let i = 1; i < clips.length; i++) expect(clips[i]).not.toBe(clips[i - 1]);
       }
-      const firsts = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((seed) => parryOf(seed, 0)));
+      const firsts = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((seed) => parries(seed, 1)[0]));
       expect(firsts.size).toBe(2);
     });
 
-    it('plays respond_parry alone in a duel or stealth step', () => {
-      for (let successes = 0; successes < 4; successes++) {
-        expect(parryOf(1, successes, true)).toBe('respond_parry');
+    it('alternates whatever other pose came between two Parries: a perfect, a Firmness (review)', () => {
+      const between = (level: ReturnType<typeof build>) => {
+        level.fx.playResponseClip(cueOf('parry', 'perfect'));
+        level.fx.playResponseClip(cueOf('firm', 'success'));
+      };
+      for (const seed of [1, 2, 3]) {
+        const clips = parries(seed, 5, between);
+        for (let i = 1; i < clips.length; i++) expect(clips[i]).not.toBe(clips[i - 1]);
       }
+    });
+
+    it('plays respond_parry alone in a duel or stealth step', () => {
+      expect(parries(1, 4, () => {}, true)).toEqual(Array(4).fill('respond_parry'));
     });
 
     it('keeps the perfect and the Firmness poses', () => {
       const level = build();
       level.update(fakeWorldAt(1000), 0);
-      level.fx.playResponseClip(cueOf('parry', 'perfect', { successes: 1 }));
+      level.fx.playResponseClip(cueOf('parry', 'perfect'));
       expect(level.realFxState().papaClip).toBe('respond_perfect');
-      level.fx.playResponseClip(cueOf('firm', 'success', { successes: 1 }));
+      level.fx.playResponseClip(cueOf('firm', 'success'));
       expect(level.realFxState().papaClip).toBe('respond_firm');
     });
   });
@@ -2071,6 +2088,16 @@ describe('the second half of the first wave in the scene (story 7.12)', () => {
       const level = arm();
       const seen = clipsUntil(level, ARMED_AT + 10, 2500);
       expect(seen[0]).toMatch(/^respond_parry/);
+      expect(seen).toContain('sigh_relief');
+      expect(seen.indexOf('sigh_relief')).toBeGreaterThan(0);
+    });
+
+    it('plays too when the answer sends him back to his chore, as after the pot (review)', () => {
+      const level = arm();
+      // The arrival's step: the glide ends and he resumes the cooking, at the instant the sigh was armed.
+      effectsWorld.papa.state = 'chore';
+      effectsWorld.papa.enteredAt = asSimMs(ARMED_AT);
+      const seen = clipsUntil(level, ARMED_AT + 10, 2500);
       expect(seen).toContain('sigh_relief');
       expect(seen.indexOf('sigh_relief')).toBeGreaterThan(0);
     });

@@ -150,7 +150,7 @@ development_status:
   7-9-squelette-v2-et-animations-reprises: done
   7-10-visages-sourcils-et-expressions: done
   7-11-premiere-vague-deplacement-et-attentes-de-papa: done
-  7-12-premiere-vague-taches-reponses-reactions-et-bebe: review
+  7-12-premiere-vague-taches-reponses-reactions-et-bebe: done
   # Playtest de l'animation (indicateur « Papa se lit sans sa bulle ») : npm run ci, puis le lien.
   7-13-variantes-de-reponses-et-pose-de-combo: backlog
   7-14-allures-taches-et-reactions-de-papa: backlog

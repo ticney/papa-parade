@@ -113,14 +113,14 @@ export function idleSlotAt(
 export const PAPA_PARRY_SALT = 0x9a22;
 
 /**
- * Which of Papa's two Parries a judged Parry success plays (story 7.12, D4): `(successes + seedBit) mod 2`,
- * where `successes` is `world.score.successes` in the step of the `ResponseResolved` and `seedBit` is drawn
- * once from the level's seed. `successes` grows by one on every success, so two Parry successes with no other
- * success between them always differ. A function of the world's counter and the seed: nothing remembered.
+ * Which of Papa's two Parries the next judged Parry success plays (story 7.12, D4, review): the level's seed picks
+ * the first (`lastVariant` null, as after a restart), then the other one, so that two Parries in a row never
+ * match, whatever other success (a chore beat, a « nothing ») came between them. The caller remembers the last
+ * variant it played, as for the laughs (`nextLaughVariantOf`).
  */
-export function parryVariantOf(seed: number, successes: number): number {
-  const seedBit = actingMix32(seed, PAPA_PARRY_SALT, 0, 0) & 1;
-  return (((successes + seedBit) % 2) + 2) % 2;
+export function nextParryVariantOf(seed: number, lastVariant: number | null): number {
+  if (lastVariant === null) return actingMix32(seed, PAPA_PARRY_SALT, 0, 0) & 1;
+  return (lastVariant + 1) % 2;
 }
 
 /**
