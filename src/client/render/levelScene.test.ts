@@ -147,7 +147,7 @@ const cueOf = (
   successes: 0,
   isRelief: false,
   isSignalOnly: false,
-  atMs: 0,
+  cueAt: 0,
   ...patch,
 });
 
@@ -2052,7 +2052,7 @@ describe('the second half of the first wave in the scene (story 7.12)', () => {
       effectsWorld.baby.state = 'babble';
       for (let t = 0; t <= ARMED_AT; t += 10) level.update(fakeWorldAt(t), 0);
       level.fx.playResponseClip(
-        cueOf('parry', 'success', { isRelief: true, atMs: ARMED_AT, ...patch }),
+        cueOf('parry', 'success', { isRelief: true, cueAt: ARMED_AT, ...patch }),
       );
       return level;
     }

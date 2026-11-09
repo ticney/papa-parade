@@ -1155,13 +1155,18 @@ describe('the second half of the first wave (story 7.12, AC 1, AC 13)', () => {
         idle.set(bone, asset.scene.getObjectByName(bone)?.quaternion.clone() ?? new Quaternion());
       }
     });
+    expect(idle.size).toBe(PAPA_CONTRACT.bones.length);
+    let endsChecked = 0;
     eachSampledPose(asset, ['pick_up'], (_, share) => {
       if (share !== 0 && share !== 1) return;
+      endsChecked += 1;
       for (const bone of PAPA_CONTRACT.bones) {
         const turn = asset.scene.getObjectByName(bone)?.quaternion ?? new Quaternion();
         const fromIdleDeg = turn.angleTo(idle.get(bone) ?? new Quaternion()) * RAD_TO_DEG;
         expect(fromIdleDeg, `${bone} at ${share}`).toBeLessThanOrEqual(PICK_UP_ENDS_NEAR_IDLE_DEG);
       }
     });
+    // Both ends were visited: a sampler that stopped emitting 0 or 1 would otherwise pass without a check.
+    expect(endsChecked).toBe(2);
   });
 });

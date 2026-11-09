@@ -2386,7 +2386,7 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 5000,
-              "description": "How long the baby stays on all fours after he stops (`babble`) before he sits down, in sim ms. 0 sits him at once."
+              "description": "How long the baby stays on all fours after he stops (`babble`) before he sits down, in sim ms. 0 sits him at once. He never claps before he sits: a first clap (`babyIdles.firstAfterMs`) that falls inside this pause is skipped, and the next slot is his first."
             }
           },
           "required": [
@@ -2402,7 +2402,7 @@
               "type": "integer",
               "minimum": 500,
               "maximum": 20000,
-              "description": "From the baby's stop (`babble`) to his first clap, in sim ms."
+              "description": "From the baby's stop (`babble`) to his first clap, in sim ms. A clap needs him seated: with `babySit.afterMs` above this, the first slot is skipped and the first clap comes later."
             },
             "gapMinMs": {
               "type": "integer",

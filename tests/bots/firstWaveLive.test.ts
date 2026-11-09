@@ -40,6 +40,8 @@ const BOTS: readonly BotId[] = ['idle', 'human', 'perfect'];
 const STEPS_PER_FRAME = 2;
 /** The baby's states in which he crawls (`BABY_TRAVELLING`). */
 const TRAVELLING_STATES: readonly string[] = ['wander', 'approach', 'mischiefSilent'];
+/** The only state he is placed from at a stop: put down from Papa's arms (a placement, not a crawl). */
+const PUT_DOWN_STATES: readonly string[] = ['carried'];
 /** The pick-up gesture's own length (`pick_up`, 30 frames at 30 fps). */
 const PICK_UP_CLIP_MS = 1000;
 
@@ -239,7 +241,7 @@ describe('the second half of the first wave in live games (story 7.12, AC 4, 6, 
     }
   }, TIMEOUT_MS);
 
-  it('never draws the baby paused or seated while the sim crawls him (D7)', () => {
+  it('never draws the baby paused or seated while the sim crawls him: he moves only on the step he stops on, to end his crawl or to be put down (D7)', () => {
     let restSteps = 0;
     let pausedSteps = 0;
     for (const [key, run] of runs) {
@@ -247,8 +249,9 @@ describe('the second half of the first wave in live games (story 7.12, AC 4, 6, 
       pausedSteps += run.pausedSteps;
       const levelId = key.split('/')[0] as string;
       const { feel } = (levels.get(levelId) as SimLevel).content;
-      // The step he stops on may end his crawl (less than one crawl step), or place him (put down from Papa's
-      // arms, a snap onto an open cell: instant, not a crawl); after it, he never moves.
+      // Two exceptions, both on the step he stops on and nowhere else: the step that ends his crawl (less than one
+      // crawl step), and the one that puts him down from Papa's arms (a placement, not a crawl). After it, he never
+      // moves. A move from any other state is a bug to report, not to hide.
       const { crawlSpeedMps, approachSpeedMps, sneakSpeedMps } = feel.baby;
       const crawlStepM =
         (Math.max(crawlSpeedMps, approachSpeedMps, sneakSpeedMps) * STEP_MS) / 1000;
@@ -257,6 +260,8 @@ describe('the second half of the first wave in live games (story 7.12, AC 4, 6, 
         expect(move.sinceStopMs, where).toBe(0);
         if (TRAVELLING_STATES.includes(move.fromState)) {
           expect(move.distanceM, where).toBeLessThanOrEqual(crawlStepM + 1e-9);
+        } else {
+          expect(PUT_DOWN_STATES, where).toContain(move.fromState);
         }
       }
     }
@@ -337,27 +342,4 @@ describe('the second half of the first wave in live games (story 7.12, AC 4, 6, 
     },
     TIMEOUT_MS,
   );
-
-  it('writes its counts for the story notes', () => {
-    const summary: Record<string, unknown> = {};
-    for (const [key, run] of runs) {
-      summary[key] = {
-        claps: run.claps.length,
-        parries: run.parries.length,
-        parryClips: run.parries.map((parry) => parry.clip).join(','),
-        parryPairsSeparated: run.parryPairsSeparated,
-        pickUps: run.pickUpSpansMs.join(','),
-        restSteps: run.restSteps,
-        pausedSteps: run.pausedSteps,
-        reliefs: run.reliefs,
-        restMoves: run.restMoves,
-      };
-    }
-    expect(Object.keys(summary)).toHaveLength(LEVELS.length * BOTS.length * SEEDS.length);
-    const out = process.env.PP_WAVE_SUMMARY;
-    if (out !== undefined) {
-      // A throwaway read for the story's notes, never on by default.
-      void import('node:fs').then((fs) => fs.writeFileSync(out, JSON.stringify(summary, null, 1)));
-    }
-  });
 });

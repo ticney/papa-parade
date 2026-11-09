@@ -19,8 +19,8 @@ export interface ResponseCue {
   isRelief: boolean;
   /** A duel or stealth step ran at the judgement (`isSignalOnly`). */
   isSignalOnly: boolean;
-  /** When the pose plays, in sim ms: the judgement's step, or the arrival's `t`. */
-  atMs: number;
+  /** When the pose plays, a sim time: the judgement's step, or the arrival's `t`. */
+  cueAt: number;
 }
 
 /**
@@ -57,7 +57,7 @@ const createCue = (): ResponseCue => ({
   successes: 0,
   isRelief: false,
   isSignalOnly: false,
-  atMs: 0,
+  cueAt: 0,
 });
 
 export function createResponseChoreography(): ResponseChoreography {
@@ -79,7 +79,7 @@ export function createResponseChoreography(): ResponseChoreography {
           cue.successes = world.score.successes;
           cue.isRelief = isReliefSuccess(event, world.feel.characters.relief.lastSharePct);
           cue.isSignalOnly = isSignalOnly(world);
-          cue.atMs = event.t;
+          cue.cueAt = event.t;
           // The micro-sleep is Papa's own business (a threat that stands on him): no baby to lift.
           if (isOnPapa(world, event.threatId)) {
             fx.playResponseClip(cue);
@@ -98,7 +98,7 @@ export function createResponseChoreography(): ResponseChoreography {
         case 'PapaArrived': {
           if (queuedThreatId === null) return;
           queuedThreatId = null;
-          queued.atMs = event.t;
+          queued.cueAt = event.t;
           fx.playResponseClip(queued);
           fx.liftBaby(event.t);
           return;

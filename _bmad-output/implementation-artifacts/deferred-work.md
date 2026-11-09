@@ -1308,3 +1308,7 @@ The live headless runs (`tests/bots/firstWaveLive.test.ts`, 27 games) play both 
 - **Indicator 6 is per activity, and its three columns are optional (D14)**, so the notes of earlier playtests still load (`n/a` with one warning); a file with one or two of the three is refused.
 - **The look of the eight clips** is Geo's on `7-12-screenshots/`; the merge waits for his OK.
 - **`firstWaveLive.test.ts` re-implements the view's rules** (the claps' slots with no other one-shot of the baby, the Parry variant from the step's world) as `papaActingLive.test.ts` does: `babyView.test.ts` and `levelScene.test.ts` prove them on the real views. No bot picks a debris up, so the pick-up span is proven by one forced coffee-table gag (1,000 ms, a time scale of 1).
+
+## Deferred from: code review of story-7-12-premiere-vague-taches-reponses-reactions-et-bebe (2026-11-09)
+
+- **`responseChoreography.ts` keeps a stale queued response after a glide that ends in `idle`:** the `PapaStateChanged` handler clears the queue only when `to !== 'idle'`, so the next unrelated `PapaArrived` replays the old response (since 7.12 with its stale `ResponseCue`, so possibly an armed sigh). Pre-existing; to fix with the next change to the choreography's queue.

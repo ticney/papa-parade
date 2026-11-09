@@ -231,7 +231,7 @@ describe('createResponseChoreography', () => {
         successes: 4,
         isRelief: false,
         isSignalOnly: false,
-        atMs: 1000,
+        cueAt: 1000,
       },
     ]);
     choreography.onEvent(
@@ -243,7 +243,7 @@ describe('createResponseChoreography', () => {
       quality: 'perfect',
       successes: 5,
       isSignalOnly: true,
-      atMs: 1200,
+      cueAt: 1200,
     });
   });
 
@@ -294,7 +294,7 @@ describe('createResponseChoreography', () => {
       successes: 2,
       isRelief: true,
       isSignalOnly: false,
-      atMs: 1400,
+      cueAt: 1400,
     });
   });
 

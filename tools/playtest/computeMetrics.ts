@@ -661,8 +661,19 @@ export function computeMetrics(input: ComputeMetricsInput): PlaytestReport {
     const activitiesShort = Object.entries(byActivity)
       .filter(([, measure]) => measure.count < testers.length)
       .map(([activity, measure]) => `${activity} ${measure.count}/${testers.length}`);
+    // An activity nobody noted is not in `byActivity`: the verdict is « every activity with data », so name the
+    // ones left out whenever the others have data (review, story 7.12).
+    const activitiesUnnoted = bodyThresholds.activities.filter((a) => byActivity[a] === undefined);
+    if (activityMeasures.length > 0) {
+      for (const activity of activitiesUnnoted) {
+        activitiesShort.push(`${activity} 0/${testers.length}`);
+      }
+    }
     if (activitiesShort.length > 0) {
       short.push(`6 (Papa without his bubble): ${activitiesShort.join(', ')}`);
+    }
+    if (repetitiveKnown.length > 0 && repetitiveKnown.length < testers.length) {
+      short.push(`6 (repetitive pose): ${repetitiveKnown.length}/${testers.length} testers`);
     }
     if (short.length > 0) {
       warnings.push(

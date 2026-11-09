@@ -19,6 +19,7 @@ import {
   PAPA_HELD_ONE_SHOTS,
   PAPA_IDLE_CLIPS,
   PAPA_PARRY_CLIPS,
+  PAPA_REACTION_CLIPS,
   PAPA_TRAVELLING,
   papaClipOf,
   papaOneShotOf,
@@ -86,6 +87,11 @@ describe('papaClipOf', () => {
     expect(papaClipOf(papa('glide'), carried, false, null)).toBe('glide');
   });
 
+  it('picks a debris up with the baby held: carry_idle, not the free-handed gesture (story 7.12, review)', () => {
+    expect(papaClipOf(papa('pickingUp'), baby('babble'), false, null)).toBe('pick_up');
+    expect(papaClipOf(papa('pickingUp'), baby('carried'), false, null)).toBe('carry_idle');
+  });
+
   it('walks on tiptoe in a stealth step, and only the walk changes (story 7.11, D5)', () => {
     const free = baby('babble');
     expect(papaClipOf(papa('walkPath'), free, true, null)).toBe('tiptoe');
@@ -117,6 +123,11 @@ describe("Papa's acting one-shots and their cut (story 7.11, D1, D12)", () => {
     for (const clip of PAPA_ACTING_CLIPS) expect(contract, clip).toContain(clip);
     expect(contract).toContain('tiptoe');
     expect(PAPA_CONTRACT.hiddenNodes).toContain('papa_cheeks');
+  });
+
+  it('keeps the reactions reduced motion plays among the acting clips, all in the contract', () => {
+    expect(PAPA_REACTION_CLIPS.length).toBeGreaterThan(0);
+    for (const clip of PAPA_REACTION_CLIPS) expect(PAPA_ACTING_CLIPS, clip).toContain(clip);
   });
 
   it('never lists an event one-shot as acting: a gag, a response or the finale keeps its rules', () => {

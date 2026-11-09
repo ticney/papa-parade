@@ -611,13 +611,16 @@ describe('his pause, sit-down and claps (story 7.12)', () => {
       const played = run(stopped(0), 12_000, dtMs).filter((p) => p.clip === 'clap');
       // Each clap is seen by the first frame whose step clock reaches its slot.
       return played.map((p, i) => {
-        const slot = slots[i] as { startAt: number };
-        expect(p.atMs).toBeGreaterThanOrEqual(slot.startAt);
-        expect(p.atMs).toBeLessThan(slot.startAt + dtMs);
-        return i;
+        const slot = slots[i];
+        expect(slot, `clap ${i} has a slot`).toBeDefined();
+        const { startAt } = slot as { startAt: number };
+        expect(p.atMs).toBeGreaterThanOrEqual(startAt);
+        expect(p.atMs).toBeLessThan(startAt + dtMs);
+        return startAt;
       });
     };
     const one = claps(10);
+    expect(one.length).toBeGreaterThan(0);
     expect(claps(30)).toEqual(one);
     expect(claps(70)).toEqual(one);
   });

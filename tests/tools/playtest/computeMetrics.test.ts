@@ -831,4 +831,20 @@ describe('computeMetrics: indicator 6, Papa reads without his bubble (story 7.12
       expect.stringContaining('6 (Papa without his bubble): coffee 1/5'),
     );
   });
+
+  it('names the activities nobody noted, and the testers with no repetitive-pose note, once others have data (review)', () => {
+    const report = run(panel(), [
+      named('T1', 'coffee', true),
+      note({ testerId: 'T1', repetitivePoseCited: false }),
+    ]);
+    expect(report.bodyRead.named).toBe('OK');
+    const warning = report.warnings.find((w) => w.includes('6 (Papa without his bubble)')) ?? '';
+    for (const activity of ['chore', 'phone', 'stealth', 'fatigue', 'carrying']) {
+      expect(warning, activity).toContain(`${activity} 0/5`);
+    }
+    expect(warning).toContain('6 (repetitive pose): 1/5 testers');
+    // Without any body-read note, indicator 6 is n/a and nothing is listed as missing.
+    const none = run(panel(), [note({ testerId: 'T1' })]);
+    expect(none.warnings.some((w) => w.includes('6 (Papa without his bubble)'))).toBe(false);
+  });
 });

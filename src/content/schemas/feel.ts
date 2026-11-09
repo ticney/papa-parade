@@ -1170,7 +1170,7 @@ const CharactersSchema = z
           .min(0)
           .max(5000)
           .describe(
-            'How long the baby stays on all fours after he stops (`babble`) before he sits down, in sim ms. 0 sits him at once.',
+            'How long the baby stays on all fours after he stops (`babble`) before he sits down, in sim ms. 0 sits him at once. He never claps before he sits: a first clap (`babyIdles.firstAfterMs`) that falls inside this pause is skipped, and the next slot is his first.',
           ),
       })
       .describe(
@@ -1183,7 +1183,9 @@ const CharactersSchema = z
           .int()
           .min(500)
           .max(20_000)
-          .describe("From the baby's stop (`babble`) to his first clap, in sim ms."),
+          .describe(
+            "From the baby's stop (`babble`) to his first clap, in sim ms. A clap needs him seated: with `babySit.afterMs` above this, the first slot is skipped and the first clap comes later.",
+          ),
         gapMinMs: z
           .number()
           .int()

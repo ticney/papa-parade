@@ -777,7 +777,7 @@ export function createLevelScene(assets: LevelAssets, bodies: SceneBodies): Leve
       const clip = responseClipOf(cue.response, cue.quality, variant);
       if (clip === null) return;
       papa.playOnce(clip, oneShotFadeMs());
-      if (cue.isRelief && !cue.isSignalOnly) reliefArmedAt = cue.atMs;
+      if (cue.isRelief && !cue.isSignalOnly) reliefArmedAt = cue.cueAt;
     },
     playCharacterEvent(event, world, isMotionReduced) {
       // Story 7.11, D11, D12: the step that applies a command, or changes his state, cuts his acting in

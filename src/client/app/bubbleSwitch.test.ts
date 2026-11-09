@@ -18,7 +18,7 @@ describe('readBubbleOff (story 7.12, D13)', () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('ignores any other value, with one warning', () => {
+  it('ignores any other value, with one warning each', () => {
     expect(readBubbleOff('?bubble=on')).toBe(false);
     expect(readBubbleOff('?bubble=')).toBe(false);
     expect(warnSpy).toHaveBeenCalledTimes(2);

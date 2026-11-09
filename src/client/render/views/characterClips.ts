@@ -81,7 +81,8 @@ export function isBabyTravelling(baby: Readonly<BabySlice>): boolean {
 /**
  * The loop Papa's state says now; the baby's state alone says whether he carries (there is no `papa.carrying`).
  * In a stealth step (`isStealth`, story 7.11, D5) he walks on tiptoe: a boolean, never a threat. At a chore's
- * station he plays `choreClip`, the station's loop (story 7.12, D2), or `idle` when it has none.
+ * station he plays `choreClip`, the station's loop (story 7.12, D2), or `idle` when it has none. A debris tapped
+ * with the baby in his arms is picked up with the baby held: `carry_idle`, as before the pick-up had its clip.
  */
 export function papaClipOf(
   papa: Readonly<PapaSlice>,
@@ -91,7 +92,7 @@ export function papaClipOf(
 ): string {
   const clip = papa.state === 'chore' ? (choreClip ?? 'idle') : PAPA_LOOPS[papa.state];
   if (baby.state !== 'carried') return isStealth && clip === 'walk' ? 'tiptoe' : clip;
-  if (clip === 'idle') return 'carry_idle';
+  if (clip === 'idle' || clip === 'pick_up') return 'carry_idle';
   if (clip === 'walk') return 'carry_walk';
   return clip;
 }
@@ -110,6 +111,12 @@ export const PAPA_ACTING_CLIPS: readonly string[] = [
   // The sigh after a success late in its window (story 7.12, D5): a reaction a tap cuts.
   'sigh_relief',
 ];
+
+/**
+ * The acting clips that answer something that happened (story 7.12, review): reduced motion keeps them, it stops
+ * only the idles, starts and brakes. A later reaction goes here and in `PAPA_ACTING_CLIPS`.
+ */
+export const PAPA_REACTION_CLIPS: readonly string[] = ['sigh_relief'];
 
 /**
  * Papa's two Parries (story 7.12, D4), in the order `parryVariantOf` reads them: a judged Parry success

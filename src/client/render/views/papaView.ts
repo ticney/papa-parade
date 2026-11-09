@@ -22,7 +22,12 @@ import {
   stepBrows,
   unplaceBrows,
 } from './brows.ts';
-import { PAPA_IDLE_CLIPS, PAPA_TRAVELLING, papaClipOf } from './characterClips.ts';
+import {
+  PAPA_IDLE_CLIPS,
+  PAPA_REACTION_CLIPS,
+  PAPA_TRAVELLING,
+  papaClipOf,
+} from './characterClips.ts';
 import { type FadesConfig, fadeMsOf } from './characterFades.ts';
 import {
   busyCycleAt,
@@ -71,11 +76,6 @@ const IDENTITY = new Quaternion();
 /** The brows turn about the head's forward axis (story 7.10, D2): +θ lifts the end toward his left. */
 const BROW_TILT_AXIS = new Vector3(0, 0, 1);
 const IDLE_CLIPS: readonly string[] = PAPA_IDLE_CLIPS;
-/**
- * His acting reactions (story 7.12, D5): a reaction carries a clip as a response pose or a gag does, so
- * reduced motion keeps it; it stops only his idles, starts and brakes (the élan).
- */
-const REACTION_CLIPS: readonly string[] = ['sigh_relief'];
 /** The gesture that fits the sim's busy span (story 7.12, D3). */
 const PICK_UP_CLIP = 'pick_up';
 
@@ -518,7 +518,7 @@ export function createPapaView(
         actingClip !== null &&
         (isCarried ||
           isGuarded ||
-          (isReduced && !REACTION_CLIPS.includes(actingClip)) ||
+          (isReduced && !PAPA_REACTION_CLIPS.includes(actingClip)) ||
           (papa.state !== 'idle' && IDLE_CLIPS.includes(actingClip)))
       ) {
         cutActingNow(fades);
